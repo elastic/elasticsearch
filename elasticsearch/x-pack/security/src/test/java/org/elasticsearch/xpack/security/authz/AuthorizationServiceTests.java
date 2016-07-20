@@ -51,7 +51,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
@@ -65,17 +64,17 @@ import org.elasticsearch.xpack.security.SecurityTemplateService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.user.AnonymousUser;
+import org.elasticsearch.xpack.security.user.SystemUser;
+import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.GeneralPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
-import org.elasticsearch.xpack.security.authz.store.RolesStore;
-import org.elasticsearch.xpack.security.user.AnonymousUser;
-import org.elasticsearch.xpack.security.user.SystemUser;
-import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.security.user.XPackUser;
 import org.junit.After;
 import org.junit.Before;
 
@@ -85,7 +84,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -95,25 +93,23 @@ import static org.mockito.Mockito.when;
 
 public class AuthorizationServiceTests extends ESTestCase {
     private AuditTrailService auditTrail;
-    private RolesStore rolesStore;
+    private CompositeRolesStore rolesStore;
     private ClusterService clusterService;
-    private AuthorizationService internalAuthorizationService;
+    private AuthorizationService authorizationService;
     private ThreadContext threadContext;
     private ThreadPool threadPool;
 
     @Before
     public void setup() {
-        rolesStore = mock(RolesStore.class);
+        rolesStore = mock(CompositeRolesStore.class);
         clusterService = mock(ClusterService.class);
         auditTrail = mock(AuditTrailService.class);
         threadContext = new ThreadContext(Settings.EMPTY);
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
-        IndexNameExpressionResolver nameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        when(nameExpressionResolver.resolveDateMathExpression(any(String.class))).thenAnswer(returnsFirstArg());
-        internalAuthorizationService = new AuthorizationService(Settings.EMPTY, rolesStore, clusterService,
-                auditTrail, new DefaultAuthenticationFailureHandler(), threadPool, nameExpressionResolver);
+        authorizationService = new AuthorizationService(Settings.EMPTY, rolesStore, clusterService,
+                auditTrail, new DefaultAuthenticationFailureHandler(), threadPool);
     }
 
     @After
@@ -125,10 +121,10 @@ public class AuthorizationServiceTests extends ESTestCase {
         TransportRequest request = mock(TransportRequest.class);
 
         // A failure would throw an exception
-        internalAuthorizationService.authorize(createAuthentication(SystemUser.INSTANCE), "indices:monitor/whatever", request);
+        authorizationService.authorize(createAuthentication(SystemUser.INSTANCE), "indices:monitor/whatever", request);
         verify(auditTrail).accessGranted(SystemUser.INSTANCE, "indices:monitor/whatever", request);
 
-        internalAuthorizationService.authorize(createAuthentication(SystemUser.INSTANCE), "internal:whatever", request);
+        authorizationService.authorize(createAuthentication(SystemUser.INSTANCE), "internal:whatever", request);
         verify(auditTrail).accessGranted(SystemUser.INSTANCE, "internal:whatever", request);
         verifyNoMoreInteractions(auditTrail);
     }
@@ -136,7 +132,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testIndicesActionsAreNotAuthorized() {
         TransportRequest request = mock(TransportRequest.class);
         try {
-            internalAuthorizationService.authorize(createAuthentication(SystemUser.INSTANCE), "indices:", request);
+            authorizationService.authorize(createAuthentication(SystemUser.INSTANCE), "indices:", request);
             fail("action beginning with indices should have failed");
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e,
@@ -149,7 +145,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testClusterAdminActionsAreNotAuthorized() {
         TransportRequest request = mock(TransportRequest.class);
         try {
-            internalAuthorizationService.authorize(createAuthentication(SystemUser.INSTANCE), "cluster:admin/whatever", request);
+            authorizationService.authorize(createAuthentication(SystemUser.INSTANCE), "cluster:admin/whatever", request);
             fail("action beginning with cluster:admin/whatever should have failed");
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e,
@@ -162,7 +158,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testClusterAdminSnapshotStatusActionIsNotAuthorized() {
         TransportRequest request = mock(TransportRequest.class);
         try {
-            internalAuthorizationService.authorize(createAuthentication(SystemUser.INSTANCE), "cluster:admin/snapshot/status", request);
+            authorizationService.authorize(createAuthentication(SystemUser.INSTANCE), "cluster:admin/snapshot/status", request);
             fail("action beginning with cluster:admin/snapshot/status should have failed");
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [cluster:admin/snapshot/status] is unauthorized for user [" +
@@ -176,7 +172,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         TransportRequest request = new SearchRequest();
         User user = new User("test user");
         try {
-            internalAuthorizationService.authorize(createAuthentication(user), "indices:a", request);
+            authorizationService.authorize(createAuthentication(user), "indices:a", request);
             fail("user without roles should be denied");
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user]"));
@@ -189,7 +185,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         TransportRequest request = new SearchRequest();
         User user = new User("test user", "non-existent-role");
         try {
-            internalAuthorizationService.authorize(createAuthentication(user), "indices:a", request);
+            authorizationService.authorize(createAuthentication(user), "indices:a", request);
             fail("user with unknown role only should have been denied");
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user]"));
@@ -204,7 +200,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(rolesStore.role("a_all")).thenReturn(Role.builder("a_role").add(IndexPrivilege.ALL, "a").build());
 
         try {
-            internalAuthorizationService.authorize(createAuthentication(user), "whatever", request);
+            authorizationService.authorize(createAuthentication(user), "whatever", request);
             fail("non indices and non cluster requests should be denied");
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [whatever] is unauthorized for user [test user]"));
@@ -219,7 +215,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(rolesStore.role("no_indices")).thenReturn(Role.builder("no_indices").cluster(ClusterPrivilege.action("")).build());
 
         try {
-            internalAuthorizationService.authorize(createAuthentication(user), "indices:a", request);
+            authorizationService.authorize(createAuthentication(user), "indices:a", request);
             fail("user only has cluster roles so indices requests should fail");
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user]"));
@@ -233,29 +229,29 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(rolesStore.role("a_all")).thenReturn(Role.builder("a_role").add(IndexPrivilege.ALL, "a").build());
 
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-        internalAuthorizationService.authorize(createAuthentication(user), ClearScrollAction.NAME, clearScrollRequest);
+        authorizationService.authorize(createAuthentication(user), ClearScrollAction.NAME, clearScrollRequest);
         verify(auditTrail).accessGranted(user, ClearScrollAction.NAME, clearScrollRequest);
 
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
-        internalAuthorizationService.authorize(createAuthentication(user), SearchScrollAction.NAME, searchScrollRequest);
+        authorizationService.authorize(createAuthentication(user), SearchScrollAction.NAME, searchScrollRequest);
         verify(auditTrail).accessGranted(user, SearchScrollAction.NAME, searchScrollRequest);
 
         // We have to use a mock request for other Scroll actions as the actual requests are package private to SearchTransportService
         TransportRequest request = mock(TransportRequest.class);
-        internalAuthorizationService
+        authorizationService
                 .authorize(createAuthentication(user), SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME, request);
         verify(auditTrail).accessGranted(user, SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME, request);
 
-        internalAuthorizationService.authorize(createAuthentication(user), SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME, request);
+        authorizationService.authorize(createAuthentication(user), SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME, request);
         verify(auditTrail).accessGranted(user, SearchTransportService.FETCH_ID_SCROLL_ACTION_NAME, request);
 
-        internalAuthorizationService.authorize(createAuthentication(user), SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME, request);
+        authorizationService.authorize(createAuthentication(user), SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME, request);
         verify(auditTrail).accessGranted(user, SearchTransportService.QUERY_FETCH_SCROLL_ACTION_NAME, request);
 
-        internalAuthorizationService.authorize(createAuthentication(user), SearchTransportService.QUERY_SCROLL_ACTION_NAME, request);
+        authorizationService.authorize(createAuthentication(user), SearchTransportService.QUERY_SCROLL_ACTION_NAME, request);
         verify(auditTrail).accessGranted(user, SearchTransportService.QUERY_SCROLL_ACTION_NAME, request);
 
-        internalAuthorizationService.authorize(createAuthentication(user), SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME, request);
+        authorizationService.authorize(createAuthentication(user), SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME, request);
         verify(auditTrail).accessGranted(user, SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME, request);
         verifyNoMoreInteractions(auditTrail);
     }
@@ -269,7 +265,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
 
         try {
-            internalAuthorizationService.authorize(createAuthentication(user), "indices:a", request);
+            authorizationService.authorize(createAuthentication(user), "indices:a", request);
             fail("indices request for b should be denied since there is no such index");
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user]"));
@@ -290,7 +286,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
 
         try {
-            internalAuthorizationService.authorize(createAuthentication(user), CreateIndexAction.NAME, request);
+            authorizationService.authorize(createAuthentication(user), CreateIndexAction.NAME, request);
             fail("indices creation request with alias should be denied since user does not have permission to alias");
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e,
@@ -311,7 +307,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
 
-        internalAuthorizationService.authorize(createAuthentication(user), CreateIndexAction.NAME, request);
+        authorizationService.authorize(createAuthentication(user), CreateIndexAction.NAME, request);
 
         verify(auditTrail).accessGranted(user, CreateIndexAction.NAME, request);
         verifyNoMoreInteractions(auditTrail);
@@ -322,7 +318,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testIndicesAliasesWithNoRolesUser() {
         User user = new User("test user");
 
-        List<String> list = internalAuthorizationService.authorizedIndicesAndAliases(user, "");
+        List<String> list = authorizationService.authorizedIndicesAndAliases(user, "");
         assertThat(list.isEmpty(), is(true));
     }
 
@@ -347,7 +343,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                         .build(), true)
                 .build());
 
-        List<String> list = internalAuthorizationService.authorizedIndicesAndAliases(user, SearchAction.NAME);
+        List<String> list = authorizationService.authorizedIndicesAndAliases(user, SearchAction.NAME);
         assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
         assertThat(list.contains("bbbbb"), is(false));
         assertThat(list.contains("ba"), is(false));
@@ -357,17 +353,15 @@ public class AuthorizationServiceTests extends ESTestCase {
         TransportRequest request = new IndicesExistsRequest("b");
         ClusterState state = mock(ClusterState.class);
         AnonymousUser.initialize(Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "a_all").build());
-        IndexNameExpressionResolver nameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        when(nameExpressionResolver.resolveDateMathExpression(any(String.class))).thenAnswer(returnsFirstArg());
-        internalAuthorizationService = new AuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail,
-                new DefaultAuthenticationFailureHandler(), threadPool, nameExpressionResolver);
+        authorizationService = new AuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail,
+                new DefaultAuthenticationFailureHandler(), threadPool);
 
         when(rolesStore.role("a_all")).thenReturn(Role.builder("a_all").add(IndexPrivilege.ALL, "a").build());
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
 
         try {
-            internalAuthorizationService.authorize(createAuthentication(AnonymousUser.INSTANCE), "indices:a", request);
+            authorizationService.authorize(createAuthentication(AnonymousUser.INSTANCE), "indices:a", request);
             fail("indices request for b should be denied since there is no such index");
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e,
@@ -387,18 +381,16 @@ public class AuthorizationServiceTests extends ESTestCase {
                 .put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false)
                 .build());
         User anonymousUser = AnonymousUser.INSTANCE;
-        IndexNameExpressionResolver nameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        when(nameExpressionResolver.resolveDateMathExpression(any(String.class))).thenAnswer(returnsFirstArg());
-        internalAuthorizationService = new AuthorizationService(
+        authorizationService = new AuthorizationService(
                 Settings.builder().put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false).build(),
-                rolesStore, clusterService, auditTrail, new DefaultAuthenticationFailureHandler(), threadPool, nameExpressionResolver);
+                rolesStore, clusterService, auditTrail, new DefaultAuthenticationFailureHandler(), threadPool);
 
         when(rolesStore.role("a_all")).thenReturn(Role.builder("a_all").add(IndexPrivilege.ALL, "a").build());
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
 
         try {
-            internalAuthorizationService.authorize(createAuthentication(anonymousUser), "indices:a", request);
+            authorizationService.authorize(createAuthentication(anonymousUser), "indices:a", request);
             fail("indices request for b should be denied since there is no such index");
         } catch (ElasticsearchSecurityException e) {
             assertAuthenticationException(e, containsString("action [indices:a] requires authentication"));
@@ -414,7 +406,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         User user = new User("test user", null, new User("run as me", new String[] { "admin" }));
         assertThat(user.runAs(), is(notNullValue()));
         try {
-            internalAuthorizationService.authorize(createAuthentication(user), "indices:a", request);
+            authorizationService.authorize(createAuthentication(user), "indices:a", request);
             fail("user without roles should be denied for run as");
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user] run as [run as me]"));
@@ -434,7 +426,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 .build());
 
         try {
-            internalAuthorizationService.authorize(createAuthentication(user), "indices:a", request);
+            authorizationService.authorize(createAuthentication(user), "indices:a", request);
             fail("user without roles should be denied for run as");
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user] run as [run as me]"));
@@ -468,7 +460,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
 
         try {
-            internalAuthorizationService.authorize(createAuthentication(user), "indices:a", request);
+            authorizationService.authorize(createAuthentication(user), "indices:a", request);
             fail("the run as user's role doesn't exist so they should not get authorized");
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e, containsString("action [indices:a] is unauthorized for user [test user] run as [run as me]"));
@@ -499,7 +491,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 .add(IndexPrivilege.ALL, "b")
                 .build());
 
-        internalAuthorizationService.authorize(createAuthentication(user), "indices:a", request);
+        authorizationService.authorize(createAuthentication(user), "indices:a", request);
         verify(auditTrail).runAsGranted(user, "indices:a", request);
         verify(auditTrail).accessGranted(user, "indices:a", request);
         verifyNoMoreInteractions(auditTrail);
@@ -538,7 +530,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             String action = requestTuple.v1();
             TransportRequest request = requestTuple.v2();
             try {
-                internalAuthorizationService.authorize(createAuthentication(user), action, request);
+                authorizationService.authorize(createAuthentication(user), action, request);
                 fail("only the xpack user can execute operation [" + action + "] against the internal index");
             } catch (ElasticsearchSecurityException e) {
                 assertAuthorizationException(e, containsString("action [" + action + "] is unauthorized for user [all_access_user]"));
@@ -549,12 +541,12 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         // we should allow waiting for the health of the index or any index if the user has this permission
         ClusterHealthRequest request = new ClusterHealthRequest(SecurityTemplateService.SECURITY_INDEX_NAME);
-        internalAuthorizationService.authorize(createAuthentication(user), ClusterHealthAction.NAME, request);
+        authorizationService.authorize(createAuthentication(user), ClusterHealthAction.NAME, request);
         verify(auditTrail).accessGranted(user, ClusterHealthAction.NAME, request);
 
         // multiple indices
         request = new ClusterHealthRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "foo", "bar");
-        internalAuthorizationService.authorize(createAuthentication(user), ClusterHealthAction.NAME, request);
+        authorizationService.authorize(createAuthentication(user), ClusterHealthAction.NAME, request);
         verify(auditTrail).accessGranted(user, ClusterHealthAction.NAME, request);
     }
 
@@ -586,7 +578,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         for (Tuple<String, ? extends TransportRequest> requestTuple : requests) {
             String action = requestTuple.v1();
             TransportRequest request = requestTuple.v2();
-            internalAuthorizationService.authorize(createAuthentication(user), action, request);
+            authorizationService.authorize(createAuthentication(user), action, request);
             verify(auditTrail).accessGranted(user, action, request);
         }
     }
@@ -620,7 +612,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         for (Tuple<String, TransportRequest> requestTuple : requests) {
             String action = requestTuple.v1();
             TransportRequest request = requestTuple.v2();
-            internalAuthorizationService.authorize(createAuthentication(XPackUser.INSTANCE), action, request);
+            authorizationService.authorize(createAuthentication(XPackUser.INSTANCE), action, request);
             verify(auditTrail).accessGranted(XPackUser.INSTANCE, action, request);
         }
     }

@@ -11,6 +11,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -53,7 +54,8 @@ public class SecurityTests extends ESTestCase {
         Environment env = new Environment(settings);
         Security security = new Security(settings, env);
         ThreadPool threadPool = mock(ThreadPool.class);
-        return security.createComponents(null, threadPool, null, null, Arrays.asList(extensions));
+        ClusterService clusterService = mock(ClusterService.class);
+        return security.createComponents(null, threadPool, clusterService, null, Arrays.asList(extensions));
     }
 
     private <T> T findComponent(Class<T> type, Collection<Object> components) {
@@ -90,7 +92,8 @@ public class SecurityTests extends ESTestCase {
 
     public void testDisabledByDefault() throws Exception {
         Collection<Object> components = createComponents(Settings.EMPTY);
-        assertNull(findComponent(AuthenticationService.class, components));
+        AuditTrailService auditTrailService = findComponent(AuditTrailService.class, components);
+        assertEquals(0, auditTrailService.getAuditTrails().size());
     }
 
     public void testIndexAuditTrail() throws Exception {

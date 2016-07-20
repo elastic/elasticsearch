@@ -5,6 +5,13 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Predicate;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -12,28 +19,24 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.SearchScrollAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.action.SearchTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
-import org.elasticsearch.xpack.security.audit.AuditTrailService;
-import org.elasticsearch.xpack.security.authc.Authentication;
-import org.elasticsearch.xpack.security.user.AnonymousUser;
-import org.elasticsearch.xpack.security.user.SystemUser;
-import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
+import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.security.authz.indicesresolver.DefaultIndicesAndAliasesResolver;
@@ -45,16 +48,13 @@ import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.permission.RunAsPermission;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.user.AnonymousUser;
+import org.elasticsearch.xpack.security.user.SystemUser;
+import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authz.store.RolesStore;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.support.Exceptions.authorizationError;
@@ -72,23 +72,22 @@ public class AuthorizationService extends AbstractComponent {
     private static final Predicate<String> MONITOR_INDEX_PREDICATE = IndexPrivilege.MONITOR.predicate();
 
     private final ClusterService clusterService;
-    private final RolesStore rolesStore;
-    private final AuditTrail auditTrail;
+    private final CompositeRolesStore rolesStore;
+    private final AuditTrailService auditTrail;
     private final IndicesAndAliasesResolver[] indicesAndAliasesResolvers;
     private final AuthenticationFailureHandler authcFailureHandler;
     private final ThreadContext threadContext;
     private final boolean anonymousAuthzExceptionEnabled;
 
-    @Inject
-    public AuthorizationService(Settings settings, RolesStore rolesStore, ClusterService clusterService,
+    public AuthorizationService(Settings settings, CompositeRolesStore rolesStore, ClusterService clusterService,
                                 AuditTrailService auditTrail, AuthenticationFailureHandler authcFailureHandler,
-                                ThreadPool threadPool, IndexNameExpressionResolver nameExpressionResolver) {
+                                ThreadPool threadPool) {
         super(settings);
         this.rolesStore = rolesStore;
         this.clusterService = clusterService;
         this.auditTrail = auditTrail;
         this.indicesAndAliasesResolvers = new IndicesAndAliasesResolver[] {
-                new DefaultIndicesAndAliasesResolver(this, nameExpressionResolver)
+                new DefaultIndicesAndAliasesResolver(this, new IndexNameExpressionResolver(settings))
         };
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();

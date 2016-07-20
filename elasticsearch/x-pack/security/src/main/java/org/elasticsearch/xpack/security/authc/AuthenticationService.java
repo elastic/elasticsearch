@@ -5,16 +5,17 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import java.io.IOException;
+import java.util.List;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -25,9 +26,6 @@ import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
-
-import java.io.IOException;
-import java.util.List;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 
@@ -53,7 +51,6 @@ public class AuthenticationService extends AbstractComponent {
     private final boolean signUserHeader;
     private final boolean runAsEnabled;
 
-    @Inject
     public AuthenticationService(Settings settings, Realms realms, AuditTrailService auditTrail, CryptoService cryptoService,
                                  AuthenticationFailureHandler failureHandler, ThreadPool threadPool) {
         super(settings);

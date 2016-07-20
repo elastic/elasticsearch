@@ -22,10 +22,8 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
 
@@ -36,36 +34,24 @@ import java.util.List;
 import java.util.Map;
 
 public class MinBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
-
-    public static final Type TYPE = new Type("min_bucket");
-
-    public static final PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
-        @Override
-        public MinBucketPipelineAggregator readResult(StreamInput in) throws IOException {
-            MinBucketPipelineAggregator result = new MinBucketPipelineAggregator();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     private List<String> minBucketKeys;
     private double minValue;
-
-    private MinBucketPipelineAggregator() {
-    }
 
     protected MinBucketPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, DocValueFormat formatter,
             Map<String, Object> metaData) {
         super(name, bucketsPaths, gapPolicy, formatter, metaData);
     }
 
+    /**
+     * Read from a stream.
+     */
+    public MinBucketPipelineAggregator(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    public String getWriteableName() {
+        return MinBucketPipelineAggregationBuilder.NAME;
     }
 
     @Override
@@ -86,8 +72,7 @@ public class MinBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     }
 
     @Override
-    protected InternalAggregation buildAggregation(java.util.List<PipelineAggregator> pipelineAggregators,
-            java.util.Map<String, Object> metadata) {
+    protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
         String[] keys = minBucketKeys.toArray(new String[minBucketKeys.size()]);
         return new InternalBucketMetricValue(name(), keys, minValue, format, Collections.emptyList(), metaData());
     }

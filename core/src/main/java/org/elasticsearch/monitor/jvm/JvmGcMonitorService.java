@@ -29,6 +29,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.monitor.jvm.JvmStats.GarbageCollector;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -48,7 +50,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
     private final Map<String, GcThreshold> gcThresholds;
     private final GcOverheadThreshold gcOverheadThreshold;
 
-    private volatile ScheduledFuture scheduledFuture;
+    private volatile Cancellable scheduledFuture;
 
     public static final Setting<Boolean> ENABLED_SETTING =
         Setting.boolSetting("monitor.jvm.gc.enabled", true, Property.NodeScope);
@@ -198,7 +200,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
             void onGcOverhead(final Threshold threshold, final long current, final long elapsed, final long seq) {
                 logGcOverhead(logger, threshold, current, elapsed, seq);
             }
-        }, interval);
+        }, interval, Names.SAME);
     }
 
     private static final String SLOW_GC_LOG_MESSAGE =
@@ -334,7 +336,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent {
         if (!enabled) {
             return;
         }
-        FutureUtils.cancel(scheduledFuture);
+        scheduledFuture.cancel();
     }
 
     @Override

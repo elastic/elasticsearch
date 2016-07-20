@@ -45,7 +45,7 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
 
 public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<BucketSelectorPipelineAggregationBuilder> {
-    public static final String NAME = BucketSelectorPipelineAggregator.TYPE.name();
+    public static final String NAME = "bucket_selector";
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private final Map<String, String> bucketsPathsMap;
@@ -53,8 +53,7 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
     private GapPolicy gapPolicy = GapPolicy.SKIP;
 
     public BucketSelectorPipelineAggregationBuilder(String name, Map<String, String> bucketsPathsMap, Script script) {
-        super(name, BucketSelectorPipelineAggregator.TYPE.name(), new TreeMap<>(bucketsPathsMap).values()
-                .toArray(new String[bucketsPathsMap.size()]));
+        super(name, NAME, new TreeMap<>(bucketsPathsMap).values().toArray(new String[bucketsPathsMap.size()]));
         this.bucketsPathsMap = bucketsPathsMap;
         this.script = script;
     }
@@ -67,7 +66,7 @@ public class BucketSelectorPipelineAggregationBuilder extends AbstractPipelineAg
      * Read from a stream.
      */
     public BucketSelectorPipelineAggregationBuilder(StreamInput in) throws IOException {
-        super(in, BucketSelectorPipelineAggregator.TYPE.name());
+        super(in, NAME);
         int mapSize = in.readVInt();
         bucketsPathsMap = new HashMap<String, String>(mapSize);
         for (int i = 0; i < mapSize; i++) {

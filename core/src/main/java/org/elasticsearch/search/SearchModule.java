@@ -211,6 +211,7 @@ import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucke
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max.MaxBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.InternalPercentilesBucket;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.InternalStatsBucket;
@@ -437,18 +438,16 @@ public class SearchModule extends AbstractModule {
             pipelineAggregationParserRegistry.register(spec.parser, spec.name);
         }
         namedWriteableRegistry.register(PipelineAggregationBuilder.class, spec.name.getPreferredName(), spec.builderReader);
-        for (Map.Entry<String, Writeable.Reader<? extends PipelineAggregator>> resultReader : spec.resultReaders.entrySet()) {
-            namedWriteableRegistry.register(PipelineAggregator.class, resultReader.getKey(), resultReader.getValue());
-        }
-        for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> bucketReaders : spec.bucketReaders.entrySet()) {
-            namedWriteableRegistry.register(InternalAggregation.class, bucketReaders.getKey(), bucketReaders.getValue());
+        namedWriteableRegistry.register(PipelineAggregator.class, spec.name.getPreferredName(), spec.aggregatorReader);
+        for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> resultReader : spec.resultReaders.entrySet()) {
+            namedWriteableRegistry.register(InternalAggregation.class, resultReader.getKey(), resultReader.getValue());
         }
     }
 
     public static class PipelineAggregationSpec {
-        private final Map<String, Writeable.Reader<? extends PipelineAggregator>> resultReaders = new TreeMap<>();
-        private final Map<String, Writeable.Reader<? extends InternalAggregation>> bucketReaders = new TreeMap<>();
+        private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
         private final Writeable.Reader<? extends PipelineAggregationBuilder> builderReader;
+        private final Writeable.Reader<? extends PipelineAggregator> aggregatorReader;
         private final PipelineAggregator.Parser parser;
         private final ParseField name;
 
@@ -456,13 +455,16 @@ public class SearchModule extends AbstractModule {
          * Register a pipeline aggregation.
          *
          * @param builderReader reads the {@link PipelineAggregationBuilder} from a stream
+         * @param aggregatorReader reads the {@link PipelineAggregator} from a stream
          * @param parser reads the aggregation builder from XContent
          * @param name names by which the aggregation may be parsed. The first name is special because it is the name that the reader is
          *        registered under.
          */
         public PipelineAggregationSpec(Reader<? extends PipelineAggregationBuilder> builderReader,
+                Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
                 PipelineAggregator.Parser parser, ParseField name) {
             this.builderReader = builderReader;
+            this.aggregatorReader = aggregatorReader;
             this.parser = parser;
             this.name = name;
         }
@@ -471,31 +473,15 @@ public class SearchModule extends AbstractModule {
          * Add a reader for the shard level results of the aggregation with {@linkplain #name}'s {@link ParseField#getPreferredName()} as
          * the {@link NamedWriteable#getWriteableName()}.
          */
-        public PipelineAggregationSpec addResultReader(Writeable.Reader<? extends PipelineAggregator> resultReader) {
+        public PipelineAggregationSpec addResultReader(Writeable.Reader<? extends InternalAggregation> resultReader) {
             return addResultReader(name.getPreferredName(), resultReader);
         }
 
         /**
          * Add a reader for the shard level results of the aggregation.
          */
-        public PipelineAggregationSpec addResultReader(String writeableName, Writeable.Reader<? extends PipelineAggregator> resultReader) {
+        public PipelineAggregationSpec addResultReader(String writeableName, Writeable.Reader<? extends InternalAggregation> resultReader) {
             resultReaders.put(writeableName, resultReader);
-            return this;
-        }
-
-        /**
-         * Add a reader for the shard level bucket results of the aggregation with {@linkplain name}'s {@link ParseField#getPreferredName()}
-         * as the {@link NamedWriteable#getWriteableName()}.
-         */
-        public PipelineAggregationSpec addBucketReader(Writeable.Reader<? extends InternalAggregation> resultReader) {
-            return addBucketReader(name.getPreferredName(), resultReader);
-        }
-
-        /**
-         * Add a reader for the shard level results of the aggregation.
-         */
-        public PipelineAggregationSpec addBucketReader(String writeableName, Writeable.Reader<? extends InternalAggregation> resultReader) {
-            bucketReaders.put(writeableName, resultReader);
             return this;
         }
     }
@@ -606,49 +592,80 @@ public class SearchModule extends AbstractModule {
 
         registerPipelineAggregation(new PipelineAggregationSpec(
                 DerivativePipelineAggregationBuilder::new,
+                DerivativePipelineAggregator::new,
                 DerivativePipelineAggregationBuilder::parse,
                 DerivativePipelineAggregationBuilder.AGGREGATION_NAME_FIELD)
-                    .addResultReader(DerivativePipelineAggregator::new)
-                    .addBucketReader(InternalDerivative::new));
-        registerPipelineAggregation(MaxBucketPipelineAggregationBuilder::new, MaxBucketPipelineAggregationBuilder.PARSER,
-                MaxBucketPipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerPipelineAggregation(MinBucketPipelineAggregationBuilder::new, MinBucketPipelineAggregationBuilder.PARSER,
-                MinBucketPipelineAggregationBuilder.AGGREGATION_FIELD_NAME);
-        registerPipelineAggregation(AvgBucketPipelineAggregationBuilder::new, AvgBucketPipelineAggregationBuilder.PARSER,
-                AvgBucketPipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerPipelineAggregation(SumBucketPipelineAggregationBuilder::new, SumBucketPipelineAggregationBuilder.PARSER,
-                SumBucketPipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
+                    .addResultReader(InternalDerivative::new));
+        registerPipelineAggregation(new PipelineAggregationSpec(
+                MaxBucketPipelineAggregationBuilder::new,
+                MaxBucketPipelineAggregator::new,
+                MaxBucketPipelineAggregationBuilder.PARSER,
+                MaxBucketPipelineAggregationBuilder.AGGREGATION_NAME_FIELD)
+                    // This bucket is used by many pipeline aggreations.
+                    .addResultReader(InternalBucketMetricValue.NAME, InternalBucketMetricValue::new));
+        registerPipelineAggregation(new PipelineAggregationSpec(
+                MinBucketPipelineAggregationBuilder::new,
+                MinBucketPipelineAggregator::new,
+                MinBucketPipelineAggregationBuilder.PARSER,
+                MinBucketPipelineAggregationBuilder.AGGREGATION_FIELD_NAME)
+                    /* Uses InternalBucketMetricValue */);
+        registerPipelineAggregation(new PipelineAggregationSpec(
+                AvgBucketPipelineAggregationBuilder::new,
+                AvgBucketPipelineAggregator::new,
+                AvgBucketPipelineAggregationBuilder.PARSER,
+                AvgBucketPipelineAggregationBuilder.AGGREGATION_NAME_FIELD)
+                    // This bucket is used by many pipeline aggreations.
+                    .addResultReader(InternalSimpleValue.NAME, InternalSimpleValue::new));
+        registerPipelineAggregation(new PipelineAggregationSpec(
+                SumBucketPipelineAggregationBuilder::new,
+                SumBucketPipelineAggregator::new,
+                SumBucketPipelineAggregationBuilder.PARSER,
+                SumBucketPipelineAggregationBuilder.AGGREGATION_NAME_FIELD)
+                    /* Uses InternalSimpleValue */);
         registerPipelineAggregation(new PipelineAggregationSpec(
                 StatsBucketPipelineAggregationBuilder::new,
+                StatsBucketPipelineAggregator::new,
                 StatsBucketPipelineAggregationBuilder.PARSER,
                 StatsBucketPipelineAggregationBuilder.AGGREGATION_NAME_FIELD)
-                    .addResultReader(StatsBucketPipelineAggregator::new)
-                    .addBucketReader(InternalStatsBucket::new));
+                    .addResultReader(InternalStatsBucket::new));
         registerPipelineAggregation(new PipelineAggregationSpec(
                 ExtendedStatsBucketPipelineAggregationBuilder::new,
+                ExtendedStatsBucketPipelineAggregator::new,
                 new ExtendedStatsBucketParser(),
                 ExtendedStatsBucketPipelineAggregationBuilder.AGGREGATION_NAME_FIELD)
-                    .addResultReader(ExtendedStatsBucketPipelineAggregator::new)
-                    .addBucketReader(InternalExtendedStatsBucket::new));
-        registerPipelineAggregation(PercentilesBucketPipelineAggregationBuilder::new, PercentilesBucketPipelineAggregationBuilder.PARSER,
-                PercentilesBucketPipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
+                    .addResultReader(InternalExtendedStatsBucket::new));
+        registerPipelineAggregation(new PipelineAggregationSpec(
+                PercentilesBucketPipelineAggregationBuilder::new,
+                PercentilesBucketPipelineAggregator::new,
+                PercentilesBucketPipelineAggregationBuilder.PARSER,
+                PercentilesBucketPipelineAggregationBuilder.AGGREGATION_NAME_FIELD)
+                    .addResultReader(InternalPercentilesBucket::new));
         registerPipelineAggregation(new PipelineAggregationSpec(
                 MovAvgPipelineAggregationBuilder::new,
+                MovAvgPipelineAggregator::new,
                 (n, c) -> MovAvgPipelineAggregationBuilder.parse(movingAverageModelParserRegistry, n, c),
                 MovAvgPipelineAggregationBuilder.AGGREGATION_FIELD_NAME)
-                    .addResultReader(MovAvgPipelineAggregator::new)
                     /* Uses InternalHistogram for buckets */);
-        registerPipelineAggregation(CumulativeSumPipelineAggregationBuilder::new, CumulativeSumPipelineAggregationBuilder::parse,
-                CumulativeSumPipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerPipelineAggregation(BucketScriptPipelineAggregationBuilder::new, BucketScriptPipelineAggregationBuilder::parse,
-                BucketScriptPipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
-        registerPipelineAggregation(BucketSelectorPipelineAggregationBuilder::new, BucketSelectorPipelineAggregationBuilder::parse,
-                BucketSelectorPipelineAggregationBuilder.AGGREGATION_NAME_FIELD);
+        registerPipelineAggregation(new PipelineAggregationSpec(
+                CumulativeSumPipelineAggregationBuilder::new,
+                CumulativeSumPipelineAggregator::new,
+                CumulativeSumPipelineAggregationBuilder::parse,
+                CumulativeSumPipelineAggregationBuilder.AGGREGATION_NAME_FIELD));
+        registerPipelineAggregation(new PipelineAggregationSpec(
+                BucketScriptPipelineAggregationBuilder::new,
+                BucketScriptPipelineAggregator::new,
+                BucketScriptPipelineAggregationBuilder::parse,
+                BucketScriptPipelineAggregationBuilder.AGGREGATION_NAME_FIELD));
+        registerPipelineAggregation(new PipelineAggregationSpec(
+                BucketSelectorPipelineAggregationBuilder::new,
+                BucketSelectorPipelineAggregator::new,
+                BucketSelectorPipelineAggregationBuilder::parse,
+                BucketSelectorPipelineAggregationBuilder.AGGREGATION_NAME_FIELD));
         registerPipelineAggregation(new PipelineAggregationSpec(
                 SerialDiffPipelineAggregationBuilder::new,
+                SerialDiffPipelineAggregator::new,
                 SerialDiffPipelineAggregationBuilder::parse,
-                SerialDiffPipelineAggregationBuilder.AGGREGATION_NAME_FIELD)
-                    .addResultReader(SerialDiffPipelineAggregator::new));
+                SerialDiffPipelineAggregationBuilder.AGGREGATION_NAME_FIELD));
     }
 
     protected void configureSearch() {
@@ -878,19 +895,5 @@ public class SearchModule extends AbstractModule {
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerQuery(GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent, GeoShapeQueryBuilder.QUERY_NAME_FIELD);
         }
-    }
-
-    static {
-        // Pipeline Aggregations
-        InternalSimpleValue.registerStreams();
-        InternalBucketMetricValue.registerStreams();
-        MaxBucketPipelineAggregator.registerStreams();
-        MinBucketPipelineAggregator.registerStreams();
-        AvgBucketPipelineAggregator.registerStreams();
-        SumBucketPipelineAggregator.registerStreams();
-        PercentilesBucketPipelineAggregator.registerStreams();
-        CumulativeSumPipelineAggregator.registerStreams();
-        BucketScriptPipelineAggregator.registerStreams();
-        BucketSelectorPipelineAggregator.registerStreams();
     }
 }

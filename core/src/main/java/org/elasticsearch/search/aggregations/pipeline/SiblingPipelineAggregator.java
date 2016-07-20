@@ -37,7 +37,7 @@ import java.util.stream.StreamSupport;
 
 public abstract class SiblingPipelineAggregator extends PipelineAggregator {
 
-    protected SiblingPipelineAggregator() { // for Serialisation
+    protected SiblingPipelineAggregator() { // NOCOMMIT remove me
         super();
     }
 

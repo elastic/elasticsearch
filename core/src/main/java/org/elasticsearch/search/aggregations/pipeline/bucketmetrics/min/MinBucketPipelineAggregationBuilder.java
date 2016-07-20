@@ -34,11 +34,11 @@ import java.util.List;
 import java.util.Map;
 
 public class MinBucketPipelineAggregationBuilder extends BucketMetricsPipelineAggregationBuilder<MinBucketPipelineAggregationBuilder> {
-    public static final String NAME = MinBucketPipelineAggregator.TYPE.name();
+    public static final String NAME = "min_bucket";
     public static final ParseField AGGREGATION_FIELD_NAME = new ParseField(NAME);
 
     public MinBucketPipelineAggregationBuilder(String name, String bucketsPath) {
-        super(name, MinBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
+        super(name, NAME, new String[] { bucketsPath });
     }
 
     /**

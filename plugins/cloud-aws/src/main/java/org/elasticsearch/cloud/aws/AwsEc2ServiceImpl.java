@@ -23,13 +23,17 @@ import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
-import com.amazonaws.auth.*;
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSCredentialsProviderChain;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
+import com.amazonaws.auth.InstanceProfileCredentialsProvider;
+import com.amazonaws.auth.SystemPropertiesCredentialsProvider;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cloud.aws.AwsService.CLOUD;
 import org.elasticsearch.cloud.aws.AwsService.CLOUD_AWS;
 import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
 import org.elasticsearch.cloud.aws.node.Ec2CustomNodeAttributes;
@@ -56,8 +60,6 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
     public AwsEc2ServiceImpl(Settings settings, SettingsFilter settingsFilter, NetworkService networkService, DiscoveryNodeService discoveryNodeService) {
         super(settings);
         // Filter global settings
-        settingsFilter.addFilter(CLOUD.KEY);
-        settingsFilter.addFilter(CLOUD.ACCOUNT);
         settingsFilter.addFilter(CLOUD_AWS.KEY);
         settingsFilter.addFilter(CLOUD_AWS.SECRET);
         settingsFilter.addFilter(CLOUD_AWS.PROXY_PASSWORD);
@@ -93,8 +95,6 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
         } else {
             throw new IllegalArgumentException("No protocol supported [" + protocol + "], can either be [http] or [https]");
         }
-        String account = settings.get(CLOUD_AWS.KEY, settings.get(CLOUD.ACCOUNT));
-        String key = settings.get(CLOUD_AWS.SECRET, settings.get(CLOUD.KEY));
 
         String proxyHost = settings.get(CLOUD_AWS.PROXY_HOST, settings.get(CLOUD_AWS.DEPRECATED_PROXY_HOST));
         proxyHost = settings.get(CLOUD_EC2.PROXY_HOST, settings.get(CLOUD_EC2.DEPRECATED_PROXY_HOST, proxyHost));
@@ -147,21 +147,7 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
                 false);
         clientConfiguration.setRetryPolicy(retryPolicy);
 
-        AWSCredentialsProvider credentials;
-
-        if (account == null && key == null) {
-            credentials = new AWSCredentialsProviderChain(
-                    new EnvironmentVariableCredentialsProvider(),
-                    new SystemPropertiesCredentialsProvider(),
-                    new InstanceProfileCredentialsProvider()
-            );
-        } else {
-            credentials = new AWSCredentialsProviderChain(
-                    new StaticCredentialsProvider(new BasicAWSCredentials(account, key))
-            );
-        }
-
-        this.client = new AmazonEC2Client(credentials, clientConfiguration);
+        this.client = new AmazonEC2Client(buildCredentials(settings), clientConfiguration);
 
         if (settings.get(CLOUD_EC2.ENDPOINT) != null) {
             String endpoint = settings.get(CLOUD_EC2.ENDPOINT);
@@ -202,6 +188,22 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
         }
 
         return this.client;
+    }
+
+    public static AWSCredentialsProvider buildCredentials(Settings settings) {
+        String account = settings.get(CLOUD_EC2.KEY, settings.get(CLOUD_AWS.KEY));
+        String key = settings.get(CLOUD_EC2.SECRET, settings.get(CLOUD_AWS.SECRET));
+        if (account == null && key == null) {
+            return new AWSCredentialsProviderChain(
+                new EnvironmentVariableCredentialsProvider(),
+                new SystemPropertiesCredentialsProvider(),
+                new InstanceProfileCredentialsProvider()
+            );
+        }
+
+        return new AWSCredentialsProviderChain(
+            new StaticCredentialsProvider(new BasicAWSCredentials(account, key))
+        );
     }
 
     @Override

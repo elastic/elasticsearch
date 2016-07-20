@@ -39,6 +39,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder.Type;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
@@ -82,6 +83,7 @@ import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
+import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanMultiTermQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanNotQuery;
@@ -2521,6 +2523,45 @@ public class SearchQueryIT extends ESIntegTestCase {
             assertThat("query could not be parsed due to bad format: " + e.toString(),
                     e.toString().contains("expected [END_OBJECT] but got [FIELD_NAME], possibly too many query clauses"),
                     equalTo(true));
+        }
+    }
+
+    @Test
+    public void testAnalyzedPrefixQuery() throws Exception {
+        createIndex("test");
+        indexRandom(true, false, client().prepareIndex("test", "type", "1").setSource("body", "foo"));
+        indexRandom(true, false, client().prepareIndex("test", "type", "2").setSource("body", "bar"));
+        indexRandom(true, false, client().prepareIndex("test", "type", "3").setSource("body", "foobarfoo"));
+        indexRandom(true, false, client().prepareIndex("test", "type", "4").setSource("body", "foo bar foobarfoo"));
+        for (QueryStringQueryBuilder.Operator op : QueryStringQueryBuilder.Operator.values()) {
+            QueryStringQueryBuilder builder = queryStringQuery("foo-bar-foobar*")
+                .defaultField("body")
+                .analyzeWildcard(true)
+                .analyzer("standard")
+                .defaultOperator(op);
+            SearchResponse response = client().prepareSearch()
+                .setQuery(builder).get();
+            assertSearchResponse(response);
+            if (op == QueryStringQueryBuilder.Operator.AND) {
+                assertHitCount(response, 1l);
+            } else {
+                assertHitCount(response, 4l);
+            }
+        }
+        for (SimpleQueryStringBuilder.Operator op : SimpleQueryStringBuilder.Operator.values()) {
+            SimpleQueryStringBuilder builder = simpleQueryStringQuery("foo-bar-foobar*")
+                .field("body")
+                .analyzeWildcard(true)
+                .analyzer("standard")
+                .defaultOperator(op);
+            SearchResponse response = client().prepareSearch()
+                .setQuery(builder).get();
+            assertSearchResponse(response);
+            if (op == SimpleQueryStringBuilder.Operator.AND) {
+                assertHitCount(response, 1l);
+            } else {
+                assertHitCount(response, 4l);
+            }
         }
     }
 }

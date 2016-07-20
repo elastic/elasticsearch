@@ -22,8 +22,10 @@ package org.apache.lucene.queryparser.classic;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -31,6 +33,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.Version;
 import org.apache.lucene.util.automaton.RegExp;
@@ -522,7 +525,7 @@ public class MapperQueryParser extends QueryParser {
         if (!analyzeWildcard) {
             return super.getPrefixQuery(field, termStr);
         }
-        List<String> tlist;
+        List<List<String> > tlist;
         // get Analyzer from superclass and tokenize the term
         TokenStream source = null;
         try {
@@ -533,7 +536,9 @@ public class MapperQueryParser extends QueryParser {
                 return super.getPrefixQuery(field, termStr);
             }
             tlist = new ArrayList<>();
+            List<String> currentPos = new ArrayList<>();
             CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
+            PositionIncrementAttribute posAtt = source.addAttribute(PositionIncrementAttribute.class);
 
             while (true) {
                 try {
@@ -541,7 +546,14 @@ public class MapperQueryParser extends QueryParser {
                 } catch (IOException e) {
                     break;
                 }
-                tlist.add(termAtt.toString());
+                if (currentPos.isEmpty() == false && posAtt.getPositionIncrement() > 0) {
+                    tlist.add(currentPos);
+                    currentPos = new ArrayList<>();
+                }
+                currentPos.add(termAtt.toString());
+            }
+            if (currentPos.isEmpty() == false) {
+                tlist.add(currentPos);
             }
         } finally {
             if (source != null) {
@@ -549,25 +561,45 @@ public class MapperQueryParser extends QueryParser {
             }
         }
 
-        if (tlist.size() == 1) {
-            return super.getPrefixQuery(field, tlist.get(0));
-        } else {
-            // build a boolean query with prefix on each one...
-            List<BooleanClause> clauses = new ArrayList<>();
-            for (String token : tlist) {
-                clauses.add(new BooleanClause(super.getPrefixQuery(field, token), BooleanClause.Occur.SHOULD));
-            }
-            return getBooleanQuery(clauses, true);
-
-            //return super.getPrefixQuery(field, termStr);
-
-            /* this means that the analyzer used either added or consumed
-* (common for a stemmer) tokens, and we can't build a PrefixQuery */
-//            throw new ParseException("Cannot build PrefixQuery with analyzer "
-//                    + getAnalyzer().getClass()
-//                    + (tlist.size() > 1 ? " - token(s) added" : " - token consumed"));
+        if (tlist.size() == 0) {
+            return null;
         }
 
+        if (tlist.size() == 1 && tlist.get(0).size() == 1) {
+            return super.getPrefixQuery(field, tlist.get(0).get(0));
+        }
+
+        // build a boolean query with prefix on the last position only.
+        List<BooleanClause> clauses = new ArrayList<>();
+        for (int pos = 0; pos < tlist.size(); pos++) {
+            List<String> plist = tlist.get(pos);
+            boolean isLastPos = (pos == tlist.size() - 1);
+            Query posQuery;
+            if (plist.size() == 1) {
+                if (isLastPos) {
+                    posQuery = super.getPrefixQuery(field, plist.get(0));
+                } else {
+                    posQuery = newTermQuery(new Term(field, plist.get(0)));
+                }
+            } else if (isLastPos == false) {
+                // build a synonym query for terms in the same position.
+                List<Query> terms = new ArrayList<> ();
+                for (int i = 0; i < plist.size(); i++) {
+                    terms.add(new TermQuery(new Term(field, plist.get(i))));
+                }
+                posQuery = new DisjunctionMaxQuery(terms, 0.0f);
+            } else {
+                List<BooleanClause> innerClauses = new ArrayList<>();
+                for (String token : plist) {
+                    innerClauses.add(new BooleanClause(getPrefixQuery(field, token),
+                        BooleanClause.Occur.SHOULD));
+                }
+                posQuery = getBooleanQuery(innerClauses, true);
+            }
+            clauses.add(new BooleanClause(posQuery,
+                getDefaultOperator() == Operator.AND ? BooleanClause.Occur.MUST : BooleanClause.Occur.SHOULD));
+        }
+        return getBooleanQuery(clauses);
     }
 
     @Override

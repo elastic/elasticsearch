@@ -79,6 +79,16 @@ public class HeapBufferedAsyncResponseConsumerTests extends RestClientTestCase {
     }
 
     public void testConfiguredBufferLimit() throws Exception {
+        try {
+            new HeapBufferedAsyncResponseConsumer(randomIntBetween(Integer.MIN_VALUE, 0));
+        } catch(IllegalArgumentException e) {
+            assertEquals("bufferLimit must be greater than 0", e.getMessage());
+        }
+        try {
+            new HeapBufferedAsyncResponseConsumer(0);
+        } catch(IllegalArgumentException e) {
+            assertEquals("bufferLimit must be greater than 0", e.getMessage());
+        }
         int bufferLimit = randomIntBetween(1, MAX_TEST_BUFFER_SIZE - 100);
         HeapBufferedAsyncResponseConsumer consumer = new HeapBufferedAsyncResponseConsumer(bufferLimit);
         bufferLimitTest(consumer, bufferLimit);

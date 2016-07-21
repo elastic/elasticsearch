@@ -61,6 +61,9 @@ public class HeapBufferedAsyncResponseConsumer extends AbstractAsyncResponseCons
      * Creates a new instance of this consumer with the provided buffer limit
      */
     public HeapBufferedAsyncResponseConsumer(int bufferLimit) {
+        if (bufferLimit <= 0) {
+            throw new IllegalArgumentException("bufferLimit must be greater than 0");
+        }
         this.bufferLimit = bufferLimit;
     }
 

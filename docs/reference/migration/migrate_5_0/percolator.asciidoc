@@ -48,6 +48,11 @@ the existing document.
 
 The percolate stats have been removed. This is because the percolator no longer caches the percolator queries.
 
+==== Percolator queries containing range queries with now ranges
+
+The percolator no longer accepts percolator queries containing `range` queries with ranges that are based on current
+time (using `now`).
+
 ==== Java client
 
 The percolator is no longer part of the core elasticsearch dependency. It has moved to the percolator module.

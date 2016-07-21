@@ -34,9 +34,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBuilder> implements SpanQueryBuilder {
-
     public static final String NAME = "span_first";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField MATCH_FIELD = new ParseField("match");
     private static final ParseField END_FIELD = new ParseField("end");

@@ -47,10 +47,6 @@
             index: test
 
   - do:
-        cluster.health:
-            wait_for_status: yellow
-
-  - do:
         cat.allocation: {}
 
   - match:

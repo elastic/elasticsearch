@@ -47,7 +47,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
     static final ParseField UNIT_FIELD = new ParseField("unit");
     static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
 
-    private GeoPointParser geoPointParser = new GeoPointParser(InternalGeoDistance.TYPE, ORIGIN_FIELD);
+    private GeoPointParser geoPointParser = new GeoPointParser(GeoDistanceAggregationBuilder.TYPE, ORIGIN_FIELD);
 
     public GeoDistanceParser() {
         super(true, false);

@@ -69,10 +69,14 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 
 public class ClusterServiceTests extends ESTestCase {
@@ -608,13 +612,12 @@ public class ClusterServiceTests extends ESTestCase {
         BlockingTask block = new BlockingTask(Priority.IMMEDIATE);
         clusterService.submitStateUpdateTask("test", block);
         int taskCount = randomIntBetween(5, 20);
-        Priority[] priorities = Priority.values();
 
         // will hold all the tasks in the order in which they were executed
         List<PrioritizedTask> tasks = new ArrayList<>(taskCount);
         CountDownLatch latch = new CountDownLatch(taskCount);
         for (int i = 0; i < taskCount; i++) {
-            Priority priority = priorities[randomIntBetween(0, priorities.length - 1)];
+            Priority priority = randomFrom(Priority.values());
             clusterService.submitStateUpdateTask("test", new PrioritizedTask(priority, latch, tasks));
         }
 
@@ -654,8 +657,15 @@ public class ClusterServiceTests extends ESTestCase {
 
             clusterService.submitStateUpdateTask("first time", task, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
 
-            expectThrows(IllegalArgumentException.class, () -> clusterService.submitStateUpdateTask("second time", task,
-                ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener));
+            final IllegalStateException e =
+                    expectThrows(
+                            IllegalStateException.class,
+                            () -> clusterService.submitStateUpdateTask(
+                                    "second time",
+                                    task,
+                                    ClusterStateTaskConfig.build(Priority.NORMAL),
+                                    executor, listener));
+            assertThat(e, hasToString(containsString("task [1] with source [second time] is already queued")));
 
             clusterService.submitStateUpdateTask("third time a charm", new SimpleTask(1),
                 ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
@@ -885,6 +895,11 @@ public class ClusterServiceTests extends ESTestCase {
         @Override
         public boolean equals(Object obj) {
             return super.equals(obj);
+        }
+
+        @Override
+        public String toString() {
+            return Integer.toString(id);
         }
     }
 

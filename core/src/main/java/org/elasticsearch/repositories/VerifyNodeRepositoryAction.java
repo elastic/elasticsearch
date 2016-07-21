@@ -19,6 +19,12 @@
 
 package org.elasticsearch.repositories;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.action.ActionListener;
@@ -29,7 +35,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoriesService.VerifyResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
@@ -39,12 +44,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class VerifyNodeRepositoryAction  extends AbstractComponent {
     public static final String ACTION_NAME = "internal:admin/repository/verify";
@@ -82,7 +81,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
         for (final DiscoveryNode node : nodes) {
             if (node.equals(localNode)) {
                 try {
-                    doVerify(repository, verificationToken);
+                    doVerify(repository, verificationToken, localNode);
                 } catch (Exception e) {
                     logger.warn("[{}] failed to verify repository", e, repository);
                     errors.add(new VerificationFailure(node.getId(), e));
@@ -115,9 +114,9 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
         listener.onResponse(new RepositoriesService.VerifyResponse(nodes.toArray(new DiscoveryNode[nodes.size()]), errors.toArray(new VerificationFailure[errors.size()])));
     }
 
-    private void doVerify(String repository, String verificationToken) {
-        IndexShardRepository blobStoreIndexShardRepository = repositoriesService.indexShardRepository(repository);
-        blobStoreIndexShardRepository.verify(verificationToken);
+    private void doVerify(String repositoryName, String verificationToken, DiscoveryNode localNode) {
+        Repository repository = repositoriesService.repository(repositoryName);
+        repository.verify(verificationToken, localNode);
     }
 
     public static class VerifyNodeRepositoryRequest extends TransportRequest {
@@ -151,8 +150,9 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
     class VerifyNodeRepositoryRequestHandler implements TransportRequestHandler<VerifyNodeRepositoryRequest> {
         @Override
         public void messageReceived(VerifyNodeRepositoryRequest request, TransportChannel channel) throws Exception {
+            DiscoveryNode localNode = clusterService.state().nodes().getLocalNode();
             try {
-                doVerify(request.repository, request.verificationToken);
+                doVerify(request.repository, request.verificationToken, localNode);
             } catch (Exception ex) {
                 logger.warn("[{}] failed to verify repository", ex, request.repository);
                 throw ex;

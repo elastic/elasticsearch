@@ -120,7 +120,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
 
         prepareCreate("test1").setSettings("number_of_shards", 2, "number_of_replicas", 1).get();
-        ensureYellow();
+
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.YELLOW));
         assertThat(response.indicesStats.getDocs().getCount(), Matchers.equalTo(0L));
@@ -161,12 +161,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
     public void testValuesSmokeScreen() throws IOException, ExecutionException, InterruptedException {
         internalCluster().startNodesAsync(randomIntBetween(1, 3)).get();
         index("test1", "type", "1", "f", "f");
-        /*
-         * Ensure at least one shard is allocated otherwise the FS stats might
-         * return 0. This happens if the File#getTotalSpace() and friends is called
-         * on a directory that doesn't exist or has not yet been created.
-         */
-        ensureYellow("test1");
+
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         String msg = response.toString();
         assertThat(msg, response.getTimestamp(), Matchers.greaterThan(946681200000L)); // 1 Jan 2000

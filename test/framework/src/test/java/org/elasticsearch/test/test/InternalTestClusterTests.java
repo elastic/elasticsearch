@@ -1,3 +1,4 @@
+
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -24,7 +25,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -75,10 +78,10 @@ public class InternalTestClusterTests extends ESTestCase {
         String nodePrefix = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
 
         Path baseDir = createTempDir();
-        InternalTestCluster cluster0 = new InternalTestCluster("local", clusterSeed, baseDir, masterNodes,
+        InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             minNumDataNodes, maxNumDataNodes, clusterName, nodeConfigurationSource, numClientNodes,
             enableHttpPipelining, nodePrefix, Collections.emptyList(), Function.identity());
-        InternalTestCluster cluster1 = new InternalTestCluster("local", clusterSeed, baseDir, masterNodes,
+        InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             minNumDataNodes, maxNumDataNodes, clusterName, nodeConfigurationSource, numClientNodes,
             enableHttpPipelining, nodePrefix, Collections.emptyList(), Function.identity());
         // TODO: this is not ideal - we should have a way to make sure ports are initialized in the same way
@@ -125,22 +128,32 @@ public class InternalTestClusterTests extends ESTestCase {
         boolean masterNodes = randomBoolean();
         int minNumDataNodes = randomIntBetween(0, 3);
         int maxNumDataNodes = randomIntBetween(minNumDataNodes, 4);
-        final String clusterName1 = "shared1";//clusterName("shared1", clusterSeed);
-        final String clusterName2 = "shared2";//clusterName("shared", Integer.toString(CHILD_JVM_ID), clusterSeed);
-        /*while (clusterName.equals(clusterName1)) {
-            clusterName1 = clusterName("shared", Integer.toString(CHILD_JVM_ID), clusterSeed);   // spin until the time changes
-        }*/
-        NodeConfigurationSource nodeConfigurationSource = NodeConfigurationSource.EMPTY;
+        final String clusterName1 = "shared1";
+        final String clusterName2 = "shared2";
+        NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
+            @Override
+            public Settings nodeSettings(int nodeOrdinal) {
+                return Settings.builder()
+                    .put(NetworkModule.HTTP_ENABLED.getKey(), false)
+                    .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local")
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
+            }
+
+            @Override
+            public Settings transportClientSettings() {
+                return Settings.builder()
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
+            }
+        };
         int numClientNodes = randomIntBetween(0, 2);
         boolean enableHttpPipelining = randomBoolean();
-        int jvmOrdinal = randomIntBetween(0, 10);
         String nodePrefix = "foobar";
 
         Path baseDir = createTempDir();
-        InternalTestCluster cluster0 = new InternalTestCluster("local", clusterSeed, baseDir, masterNodes,
+        InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
             enableHttpPipelining, nodePrefix, Collections.emptyList(), Function.identity());
-        InternalTestCluster cluster1 = new InternalTestCluster("local", clusterSeed, baseDir, masterNodes,
+        InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             minNumDataNodes, maxNumDataNodes, clusterName2, nodeConfigurationSource, numClientNodes,
             enableHttpPipelining, nodePrefix, Collections.emptyList(), Function.identity());
 
@@ -177,12 +190,24 @@ public class InternalTestClusterTests extends ESTestCase {
         int minNumDataNodes = 2;
         int maxNumDataNodes = 2;
         final String clusterName1 = "shared1";
-        NodeConfigurationSource nodeConfigurationSource = NodeConfigurationSource.EMPTY;
-        int numClientNodes = randomIntBetween(0, 2);
+        NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
+            @Override
+            public Settings nodeSettings(int nodeOrdinal) {
+                return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false)
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, "local")
+                    .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local")
+                    .build();
+            }
+            @Override
+            public Settings transportClientSettings() {
+                return Settings.builder()
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
+            }
+        };        int numClientNodes = randomIntBetween(0, 2);
         boolean enableHttpPipelining = randomBoolean();
         String nodePrefix = "test";
         Path baseDir = createTempDir();
-        InternalTestCluster cluster = new InternalTestCluster("local", clusterSeed, baseDir, masterNodes,
+        InternalTestCluster cluster = new InternalTestCluster(clusterSeed, baseDir, masterNodes,
             minNumDataNodes, maxNumDataNodes, clusterName1, nodeConfigurationSource, numClientNodes,
             enableHttpPipelining, nodePrefix, Collections.emptyList(), Function.identity());
         try {
@@ -244,16 +269,21 @@ public class InternalTestClusterTests extends ESTestCase {
 
     public void testDifferentRolesMaintainPathOnRestart() throws Exception {
         final Path baseDir = createTempDir();
-        InternalTestCluster cluster = new InternalTestCluster("local", randomLong(), baseDir, true, 0, 0, "test",
+        InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, true, 0, 0, "test",
             new NodeConfigurationSource() {
                 @Override
                 public Settings nodeSettings(int nodeOrdinal) {
-                    return Settings.builder().put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0).build();
+                    return Settings.builder()
+                        .put(NetworkModule.HTTP_ENABLED.getKey(), false)
+                        .put(NetworkModule.TRANSPORT_TYPE_KEY, "local")
+                        .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local")
+                        .put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0).build();
                 }
 
                 @Override
                 public Settings transportClientSettings() {
-                    return Settings.EMPTY;
+                    return Settings.builder()
+                        .put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
                 }
             }, 0, randomBoolean(), "", Collections.emptyList(), Function.identity());
         cluster.beforeTest(random(), 0.0);

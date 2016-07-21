@@ -36,9 +36,7 @@ import java.util.Optional;
  * A Query that matches documents containing a term.
  */
 public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
-
     public static final String NAME = "term";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField TERM_FIELD = new ParseField("term");
     private static final ParseField VALUE_FIELD = new ParseField("value");

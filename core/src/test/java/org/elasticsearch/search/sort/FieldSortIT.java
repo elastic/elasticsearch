@@ -94,7 +94,6 @@ public class FieldSortIT extends ESIntegTestCase {
                 client().prepareIndex("test_" + i, "foo", "" + i).setSource("{\"entry\": " + i + "}").get();
             }
         }
-        ensureYellow();
         refresh();
         // sort DESC
         SearchResponse searchResponse = client().prepareSearch()
@@ -146,7 +145,6 @@ public class FieldSortIT extends ESIntegTestCase {
         }
         int docs = builders.size();
         indexRandom(true, builders);
-        ensureYellow();
         SearchResponse allDocsResponse = client().prepareSearch().setQuery(
                 QueryBuilders.boolQuery().must(QueryBuilders.termQuery("foo", "bar")).must(
                         QueryBuilders.rangeQuery("timeUpdated").gte("2014/0" + randomIntBetween(1, 7) + "/01")))
@@ -858,7 +856,6 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testIgnoreUnmapped() throws Exception {
         createIndex("test");
-        ensureYellow();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("id", "1")
@@ -889,7 +886,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testSortMVField() throws Exception {
         assertAcked(prepareCreate("test")
-.addMapping("type1",
+                        .addMapping("type1",
                 XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("long_values")
                         .field("type", "long").endObject().startObject("int_values").field("type", "integer").endObject()
                         .startObject("short_values").field("type", "short").endObject().startObject("byte_values")

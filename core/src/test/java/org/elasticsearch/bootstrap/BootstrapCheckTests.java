@@ -44,6 +44,7 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class BootstrapCheckTests extends ESTestCase {
@@ -63,6 +64,23 @@ public class BootstrapCheckTests extends ESTestCase {
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
         BootstrapCheck.check(Settings.EMPTY, boundTransportAddress);
+    }
+
+    public void testNoLogMessageInNonProductionMode() {
+        final ESLogger logger = mock(ESLogger.class);
+        BootstrapCheck.check(false, randomBoolean(), Collections.emptyList(), logger);
+        verifyNoMoreInteractions(logger);
+    }
+
+    public void testLogMessageInProductionMode() {
+        final ESLogger logger = mock(ESLogger.class);
+        final boolean ignoreSystemChecks = randomBoolean();
+        BootstrapCheck.check(true, ignoreSystemChecks, Collections.emptyList(), logger);
+        verify(logger).info("bound or publishing to a non-loopback or non-link-local address, enforcing bootstrap checks");
+        if (ignoreSystemChecks) {
+            verify(logger).warn("enforcing bootstrap checks but ignoring system bootstrap checks, consider not ignoring system checks");
+        }
+        verifyNoMoreInteractions(logger);
     }
 
     public void testEnforceLimitsWhenBoundToNonLocalAddress() {
@@ -545,12 +563,16 @@ public class BootstrapCheckTests extends ESTestCase {
 
         // nothing should happen if we ignore system checks
         BootstrapCheck.check(true, true, Collections.singletonList(check), logger);
+        verify(logger).info("bound or publishing to a non-loopback or non-link-local address, enforcing bootstrap checks");
+        verify(logger).warn("enforcing bootstrap checks but ignoring system bootstrap checks, consider not ignoring system checks");
         verify(logger).warn("error");
+        verifyNoMoreInteractions(logger);
         reset(logger);
 
         // nothing should happen if we ignore all checks
         BootstrapCheck.check(false, randomBoolean(), Collections.singletonList(check), logger);
         verify(logger).warn("error");
+        verifyNoMoreInteractions(logger);
     }
 
     public void testAlwaysEnforcedChecks() {

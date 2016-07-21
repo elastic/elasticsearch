@@ -23,13 +23,10 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -42,8 +39,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 
 public final class ScriptMetaData implements MetaData.Custom {
 
@@ -70,7 +65,10 @@ public final class ScriptMetaData implements MetaData.Custom {
         if (scriptAsBytes == null) {
             return null;
         }
+        return parseStoredScript(scriptAsBytes);
+    }
 
+    public static String parseStoredScript(BytesReference scriptAsBytes) {
         // Scripts can be stored via API in several ways:
         // 1) wrapped into a 'script' json object or field
         // 2) wrapped into a 'template' json object or field

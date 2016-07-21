@@ -42,7 +42,7 @@ public class ScriptProcessorTests extends ESTestCase {
         int randomInt = randomInt();
         ScriptService scriptService = mock(ScriptService.class);
         CompiledScript compiledScript = mock(CompiledScript.class);
-        Script script = mock(Script.class);
+        Script script = new Script("_script");
         when(scriptService.compile(any(), any(), any())).thenReturn(compiledScript);
         ExecutableScript executableScript = mock(ExecutableScript.class);
         when(scriptService.executable(any(), any())).thenReturn(executableScript);

@@ -20,20 +20,18 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.api.services.storage.Storage;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.gcs.GoogleCloudStorageBlobStore;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugin.repository.gcs.GoogleCloudStoragePlugin;
 import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.repositories.RepositoryName;
-import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.util.function.Function;
@@ -73,17 +71,15 @@ public class GoogleCloudStorageRepository extends BlobStoreRepository {
     private final BlobPath basePath;
     private final GoogleCloudStorageBlobStore blobStore;
 
-    @Inject
-    public GoogleCloudStorageRepository(RepositoryName repositoryName, RepositorySettings repositorySettings,
-                                        IndexShardRepository indexShardRepository,
+    public GoogleCloudStorageRepository(RepositoryMetaData metadata, Environment environment,
                                         GoogleCloudStorageService storageService) throws Exception {
-        super(repositoryName.getName(), repositorySettings, indexShardRepository);
+        super(metadata, environment.settings());
 
-        String bucket = get(BUCKET, repositoryName, repositorySettings);
-        String application = get(APPLICATION_NAME, repositoryName, repositorySettings);
-        String serviceAccount = get(SERVICE_ACCOUNT, repositoryName, repositorySettings);
+        String bucket = get(BUCKET, metadata);
+        String application = get(APPLICATION_NAME, metadata);
+        String serviceAccount = get(SERVICE_ACCOUNT, metadata);
 
-        String basePath = BASE_PATH.get(repositorySettings.settings());
+        String basePath = BASE_PATH.get(metadata.settings());
         if (Strings.hasLength(basePath)) {
             BlobPath path = new BlobPath();
             for (String elem : basePath.split("/")) {
@@ -97,18 +93,18 @@ public class GoogleCloudStorageRepository extends BlobStoreRepository {
         TimeValue connectTimeout = null;
         TimeValue readTimeout = null;
 
-        TimeValue timeout = HTTP_CONNECT_TIMEOUT.get(repositorySettings.settings());
+        TimeValue timeout = HTTP_CONNECT_TIMEOUT.get(metadata.settings());
         if ((timeout != null) && (timeout.millis() != NO_TIMEOUT.millis())) {
             connectTimeout = timeout;
         }
 
-        timeout = HTTP_READ_TIMEOUT.get(repositorySettings.settings());
+        timeout = HTTP_READ_TIMEOUT.get(metadata.settings());
         if ((timeout != null) && (timeout.millis() != NO_TIMEOUT.millis())) {
             readTimeout = timeout;
         }
 
-        this.compress = get(COMPRESS, repositoryName, repositorySettings);
-        this.chunkSize = get(CHUNK_SIZE, repositoryName, repositorySettings);
+        this.compress = get(COMPRESS, metadata);
+        this.chunkSize = get(CHUNK_SIZE, metadata);
 
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}], application [{}]",
                 bucket, basePath, chunkSize, compress, application);
@@ -141,13 +137,13 @@ public class GoogleCloudStorageRepository extends BlobStoreRepository {
     /**
      * Get a given setting from the repository settings, throwing a {@link RepositoryException} if the setting does not exist or is empty.
      */
-    static <T> T get(Setting<T> setting, RepositoryName name, RepositorySettings repositorySettings) {
-        T value = setting.get(repositorySettings.settings());
+    static <T> T get(Setting<T> setting, RepositoryMetaData metadata) {
+        T value = setting.get(metadata.settings());
         if (value == null) {
-            throw new RepositoryException(name.getName(), "Setting [" + setting.getKey() + "] is not defined for repository");
+            throw new RepositoryException(metadata.name(), "Setting [" + setting.getKey() + "] is not defined for repository");
         }
         if ((value instanceof String) && (Strings.hasText((String) value)) == false) {
-            throw new RepositoryException(name.getName(), "Setting [" + setting.getKey() + "] is empty for repository");
+            throw new RepositoryException(metadata.name(), "Setting [" + setting.getKey() + "] is empty for repository");
         }
         return value;
     }

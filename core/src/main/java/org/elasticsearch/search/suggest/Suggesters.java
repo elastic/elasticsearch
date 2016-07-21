@@ -18,43 +18,16 @@
  */
 package org.elasticsearch.search.suggest;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.search.suggest.completion.CompletionSuggester;
-import org.elasticsearch.search.suggest.phrase.Laplace;
-import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
-import org.elasticsearch.search.suggest.phrase.SmoothingModel;
-import org.elasticsearch.search.suggest.phrase.StupidBackoff;
-import org.elasticsearch.search.suggest.term.TermSuggester;
-
-import java.util.HashMap;
 import java.util.Map;
 
 /**
- *
+ * Registry of Suggesters. This is only its own class to make Guice happy.
  */
 public final class Suggesters {
-    private final Map<String, Suggester<?>> suggesters = new HashMap<>();
-    private final NamedWriteableRegistry namedWriteableRegistry;
+    private final Map<String, Suggester<?>> suggesters;
 
-    public Suggesters(NamedWriteableRegistry namedWriteableRegistry) {
-        this.namedWriteableRegistry = namedWriteableRegistry;
-        register("phrase", PhraseSuggester.INSTANCE);
-        register("term", TermSuggester.INSTANCE);
-        register("completion", CompletionSuggester.INSTANCE);
-
-        // Builtin smoothing models
-        namedWriteableRegistry.register(SmoothingModel.class, Laplace.NAME, Laplace::new);
-        namedWriteableRegistry.register(SmoothingModel.class, LinearInterpolation.NAME, LinearInterpolation::new);
-        namedWriteableRegistry.register(SmoothingModel.class, StupidBackoff.NAME, StupidBackoff::new);
-    }
-
-    public void register(String key, Suggester<?> suggester) {
-        if (suggesters.containsKey(key)) {
-            throw new IllegalArgumentException("Can't register the same [suggester] more than once for [" + key + "]");
-        }
-        suggesters.put(key, suggester);
-        namedWriteableRegistry.register(SuggestionBuilder.class, key, suggester);
+    public Suggesters(Map<String, Suggester<?>> suggesters) {
+        this.suggesters = suggesters;
     }
 
     public Suggester<?> getSuggester(String suggesterName) {

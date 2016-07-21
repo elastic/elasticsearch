@@ -44,7 +44,6 @@ import java.util.Objects;
  */
 public class HoltWintersModel extends MovAvgModel {
     public static final String NAME = "holt_winters";
-    public static final ParseField NAME_FIELD = new ParseField(NAME);
 
     public static final double DEFAULT_ALPHA = 0.3;
     public static final double DEFAULT_BETA = 0.1;
@@ -366,7 +365,7 @@ public class HoltWintersModel extends MovAvgModel {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+        builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME);
         builder.startObject(MovAvgPipelineAggregationBuilder.SETTINGS.getPreferredName());
         builder.field("alpha", alpha);
         builder.field("beta", beta);
@@ -495,7 +494,7 @@ public class HoltWintersModel extends MovAvgModel {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+            builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME);
             builder.startObject(MovAvgPipelineAggregationBuilder.SETTINGS.getPreferredName());
             builder.field("alpha", alpha);
             builder.field("beta", beta);

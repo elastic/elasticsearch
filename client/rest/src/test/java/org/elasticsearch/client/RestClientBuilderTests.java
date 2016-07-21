@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.message.BasicHeader;
 
@@ -67,7 +68,7 @@ public class RestClientBuilderTests extends RestClientTestCase {
             RestClient.builder(new HttpHost("localhost", 9200)).setDefaultHeaders(null);
             fail("should have failed");
         } catch(NullPointerException e) {
-            assertEquals("default headers must not be null", e.getMessage());
+            assertEquals("defaultHeaders must not be null", e.getMessage());
         }
 
         try {
@@ -81,7 +82,21 @@ public class RestClientBuilderTests extends RestClientTestCase {
             RestClient.builder(new HttpHost("localhost", 9200)).setFailureListener(null);
             fail("should have failed");
         } catch(NullPointerException e) {
-            assertEquals("failure listener must not be null", e.getMessage());
+            assertEquals("failureListener must not be null", e.getMessage());
+        }
+
+        try {
+            RestClient.builder(new HttpHost("localhost", 9200)).setHttpClientConfigCallback(null);
+            fail("should have failed");
+        } catch(NullPointerException e) {
+            assertEquals("httpClientConfigCallback must not be null", e.getMessage());
+        }
+
+        try {
+            RestClient.builder(new HttpHost("localhost", 9200)).setRequestConfigCallback(null);
+            fail("should have failed");
+        } catch(NullPointerException e) {
+            assertEquals("requestConfigCallback must not be null", e.getMessage());
         }
 
         int numNodes = RandomInts.randomIntBetween(getRandom(), 1, 5);
@@ -91,7 +106,18 @@ public class RestClientBuilderTests extends RestClientTestCase {
         }
         RestClient.Builder builder = RestClient.builder(hosts);
         if (getRandom().nextBoolean()) {
-            builder.setHttpClient(HttpClientBuilder.create().build());
+            builder.setHttpClientConfigCallback(new RestClient.HttpClientConfigCallback() {
+                @Override
+                public void customizeHttpClient(HttpClientBuilder httpClientBuilder) {
+                }
+            });
+        }
+        if (getRandom().nextBoolean()) {
+            builder.setRequestConfigCallback(new RestClient.RequestConfigCallback() {
+                @Override
+                public void customizeRequestConfig(RequestConfig.Builder requestConfigBuilder) {
+                }
+            });
         }
         if (getRandom().nextBoolean()) {
             int numHeaders = RandomInts.randomIntBetween(getRandom(), 1, 5);

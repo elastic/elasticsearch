@@ -44,8 +44,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -136,8 +134,7 @@ public class IncludeExclude implements Writeable, ToXContent {
     }
 
     public abstract static class OrdinalsFilter {
-        public abstract LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource)
-                throws IOException;
+        public abstract LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals) throws IOException;
 
     }
 
@@ -154,7 +151,7 @@ public class IncludeExclude implements Writeable, ToXContent {
          *
          */
         @Override
-        public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource)
+        public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals)
                 throws IOException {
             LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
             TermsEnum globalTermsEnum;
@@ -180,7 +177,7 @@ public class IncludeExclude implements Writeable, ToXContent {
         }
 
         @Override
-        public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, WithOrdinals valueSource) throws IOException {
+        public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals) throws IOException {
             LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
             if (includeValues != null) {
                 for (BytesRef term : includeValues) {
@@ -189,7 +186,7 @@ public class IncludeExclude implements Writeable, ToXContent {
                         acceptedGlobalOrdinals.set(ord);
                     }
                 }
-            } else {
+            } else if (acceptedGlobalOrdinals.length() > 0) {
                 // default to all terms being acceptable
                 acceptedGlobalOrdinals.set(0, acceptedGlobalOrdinals.length());
             }

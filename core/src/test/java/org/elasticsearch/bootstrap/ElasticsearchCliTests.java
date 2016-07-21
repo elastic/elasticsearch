@@ -24,10 +24,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
+import java.nio.file.Path;
 import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.hasEntry;
 
 public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
@@ -50,7 +52,8 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 ExitCodes.USAGE,
                 output -> assertThat(
                         output,
-                        containsString("ERROR: Elasticsearch version option is mutually exclusive with any other option")),
+                        allOf(containsString("ERROR:"),
+                              containsString("are unavailable given other options on the command line"))),
                 args);
     }
 
@@ -91,18 +94,22 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
     }
 
     public void testThatPidFileCanBeConfigured() throws Exception {
-        runPidFileTest(ExitCodes.USAGE, false, output -> assertThat(output, containsString("Option p/pidfile requires an argument")), "-p");
-        runPidFileTest(ExitCodes.OK, true, output -> {}, "-p", "/tmp/pid");
-        runPidFileTest(ExitCodes.OK, true, output -> {}, "--pidfile", "/tmp/pid");
+        Path tmpDir = createTempDir();
+        Path pidFile = tmpDir.resolve("pid");
+        runPidFileTest(ExitCodes.USAGE, false,
+                output -> assertThat(output, containsString("Option p/pidfile requires an argument")), pidFile, "-p");
+        runPidFileTest(ExitCodes.OK, true, output -> {}, pidFile, "-p", pidFile.toString());
+        runPidFileTest(ExitCodes.OK, true, output -> {}, pidFile, "--pidfile", tmpDir.toString() + "/pid");
     }
 
-    private void runPidFileTest(final int expectedStatus, final boolean expectedInit, Consumer<String> outputConsumer, final String... args)
+    private void runPidFileTest(final int expectedStatus, final boolean expectedInit, Consumer<String> outputConsumer,
+                                Path expectedPidFile, final String... args)
             throws Exception {
         runTest(
                 expectedStatus,
                 expectedInit,
                 outputConsumer,
-                (foreground, pidFile, esSettings) -> assertThat(pidFile, equalTo("/tmp/pid")),
+                (foreground, pidFile, esSettings) -> assertThat(pidFile.toString(), equalTo(expectedPidFile.toString())),
                 args);
     }
 

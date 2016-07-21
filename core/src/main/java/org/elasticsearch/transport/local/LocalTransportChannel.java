@@ -48,10 +48,12 @@ public class LocalTransportChannel implements TransportChannel {
     private final long requestId;
     private final Version version;
     private final long reservedBytes;
+    private final ThreadContext threadContext;
     private final AtomicBoolean closed = new AtomicBoolean();
 
     public LocalTransportChannel(LocalTransport sourceTransport, TransportServiceAdapter sourceTransportServiceAdapter,
-                                 LocalTransport targetTransport, String action, long requestId, Version version, long reservedBytes) {
+                                 LocalTransport targetTransport, String action, long requestId, Version version, long reservedBytes,
+                                 ThreadContext threadContext) {
         this.sourceTransport = sourceTransport;
         this.sourceTransportServiceAdapter = sourceTransportServiceAdapter;
         this.targetTransport = targetTransport;
@@ -59,6 +61,7 @@ public class LocalTransportChannel implements TransportChannel {
         this.requestId = requestId;
         this.version = version;
         this.reservedBytes = reservedBytes;
+        this.threadContext = threadContext;
     }
 
     @Override
@@ -84,6 +87,7 @@ public class LocalTransportChannel implements TransportChannel {
             byte status = 0;
             status = TransportStatus.setResponse(status);
             stream.writeByte(status); // 0 for request, 1 for response.
+            threadContext.writeTo(stream);
             response.writeTo(stream);
             sendResponseData(BytesReference.toBytes(stream.bytes()));
             sourceTransportServiceAdapter.onResponseSent(requestId, action, response, options);
@@ -135,5 +139,6 @@ public class LocalTransportChannel implements TransportChannel {
         status = TransportStatus.setResponse(status);
         status = TransportStatus.setError(status);
         stream.writeByte(status);
+        threadContext.writeTo(stream);
     }
 }

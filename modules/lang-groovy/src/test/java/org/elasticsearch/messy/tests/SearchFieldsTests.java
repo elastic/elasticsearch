@@ -83,7 +83,6 @@ public class SearchFieldsTests extends ESIntegTestCase {
 
     public void testStoredFields() throws Exception {
         createIndex("test");
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
@@ -168,7 +167,6 @@ public class SearchFieldsTests extends ESIntegTestCase {
 
     public void testScriptDocAndFields() throws Exception {
         createIndex("test");
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("num1").field("type", "double").field("store", true).endObject()
@@ -252,7 +250,6 @@ public class SearchFieldsTests extends ESIntegTestCase {
 
     public void testUidBasedScriptFields() throws Exception {
         prepareCreate("test").addMapping("type1", "num1", "type=long").execute().actionGet();
-        ensureYellow();
 
         int numDocs = randomIntBetween(1, 30);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
@@ -328,7 +325,6 @@ public class SearchFieldsTests extends ESIntegTestCase {
 
     public void testScriptFieldUsingSource() throws Exception {
         createIndex("test");
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         client().prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject()
@@ -387,8 +383,6 @@ public class SearchFieldsTests extends ESIntegTestCase {
 
     public void testPartialFields() throws Exception {
         createIndex("test");
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-
 
         client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")
@@ -406,7 +400,6 @@ public class SearchFieldsTests extends ESIntegTestCase {
 
     public void testStoredFieldsWithoutSource() throws Exception {
         createIndex("test");
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_source").field("enabled", false).endObject().startObject("properties")
                 .startObject("byte_field").field("type", "byte").field("store", true).endObject()
@@ -587,7 +580,6 @@ public class SearchFieldsTests extends ESIntegTestCase {
 
     public void testFieldsPulledFromFieldData() throws Exception {
         createIndex("test");
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_source").field("enabled", false).endObject().startObject("properties")
                 .startObject("text_field").field("type", "text").field("fielddata", true).endObject()

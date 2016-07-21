@@ -1553,31 +1553,6 @@ public class PercolatorIT extends ESIntegTestCase {
         }
     }
 
-    public void testPercolatorQueryWithNowRange() throws Exception {
-        client().admin().indices().prepareCreate(INDEX_NAME)
-                .addMapping("my-type", "timestamp", "type=date,format=epoch_millis")
-                .addMapping(TYPE_NAME, "query", "type=percolator")
-                .get();
-        ensureGreen();
-
-        client().prepareIndex(INDEX_NAME, TYPE_NAME, "1")
-                .setSource(jsonBuilder().startObject().field("query", rangeQuery("timestamp").from("now-1d").to("now")).endObject())
-                .get();
-        client().prepareIndex(INDEX_NAME, TYPE_NAME, "2")
-                .setSource(jsonBuilder().startObject().field("query", constantScoreQuery(rangeQuery("timestamp").from("now-1d").to("now"))).endObject())
-                .get();
-        refresh();
-
-        logger.info("--> Percolate doc with field1=b");
-        PercolateResponse response = preparePercolate(client())
-                .setIndices(INDEX_NAME).setDocumentType("my-type")
-                .setPercolateDoc(docBuilder().setDoc("timestamp", System.currentTimeMillis()))
-                .get();
-        assertMatchCount(response, 2L);
-        assertThat(response.getMatches(), arrayWithSize(2));
-        assertThat(convertFromTextArray(response.getMatches(), INDEX_NAME), arrayContainingInAnyOrder("1", "2"));
-    }
-
     void initNestedIndexAndPercolation() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder();
         mapping.startObject().startObject("properties").startObject("companyname").field("type", "text").endObject()

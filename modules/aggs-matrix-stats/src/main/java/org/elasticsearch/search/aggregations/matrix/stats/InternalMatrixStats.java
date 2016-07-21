@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.matrix.stats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -31,32 +30,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+
 /**
  * Computes distribution statistics over multiple fields
  */
 public class InternalMatrixStats extends InternalMetricsAggregation implements MatrixStats {
-
-    public static final Type TYPE = new Type("matrix_stats");
-    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalMatrixStats readResult(StreamInput in) throws IOException {
-            InternalMatrixStats result = new InternalMatrixStats();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     /** per shard stats needed to compute stats */
-    protected RunningStats stats;
+    private final RunningStats stats;
     /** final result */
-    protected MatrixStatsResults results;
-
-    protected InternalMatrixStats() {
-    }
+    private final MatrixStatsResults results;
 
     /** per shard ctor */
     protected InternalMatrixStats(String name, long count, RunningStats multiFieldStatsResults, MatrixStatsResults results,
@@ -67,9 +50,24 @@ public class InternalMatrixStats extends InternalMetricsAggregation implements M
         this.results = results;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public InternalMatrixStats(StreamInput in) throws IOException {
+        super(in);
+        stats = in.readOptionalWriteable(RunningStats::new);
+        results = in.readOptionalWriteable(MatrixStatsResults::new);
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeOptionalWriteable(stats);
+        out.writeOptionalWriteable(results);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return MatrixStatsAggregationBuilder.NAME;
     }
 
     /** get the number of documents */
@@ -197,7 +195,7 @@ public class InternalMatrixStats extends InternalMetricsAggregation implements M
         } else if (path.size() == 1) {
             String element = path.get(0);
             if (results == null) {
-                results = new MatrixStatsResults();
+                return emptyMap();
             }
             switch (element) {
                 case "counts":
@@ -220,22 +218,6 @@ public class InternalMatrixStats extends InternalMetricsAggregation implements M
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        // write running stats
-        out.writeOptionalWriteable(stats);
-        // write results
-        out.writeOptionalWriteable(results);
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        // read stats count
-        stats = in.readOptionalWriteable(RunningStats::new);
-        // read count
-        results = in.readOptionalWriteable(MatrixStatsResults::new);
     }
 
     @Override

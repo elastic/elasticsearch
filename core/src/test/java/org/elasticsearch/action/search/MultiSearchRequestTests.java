@@ -142,7 +142,7 @@ public class MultiSearchRequestTests extends ESTestCase {
     private IndicesQueriesRegistry registry() {
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
         QueryParser<MatchAllQueryBuilder> parser = MatchAllQueryBuilder::fromXContent;
-        registry.register(parser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
+        registry.register(parser, MatchAllQueryBuilder.NAME);
         return registry;
     }
 }

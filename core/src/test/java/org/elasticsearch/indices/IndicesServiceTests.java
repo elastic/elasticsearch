@@ -285,9 +285,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         listener.latch.await();
         assertThat(clusterService.state(), not(originalState));
         assertNotNull(clusterService.state().getMetaData().index(alias));
-
-        // cleanup
-        indicesService.deleteIndex(test.index(), "finished with test");
     }
 
     /**

@@ -64,7 +64,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 /**
  * Expose reindex over rest.
  */
-public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, TransportReindexAction> {
+public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> {
     static final ObjectParser<ReindexRequest, ReindexParseContext> PARSER = new ObjectParser<>("reindex");
     private static final Pattern HOST_PATTERN = Pattern.compile("(?<scheme>[^:]+)://(?<host>[^:]+):(?<port>\\d+)");
 
@@ -113,8 +113,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     @Inject
     public RestReindexAction(Settings settings, RestController controller,
             IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
-            ClusterService clusterService, TransportReindexAction action) {
-        super(settings, indicesQueriesRegistry, aggParsers, suggesters, clusterService, action);
+            ClusterService clusterService) {
+        super(settings, indicesQueriesRegistry, aggParsers, suggesters, clusterService, ReindexAction.INSTANCE);
         controller.registerHandler(POST, "/_reindex", this);
     }
 
@@ -123,7 +123,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         if (false == request.hasContent()) {
             throw new ElasticsearchException("_reindex requires a request body");
         }
-        handleRequest(request, channel, true, true);
+        handleRequest(request, channel, client, true, true);
     }
 
     @Override

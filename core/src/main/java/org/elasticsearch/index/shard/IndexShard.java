@@ -94,7 +94,6 @@ import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -111,6 +110,7 @@ import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.search.suggest.completion.CompletionFieldStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.search.suggest.completion2x.Completion090PostingsFormat;
@@ -1161,7 +1161,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return storeRecovery.recoverFromStore(this, shouldExist);
     }
 
-    public boolean restoreFromRepository(IndexShardRepository repository) {
+    public boolean restoreFromRepository(Repository repository) {
         assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
         StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
         return storeRecovery.recoverFromRepository(this, repository);
@@ -1449,9 +1449,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 markAsRecovering("from snapshot", recoveryState); // mark the shard as recovering on the cluster state thread
                 threadPool.generic().execute(() -> {
                     try {
-                        final IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(
+                        final Repository repository = repositoriesService.repository(
                             recoveryState.getRestoreSource().snapshot().getRepository());
-                        if (restoreFromRepository(indexShardRepository)) {
+                        if (restoreFromRepository(repository)) {
                             recoveryListener.onRecoveryDone(recoveryState);
                         }
                     } catch (Exception first) {

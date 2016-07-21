@@ -312,6 +312,11 @@ Removed the `getMemoryAvailable` method from `OsStats`, which could be previousl
 are now three options (NONE, IMMEDIATE, and WAIT_FOR). `setRefresh(IMMEDIATE)` has the same behavior
 as `setRefresh(true)` used to have. See `setRefreshPolicy`'s javadoc for more.
 
+==== Remove properties support
+
+Some Java APIs (e.g., `IndicesAdminClient#setSettings`) would support Java properties syntax
+(line-delimited key=value pairs). This support has been removed.
+
 === Render Search Template Java API has been removed
 
 The Render Search Template Java API including `RenderSearchTemplateAction`, `RenderSearchTemplateRequest` and
@@ -319,3 +324,12 @@ The Render Search Template Java API including `RenderSearchTemplateAction`, `Ren
  This Search Template API is now included in the `lang-mustache` module and the `simulate` flag must be set on the
  `SearchTemplateRequest` object.
 
+==== AnalyzeRequest
+
+The `tokenFilters(String...)` and `charFilters(String...)` methods have been removed
+in favor of using `addTokenFilter(String)`/`addTokenFilter(Map)` and `addCharFilter(String)`/`addCharFilter(Map)` each filters
+
+==== AnalyzeRequestBuilder
+
+The `setTokenFilters(String...)` and `setCharFilters(String...)` methods have been removed
+in favor of using `addTokenFilter(String)`/`addTokenFilter(Map)` and `addCharFilter(String)`/`addCharFilter(Map)` each filters

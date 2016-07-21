@@ -47,13 +47,11 @@ import java.util.Random;
 
 public class AssertingLocalTransport extends LocalTransport {
 
+    public static final String ASSERTING_TRANSPORT_NAME = "asserting_local";
+
     public static class TestPlugin extends Plugin {
         public void onModule(NetworkModule module) {
-            module.registerTransport("mock", AssertingLocalTransport.class);
-        }
-        @Override
-        public Settings additionalSettings() {
-            return Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, "mock").build();
+            module.registerTransport(ASSERTING_TRANSPORT_NAME, AssertingLocalTransport.class);
         }
 
         @Override

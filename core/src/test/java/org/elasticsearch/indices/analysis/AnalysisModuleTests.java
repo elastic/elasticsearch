@@ -23,7 +23,10 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.analysis.de.GermanAnalyzer;
+import org.apache.lucene.analysis.en.EnglishAnalyzer;
 import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.miscellaneous.KeywordRepeatFilter;
@@ -51,6 +54,7 @@ import org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
 
 import java.io.BufferedWriter;
@@ -96,7 +100,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
             throw new RuntimeException(e);
         }
     }
-    
+
     private Settings loadFromClasspath(String path) throws IOException {
         return Settings.builder().loadFromStream(path, getClass().getResourceAsStream(path))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -121,6 +125,63 @@ public class AnalysisModuleTests extends ModuleTestCase {
         assertTokenFilter("arabic_normalization", ArabicNormalizationFilter.class);
     }
 
+    public void testAnalyzerAlias() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.foobar.alias","default")
+            .put("index.analysis.analyzer.foobar.type", "keyword")
+            .put("index.analysis.analyzer.foobar_search.alias","default_search")
+            .put("index.analysis.analyzer.foobar_search.type","english")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
+            .build();
+        AnalysisRegistry newRegistry = getNewRegistry(settings);
+        AnalysisService as = getAnalysisService(newRegistry, settings);
+        assertThat(as.analyzer("default").analyzer(), is(instanceOf(KeywordAnalyzer.class)));
+        assertThat(as.analyzer("default_search").analyzer(), is(instanceOf(EnglishAnalyzer.class)));
+    }
+
+    public void testAnalyzerAliasReferencesAlias() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.foobar.alias","default")
+            .put("index.analysis.analyzer.foobar.type", "german")
+            .put("index.analysis.analyzer.foobar_search.alias","default_search")
+            .put("index.analysis.analyzer.foobar_search.type", "default")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
+            .build();
+        AnalysisRegistry newRegistry = getNewRegistry(settings);
+        AnalysisService as = getAnalysisService(newRegistry, settings);
+        assertThat(as.analyzer("default").analyzer(), is(instanceOf(GermanAnalyzer.class)));
+        // analyzer types are bound early before we resolve aliases
+        assertThat(as.analyzer("default_search").analyzer(), is(instanceOf(StandardAnalyzer.class)));
+    }
+
+    public void testAnalyzerAliasDefault() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.foobar.alias","default")
+            .put("index.analysis.analyzer.foobar.type", "keyword")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
+            .build();
+        AnalysisRegistry newRegistry = getNewRegistry(settings);
+        AnalysisService as = getAnalysisService(newRegistry, settings);
+        assertThat(as.analyzer("default").analyzer(), is(instanceOf(KeywordAnalyzer.class)));
+        assertThat(as.analyzer("default_search").analyzer(), is(instanceOf(KeywordAnalyzer.class)));
+    }
+
+    public void testAnalyzerAliasMoreThanOnce() throws IOException {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.foobar.alias","default")
+            .put("index.analysis.analyzer.foobar.type", "keyword")
+            .put("index.analysis.analyzer.foobar1.alias","default")
+            .put("index.analysis.analyzer.foobar1.type", "english")
+            .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersion(random()))
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+        AnalysisRegistry newRegistry = getNewRegistry(settings);
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> getAnalysisService(newRegistry, settings));
+        assertEquals("alias [default] is already used by [foobar]", ise.getMessage());
+    }
     public void testVersionedAnalyzers() throws Exception {
         String yaml = "/org/elasticsearch/index/analysis/test1.yml";
         Settings settings2 = Settings.builder()

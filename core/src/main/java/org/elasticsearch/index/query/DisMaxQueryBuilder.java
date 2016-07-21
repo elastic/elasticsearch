@@ -42,9 +42,7 @@ import java.util.Optional;
  * additional matching sub-queries.
  */
 public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder> {
-
     public static final String NAME = "dis_max";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     /** Default multiplication factor for breaking ties in document scores.*/
     public static final float DEFAULT_TIE_BREAKER = 0.0f;

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.tribe;
 
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -31,7 +32,7 @@ public class TribeServiceTests extends ESTestCase {
         assertEquals("some/path", clientSettings.get("path.home"));
         assertEquals("nodename/tribe1", clientSettings.get("node.name"));
         assertEquals("tribe1", clientSettings.get("tribe.name"));
-        assertEquals("false", clientSettings.get("http.enabled"));
+        assertFalse(NetworkModule.HTTP_ENABLED.get(clientSettings));
         assertEquals("false", clientSettings.get("node.master"));
         assertEquals("false", clientSettings.get("node.data"));
         assertEquals("false", clientSettings.get("node.ingest"));

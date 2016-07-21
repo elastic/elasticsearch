@@ -50,7 +50,14 @@ public class RequestLoggerTests extends RestClientTestCase {
 
     public void testTraceRequest() throws IOException, URISyntaxException {
         HttpHost host = new HttpHost("localhost", 9200, getRandom().nextBoolean() ? "http" : "https");
-        URI uri = new URI("/index/type/_api");
+
+        String expectedEndpoint = "/index/type/_api";
+        URI uri;
+        if (randomBoolean()) {
+            uri = new URI(expectedEndpoint);
+        } else {
+            uri = new URI("index/type/_api");
+        }
 
         HttpRequestBase request;
         int requestType = RandomInts.randomIntBetween(getRandom(), 0, 7);
@@ -83,7 +90,7 @@ public class RequestLoggerTests extends RestClientTestCase {
                 throw new UnsupportedOperationException();
         }
 
-        String expected = "curl -iX " + request.getMethod() + " '" + host + uri + "'";
+        String expected = "curl -iX " + request.getMethod() + " '" + host + expectedEndpoint + "'";
         boolean hasBody = request instanceof HttpEntityEnclosingRequest && getRandom().nextBoolean();
         String requestBody = "{ \"field\": \"value\" }";
         if (hasBody) {

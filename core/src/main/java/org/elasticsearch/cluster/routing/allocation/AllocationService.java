@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -232,7 +233,7 @@ public class AllocationService extends AbstractComponent {
             UnassignedInfo unassignedInfo = failedShard.shard.unassignedInfo();
             final int failedAllocations = unassignedInfo != null ? unassignedInfo.getNumFailedAllocations() : 0;
             changed |= applyFailedShard(allocation, failedShard.shard, true, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, failedShard.message, failedShard.failure,
-                    failedAllocations + 1, currentNanoTime, System.currentTimeMillis(), false));
+                    failedAllocations + 1, currentNanoTime, System.currentTimeMillis(), false, AllocationStatus.NO_ATTEMPT));
         }
         if (!changed) {
             return new RoutingAllocation.Result(false, clusterState.routingTable(), clusterState.metaData());
@@ -259,7 +260,8 @@ public class AllocationService extends AbstractComponent {
                 if (newComputedLeftDelayNanos == 0) {
                     changed = true;
                     unassignedIterator.updateUnassignedInfo(new UnassignedInfo(unassignedInfo.getReason(), unassignedInfo.getMessage(), unassignedInfo.getFailure(),
-                        unassignedInfo.getNumFailedAllocations(), unassignedInfo.getUnassignedTimeInNanos(), unassignedInfo.getUnassignedTimeInMillis(), false));
+                        unassignedInfo.getNumFailedAllocations(), unassignedInfo.getUnassignedTimeInNanos(), unassignedInfo.getUnassignedTimeInMillis(), false,
+                        unassignedInfo.getLastAllocationStatus()));
                 }
             }
         }
@@ -417,7 +419,7 @@ public class AllocationService extends AbstractComponent {
                 final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());
                 boolean delayed = INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(indexMetaData.getSettings()).nanos() > 0;
                 UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "node_left[" + node.nodeId() + "]",
-                    null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), delayed);
+                    null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), delayed, AllocationStatus.NO_ATTEMPT);
                 applyFailedShard(allocation, shardRouting, false, unassignedInfo);
             }
             // its a dead node, remove it, note, its important to remove it *after* we apply failed shard
@@ -438,7 +440,8 @@ public class AllocationService extends AbstractComponent {
         for (ShardRouting routing : replicas) {
             changed |= applyFailedShard(allocation, routing, false,
                     new UnassignedInfo(UnassignedInfo.Reason.PRIMARY_FAILED, "primary failed while replica initializing",
-                            null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false));
+                            null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false,
+                            AllocationStatus.NO_ATTEMPT));
         }
         return changed;
     }

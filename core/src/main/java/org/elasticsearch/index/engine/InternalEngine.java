@@ -1185,6 +1185,20 @@ public class InternalEngine extends Engine {
                 ex.addSuppressed(inner);
             }
             throw ex;
+        } catch (AssertionError e) {
+            // IndexWriter throws AssertionError on commit, if asserts are enabled, if any files don't exist, but tests that
+            // randomly throw FNFE/NSFE can also hit this:
+            if (ExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
+                EngineException engineException = new EngineException(shardId, "failed to commit engine", e);
+                try {
+                    failEngine("lucene commit failed", engineException);
+                } catch (Exception inner) {
+                    engineException.addSuppressed(inner);
+                }
+                throw engineException;
+            } else {
+                throw e;
+            }
         }
     }
 

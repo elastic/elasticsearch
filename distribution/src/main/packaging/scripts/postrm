@@ -13,7 +13,6 @@
 
 SOURCE_ENV_FILE=true
 REMOVE_DIRS=false
-REMOVE_SERVICE=false
 REMOVE_USER_AND_GROUP=false
 
 case "$1" in
@@ -21,7 +20,6 @@ case "$1" in
     # Debian ####################################################
     remove)
         REMOVE_DIRS=true
-        REMOVE_SERVICE=true
     ;;
 
     purge)
@@ -34,7 +32,6 @@ case "$1" in
     # RedHat ####################################################
     0)
         REMOVE_DIRS=true
-        REMOVE_SERVICE=true
         REMOVE_USER_AND_GROUP=true
     ;;
     1)
@@ -62,20 +59,6 @@ if [ "$SOURCE_ENV_FILE" = "true" ]; then
     ES_ENV_FILE="${path.env}"
     if [ -f "$ES_ENV_FILE" ]; then
         . "$ES_ENV_FILE"
-    fi
-fi
-
-if [ "$REMOVE_SERVICE" = "true" ]; then
-    if command -v systemctl >/dev/null; then
-        systemctl disable elasticsearch.service > /dev/null 2>&1 || true
-    fi
-
-    if command -v chkconfig >/dev/null; then
-        chkconfig --del elasticsearch 2> /dev/null || true
-    fi
-
-    if command -v update-rc.d >/dev/null; then
-        update-rc.d elasticsearch remove >/dev/null || true
     fi
 fi
 

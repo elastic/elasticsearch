@@ -175,7 +175,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             .put(FaultDetection.PING_RETRIES_SETTING.getKey(), "1") // for hitting simulated network failures quickly
             .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
             .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s") // <-- for hitting simulated network failures quickly
-            .put("http.enabled", false) // just to make test quicker
             .build();
 
     @Override
@@ -1133,7 +1132,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         final List<String> allMasterEligibleNodes = masterNodes.get();
         ensureStableCluster(3);
         assertAcked(prepareCreate("test"));
-        ensureYellow();
 
         final String masterNode1 = internalCluster().getMasterName();
         NetworkPartition networkPartition = new NetworkUnresponsivePartition(masterNode1, dataNode.get(), random());

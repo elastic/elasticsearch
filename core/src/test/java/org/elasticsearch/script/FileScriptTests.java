@@ -58,7 +58,7 @@ public class FileScriptTests extends ESTestCase {
         CompiledScript compiledScript = scriptService.compile(script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
         assertNotNull(compiledScript);
         MockCompiledScript executable = (MockCompiledScript) compiledScript.compiled();
-        assertEquals("script1.mockscript", executable.name);
+        assertEquals("script1.mockscript", executable.getName());
     }
 
     public void testAllOpsDisabled() throws Exception {

@@ -21,6 +21,9 @@ package org.elasticsearch.bootstrap;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+import joptsimple.OptionSpecBuilder;
+import joptsimple.util.PathConverter;
+import joptsimple.util.PathProperties;
 import org.elasticsearch.Build;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.SettingCommand;
@@ -29,6 +32,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -37,22 +41,23 @@ import java.util.Map;
  */
 class Elasticsearch extends SettingCommand {
 
-    private final OptionSpec<Void> versionOption;
-    private final OptionSpec<Void> daemonizeOption;
-    private final OptionSpec<String> pidfileOption;
+    private final OptionSpecBuilder versionOption;
+    private final OptionSpecBuilder daemonizeOption;
+    private final OptionSpec<Path> pidfileOption;
 
     // visible for testing
     Elasticsearch() {
         super("starts elasticsearch");
-        // TODO: in jopt-simple 5.0, make this mutually exclusive with all other options
         versionOption = parser.acceptsAll(Arrays.asList("V", "version"),
             "Prints elasticsearch version information and exits");
         daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"),
-            "Starts Elasticsearch in the background");
-        // TODO: in jopt-simple 5.0 this option type can be a Path
+            "Starts Elasticsearch in the background")
+            .availableUnless(versionOption);
         pidfileOption = parser.acceptsAll(Arrays.asList("p", "pidfile"),
             "Creates a pid file in the specified path on start")
-            .withRequiredArg();
+            .availableUnless(versionOption)
+            .withRequiredArg()
+            .withValuesConvertedBy(new PathConverter());
     }
 
     /**
@@ -86,12 +91,12 @@ class Elasticsearch extends SettingCommand {
         }
 
         final boolean daemonize = options.has(daemonizeOption);
-        final String pidFile = pidfileOption.value(options);
+        final Path pidFile = pidfileOption.value(options);
 
         init(daemonize, pidFile, settings);
     }
 
-    void init(final boolean daemonize, final String pidFile, final Map<String, String> esSettings) {
+    void init(final boolean daemonize, final Path pidFile, final Map<String, String> esSettings) {
         try {
             Bootstrap.init(!daemonize, pidFile, esSettings);
         } catch (final Throwable t) {

@@ -36,7 +36,6 @@ import static org.hamcrest.Matchers.containsString;
 public class IndexRequestBuilderIT extends ESIntegTestCase {
     public void testSetSource() throws InterruptedException, ExecutionException {
         createIndex("test");
-        ensureYellow();
         Map<String, Object> map = new HashMap<>();
         map.put("test_field", "foobar");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[] {

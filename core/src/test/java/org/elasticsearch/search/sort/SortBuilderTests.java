@@ -41,6 +41,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
+
 public class SortBuilderTests extends ESTestCase {
 
     private static final int NUMBER_OF_RUNS = 20;
@@ -52,7 +54,7 @@ public class SortBuilderTests extends ESTestCase {
     @BeforeClass
     public static void init() {
         namedWriteableRegistry = new NamedWriteableRegistry();
-        indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry, false).getQueryParserRegistry();
+        indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry, false, emptyList()).getQueryParserRegistry();
     }
 
     @AfterClass

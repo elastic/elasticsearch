@@ -259,9 +259,8 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
             long requestId = stream.readLong();
             byte status = stream.readByte();
             boolean isRequest = TransportStatus.isRequest(status);
+            threadPool.getThreadContext().readHeaders(stream);
             if (isRequest) {
-                ThreadContext threadContext = threadPool.getThreadContext();
-                threadContext.readHeaders(stream);
                 handleRequest(stream, requestId, data.length, sourceTransport, version);
             } else {
                 final TransportResponseHandler handler = transportServiceAdapter.onResponseReceived(requestId);
@@ -304,7 +303,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
             inFlightRequestsBreaker().addWithoutBreaking(messageLengthBytes);
         }
         final LocalTransportChannel transportChannel = new LocalTransportChannel(this, transportServiceAdapter, sourceTransport, action,
-            requestId, version, messageLengthBytes);
+            requestId, version, messageLengthBytes, threadPool.getThreadContext());
         try {
             if (reg == null) {
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
@@ -389,7 +388,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
 
     private void handleException(final TransportResponseHandler handler, Exception exception) {
         if (!(exception instanceof RemoteTransportException)) {
-            exception = new RemoteTransportException("None remote transport exception", null, null, exception);
+            exception = new RemoteTransportException("Not a remote transport exception", null, null, exception);
         }
         final RemoteTransportException rtx = (RemoteTransportException) exception;
         try {

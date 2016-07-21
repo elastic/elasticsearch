@@ -22,6 +22,7 @@ package org.elasticsearch.search.suggest;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.completion.CompletionSuggesterBuilderTests;
 import org.elasticsearch.search.suggest.completion.WritableTestCase;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilderTests;
@@ -39,6 +41,8 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Map.Entry;
+
+import static java.util.Collections.emptyList;
 
 public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
 
@@ -51,7 +55,7 @@ public class SuggestBuilderTests extends WritableTestCase<SuggestBuilder> {
     @BeforeClass
     public static void init() {
         namedWriteableRegistry = new NamedWriteableRegistry();
-        suggesters = new Suggesters(namedWriteableRegistry);
+        suggesters = new SearchModule(Settings.EMPTY, namedWriteableRegistry, false, emptyList()).getSuggesters();
     }
 
     @AfterClass

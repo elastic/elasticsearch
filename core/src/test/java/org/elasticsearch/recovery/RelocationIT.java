@@ -273,9 +273,6 @@ public class RelocationIT extends ESIntegTestCase {
                         .put("index.refresh_interval", -1) // we want to control refreshes c
                 ).execute().actionGet();
 
-        // make sure the first shard is started.
-        ensureYellow();
-
         for (int i = 1; i < numberOfNodes; i++) {
             logger.info("--> starting [node_{}] ...", i);
             nodes[i] = internalCluster().startNode();
@@ -447,9 +444,8 @@ public class RelocationIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
             .put("index.routing.allocation.exclude.color", "blue")
             .put(indexSettings())
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0) // NORELEASE: set to randomInt(halfNodes - 1) once replica data loss is fixed
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomInt(halfNodes - 1))
         ));
-        ensureYellow();
         assertAllShardsOnNodes("test", redFuture.get().toArray(new String[2]));
         int numDocs = randomIntBetween(100, 150);
         ArrayList<String> ids = new ArrayList<>();

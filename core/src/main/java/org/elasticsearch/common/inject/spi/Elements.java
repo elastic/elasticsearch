@@ -83,13 +83,6 @@ public final class Elements {
     /**
      * Records the elements executed by {@code modules}.
      */
-    public static List<Element> getElements(Stage stage, Module... modules) {
-        return getElements(stage, Arrays.asList(modules));
-    }
-
-    /**
-     * Records the elements executed by {@code modules}.
-     */
     public static List<Element> getElements(Iterable<? extends Module> modules) {
         return getElements(Stage.DEVELOPMENT, modules);
     }
@@ -117,11 +110,6 @@ public final class Elements {
                 }
             }
         };
-    }
-
-    @SuppressWarnings("unchecked")
-    static <T> BindingTargetVisitor<T, T> getInstanceVisitor() {
-        return (BindingTargetVisitor<T, T>) GET_INSTANCE_VISITOR;
     }
 
     private static class RecordingBinder implements Binder, PrivateBinder {

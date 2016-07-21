@@ -26,7 +26,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.PidFile;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.ESLogger;
@@ -180,10 +179,10 @@ final class Bootstrap {
         };
     }
 
-    private static Environment initialSettings(boolean foreground, String pidFile, Map<String, String> esSettings) {
+    private static Environment initialSettings(boolean foreground, Path pidFile, Map<String, String> esSettings) {
         Terminal terminal = foreground ? Terminal.DEFAULT : null;
         Settings.Builder builder = Settings.builder();
-        if (Strings.hasLength(pidFile)) {
+        if (pidFile != null) {
             builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
         }
         return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, esSettings);
@@ -215,7 +214,7 @@ final class Bootstrap {
      */
     static void init(
             final boolean foreground,
-            final String pidFile,
+            final Path pidFile,
             final Map<String, String> esSettings) throws Exception {
         // Set the system property before anything has a chance to trigger its use
         initLoggerPrefix();
@@ -246,6 +245,12 @@ final class Bootstrap {
 
             // fail if somebody replaced the lucene jars
             checkLucene();
+
+            // install the default uncaught exception handler; must be done before security is
+            // initialized as we do not want to grant the runtime permission
+            // setDefaultUncaughtExceptionHandler
+            Thread.setDefaultUncaughtExceptionHandler(
+                new ElasticsearchUncaughtExceptionHandler(() -> Node.NODE_NAME_SETTING.get(settings)));
 
             INSTANCE.setup(true, settings, environment);
 

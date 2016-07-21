@@ -11,7 +11,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -32,6 +31,7 @@ import org.elasticsearch.xpack.watcher.condition.ConditionModule;
 import org.elasticsearch.xpack.watcher.execution.ExecutionModule;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
+import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.history.HistoryModule;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.input.InputModule;
@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsActio
 import org.elasticsearch.xpack.watcher.trigger.TriggerModule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.xpack.watcher.watch.WatchModule;
+import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -216,7 +217,7 @@ public class Watcher implements ActionPlugin {
 
         String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too" +
                 " restrictive. disable [action.auto_create_index] or set it to " +
-                "[.watches,.triggered_watches,.watcher-history*]", (Object) value);
+                "[{}, {}, {}*]", (Object) value, WatchStore.INDEX, TriggeredWatchStore.INDEX_NAME, HistoryStore.INDEX_PREFIX);
         if (Booleans.isExplicitFalse(value)) {
             throw new IllegalArgumentException(errorMessage);
         }

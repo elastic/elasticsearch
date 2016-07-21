@@ -15,34 +15,27 @@ public class WatcherPluginTests extends ESTestCase {
     public void testValidAutoCreateIndex() {
         Watcher.validAutoCreateIndex(Settings.EMPTY);
         Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", true).build());
-        try {
-            Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", false).build());
-            fail("IllegalArgumentException expected");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history*]"));
-        }
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", false).build()));
+        assertThat(exception.getMessage(), containsString("[.watches, .triggered_watches, .watcher-history-*]"));
+
         Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index",
                 ".watches,.triggered_watches,.watcher-history*").build());
         Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", "*w*").build());
         Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".w*,.t*").build());
-        try {
-            Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watches").build());
-            fail("IllegalArgumentException expected");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history*]"));
-        }
-        try {
-            Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".triggered_watch").build());
-            fail("IllegalArgumentException expected");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history*]"));
-        }
-        try {
-            Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watcher-history*").build());
-            fail("IllegalArgumentException expected");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("[.watches,.triggered_watches,.watcher-history*]"));
-        }
+
+        exception = expectThrows(IllegalArgumentException.class,
+                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watches").build()));
+        assertThat(exception.getMessage(), containsString("[.watches, .triggered_watches, .watcher-history-*]"));
+
+        exception = expectThrows(IllegalArgumentException.class,
+                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".triggered_watch").build()));
+        assertThat(exception.getMessage(), containsString("[.watches, .triggered_watches, .watcher-history-*]"));
+
+        exception = expectThrows(IllegalArgumentException.class,
+                () -> Watcher.validAutoCreateIndex(Settings.builder().put("action.auto_create_index", ".watcher-history-*").build()));
+        assertThat(exception.getMessage(), containsString("[.watches, .triggered_watches, .watcher-history-*]"));
     }
 
 }

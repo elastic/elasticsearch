@@ -32,7 +32,8 @@ import static org.elasticsearch.xpack.watcher.support.Exceptions.ioException;
  */
 public class HistoryStore extends AbstractComponent {
 
-    public static final String INDEX_PREFIX = ".watcher-history-" + WatcherIndexTemplateRegistry.INDEX_TEMPLATE_VERSION + "-";
+    public static final String INDEX_PREFIX = ".watcher-history-";
+    public static final String INDEX_PREFIX_WITH_TEMPLATE = INDEX_PREFIX + WatcherIndexTemplateRegistry.INDEX_TEMPLATE_VERSION + "-";
     public static final String DOC_TYPE = "watch_record";
 
     static final DateTimeFormatter indexTimeFormat = DateTimeFormat.forPattern("YYYY.MM.dd");
@@ -123,7 +124,7 @@ public class HistoryStore extends AbstractComponent {
      * Calculates the correct history index name for a given time
      */
     public static String getHistoryIndexNameForTime(DateTime time) {
-        return INDEX_PREFIX + indexTimeFormat.print(time);
+        return INDEX_PREFIX_WITH_TEMPLATE + indexTimeFormat.print(time);
     }
 
 }

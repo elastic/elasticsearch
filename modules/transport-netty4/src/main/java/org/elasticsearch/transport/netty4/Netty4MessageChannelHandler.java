@@ -21,7 +21,6 @@ package org.elasticsearch.transport.netty4;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelDuplexHandler;
-import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -49,11 +48,10 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-        promise.addListener(f -> {
-            if (msg instanceof ByteBuf) {
-                transportServiceAdapter.sent(((ByteBuf) msg).readableBytes());
-            }
-        });
+        if (msg instanceof ByteBuf && transportServiceAdapter != null) {
+            // record the number of bytes send on the channel
+            promise.addListener(f -> transportServiceAdapter.addBytesSent(((ByteBuf) msg).readableBytes()));
+        }
         super.write(ctx, msg, promise);
     }
 

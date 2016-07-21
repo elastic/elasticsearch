@@ -24,6 +24,7 @@ import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.util.ReferenceCountUtil;
 import org.elasticsearch.action.termvectors.TermVectorsFilter;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.transport.netty4.Netty4Utils;
@@ -62,7 +63,9 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (msg instanceof LastHttpContent) {
-            super.channelRead(ctx, new HttpPipelinedRequest((LastHttpContent) msg, readSequence++));
+            ctx.fireChannelRead(new HttpPipelinedRequest(((LastHttpContent) msg).retain(), readSequence++));
+        } else {
+            ctx.fireChannelRead(msg);
         }
     }
 
@@ -73,8 +76,7 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
 
             synchronized (holdingQueue) {
                 if (holdingQueue.size() < maxEventsHeld) {
-                    final HttpPipelinedResponse current = (HttpPipelinedResponse) msg;
-                    holdingQueue.add(current);
+                    holdingQueue.add((HttpPipelinedResponse) msg);
 
                     while (!holdingQueue.isEmpty()) {
                         final HttpPipelinedResponse response = holdingQueue.peek();
@@ -82,7 +84,7 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
                             break;
                         }
                         holdingQueue.remove();
-                        super.write(ctx, response.response(), response.promise());
+                        ctx.write(response.response(), response.promise());
                         writeSequence++;
                     }
                 } else {
@@ -91,10 +93,15 @@ public class HttpPipeliningHandler extends ChannelDuplexHandler {
             }
 
             if (channelShouldClose) {
-                Netty4Utils.closeChannels(Collections.singletonList(ctx.channel()));
+                try {
+                    Netty4Utils.closeChannels(Collections.singletonList(ctx.channel()));
+                } finally {
+                    ((HttpPipelinedResponse) msg).release();
+                    promise.setSuccess();
+                }
             }
         } else {
-            super.write(ctx, msg, promise);
+            ctx.write(msg, promise);
         }
     }
 

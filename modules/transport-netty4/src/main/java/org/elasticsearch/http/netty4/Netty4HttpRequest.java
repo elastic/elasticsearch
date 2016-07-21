@@ -35,7 +35,7 @@ import java.util.Map;
 
 class Netty4HttpRequest extends RestRequest {
 
-    private final io.netty.handler.codec.http.HttpRequest request;
+    private final FullHttpRequest request;
     private final Channel channel;
     private final Map<String, String> params;
     private final String rawPath;
@@ -61,7 +61,7 @@ class Netty4HttpRequest extends RestRequest {
         }
     }
 
-    public HttpRequest request() {
+    public FullHttpRequest request() {
         return this.request;
     }
 

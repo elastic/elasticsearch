@@ -24,6 +24,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
+import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
@@ -55,7 +56,7 @@ final class Netty4HttpChannel extends AbstractRestChannel {
 
     private final Netty4HttpServerTransport transport;
     private final Channel channel;
-    private final HttpRequest nettyRequest;
+    private final FullHttpRequest nettyRequest;
     private final HttpPipelinedRequest pipelinedRequest;
 
     /**
@@ -66,10 +67,10 @@ final class Netty4HttpChannel extends AbstractRestChannel {
      * @param detailedErrorsEnabled true iff error messages should include stack traces.
      */
     Netty4HttpChannel(
-        final Netty4HttpServerTransport transport,
-        final Netty4HttpRequest request,
-        final HttpPipelinedRequest pipelinedRequest,
-        final boolean detailedErrorsEnabled) {
+            final Netty4HttpServerTransport transport,
+            final Netty4HttpRequest request,
+            final HttpPipelinedRequest pipelinedRequest,
+            final boolean detailedErrorsEnabled) {
         super(request, detailedErrorsEnabled);
         this.transport = transport;
         this.channel = request.getChannel();
@@ -102,7 +103,7 @@ final class Netty4HttpChannel extends AbstractRestChannel {
         addCustomHeaders(response, resp);
 
         BytesReference content = response.content();
-        boolean addedReleaseListener = false;
+        boolean release = content instanceof Releasable;
         try {
             // If our response doesn't specify a content-type header, set one
             setHeaderField(resp, HttpHeaderNames.CONTENT_TYPE.toString(), response.contentType(), false);
@@ -113,9 +114,9 @@ final class Netty4HttpChannel extends AbstractRestChannel {
 
             final ChannelPromise promise = channel.newPromise();
 
-            if (content instanceof Releasable) {
-                promise.addListener(new Netty4ReleaseChannelFutureListener((Releasable) content));
-                addedReleaseListener = true;
+            if (release) {
+                promise.addListener(f -> ((Releasable)content).close());
+                release = false;
             }
 
             if (isCloseConnection()) {
@@ -129,8 +130,12 @@ final class Netty4HttpChannel extends AbstractRestChannel {
             }
 
         } finally {
-            if (!addedReleaseListener && content instanceof Releasable) {
+            if (release) {
                 ((Releasable) content).close();
+            }
+            nettyRequest.release();
+            if (pipelinedRequest != null) {
+                pipelinedRequest.release();
             }
         }
     }

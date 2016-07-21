@@ -20,14 +20,17 @@
 package org.elasticsearch.http.netty4.pipelining;
 
 import io.netty.channel.ChannelPromise;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.util.ReferenceCounted;
 
 /**
  * Permits downstream channel events to be ordered and signalled as to whether more are to come for
  * a given sequence.
  */
-public class HttpPipelinedRequest {
+public class HttpPipelinedRequest implements ReferenceCounted {
 
     private final LastHttpContent last;
     private final int sequence;
@@ -42,8 +45,47 @@ public class HttpPipelinedRequest {
         return last;
     }
 
-    public HttpPipelinedResponse createHttpResponse(final HttpResponse response, final ChannelPromise promise) {
+    public HttpPipelinedResponse createHttpResponse(final FullHttpResponse response, final ChannelPromise promise) {
         return new HttpPipelinedResponse(response, promise, sequence);
+    }
+
+    @Override
+    public int refCnt() {
+        return last.refCnt();
+    }
+
+    @Override
+    public ReferenceCounted retain() {
+        last.retain();
+        return this;
+    }
+
+    @Override
+    public ReferenceCounted retain(int increment) {
+        last.retain(increment);
+        return this;
+    }
+
+    @Override
+    public ReferenceCounted touch() {
+        last.touch();
+        return this;
+    }
+
+    @Override
+    public ReferenceCounted touch(Object hint) {
+        last.touch(hint);
+        return this;
+    }
+
+    @Override
+    public boolean release() {
+        return last.release();
+    }
+
+    @Override
+    public boolean release(int decrement) {
+        return last.release(decrement);
     }
 
 }

@@ -20,7 +20,6 @@
 package org.elasticsearch.common.transport;
 
 import java.net.ConnectException;
-import java.net.SocketException;
 import java.nio.channels.ClosedChannelException;
 
 /**
@@ -36,7 +35,7 @@ public class NetworkExceptionHelper {
     }
 
     public static boolean isCloseConnectionException(Throwable e) {
-        if (e instanceof ClosedChannelException || e instanceof SocketException) {
+        if (e instanceof ClosedChannelException) {
             return true;
         }
         if (e.getMessage() != null) {
@@ -56,7 +55,7 @@ public class NetworkExceptionHelper {
             if (e.getMessage().contains("Connection timed out")) {
                 return true;
             }
-            if (e.getMessage().contains("Socket is closed")) {
+            if (e.getMessage().equals("Socket is closed")) {
                 return true;
             }
         }

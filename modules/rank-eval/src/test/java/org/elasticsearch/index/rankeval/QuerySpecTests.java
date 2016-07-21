@@ -35,6 +35,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class QuerySpecTests extends ESTestCase {
@@ -50,7 +51,7 @@ public class QuerySpecTests extends ESTestCase {
     @BeforeClass
     public static void init() throws IOException {
         aggsParsers = new AggregatorParsers(new ParseFieldRegistry<>("aggregation"), new ParseFieldRegistry<>("aggregation_pipes"));
-        searchModule = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false);
+        searchModule = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false, new ArrayList<>());
         queriesRegistry = searchModule.getQueryParserRegistry();
         suggesters = searchModule.getSuggesters();
     }
@@ -63,6 +64,7 @@ public class QuerySpecTests extends ESTestCase {
         aggsParsers = null;
     }
 
+    // TODO add some sort of roundtrip testing like we have now for queries?
     public void testParseFromXContent() throws IOException {
         String querySpecString = " {\n"
          + "   \"id\": \"my_qa_query\",\n"

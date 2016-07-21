@@ -103,6 +103,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             unknownDocs.put(spec.getSpecId(), intentQuality.getUnknownDocs());
         }
         RankEvalResponse response = new RankEvalResponse();
+        // TODO move averaging to actual metric, also add other statistics
         RankEvalResult result = new RankEvalResult(qualityTask.getTaskId(), qualitySum / specifications.size(), unknownDocs);
         response.setRankEvalResult(result);
         listener.onResponse(response);

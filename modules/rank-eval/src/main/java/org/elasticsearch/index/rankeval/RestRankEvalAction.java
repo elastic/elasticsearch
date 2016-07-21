@@ -192,6 +192,7 @@ public class RestRankEvalAction extends BaseRestHandler {
             QueryParseContext parseContext = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
             if (restContent != null) {
                 parseRankEvalRequest(rankEvalRequest, request,
+                        // TODO can we get rid of aggregators parsers and suggesters?
                         new RankEvalContext(parseFieldMatcher, parseContext, aggregators, suggesters));
             }
         }

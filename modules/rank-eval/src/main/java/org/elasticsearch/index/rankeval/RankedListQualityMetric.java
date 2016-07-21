@@ -19,7 +19,15 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.SearchHit;
+
+import java.io.IOException;
+import java.util.List;
 
 /**
  * Classes implementing this interface provide a means to compute the quality of a result list
@@ -27,7 +35,7 @@ import org.elasticsearch.search.SearchHit;
  *
  * RelevancyLevel specifies the type of object determining the relevancy level of some known docid.
  * */
-public interface RankedListQualityMetric extends Evaluator {
+public abstract class RankedListQualityMetric implements NamedWriteable {
 
     /**
      * Returns a single metric representing the ranking quality of a set of returned documents
@@ -36,6 +44,27 @@ public interface RankedListQualityMetric extends Evaluator {
      * @param hits the result hits as returned by some search
      * @return some metric representing the quality of the result hit list wrt. to relevant doc ids.
      * */
-    @Override
-    EvalQueryQuality evaluate(SearchHit[] hits, RatedQuery intent);
+    public abstract EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs);
+
+    public static RankedListQualityMetric fromXContent(XContentParser parser, ParseFieldMatcherSupplier context) throws IOException {
+        RankedListQualityMetric rc;
+        Token token = parser.nextToken();
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new ParsingException(parser.getTokenLocation(), "[_na] missing required metric name");
+        }
+        String metricName = parser.currentName();
+
+        switch (metricName) {
+        case PrecisionAtN.NAME:
+            rc = PrecisionAtN.fromXContent(parser, context);
+            break;
+        default:
+            throw new ParsingException(parser.getTokenLocation(), "[_na] unknown query metric name [{}]", metricName);
+        }
+        if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
+            // if we are at END_OBJECT, move to the next one...
+            parser.nextToken();
+        }
+        return rc;
+    }
 }

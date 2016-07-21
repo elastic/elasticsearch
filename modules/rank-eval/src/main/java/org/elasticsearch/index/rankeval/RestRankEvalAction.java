@@ -20,21 +20,29 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
+import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -45,7 +53,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * General Format:
  *
  *
-  { "requests": [{
+  {
+    "spec_id": "human_readable_id",
+    "requests": [{
         "id": "human_readable_id",
         "request": { ... request to check ... },
         "ratings": { ... mapping from doc id to rating value ... }
@@ -53,12 +63,15 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
     "metric": {
         "... metric_name... ": {
             "... metric_parameter_key ...": ...metric_parameter_value...
-        }}}
+        }
+    }
+  }
  *
  * Example:
  *
  *
-   {"requests": [{
+   {"spec_id": "huge_weight_on_location",
+    "requests": [{
         "id": "amsterdam_query",
         "request": {
                 "query": {
@@ -77,6 +90,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
             "2": 0,
             "3": 1,
             "4": 1
+        }
         }
     }, {
         "id": "berlin_query",
@@ -100,7 +114,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
     }],
     "metric": {
         "precisionAtN": {
-            "size": 10}}
+            "size": 10
+            }
+    }
   }
 
  *
@@ -135,7 +151,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
         "failed": 0
     },
     "rank_eval": [{
-        "spec_id": "huge_weight_on_city",
+        "spec_id": "huge_weight_on_location",
         "quality_level": 0.4,
         "unknown_docs": [{
             "amsterdam_query": [5, 10, 23]
@@ -149,10 +165,17 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * */
 public class RestRankEvalAction extends BaseRestHandler {
 
+    private IndicesQueriesRegistry queryRegistry;
+    private AggregatorParsers aggregators;
+    private Suggesters suggesters;
+
     @Inject
     public RestRankEvalAction(Settings settings, RestController controller, IndicesQueriesRegistry queryRegistry,
             AggregatorParsers aggParsers, Suggesters suggesters) {
         super(settings);
+        this.queryRegistry = queryRegistry;
+        this.aggregators = aggParsers;
+        this.suggesters = suggesters;
         controller.registerHandler(GET, "/_rank_eval", this);
         controller.registerHandler(POST, "/_rank_eval", this);
         controller.registerHandler(GET, "/{index}/_rank_eval", this);
@@ -164,22 +187,47 @@ public class RestRankEvalAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
         RankEvalRequest rankEvalRequest = new RankEvalRequest();
-        //parseRankEvalRequest(rankEvalRequest, request, parseFieldMatcher);
-        //client.rankEval(rankEvalRequest, new RestStatusToXContentListener<>(channel));
-    }
-
-    public static void parseRankEvalRequest(RankEvalRequest rankEvalRequest, RestRequest request, ParseFieldMatcher parseFieldMatcher)
-        throws IOException {
-
-        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        BytesReference restContent = null;
-        if (restContent == null) {
-            if (RestActions.hasBodyContent(request)) {
-                restContent = RestActions.getRestContent(request);
+        BytesReference restContent = RestActions.hasBodyContent(request) ? RestActions.getRestContent(request) : null;
+        try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+            QueryParseContext parseContext = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
+            if (restContent != null) {
+                parseRankEvalRequest(rankEvalRequest, request,
+                        new RankEvalContext(parseFieldMatcher, parseContext, aggregators, suggesters));
             }
         }
-        if (restContent != null) {
-        }
+        client.execute(RankEvalAction.INSTANCE, rankEvalRequest, new RestToXContentListener<RankEvalResponse>(channel));
+    }
 
+    private static final ParseField SPECID_FIELD = new ParseField("spec_id");
+    private static final ParseField METRIC_FIELD = new ParseField("metric");
+    private static final ParseField REQUESTS_FIELD = new ParseField("requests");
+    private static final ObjectParser<RankEvalSpec, RankEvalContext> PARSER = new ObjectParser<>("rank_eval", RankEvalSpec::new);
+
+    static {
+        PARSER.declareString(RankEvalSpec::setTaskId, SPECID_FIELD);
+        PARSER.declareObject(RankEvalSpec::setEvaluator, (p, c) -> {
+            try {
+                return RankedListQualityMetric.fromXContent(p, c);
+            } catch (IOException ex) {
+                throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
+            }
+        } , METRIC_FIELD);
+        PARSER.declareObjectArray(RankEvalSpec::setSpecifications, (p, c) -> {
+            try {
+                return QuerySpec.fromXContent(p, c);
+            } catch (IOException ex) {
+                throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
+            }
+        } , REQUESTS_FIELD);
+    }
+
+    public static void parseRankEvalRequest(RankEvalRequest rankEvalRequest, RestRequest request, RankEvalContext context)
+            throws IOException {
+        List<String> indices = Arrays.asList(Strings.splitStringByCommaToArray(request.param("index")));
+        RankEvalSpec spec = PARSER.parse(context.parser(), context);
+        for (QuerySpec specification : spec.getSpecifications()) {
+            specification.setIndices(indices);
+        };
+        rankEvalRequest.setRankEvalSpec(spec);
     }
 }

@@ -19,28 +19,31 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Map;
-import java.util.Map.Entry;
+import java.util.List;
 
 import javax.naming.directory.SearchResult;
 
 /**
  * Evaluate Precision at N, N being the number of search results to consider for precision calculation.
- * 
+ *
  * Documents of unkonwn quality are ignored in the precision at n computation and returned by document id.
  * */
-public class PrecisionAtN implements RankedListQualityMetric {
-    
+public class PrecisionAtN extends RankedListQualityMetric {
+
     /** Number of results to check against a given set of relevant results. */
     private int n;
-    
+
     public static final String NAME = "precisionatn";
 
     public PrecisionAtN(StreamInput in) throws IOException {
@@ -63,7 +66,7 @@ public class PrecisionAtN implements RankedListQualityMetric {
     public PrecisionAtN() {
         this.n = 10;
     }
-     
+
     /**
      * @param n number of top results to check against a given set of relevant results.
      * */
@@ -78,24 +81,31 @@ public class PrecisionAtN implements RankedListQualityMetric {
         return n;
     }
 
+    private static final ParseField SIZE_FIELD = new ParseField("size");
+    private static final ConstructingObjectParser<PrecisionAtN, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+            "precision_at", a -> new PrecisionAtN((Integer) a[0]));
+
+    static {
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), SIZE_FIELD);
+    }
+
+    public static PrecisionAtN fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {
+        return PARSER.apply(parser, matcher);
+    }
+
     /** Compute precisionAtN based on provided relevant document IDs.
      * @return precision at n for above {@link SearchResult} list.
      **/
     @Override
-    public EvalQueryQuality evaluate(SearchHit[] hits, RatedQuery intent) {
-        Map<String, Integer> ratedDocIds = intent.getRatedDocuments();
-        
-        Collection<String> relevantDocIds = new ArrayList<>(); 
-        for (Entry<String, Integer> entry : ratedDocIds.entrySet()) {
-            if (Rating.RELEVANT.equals(RatingMapping.mapTo(entry.getValue()))) {
-                relevantDocIds.add(entry.getKey());
-            }
-        }
-        
-        Collection<String> irrelevantDocIds = new ArrayList<>(); 
-        for (Entry<String, Integer> entry : ratedDocIds.entrySet()) {
-            if (Rating.IRRELEVANT.equals(RatingMapping.mapTo(entry.getValue()))) {
-                irrelevantDocIds.add(entry.getKey());
+    public EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs) {
+
+        Collection<String> relevantDocIds = new ArrayList<>();
+        Collection<String> irrelevantDocIds = new ArrayList<>();
+        for (RatedDocument doc : ratedDocs) {
+            if (Rating.RELEVANT.equals(RatingMapping.mapTo(doc.getRating()))) {
+                relevantDocIds.add(doc.getDocID());
+            } else if (Rating.IRRELEVANT.equals(RatingMapping.mapTo(doc.getRating()))) {
+                irrelevantDocIds.add(doc.getDocID());
             }
         }
 
@@ -117,24 +127,24 @@ public class PrecisionAtN implements RankedListQualityMetric {
 
         return new EvalQueryQuality(precision, unknownDocIds);
     }
-    
+
     public enum Rating {
-        RELEVANT, IRRELEVANT;
+        IRRELEVANT, RELEVANT;
     }
-    
+
     /**
      * Needed to get the enum accross serialisation boundaries.
      * */
     public static class RatingMapping {
         public static Integer mapFrom(Rating rating) {
             if (Rating.RELEVANT.equals(rating)) {
-                return 0;
+                return 1;
             }
-            return 1;
+            return 0;
         }
-        
+
         public static Rating mapTo(Integer rating) {
-            if (rating == 0) {
+            if (rating == 1) {
                 return Rating.RELEVANT;
             }
             return Rating.IRRELEVANT;

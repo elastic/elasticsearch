@@ -22,54 +22,65 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Map;
 
-/** 
+/**
  * For each qa specification identified by its id this response returns the respective
  * averaged precisionAnN value.
- * 
+ *
  * In addition for each query the document ids that haven't been found annotated is returned as well.
- * 
+ *
  * Documents of unknown quality - i.e. those that haven't been supplied in the set of annotated documents but have been returned
  * by the search are not taken into consideration when computing precision at n - they are ignored.
- * 
+ *
  **/
-public class RankEvalResponse extends ActionResponse {
+public class RankEvalResponse extends ActionResponse implements ToXContent {
 
-    private Collection<RankEvalResult> qualityResults = new ArrayList<>();
+    private RankEvalResult qualityResult;
 
     public RankEvalResponse() {
-        
+
     }
 
     public RankEvalResponse(StreamInput in) throws IOException {
-        int size = in.readInt();
-        qualityResults = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            qualityResults.add(new RankEvalResult(in));
-        }
+        super.readFrom(in);
+        this.qualityResult = new RankEvalResult(in);
     }
-    
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeInt(qualityResults.size());
-        for (RankEvalResult result : qualityResults) {
-            result.writeTo(out);
-        }
-    }    
- 
-    public void addRankEvalResult(int specId, double quality, Map<Integer, Collection<String>> unknownDocs) {
-        RankEvalResult result = new RankEvalResult(specId, quality, unknownDocs);
-        this.qualityResults.add(result);
+        qualityResult.writeTo(out);
     }
-    
-    public Collection<RankEvalResult> getRankEvalResults() {
-        return qualityResults;
+
+    public void setRankEvalResult(RankEvalResult result) {
+        this.qualityResult = result;
+    }
+
+    public RankEvalResult getRankEvalResult() {
+        return qualityResult;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("rank_eval");
+        builder.field("spec_id", qualityResult.getSpecId());
+        builder.field("quality_level", qualityResult.getQualityLevel());
+        builder.startArray("unknown_docs");
+        Map<String, Collection<String>> unknownDocs = qualityResult.getUnknownDocs();
+        for (String key : unknownDocs.keySet()) {
+            builder.startObject();
+            builder.field(key, unknownDocs.get(key));
+            builder.endObject();
+        }
+        builder.endArray();
+        builder.endObject();
+        return builder;
     }
 
 }

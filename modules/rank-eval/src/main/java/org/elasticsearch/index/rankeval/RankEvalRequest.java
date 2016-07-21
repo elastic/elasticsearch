@@ -35,20 +35,24 @@ public class RankEvalRequest extends ActionRequest<RankEvalRequest> {
 
     /** The request data to use for evaluation. */
     private RankEvalSpec task;
-    
+
     @Override
     public ActionRequestValidationException validate() {
-        return null;         // TODO
+        return null; // TODO
     }
 
-    /** Returns the specification of this qa run including intents to execute, specifications detailing intent translation and metrics
-     * to compute. */
+    /**
+     * Returns the specification of this qa run including intents to execute,
+     * specifications detailing intent translation and metrics to compute.
+     */
     public RankEvalSpec getRankEvalSpec() {
         return task;
     }
 
-    /** Returns the specification of this qa run including intents to execute, specifications detailing intent translation and metrics
-     * to compute. */
+    /**
+     * Returns the specification of this qa run including intents to execute,
+     * specifications detailing intent translation and metrics to compute.
+     */
     public void setRankEvalSpec(RankEvalSpec task) {
         this.task = task;
     }

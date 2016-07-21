@@ -21,25 +21,25 @@ package org.elasticsearch.index.rankeval;
 
 import java.util.Collection;
 
-/** Returned for each search intent and search specification combination. Summarises the document ids found that were not
- * annotated and the average precision of result sets in each particular combination based on the annotations given. 
+/** Returned for each search specification. Summarizes the measured quality metric for this search request
+ * and adds the document ids found that were in the search result but not annotated in the original request.
  * */
 public class EvalQueryQuality {
     private double qualityLevel;
-        
+
     private Collection<String> unknownDocs;
 
     public EvalQueryQuality (double qualityLevel, Collection<String> unknownDocs) {
        this.qualityLevel = qualityLevel;
        this.unknownDocs = unknownDocs;
     }
-        
+
     public Collection<String> getUnknownDocs() {
         return unknownDocs;
     }
 
     public double getQualityLevel() {
-        return qualityLevel;          
+        return qualityLevel;
     }
 
 }

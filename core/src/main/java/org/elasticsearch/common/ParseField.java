@@ -33,12 +33,24 @@ public class ParseField {
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(ParseField.class));
 
     private final String name;
+    private final String[] alternativeNames;
     private final String[] deprecatedNames;
     private String allReplacedWith = null;
     private final String[] allNames;
 
     public ParseField(String name, String... deprecatedNames) {
+        this(name, null, deprecatedNames);
+    }
+
+    public ParseField(String name, String[] alternativeNames, String... deprecatedNames) {
         this.name = name;
+        if (alternativeNames == null || alternativeNames.length == 0) {
+            this.alternativeNames = Strings.EMPTY_ARRAY;
+        } else {
+            final HashSet<String> set = new HashSet<>();
+            Collections.addAll(set, alternativeNames);
+            this.alternativeNames = set.toArray(new String[set.size()]);
+        }
         if (deprecatedNames == null || deprecatedNames.length == 0) {
             this.deprecatedNames = Strings.EMPTY_ARRAY;
         } else {
@@ -48,6 +60,7 @@ public class ParseField {
         }
         Set<String> allNames = new HashSet<>();
         allNames.add(name);
+        Collections.addAll(allNames, this.alternativeNames);
         Collections.addAll(allNames, this.deprecatedNames);
         this.allNames = allNames.toArray(new String[allNames.size()]);
     }
@@ -56,12 +69,16 @@ public class ParseField {
         return name;
     }
 
+    public String[] getAlternativeNames() {
+        return alternativeNames;
+    }
+
     public String[] getAllNamesIncludedDeprecated() {
         return allNames;
     }
 
     public ParseField withDeprecation(String... deprecatedNames) {
-        return new ParseField(this.name, deprecatedNames);
+        return new ParseField(this.name, alternativeNames, deprecatedNames);
     }
 
     /**
@@ -74,8 +91,16 @@ public class ParseField {
     }
 
     boolean match(String currentFieldName, boolean strict) {
-        if (allReplacedWith == null && currentFieldName.equals(name)) {
-            return true;
+        if (allReplacedWith == null) {
+            if (currentFieldName.equals(name)) {
+                return true;
+            } else {
+                for (String altName : alternativeNames) {
+                    if (currentFieldName.equals(altName)) {
+                        return true;
+                    }
+                }
+            }
         }
         String msg;
         for (String depName : deprecatedNames) {

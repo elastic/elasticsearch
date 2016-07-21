@@ -61,6 +61,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Client that connects to an elasticsearch cluster through http.
@@ -199,7 +200,7 @@ public final class RestClient implements Closeable {
     public Response performRequest(String method, String endpoint, Map<String, String> params,
                                    HttpEntity entity, HttpAsyncResponseConsumer<HttpResponse> responseConsumer,
                                    Header... headers) throws IOException {
-        SyncResponseListener listener = new SyncResponseListener();
+        SyncResponseListener listener = new SyncResponseListener(maxRetryTimeoutMillis);
         performRequest(method, endpoint, params, entity, responseConsumer, listener, headers);
         return listener.get();
     }
@@ -525,42 +526,72 @@ public final class RestClient implements Closeable {
         }
     }
 
-    private static class SyncResponseListener implements ResponseListener {
-        final CountDownLatch latch = new CountDownLatch(1);
-        volatile Response response;
-        volatile Exception exception;
+    static class SyncResponseListener implements ResponseListener {
+        private final CountDownLatch latch = new CountDownLatch(1);
+        private final AtomicReference<Response> response = new AtomicReference<>();
+        private final AtomicReference<Exception> exception = new AtomicReference<>();
+
+        private final long timeout;
+
+        SyncResponseListener(long timeout) {
+            assert timeout > 0;
+            this.timeout = timeout;
+        }
 
         @Override
         public void onSuccess(Response response) {
-            this.response = response;
+            Objects.requireNonNull(response, "response must not be null");
+            boolean wasResponseNull = this.response.compareAndSet(null, response);
+            if (wasResponseNull == false) {
+                throw new IllegalStateException("response is already set");
+            }
+
             latch.countDown();
         }
 
         @Override
         public void onFailure(Exception exception) {
-            this.exception = exception;
+            Objects.requireNonNull(exception, "exception must not be null");
+            boolean wasExceptionNull = this.exception.compareAndSet(null, exception);
+            if (wasExceptionNull == false) {
+                throw new IllegalStateException("exception is already set");
+            }
             latch.countDown();
         }
 
         Response get() throws IOException {
             try {
-                latch.await();
+                //providing timeout is just a safety measure to prevent everlasting waits
+                //the different client timeouts should already do their jobs
+                if (latch.await(timeout, TimeUnit.MILLISECONDS) == false) {
+                    throw new IOException("listener timeout after waiting for [" + timeout + "] ms");
+                }
             } catch (InterruptedException e) {
                 throw new RuntimeException("thread waiting for the response was interrupted", e);
             }
-            if (response != null) {
-                assert exception == null;
-                return response;
+
+            Exception exception = this.exception.get();
+            Response response = this.response.get();
+            if (exception != null) {
+                if (response != null) {
+                    IllegalStateException e = new IllegalStateException("response and exception are unexpectedly set at the same time");
+                    e.addSuppressed(exception);
+                    throw e;
+                }
+                //try and leave the exception untouched as much as possible but we don't want to just add throws Exception clause everywhere
+                if (exception instanceof IOException) {
+                    throw (IOException) exception;
+                }
+                if (exception instanceof RuntimeException){
+                    throw (RuntimeException) exception;
+                }
+                throw new RuntimeException("error while performing request", exception);
             }
-            assert exception != null;
-            //try and leave the exception untouched as much as possible but we don't want to just add throws Exception clause everywhere
-            if (exception instanceof IOException) {
-                throw (IOException) exception;
+
+            if (response == null) {
+                throw new IllegalStateException("response not set and no exception caught either");
             }
-            if (exception instanceof  RuntimeException){
-                throw (RuntimeException) exception;
-            }
-            throw new IOException("error while performing request", exception);
+            return response;
         }
     }
 

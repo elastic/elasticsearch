@@ -38,9 +38,9 @@ import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.channel.socket.oio.OioServerSocketChannel;
 import io.netty.channel.socket.oio.OioSocketChannel;
-import io.netty.util.ByteProcessor;
 import io.netty.util.concurrent.Future;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -69,7 +69,6 @@ import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -330,22 +329,9 @@ public class Netty4Transport extends TcpTransport<Channel, ByteBuf> {
     }
 
     protected final void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        Throwable t = cause;
-        while (t != null) {
-            if (!t.getClass().getCanonicalName().startsWith("org.elasticsearch")) {
-                t = t.getCause();
-            } else {
-                break;
-            }
-        }
-
-        if (t == null) {
-            t = cause;
-        }
-
-        onException(
-            ctx.channel(),
-            t instanceof Exception ? (Exception) t : new ElasticsearchException(t));
+        final Throwable unwrapped = ExceptionsHelper.unwrap(cause, ElasticsearchException.class);
+        final Throwable t = unwrapped != null ? unwrapped : cause;
+        onException(ctx.channel(), t instanceof Exception ? (Exception) t : new ElasticsearchException(t));
     }
 
     @Override

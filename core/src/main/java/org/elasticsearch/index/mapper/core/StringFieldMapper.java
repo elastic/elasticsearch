@@ -163,11 +163,6 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
         @Override
         public StringFieldMapper build(BuilderContext context) {
-            if (positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
-                fieldType.setIndexAnalyzer(new NamedAnalyzer(fieldType.indexAnalyzer(), positionIncrementGap));
-                fieldType.setSearchAnalyzer(new NamedAnalyzer(fieldType.searchAnalyzer(), positionIncrementGap));
-                fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(), positionIncrementGap));
-            }
             // if the field is not analyzed, then by default, we should omit norms and have docs only
             // index options, as probably what the user really wants
             // if they are set explicitly, we will use those values
@@ -182,6 +177,15 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                 if (!indexOptionsSet) {
                     fieldType.setIndexOptions(IndexOptions.DOCS);
                 }
+            }
+            if (positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
+                if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
+                    throw new IllegalArgumentException("Cannot set position_increment_gap on field ["
+                        + name + "] without positions enabled");
+                }
+                fieldType.setIndexAnalyzer(new NamedAnalyzer(fieldType.indexAnalyzer(), positionIncrementGap));
+                fieldType.setSearchAnalyzer(new NamedAnalyzer(fieldType.searchAnalyzer(), positionIncrementGap));
+                fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(), positionIncrementGap));
             }
             setupFieldType(context);
             StringFieldMapper fieldMapper = new StringFieldMapper(

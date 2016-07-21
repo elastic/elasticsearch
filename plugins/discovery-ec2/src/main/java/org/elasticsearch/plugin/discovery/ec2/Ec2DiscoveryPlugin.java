@@ -19,6 +19,21 @@
 
 package org.elasticsearch.plugin.discovery.ec2;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
+import java.net.URL;
+import java.net.URLConnection;
+import java.nio.charset.StandardCharsets;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
@@ -29,23 +44,18 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.ec2.AwsEc2UnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
-
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
 
 /**
  *
  */
 public class Ec2DiscoveryPlugin extends Plugin {
+
+    private static ESLogger logger = Loggers.getLogger(Ec2DiscoveryPlugin.class);
 
     public static final String EC2 = "ec2";
 
@@ -69,8 +79,14 @@ public class Ec2DiscoveryPlugin extends Plugin {
         });
     }
 
+    private Settings settings;
+
+    public Ec2DiscoveryPlugin(Settings settings) {
+        this.settings = settings;
+    }
+
     @Override
-    public Collection<Module> nodeModules() {
+    public Collection<Module> createGuiceModules() {
         Collection<Module> modules = new ArrayList<>();
         modules.add(new Ec2Module());
         return modules;
@@ -78,7 +94,7 @@ public class Ec2DiscoveryPlugin extends Plugin {
 
     @Override
     @SuppressWarnings("rawtypes") // Supertype uses rawtype
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
         Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         services.add(AwsEc2ServiceImpl.class);
         return services;
@@ -122,5 +138,47 @@ public class Ec2DiscoveryPlugin extends Plugin {
         AwsEc2Service.DISCOVERY_EC2.TAG_SETTING,
         // Register cloud node settings: cloud.node
         AwsEc2Service.AUTO_ATTRIBUTE_SETTING);
+    }
+
+    /** Adds a node attribute for the ec2 availability zone. */
+    @Override
+    public Settings additionalSettings() {
+        return getAvailabilityZoneNodeAttributes(settings, AwsEc2ServiceImpl.EC2_METADATA_URL + "placement/availability-zone");
+    }
+
+    // pkg private for testing
+    static Settings getAvailabilityZoneNodeAttributes(Settings settings, String azMetadataUrl) {
+        if (AwsEc2Service.AUTO_ATTRIBUTE_SETTING.get(settings) == false) {
+            return Settings.EMPTY;
+        }
+        Settings.Builder attrs = Settings.builder();
+
+        final URL url;
+        final URLConnection urlConnection;
+        try {
+            url = new URL(azMetadataUrl);
+            logger.debug("obtaining ec2 [placement/availability-zone] from ec2 meta-data url {}", url);
+            urlConnection = url.openConnection();
+            urlConnection.setConnectTimeout(2000);
+        } catch (IOException e) {
+            // should not happen, we know the url is not malformed, and openConnection does not actually hit network
+            throw new UncheckedIOException(e);
+        }
+
+        try (InputStream in = urlConnection.getInputStream();
+             BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+
+            String metadataResult = urlReader.readLine();
+            if (metadataResult == null || metadataResult.length() == 0) {
+                throw new IllegalStateException("no ec2 metadata returned from " + url);
+            } else {
+                attrs.put(Node.NODE_ATTRIBUTES.getKey() + "aws_availability_zone", metadataResult);
+            }
+        } catch (IOException e) {
+            // this is lenient so the plugin does not fail when installed outside of ec2
+            logger.error("failed to get metadata for [placement/availability-zone]", e);
+        }
+
+        return attrs.build();
     }
 }

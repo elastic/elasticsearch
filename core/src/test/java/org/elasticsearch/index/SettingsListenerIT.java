@@ -60,7 +60,7 @@ public class SettingsListenerIT extends ESIntegTestCase {
         }
 
         @Override
-        public Collection<Module> nodeModules() {
+        public Collection<Module> createGuiceModules() {
             return Collections.<Module>singletonList(new SettingsListenerModule(service));
         }
     }

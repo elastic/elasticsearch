@@ -20,6 +20,7 @@
 esplugin {
   description 'Mustache scripting integration for Elasticsearch'
   classname 'org.elasticsearch.script.mustache.MustachePlugin'
+  hasClientJar = true // For the template query
 }
 
 dependencies {

@@ -40,7 +40,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class RestFilterChainTests extends ESTestCase {
     public void testRestFilters() throws Exception {
 
-        RestController restController = new RestController(Settings.EMPTY);
+        RestController restController = new RestController(Settings.EMPTY, Collections.emptySet());
 
         int numFilters = randomInt(10);
         Set<Integer> orders = new HashSet<>(numFilters);
@@ -121,7 +121,7 @@ public class RestFilterChainTests extends ESTestCase {
             }
         });
 
-        RestController restController = new RestController(Settings.EMPTY);
+        RestController restController = new RestController(Settings.EMPTY, Collections.emptySet());
         restController.registerFilter(testFilter);
 
         restController.registerHandler(RestRequest.Method.GET, "/", new RestHandler() {

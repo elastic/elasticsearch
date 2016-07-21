@@ -58,9 +58,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 
-/**
- *
- */
 public class ParentFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_parent";
@@ -98,7 +95,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         }
 
         public Builder eagerGlobalOrdinals(boolean eagerGlobalOrdinals) {
-            ((ParentFieldType) fieldType()).setEagerGlobalOrdinals(eagerGlobalOrdinals);
+            fieldType().setEagerGlobalOrdinals(eagerGlobalOrdinals);
             return builder;
         }
 
@@ -143,8 +140,8 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
             KeywordFieldMapper parentJoinField = createParentJoinFieldMapper(typeName, new BuilderContext(indexSettings, new ContentPath(0)));
-            MappedFieldType childJoinFieldType = Defaults.FIELD_TYPE.clone();
-            childJoinFieldType.setName(joinField(null));
+            MappedFieldType childJoinFieldType = new ParentFieldType(Defaults.FIELD_TYPE, typeName);
+            childJoinFieldType.setName(ParentFieldMapper.NAME);
             return new ParentFieldMapper(parentJoinField, childJoinFieldType, null, indexSettings);
         }
     }

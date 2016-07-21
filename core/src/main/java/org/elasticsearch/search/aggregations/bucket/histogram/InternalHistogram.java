@@ -26,7 +26,6 @@ import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -46,48 +45,47 @@ import java.util.Map;
  * TODO should be renamed to InternalNumericHistogram (see comment on {@link Histogram})?
  */
 public class InternalHistogram<B extends InternalHistogram.Bucket> extends InternalMultiBucketAggregation<InternalHistogram<B>, B>
-        implements
-        Histogram {
+        implements Histogram {
 
     public static final Factory<Bucket> HISTOGRAM_FACTORY = new Factory<Bucket>();
-    static final Type TYPE = new Type("histogram", "histo");
-
-    private static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @SuppressWarnings("rawtypes")
-        @Override
-        public InternalHistogram readResult(StreamInput in) throws IOException {
-            InternalHistogram histogram = new InternalHistogram();
-            histogram.readFrom(in);
-            return histogram;
-        }
-    };
-
-    public static void registerStream() {
-
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
+    static final Type TYPE = new Type("histogram");
 
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket {
 
-        long key;
-        long docCount;
-        InternalAggregations aggregations;
+        final long key;
+        final long docCount;
+        final InternalAggregations aggregations;
         private final transient boolean keyed;
         protected final transient DocValueFormat format;
-        private Factory<?> factory;
+        private final Factory<?> factory;
 
-        public Bucket(boolean keyed, DocValueFormat formatter, Factory<?> factory) {
-            this.format = formatter;
+        public Bucket(long key, long docCount, boolean keyed, DocValueFormat format, Factory<?> factory,
+                InternalAggregations aggregations) {
+            this.format = format;
             this.keyed = keyed;
             this.factory = factory;
-        }
-
-        public Bucket(long key, long docCount, boolean keyed, DocValueFormat formatter, Factory<?> factory,
-                InternalAggregations aggregations) {
-            this(keyed, formatter, factory);
             this.key = key;
             this.docCount = docCount;
             this.aggregations = aggregations;
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public Bucket(StreamInput in, boolean keyed, DocValueFormat format, Factory<?> factory) throws IOException {
+            this.format = format;
+            this.keyed = keyed;
+            this.factory = factory;
+            key = in.readLong();
+            docCount = in.readVLong();
+            aggregations = InternalAggregations.readAggregations(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(key);
+            out.writeVLong(docCount);
+            aggregations.writeTo(out);
         }
 
         protected Factory<?> getFactory() {
@@ -142,20 +140,6 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            key = in.readLong();
-            docCount = in.readVLong();
-            aggregations = InternalAggregations.readAggregations(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(key);
-            out.writeVLong(docCount);
-            aggregations.writeTo(out);
         }
 
         public DocValueFormat getFormatter() {
@@ -244,21 +228,18 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
 
         @SuppressWarnings("unchecked")
-        protected B createEmptyBucket(boolean keyed, DocValueFormat formatter) {
-            return (B) new Bucket(keyed, formatter, this);
+        protected B readBucket(StreamInput in, boolean keyed, DocValueFormat format) throws IOException {
+            return (B) new Bucket(in, keyed, format, this);
         }
-
     }
 
-    protected List<B> buckets;
-    private InternalOrder order;
-    private DocValueFormat format;
-    private boolean keyed;
-    private long minDocCount;
-    private EmptyBucketInfo emptyBucketInfo;
-    protected Factory<B> factory;
-
-    InternalHistogram() {} // for serialization
+    private final List<B> buckets;
+    private final InternalOrder order;
+    private final DocValueFormat format;
+    private final boolean keyed;
+    private final long minDocCount;
+    private final EmptyBucketInfo emptyBucketInfo;
+    private final Factory<B> factory;
 
     InternalHistogram(String name, List<B> buckets, InternalOrder order, long minDocCount, EmptyBucketInfo emptyBucketInfo,
             DocValueFormat formatter, boolean keyed, Factory<B> factory, List<PipelineAggregator> pipelineAggregators,
@@ -274,9 +255,51 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         this.factory = factory;
     }
 
+    /**
+     * Stream from a stream.
+     */
+    public InternalHistogram(StreamInput in) throws IOException {
+        super(in);
+        factory = resolveFactory(in.readString());
+        order = InternalOrder.Streams.readOrder(in);
+        minDocCount = in.readVLong();
+        if (minDocCount == 0) {
+            emptyBucketInfo = EmptyBucketInfo.readFrom(in);
+        } else {
+            emptyBucketInfo = null;
+        }
+        format = in.readNamedWriteable(DocValueFormat.class);
+        keyed = in.readBoolean();
+        buckets = in.readList(stream -> factory.readBucket(stream, keyed, format));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static <B extends InternalHistogram.Bucket> Factory<B> resolveFactory(String factoryType) {
+        if (factoryType.equals(InternalDateHistogram.TYPE.name())) {
+            return (Factory<B>) new InternalDateHistogram.Factory();
+        } else if (factoryType.equals(TYPE.name())) {
+            return new Factory<>();
+        } else {
+            throw new IllegalStateException("Invalid histogram factory type [" + factoryType + "]");
+        }
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(factory.type().name());
+        InternalOrder.Streams.writeOrder(order, out);
+        out.writeVLong(minDocCount);
+        if (minDocCount == 0) {
+            EmptyBucketInfo.writeTo(emptyBucketInfo, out);
+        }
+        out.writeNamedWriteable(format);
+        out.writeBoolean(keyed);
+        out.writeList(buckets);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return HistogramAggregationBuilder.NAME;
     }
 
     @Override
@@ -383,9 +406,9 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         if (bounds != null) {
             B firstBucket = iter.hasNext() ? list.get(iter.nextIndex()) : null;
             if (firstBucket == null) {
-                if (bounds.min != null && bounds.max != null) {
-                    long key = bounds.min;
-                    long max = bounds.max;
+                if (bounds.getMin() != null && bounds.getMax() != null) {
+                    long key = bounds.getMin();
+                    long max = bounds.getMax();
                     while (key <= max) {
                         iter.add(getFactory().createBucket(key, 0,
                                 reducedEmptySubAggs,
@@ -394,8 +417,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                     }
                 }
             } else {
-                if (bounds.min != null) {
-                    long key = bounds.min;
+                if (bounds.getMin() != null) {
+                    long key = bounds.getMin();
                     if (key < firstBucket.key) {
                         while (key < firstBucket.key) {
                             iter.add(getFactory().createBucket(key, 0,
@@ -426,9 +449,9 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
 
         // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
-        if (bounds != null && lastBucket != null && bounds.max != null && bounds.max > lastBucket.key) {
+        if (bounds != null && lastBucket != null && bounds.getMax() != null && bounds.getMax() > lastBucket.key) {
             long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
-            long max = bounds.max;
+            long max = bounds.getMax();
             while (key <= max) {
                 iter.add(getFactory().createBucket(key, 0,
                         reducedEmptySubAggs, keyed,
@@ -463,53 +486,6 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
         return getFactory().create(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, format, keyed, pipelineAggregators(),
                 getMetaData());
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        this.factory = resolveFactory(in.readString());
-        order = InternalOrder.Streams.readOrder(in);
-        minDocCount = in.readVLong();
-        if (minDocCount == 0) {
-            emptyBucketInfo = EmptyBucketInfo.readFrom(in);
-        }
-        format = in.readNamedWriteable(DocValueFormat.class);
-        keyed = in.readBoolean();
-        int size = in.readVInt();
-        List<B> buckets = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            B bucket = getFactory().createEmptyBucket(keyed, format);
-            bucket.readFrom(in);
-            buckets.add(bucket);
-        }
-        this.buckets = buckets;
-    }
-
-    @SuppressWarnings("unchecked")
-    protected static <B extends InternalHistogram.Bucket> Factory<B> resolveFactory(String factoryType) {
-        if (factoryType.equals(InternalDateHistogram.TYPE.name())) {
-            return (Factory<B>) new InternalDateHistogram.Factory();
-        } else if (factoryType.equals(TYPE.name())) {
-            return new Factory<>();
-        } else {
-            throw new IllegalStateException("Invalid histogram factory type [" + factoryType + "]");
-        }
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(factory.type().name());
-        InternalOrder.Streams.writeOrder(order, out);
-        out.writeVLong(minDocCount);
-        if (minDocCount == 0) {
-            EmptyBucketInfo.writeTo(emptyBucketInfo, out);
-        }
-        out.writeNamedWriteable(format);
-        out.writeBoolean(keyed);
-        out.writeVInt(buckets.size());
-        for (B bucket : buckets) {
-            bucket.writeTo(out);
-        }
     }
 
     @Override

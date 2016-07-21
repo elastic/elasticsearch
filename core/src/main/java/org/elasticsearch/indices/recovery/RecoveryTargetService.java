@@ -24,6 +24,7 @@ import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -42,11 +43,11 @@ import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.FutureTransportResponseHandler;
@@ -76,6 +77,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
         public static final String TRANSLOG_OPS = "internal:index/shard/recovery/translog_ops";
         public static final String PREPARE_TRANSLOG = "internal:index/shard/recovery/prepare_translog";
         public static final String FINALIZE = "internal:index/shard/recovery/finalize";
+        public static final String WAIT_CLUSTERSTATE = "internal:index/shard/recovery/wait_clusterstate";
     }
 
     private final ThreadPool threadPool;
@@ -95,7 +97,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
         this.transportService = transportService;
         this.recoverySettings = recoverySettings;
         this.clusterService = clusterService;
-        this.onGoingRecoveries = new RecoveriesCollection(logger, threadPool);
+        this.onGoingRecoveries = new RecoveriesCollection(logger, threadPool, this::waitForClusterState);
 
         transportService.registerRequestHandler(Actions.FILES_INFO, RecoveryFilesInfoRequest::new, ThreadPool.Names.GENERIC, new
                 FilesInfoRequestHandler());
@@ -109,6 +111,8 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
                 new TranslogOperationsRequestHandler());
         transportService.registerRequestHandler(Actions.FINALIZE, RecoveryFinalizeRecoveryRequest::new, ThreadPool.Names.GENERIC, new
                 FinalizeRecoveryRequestHandler());
+        transportService.registerRequestHandler(Actions.WAIT_CLUSTERSTATE, RecoveryWaitForClusterStateRequest::new,
+            ThreadPool.Names.GENERIC, new WaitForClusterStateRequestHandler());
     }
 
     @Override
@@ -150,7 +154,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
 
     private void retryRecovery(final RecoveryTarget recoveryTarget, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
         try {
-            recoveryTarget.resetRecovery();
+            onGoingRecoveries.resetRecovery(recoveryTarget.recoveryId(), recoveryTarget.shardId());
         } catch (Exception e) {
             onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(currentRequest, e), true);
         }
@@ -301,6 +305,18 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
         }
     }
 
+    class WaitForClusterStateRequestHandler implements TransportRequestHandler<RecoveryWaitForClusterStateRequest> {
+
+        @Override
+        public void messageReceived(RecoveryWaitForClusterStateRequest request, TransportChannel channel) throws Exception {
+            try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
+            )) {
+                recoveryRef.status().ensureClusterStateVersion(request.clusterStateVersion());
+            }
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        }
+    }
+
     class TranslogOperationsRequestHandler implements TransportRequestHandler<RecoveryTranslogOperationsRequest> {
 
         @Override
@@ -358,6 +374,52 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
                         }
                     });
                 }
+            }
+        }
+    }
+
+    private void waitForClusterState(long clusterStateVersion) {
+        ClusterStateObserver observer = new ClusterStateObserver(clusterService, TimeValue.timeValueMinutes(5), logger,
+            threadPool.getThreadContext());
+        final ClusterState clusterState = observer.observedState();
+        if (clusterState.getVersion() >= clusterStateVersion) {
+            logger.trace("node has cluster state with version higher than {} (current: {})", clusterStateVersion,
+                clusterState.getVersion());
+            return;
+        } else {
+            logger.trace("waiting for cluster state version {} (current: {})", clusterStateVersion, clusterState.getVersion());
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            observer.waitForNextChange(new ClusterStateObserver.Listener() {
+
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    future.onResponse(null);
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    future.onFailure(new NodeClosedException(clusterService.localNode()));
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    future.onFailure(new IllegalStateException("cluster state never updated to version " + clusterStateVersion));
+                }
+            }, new ClusterStateObserver.ValidationPredicate() {
+
+                @Override
+                protected boolean validate(ClusterState newState) {
+                    return newState.getVersion() >= clusterStateVersion;
+                }
+            });
+            try {
+                future.get();
+                logger.trace("successfully waited for cluster state with version {} (current: {})", clusterStateVersion,
+                    observer.observedState().getVersion());
+            } catch (Exception e) {
+                logger.debug("failed waiting for cluster state with version {} (current: {})", e, clusterStateVersion,
+                    observer.observedState());
+                throw ExceptionsHelper.convertToRuntime(e);
             }
         }
     }

@@ -46,7 +46,6 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
                 .startObject("field").field("type", FakeStringFieldMapper.CONTENT_TYPE).endObject()
                 .endObject()
                 .endObject().endObject()).execute().get();
-        ensureYellow("test-idx");
 
         index("test-idx", "type", "1", XContentFactory.jsonBuilder()
             .startObject()
@@ -96,7 +95,6 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
                     .startObject("field").field("type", ExternalMapperPlugin.EXTERNAL).endObject()
                 .endObject()
             .endObject().endObject()).execute().get();
-        ensureYellow("test-idx");
 
         index("test-idx", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -150,7 +148,6 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
                     .endObject()
                 .endObject()
                 .endObject().endObject().endObject()).execute().get();
-        ensureYellow("test-idx");
 
         index("test-idx", "doc", "1", "f", "This is my text");
         refresh();

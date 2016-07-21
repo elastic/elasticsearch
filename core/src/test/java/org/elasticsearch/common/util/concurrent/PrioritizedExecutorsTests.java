@@ -41,9 +41,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class PrioritizedExecutorsTests extends ESTestCase {
 
     private final ThreadContext holder = new ThreadContext(Settings.EMPTY);

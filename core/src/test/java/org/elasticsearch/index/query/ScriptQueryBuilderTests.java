@@ -48,7 +48,7 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
         expectThrows(IllegalArgumentException.class, () -> new ScriptQueryBuilder((Script) null));
     }
 
-    public void testFromJson() throws IOException {
+    public void testFromJsonVerbose() throws IOException {
         String json =
                 "{\n" +
                 "  \"script\" : {\n" +
@@ -66,5 +66,19 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
         checkGeneratedJson(json, parsed);
 
         assertEquals(json, "mockscript", parsed.script().getLang());
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" +
+                        "  \"script\" : {\n" +
+                        "    \"script\" : \"5\"," +
+                        "    \"boost\" : 1.0,\n" +
+                        "    \"_name\" : \"PcKdEyPOmR\"\n" +
+                        "  }\n" +
+                        "}";
+
+        ScriptQueryBuilder parsed = (ScriptQueryBuilder) parseQuery(json);
+        assertEquals(json, "5", parsed.script().getScript());
     }
 }

@@ -63,7 +63,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -112,7 +111,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  * method.
  * <p>
  * Individual shards are getting restored as part of normal recovery process in
- * {@link IndexShard#restoreFromRepository(IndexShardRepository)} )}
+ * {@link IndexShard#restoreFromRepository(Repository)} )}
  * method, which detects that shard should be restored from snapshot rather than recovered from gateway by looking
  * at the {@link org.elasticsearch.cluster.routing.ShardRouting#restoreSource()} property.
  * <p>
@@ -186,16 +185,16 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         try {
             // Read snapshot info and metadata from the repository
             Repository repository = repositoriesService.repository(request.repositoryName);
-            final Optional<SnapshotId> matchingSnapshotId = repository.snapshots().stream()
+            final Optional<SnapshotId> matchingSnapshotId = repository.getSnapshots().stream()
                 .filter(s -> request.snapshotName.equals(s.getName())).findFirst();
             if (matchingSnapshotId.isPresent() == false) {
                 throw new SnapshotRestoreException(request.repositoryName, request.snapshotName, "snapshot does not exist");
             }
             final SnapshotId snapshotId = matchingSnapshotId.get();
-            final SnapshotInfo snapshotInfo = repository.readSnapshot(snapshotId);
+            final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
             final Snapshot snapshot = new Snapshot(request.repositoryName, snapshotId);
             List<String> filteredIndices = SnapshotUtils.filterIndices(snapshotInfo.indices(), request.indices(), request.indicesOptions());
-            MetaData metaDataIn = repository.readSnapshotMetaData(snapshotInfo, filteredIndices);
+            MetaData metaDataIn = repository.getSnapshotMetaData(snapshotInfo, filteredIndices);
 
             final MetaData metaData;
             if (snapshotInfo.version().before(Version.V_2_0_0_beta1)) {

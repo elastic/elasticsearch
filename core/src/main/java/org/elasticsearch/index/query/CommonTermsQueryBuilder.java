@@ -60,7 +60,6 @@ import java.util.Optional;
 public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQueryBuilder> {
 
     public static final String NAME = "common";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     public static final float DEFAULT_CUTOFF_FREQ = 0.01f;
     public static final Operator DEFAULT_HIGH_FREQ_OCCUR = Operator.OR;

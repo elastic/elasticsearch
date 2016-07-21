@@ -30,7 +30,9 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -264,6 +266,7 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeVInt(2);
         out.writeLong(-3);
         out.writeVLong(4);
+        out.writeOptionalLong(11234234L);
         out.writeFloat(1.1f);
         out.writeDouble(2.2);
         int[] intArray = {1, 2, 3};
@@ -297,8 +300,9 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(in.readShort(), equalTo((short)-1));
         assertThat(in.readInt(), equalTo(-1));
         assertThat(in.readVInt(), equalTo(2));
-        assertThat(in.readLong(), equalTo((long)-3));
-        assertThat(in.readVLong(), equalTo((long)4));
+        assertThat(in.readLong(), equalTo(-3L));
+        assertThat(in.readVLong(), equalTo(4L));
+        assertThat(in.readOptionalLong(), equalTo(11234234L));
         assertThat((double)in.readFloat(), closeTo(1.1, 0.0001));
         assertThat(in.readDouble(), closeTo(2.2, 0.0001));
         assertThat(in.readGenericValue(), equalTo((Object) intArray));
@@ -333,8 +337,26 @@ public class BytesStreamsTests extends ESTestCase {
         StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry);
         assertEquals(in.available(), bytes.length);
         BaseNamedWriteable namedWriteableOut = in.readNamedWriteable(BaseNamedWriteable.class);
-        assertEquals(namedWriteableOut, namedWriteableIn);
-        assertEquals(in.available(), 0);
+        assertEquals(namedWriteableIn, namedWriteableOut);
+        assertEquals(0, in.available());
+    }
+
+    public void testNamedWriteableList() throws IOException {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new);
+        int size = between(0, 100);
+        List<BaseNamedWriteable> expected = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            expected.add(new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10)));
+        }
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeNamedWriteableList(expected);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)) {
+                assertEquals(expected, in.readNamedWriteableList(BaseNamedWriteable.class));
+                assertEquals(0, in.available());
+            }
+        }
     }
 
     public void testNamedWriteableDuplicates() throws IOException {
@@ -445,12 +467,54 @@ public class BytesStreamsTests extends ESTestCase {
 
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
 
-        List<TestStreamable> loaded = in.readStreamableList(TestStreamable::new);
+        final List<TestStreamable> loaded = in.readStreamableList(TestStreamable::new);
 
         assertThat(loaded, hasSize(expected.size()));
 
         for (int i = 0; i < expected.size(); ++i) {
             assertEquals(expected.get(i).value, loaded.get(i).value);
+        }
+
+        assertEquals(0, in.available());
+
+        in.close();
+        out.close();
+    }
+
+    public void testWriteMapOfLists() throws IOException {
+        final int size = randomIntBetween(0, 5);
+        final Map<String, List<String>> expected = new HashMap<>(size);
+
+        for (int i = 0; i < size; ++i) {
+            int listSize = randomIntBetween(0, 5);
+            List<String> list = new ArrayList<>(listSize);
+
+            for (int j = 0; j < listSize; ++j) {
+                list.add(randomAsciiOfLength(5));
+            }
+
+            expected.put(randomAsciiOfLength(2), list);
+        }
+
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.writeMapOfLists(expected);
+
+        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
+
+        final Map<String, List<String>> loaded = in.readMapOfLists();
+
+        assertThat(loaded.size(), equalTo(expected.size()));
+
+        for (Map.Entry<String, List<String>> entry : expected.entrySet()) {
+            assertThat(loaded.containsKey(entry.getKey()), equalTo(true));
+
+            List<String> loadedList = loaded.get(entry.getKey());
+
+            assertThat(loadedList, hasSize(entry.getValue().size()));
+
+            for (int i = 0; i < loadedList.size(); ++i) {
+                assertEquals(entry.getValue().get(i), loadedList.get(i));
+            }
         }
 
         assertEquals(0, in.available());

@@ -19,11 +19,9 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.TestProcessor;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -31,42 +29,69 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.mockito.Mockito.mock;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ForEachProcessorFactoryTests extends ESTestCase {
 
     public void testCreate() throws Exception {
-        Processor processor = new TestProcessor(ingestDocument -> {});
+        Processor processor = new TestProcessor(ingestDocument -> { });
         Map<String, Processor.Factory> registry = new HashMap<>();
         registry.put("_name", (r, t, c) -> processor);
         ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory();
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        config.put("processors", Collections.singletonList(Collections.singletonMap("_name", Collections.emptyMap())));
+        config.put("processor", Collections.singletonMap("_name", Collections.emptyMap()));
         ForEachProcessor forEachProcessor = forEachFactory.create(registry, null, config);
         assertThat(forEachProcessor, Matchers.notNullValue());
-        assertThat(forEachProcessor.getField(), Matchers.equalTo("_field"));
-        assertThat(forEachProcessor.getProcessors().size(), Matchers.equalTo(1));
-        assertThat(forEachProcessor.getProcessors().get(0), Matchers.sameInstance(processor));
+        assertThat(forEachProcessor.getField(), equalTo("_field"));
+        assertThat(forEachProcessor.getProcessor(), Matchers.sameInstance(processor));
+    }
 
-        config = new HashMap<>();
-        config.put("processors", Collections.singletonList(Collections.singletonMap("_name", Collections.emptyMap())));
-        try {
-            forEachFactory.create(registry, null, config);
-            fail("exception expected");
-        } catch (Exception e) {
-            assertThat(e.getMessage(), Matchers.equalTo("[field] required property is missing"));
-        }
+    public void testCreateWithTooManyProcessorTypes() throws Exception {
+        Processor processor = new TestProcessor(ingestDocument -> { });
+        Map<String, Processor.Factory> registry = new HashMap<>();
+        registry.put("_first", (r, t, c) -> processor);
+        registry.put("_second", (r, t, c) -> processor);
+        ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory();
 
-        config = new HashMap<>();
+        Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
-        try {
-            forEachFactory.create(registry, null, config);
-            fail("exception expected");
-        } catch (Exception e) {
-            assertThat(e.getMessage(), Matchers.equalTo("[processors] required property is missing"));
-        }
+        Map<String, Object> processorTypes = new HashMap<>();
+        processorTypes.put("_first", Collections.emptyMap());
+        processorTypes.put("_second", Collections.emptyMap());
+        config.put("processor", processorTypes);
+        Exception exception = expectThrows(ElasticsearchParseException.class, () -> forEachFactory.create(registry, null, config));
+        assertThat(exception.getMessage(), equalTo("[processor] Must specify exactly one processor type"));
+    }
+
+    public void testCreateWithNonExistingProcessorType() throws Exception {
+        ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory();
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("processor", Collections.singletonMap("_name", Collections.emptyMap()));
+        Exception expectedException = expectThrows(ElasticsearchParseException.class,
+            () -> forEachFactory.create(Collections.emptyMap(), null, config));
+        assertThat(expectedException.getMessage(), equalTo("No processor type exists with name [_name]"));
+    }
+
+    public void testCreateWithMissingField() throws Exception {
+        Processor processor = new TestProcessor(ingestDocument -> { });
+        Map<String, Processor.Factory> registry = new HashMap<>();
+        registry.put("_name", (r, t, c) -> processor);
+        ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory();
+        Map<String, Object> config = new HashMap<>();
+        config.put("processor", Collections.singletonList(Collections.singletonMap("_name", Collections.emptyMap())));
+        Exception exception = expectThrows(Exception.class, () -> forEachFactory.create(registry, null, config));
+        assertThat(exception.getMessage(), equalTo("[field] required property is missing"));
+    }
+
+    public void testCreateWithMissingProcessor() {
+        ForEachProcessor.Factory forEachFactory = new ForEachProcessor.Factory();
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        Exception exception = expectThrows(Exception.class, () -> forEachFactory.create(Collections.emptyMap(), null, config));
+        assertThat(exception.getMessage(), equalTo("[processor] required property is missing"));
     }
 
 }

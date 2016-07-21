@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -140,7 +141,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             CreateIndexRequest request = new CreateIndexRequest(name, Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
                 .put(SETTING_NUMBER_OF_REPLICAS, randomInt(2))
-                .build());
+                .build()).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metaData().hasIndex(name));
         }
@@ -270,7 +271,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final TransportService transportService = new TransportService(Settings.EMPTY, null, threadPool);
         final ClusterService clusterService = mock(ClusterService.class);
         final RepositoriesService repositoriesService = new RepositoriesService(Settings.EMPTY, clusterService,
-            transportService, null, null);
+            transportService, null);
         final RecoveryTargetService recoveryTargetService = new RecoveryTargetService(Settings.EMPTY, threadPool,
             transportService, null, clusterService);
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);

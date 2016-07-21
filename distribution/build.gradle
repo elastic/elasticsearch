@@ -49,7 +49,7 @@ ext.dependencyFiles = project(':core').configurations.runtime.copyRecursive()
 
 task buildModules(type: Sync) {
   into 'build/modules'
-} 
+}
 
 ext.restTestExpansions = [
   'expected.modules.count': 0,
@@ -80,6 +80,21 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each
     module.integTest.mustRunAfter(':distribution:integ-test-zip:integTest#stop')
   })
   restTestExpansions['expected.modules.count'] += 1
+}
+
+// Integ tests work over the rest http layer, so we need a transport included with the integ test zip. 
+// All transport modules are included so that they may be randomized for testing
+task buildTransportModules(type: Sync) {
+  into 'build/transport-modules'
+}
+
+project.rootProject.subprojects.findAll { it.path.startsWith(':modules:transport-') }.each { Project transport ->
+  buildTransportModules {
+    dependsOn({ project(transport.path).bundlePlugin })
+    into(transport.name) {
+      from { zipTree(project(transport.path).bundlePlugin.outputs.files.singleFile) }
+    }
+  }
 }
 
 // make sure we have a clean task since we aren't a java project, but we have tasks that
@@ -143,6 +158,11 @@ subprojects {
     modulesFiles = copySpec {
       into 'modules'
       from project(':distribution').buildModules
+    }
+
+    transportModulesFiles = copySpec {
+      into "modules"
+      from project(':distribution').buildTransportModules
     }
 
     configFiles = copySpec {
@@ -209,6 +229,8 @@ configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.nam
       }
       if (project.name != 'integ-test-zip') {
         with modulesFiles
+      } else {
+        with transportModulesFiles
       }
     }
   }

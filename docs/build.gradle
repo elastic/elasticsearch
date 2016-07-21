@@ -36,16 +36,18 @@ integTest {
 }
 
 // Build the cluser with all plugins
+
 project.rootProject.subprojects.findAll { it.parent.path == ':plugins' }.each { subproj ->
   /* Skip repositories. We just aren't going to be able to test them so it
    * doesn't make sense to waste time installing them. */
   if (subproj.path.startsWith(':plugins:repository-')) {
     return
   }
-  integTest {
-    cluster {
-      // We need a non-decorated project object, so we lookup the project by path
-      plugin subproj.name, project(subproj.path)
+  subproj.afterEvaluate { // need to wait until the project has been configured
+    integTest {
+      cluster {
+        plugin subproj.path
+      }
     }
   }
 }

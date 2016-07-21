@@ -22,14 +22,15 @@ package org.elasticsearch.client.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -51,16 +52,15 @@ public class TransportClientIT extends ESIntegTestCase {
 
     public void testNodeVersionIsUpdated() throws IOException {
         TransportClient client = (TransportClient)  internalCluster().client();
-        Node node = new Node(Settings.builder()
+        try (Node node = new Node(Settings.builder()
                 .put(internalCluster().getDefaultSettings())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put("node.name", "testNodeVersionIsUpdated")
-                .put("http.enabled", false)
+                .put("transport.type", "local")
+                .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .put("cluster.name", "foobar")
-                .build());
-        node.start();
-        try {
+                .build()).start()) {
             TransportAddress transportAddress = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
             client.addTransportAddress(transportAddress);
             // since we force transport clients there has to be one node started that we connect to.
@@ -79,8 +79,6 @@ public class TransportClientIT extends ESIntegTestCase {
             for (DiscoveryNode discoveryNode : client.filteredNodes()) {
                 assertThat(discoveryNode.getVersion(), equalTo(Version.CURRENT.minimumCompatibilityVersion()));
             }
-        } finally {
-            node.close();
         }
     }
 
@@ -93,8 +91,8 @@ public class TransportClientIT extends ESIntegTestCase {
     public void testThatTransportClientSettingCannotBeChanged() {
         Settings baseSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-             .build();
-        try (TransportClient client = TransportClient.builder().settings(baseSettings).build()) {
+            .build();
+        try (TransportClient client = new MockTransportClient(baseSettings)) {
             Settings settings = client.injector.getInstance(Settings.class);
             assertThat(Client.CLIENT_TYPE_SETTING_S.get(settings), is("transport"));
         }

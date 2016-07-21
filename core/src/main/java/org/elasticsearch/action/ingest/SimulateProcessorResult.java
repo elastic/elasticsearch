@@ -19,6 +19,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,47 +30,48 @@ import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
 
-public class SimulateProcessorResult implements Writeable, ToXContent {
+class SimulateProcessorResult implements Writeable, ToXContent {
     private final String processorTag;
     private final WriteableIngestDocument ingestDocument;
     private final Exception failure;
 
-    public SimulateProcessorResult(String processorTag, IngestDocument ingestDocument) {
+    SimulateProcessorResult(String processorTag, IngestDocument ingestDocument, Exception failure) {
         this.processorTag = processorTag;
-        this.ingestDocument = new WriteableIngestDocument(ingestDocument);
-        this.failure = null;
+        this.ingestDocument = (ingestDocument == null) ? null : new WriteableIngestDocument(ingestDocument);
+        this.failure = failure;
     }
 
-    public SimulateProcessorResult(String processorTag, Exception failure) {
-        this.processorTag = processorTag;
-        this.failure = failure;
-        this.ingestDocument = null;
+    SimulateProcessorResult(String processorTag, IngestDocument ingestDocument) {
+        this(processorTag, ingestDocument, null);
+    }
+
+    SimulateProcessorResult(String processorTag, Exception failure) {
+        this(processorTag, null, failure);
     }
 
     /**
      * Read from a stream.
      */
-    public SimulateProcessorResult(StreamInput in) throws IOException {
+    SimulateProcessorResult(StreamInput in) throws IOException {
         this.processorTag = in.readString();
         if (in.readBoolean()) {
-            this.failure = in.readException();
-            this.ingestDocument = null;
-        } else {
             this.ingestDocument = new WriteableIngestDocument(in);
-            this.failure = null;
+        } else {
+            this.ingestDocument = null;
         }
+        this.failure = in.readException();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(processorTag);
-        if (failure == null) {
+        if (ingestDocument == null) {
             out.writeBoolean(false);
-            ingestDocument.writeTo(out);
         } else {
             out.writeBoolean(true);
-            out.writeException(failure);
+            ingestDocument.writeTo(out);
         }
+        out.writeException(failure);
     }
 
     public IngestDocument getIngestDocument() {
@@ -90,14 +92,23 @@ public class SimulateProcessorResult implements Writeable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+
         if (processorTag != null) {
             builder.field(ConfigurationUtils.TAG_KEY, processorTag);
         }
-        if (failure == null) {
-            ingestDocument.toXContent(builder, params);
-        } else {
+
+        if (failure != null && ingestDocument != null) {
+            builder.startObject("ignored_error");
+            ElasticsearchException.renderException(builder, params, failure);
+            builder.endObject();
+        } else if (failure != null) {
             ElasticsearchException.renderException(builder, params, failure);
         }
+
+        if (ingestDocument != null) {
+            ingestDocument.toXContent(builder, params);
+        }
+
         builder.endObject();
         return builder;
     }

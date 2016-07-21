@@ -78,6 +78,8 @@ public final class AppendProcessor extends AbstractProcessor {
                                       Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
+            TemplateService.Template compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
+                "field", field, templateService);
             return new AppendProcessor(processorTag, templateService.compile(field), ValueSource.wrap(value, templateService));
         }
     }

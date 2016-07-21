@@ -45,12 +45,8 @@ import java.util.Map;
  */
 public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAggregator {
 
-    protected DocValueFormat format;
-    protected GapPolicy gapPolicy;
-
-    public BucketMetricsPipelineAggregator() {
-        super();
-    }
+    protected final DocValueFormat format;
+    protected final GapPolicy gapPolicy;
 
     protected BucketMetricsPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, DocValueFormat format,
             Map<String, Object> metaData) {
@@ -66,16 +62,6 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
         super(in);
         format = in.readNamedWriteable(DocValueFormat.class);
         gapPolicy = GapPolicy.readFrom(in);
-    }
-
-    @Override
-    public final void doReadFrom(StreamInput in) throws IOException {
-        format = in.readNamedWriteable(DocValueFormat.class);
-        gapPolicy = GapPolicy.readFrom(in);
-        innerReadFrom(in);
-    }
-
-    protected void innerReadFrom(StreamInput in) throws IOException {
     }
 
     @Override

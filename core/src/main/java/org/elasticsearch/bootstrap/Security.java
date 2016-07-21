@@ -120,7 +120,7 @@ final class Security {
         Policy.setPolicy(new ESPolicy(createPermissions(environment), getPluginPermissions(environment), filterBadDefaults));
 
         // enable security manager
-        System.setSecurityManager(new SecureSM());
+        System.setSecurityManager(new SecureSM(new String[] { "org.elasticsearch.bootstrap." }));
 
         // do some basic tests
         selfTest();
@@ -285,7 +285,7 @@ final class Security {
         }
 
         // loop through all profiles and add permissions for each one, if its valid.
-        // (otherwise NettyTransport is lenient and ignores it)
+        // (otherwise Netty transports are lenient and ignores it)
         for (Map.Entry<String, Settings> entry : profiles.entrySet()) {
             Settings profileSettings = entry.getValue();
             String name = entry.getKey();

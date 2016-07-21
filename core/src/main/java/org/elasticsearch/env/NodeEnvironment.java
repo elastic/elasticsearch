@@ -634,6 +634,15 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
     }
 
     /**
+     * A functional interface that people can use to reference {@link #shardLock(ShardId, long)}
+     */
+    @FunctionalInterface
+    public interface ShardLocker {
+
+        ShardLock lock(ShardId shardId, long lockTimeoutMS) throws IOException;
+    }
+
+    /**
      * Returns all currently lock shards.
      *
      * Note: the shard ids return do not contain a valid Index UUID
@@ -897,17 +906,20 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
         for (NodePath nodePath : nodePaths) {
             assert Files.isDirectory(nodePath.path) : nodePath.path + " is not a directory";
             final Path src = nodePath.path.resolve("__es__.tmp");
-            Files.createFile(src);
             final Path target = nodePath.path.resolve("__es__.final");
             try {
+                Files.createFile(src);
                 Files.move(src, target, StandardCopyOption.ATOMIC_MOVE);
             } catch (AtomicMoveNotSupportedException ex) {
                 throw new IllegalStateException("atomic_move is not supported by the filesystem on path ["
                         + nodePath.path
                         + "] atomic_move is required for elasticsearch to work correctly.", ex);
             } finally {
-                Files.deleteIfExists(src);
-                Files.deleteIfExists(target);
+                try {
+                    Files.deleteIfExists(src);
+                } finally {
+                    Files.deleteIfExists(target);
+                }
             }
         }
     }

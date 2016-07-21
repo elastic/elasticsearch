@@ -41,7 +41,8 @@ public abstract class Command {
 
     private final OptionSpec<Void> helpOption = parser.acceptsAll(Arrays.asList("h", "help"), "show help").forHelp();
     private final OptionSpec<Void> silentOption = parser.acceptsAll(Arrays.asList("s", "silent"), "show minimal output");
-    private final OptionSpec<Void> verboseOption = parser.acceptsAll(Arrays.asList("v", "verbose"), "show verbose output");
+    private final OptionSpec<Void> verboseOption = parser.acceptsAll(Arrays.asList("v", "verbose"), "show verbose output")
+            .availableUnless(silentOption);
 
     public Command(String description) {
         this.description = description;
@@ -77,10 +78,6 @@ public abstract class Command {
         }
 
         if (options.has(silentOption)) {
-            if (options.has(verboseOption)) {
-                // mutually exclusive, we can remove this with jopt-simple 5.0, which natively supports it
-                throw new UserException(ExitCodes.USAGE, "Cannot specify -s and -v together");
-            }
             terminal.setVerbosity(Terminal.Verbosity.SILENT);
         } else if (options.has(verboseOption)) {
             terminal.setVerbosity(Terminal.Verbosity.VERBOSE);

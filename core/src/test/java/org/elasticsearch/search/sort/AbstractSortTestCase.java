@@ -75,6 +75,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -106,7 +107,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         };
 
         namedWriteableRegistry = new NamedWriteableRegistry();
-        indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry, false).getQueryParserRegistry();
+        indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry, false, emptyList()).getQueryParserRegistry();
     }
 
     @AfterClass

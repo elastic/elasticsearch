@@ -44,7 +44,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -444,12 +443,12 @@ public class ScriptServiceTests extends ESTestCase {
         int maxSize = 0xFFFF;
         buildScriptService(Settings.EMPTY);
         // allowed
-        scriptService.validate("_id", "test", new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 13) + "\"}"));
+        scriptService.validateStoredScript("_id", "test", new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 13) + "\"}"));
 
         // disallowed
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> {
-                    scriptService.validate("_id", "test", new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 12) + "\"}"));
+                    scriptService.validateStoredScript("_id", "test", new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 12) + "\"}"));
                 });
         assertThat(e.getMessage(), equalTo(
                 "Limit of script size in bytes [" + maxSize+ "] has been exceeded for script [_id] with size [" + (maxSize + 1) + "]"));

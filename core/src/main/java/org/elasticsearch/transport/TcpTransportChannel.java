@@ -66,21 +66,29 @@ public final class TcpTransportChannel<Channel> implements TransportChannel {
 
     @Override
     public void sendResponse(TransportResponse response, TransportResponseOptions options) throws IOException {
-        release();
-        transport.sendResponse(version, channel, response, requestId, action, options);
-
+        try {
+            transport.sendResponse(version, channel, response, requestId, action, options);
+        } finally {
+            release();
+        }
     }
 
     @Override
     public void sendResponse(Exception exception) throws IOException {
-        release();
-       transport.sendErrorResponse(version, channel, exception, requestId, action);
+        try {
+            transport.sendErrorResponse(version, channel, exception, requestId, action);
+        } finally {
+            release();
+        }
     }
+    private Exception releaseBy;
 
     private void release() {
         // attempt to release once atomically
         if (released.compareAndSet(false, true) == false) {
-            throw new IllegalStateException("reserved bytes are already released");
+            throw new IllegalStateException("reserved bytes are already released", releaseBy);
+        } else {
+            assert (releaseBy = new Exception()) != null; // easier to debug if it's already closed
         }
         transport.getInFlightRequestBreaker().addWithoutBreaking(-reservedBytes);
     }

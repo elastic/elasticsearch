@@ -47,9 +47,7 @@ import java.util.Set;
  * A query that will return only documents matching specific ids (and a type).
  */
 public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
-
     public static final String NAME = "ids";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField TYPE_FIELD = new ParseField("type", "types", "_type");
     private static final ParseField VALUES_FIELD = new ParseField("values");

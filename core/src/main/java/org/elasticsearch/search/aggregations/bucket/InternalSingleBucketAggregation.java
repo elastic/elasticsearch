@@ -39,8 +39,6 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     private long docCount;
     private InternalAggregations aggregations;
 
-    protected InternalSingleBucketAggregation() {} // for serialization
-
     /**
      * Creates a single bucket aggregation.
      *
@@ -59,12 +57,6 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
      */
     protected InternalSingleBucketAggregation(StreamInput in) throws IOException {
         super(in);
-        docCount = in.readVLong();
-        aggregations = InternalAggregations.readAggregations(in);
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
         docCount = in.readVLong();
         aggregations = InternalAggregations.readAggregations(in);
     }

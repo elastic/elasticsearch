@@ -51,7 +51,7 @@ import static org.elasticsearch.common.Strings.cleanPath;
  */
 public class InternalSettingsPreparer {
 
-    private static final String[] ALLOWED_SUFFIXES = {".yml", ".yaml", ".json", ".properties"};
+    private static final String[] ALLOWED_SUFFIXES = {".yml", ".yaml", ".json"};
     static final String PROPERTY_DEFAULTS_PREFIX = "default.";
     static final Predicate<String> PROPERTY_DEFAULTS_PREDICATE = key -> key.startsWith(PROPERTY_DEFAULTS_PREFIX);
 
@@ -106,7 +106,7 @@ public class InternalSettingsPreparer {
                     try {
                         output.loadFromPath(path);
                     } catch (IOException e) {
-                        throw new SettingsException("Failed to settings from " + path.toString(), e);
+                        throw new SettingsException("Failed to load settings from " + path.toString(), e);
                     }
                 }
                 settingsFileFound = true;

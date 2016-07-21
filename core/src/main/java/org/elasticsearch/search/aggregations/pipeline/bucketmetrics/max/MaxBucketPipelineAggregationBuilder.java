@@ -34,11 +34,11 @@ import java.util.List;
 import java.util.Map;
 
 public class MaxBucketPipelineAggregationBuilder extends BucketMetricsPipelineAggregationBuilder<MaxBucketPipelineAggregationBuilder> {
-    public static final String NAME = MaxBucketPipelineAggregator.TYPE.name();
+    public static final String NAME = "max_bucket";
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public MaxBucketPipelineAggregationBuilder(String name, String bucketsPath) {
-        super(name, MaxBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
+        super(name, NAME, new String[] { bucketsPath });
     }
 
     /**

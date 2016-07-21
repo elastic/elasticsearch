@@ -103,9 +103,8 @@ public abstract class AbstractHistogramAggregatorFactory<AF extends AbstractHist
         // code so we won't need to do that
         ExtendedBounds roundedBounds = null;
         if (extendedBounds != null) {
-            // we need to process & validate here using the parser
-            extendedBounds.processAndValidate(name, context.searchContext(), config.format());
-            roundedBounds = extendedBounds.round(rounding);
+            // parse any string bounds to longs and round them
+            roundedBounds = extendedBounds.parseAndValidate(name, context.searchContext(), config.format()).round(rounding);
         }
         return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, roundedBounds, valuesSource,
                 config.format(), histogramFactory, context, parent, pipelineAggregators, metaData);

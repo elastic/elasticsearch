@@ -856,10 +856,10 @@ Processes elements in an array of unknown length.
 All processors can operate on elements inside an array, but if all elements of an array need to
 be processed in the same way, defining a processor for each element becomes cumbersome and tricky
 because it is likely that the number of elements in an array is unknown. For this reason the `foreach`
-processor exists. By specifying the field holding array elements and a list of processors that
-define what should happen to each element, array fields can easily be preprocessed.
+processor exists. By specifying the field holding array elements and a processor that
+defines what should happen to each element, array fields can easily be preprocessed.
 
-Processors inside the foreach processor work in a different context, and the only valid top-level
+A processor inside the foreach processor works in a different context, and the only valid top-level
 field is `_value`, which holds the array element value. Under this field other fields may exist.
 
 If the `foreach` processor fails to process an element inside the array, and no `on_failure` processor has been specified,
@@ -871,7 +871,7 @@ then it aborts the execution and leaves the array unmodified.
 |======
 | Name          | Required  | Default  | Description
 | `field`       | yes       | -        | The array field
-| `processors`  | yes       | -        | The processors
+| `processor`   | yes       | -        | The processor to execute against each field
 |======
 
 Assume the following document:
@@ -890,13 +890,11 @@ When this `foreach` processor operates on this sample document:
 {
   "foreach" : {
     "field" : "values",
-    "processors" : [
-      {
-        "uppercase" : {
-          "field" : "_value"
-        }
+    "processor" : {
+      "uppercase" : {
+        "field" : "_value"
       }
-    ]
+    }
   }
 }
 --------------------------------------------------
@@ -936,13 +934,11 @@ so the following `foreach` processor is used:
 {
   "foreach" : {
     "field" : "persons",
-    "processors" : [
-      {
-        "remove" : {
-          "field" : "_value.id"
-        }
+    "processor" : {
+      "remove" : {
+        "field" : "_value.id"
       }
-    ]
+    }
   }
 }
 --------------------------------------------------
@@ -975,21 +971,19 @@ block to send the document to the 'failure_index' index for later inspection:
 {
   "foreach" : {
     "field" : "persons",
-    "processors" : [
-      {
-        "remove" : {
-          "field" : "_value.id",
-          "on_failure" : [
-            {
-              "set" : {
-                "field", "_index",
-                "value", "failure_index"
-              }
+    "processor" : {
+      "remove" : {
+        "field" : "_value.id",
+        "on_failure" : [
+          {
+            "set" : {
+              "field", "_index",
+              "value", "failure_index"
             }
-          ]
-        }
+          }
+        ]
       }
-    ]
+    }
   }
 }
 --------------------------------------------------
@@ -1008,7 +1002,7 @@ expression that supports aliased expressions that can be reused.
 This tool is perfect for syslog logs, apache and other webserver logs, mysql logs, and in general, any log format
 that is generally written for humans and not computer consumption.
 This processor comes packaged with over
-https://github.com/elastic/elasticsearch/tree/master/modules/ingest-grok/src/main/resources/patterns[120 reusable patterns].
+https://github.com/elastic/elasticsearch/tree/master/modules/ingest-common/src/main/resources/patterns[120 reusable patterns].
 
 If you need help building patterns to match your logs, you will find the <http://grokdebug.herokuapp.com> and
 <http://grokconstructor.appspot.com/> applications quite useful!

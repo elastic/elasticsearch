@@ -22,18 +22,15 @@ package org.elasticsearch.ingest;
 import java.util.Collections;
 import java.util.Map;
 
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptService;
 
 /**
  * Adds an ingest processor to be used in tests.
  */
 public class IngestTestPlugin extends Plugin implements IngestPlugin {
     @Override
-    public Map<String, Processor.Factory> getProcessors(
-        Environment env, ScriptService scriptService, TemplateService templateService) {
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         return Collections.singletonMap("test", (factories, tag, config) ->
             new TestProcessor("id", "test", doc -> {
                 doc.setFieldValue("processed", true);

@@ -32,7 +32,7 @@ That will return something like this:
     "search": 0
   },
   "throttled_millis": 0,
-  "requests_per_second": "unlimited",
+  "requests_per_second": -1.0,
   "throttled_until_millis": 0,
   "total": 120,
   "failures" : [ ]
@@ -156,7 +156,7 @@ types at once, just like the search API:
 POST twitter,blog/tweet,post/_update_by_query
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT twitter\nPUT blog\nGET _cluster\/health?wait_for_status=yellow\n/]
+// TEST[s/^/PUT twitter\nPUT blog\n/]
 
 If you provide `routing` then the routing is copied to the scroll query,
 limiting the process to the shards that match that routing value:
@@ -221,15 +221,15 @@ request. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
 <<docs-bulk,Bulk API>>.
 
-`requests_per_second` can be set to any decimal number (`1.4`, `6`, `1000`, etc)
-and throttles the number of requests per second that the update by query issues.
-The throttling is done waiting between bulk batches so that it can manipulate
-the scroll timeout. The wait time is the difference between the time it took the
-batch to complete and the time `requests_per_second * requests_in_the_batch`.
-Since the batch isn't broken into multiple bulk requests large batch sizes will
-cause Elasticsearch to create many requests and then wait for a while before
-starting the next set. This is "bursty" instead of "smooth". The default is
-`unlimited` which is also the only non-number value that it accepts.
+`requests_per_second` can be set to any positive decimal number (`1.4`, `6`,
+`1000`, etc) and throttles the number of requests per second that the update-by-query
+issues or it can be set to `-1` to disabled throttling. The throttling is done
+waiting between bulk batches so that it can manipulate the scroll timeout. The
+wait time is the difference between the time it took the batch to complete and
+the time `requests_per_second * requests_in_the_batch`. Since the batch isn't
+broken into multiple bulk requests large batch sizes will cause Elasticsearch
+to create many requests and then wait for a while before starting the next set.
+This is "bursty" instead of "smooth". The default is `-1`.
 
 [float]
 [[docs-update-by-query-response-body]]
@@ -391,18 +391,18 @@ using the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _update_by_query/taskid:1/_rethrottle?requests_per_second=unlimited
+POST _update_by_query/taskid:1/_rethrottle?requests_per_second=-1
 --------------------------------------------------
 // CONSOLE
 
 The `task_id` can be found using the tasks API above.
 
 Just like when setting it on the `_update_by_query` API `requests_per_second`
-can be either `unlimited` to disable throttling or any decimal number like `1.7`
-or `12` to throttle to that level. Rethrottling that speeds up the query takes
-effect immediately but rethrotting that slows down the query will take effect
-on after completing the current batch. This prevents scroll timeouts.
-
+can be either `-1` to disable throttling or any decimal number
+like `1.7` or `12` to throttle to that level. Rethrottling that speeds up the
+query takes effect immediately but rethrotting that slows down the query will
+take effect on after completing the current batch. This prevents scroll
+timeouts.
 
 [float]
 [[picking-up-a-new-property]]

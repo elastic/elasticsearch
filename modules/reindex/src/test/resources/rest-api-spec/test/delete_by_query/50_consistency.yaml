@@ -7,9 +7,6 @@
             settings:
               number_of_replicas: 5
   - do:
-      cluster.health:
-          wait_for_status: yellow
-  - do:
       index:
         index:       test
         type:        test

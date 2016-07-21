@@ -15,7 +15,7 @@ PUT /my_index
         "my_type": {
             "properties": {
                 "post_date": { "type": "date" },
-                "user": { 
+                "user": {
                     "type": "keyword"
                 },
                 "name": {
@@ -26,8 +26,6 @@ PUT /my_index
         }
     }
 }
-
-GET /_cluster/health?wait_for_status=yellow
 --------------------------------------------------
 // CONSOLE
 
@@ -100,7 +98,7 @@ PUT /my_index/my_type/1?refresh
     "price": [20, 4]
 }
 
-POST /_search 
+POST /_search
 {
    "query" : {
       "term" : { "product" : "chocolate" }

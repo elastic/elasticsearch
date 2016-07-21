@@ -285,7 +285,7 @@ public class BulkByScrollTaskTests extends ESTestCase {
     public void testXContentRepresentationOfUnlimitedRequestsPerSecon() throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
         task.getStatus().toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(builder.string(), containsString("\"requests_per_second\":\"unlimited\""));
+        assertThat(builder.string(), containsString("\"requests_per_second\":-1"));
     }
 
     public void testPerfectlyThrottledBatchTime() {

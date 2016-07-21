@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.support.master;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -317,14 +318,19 @@ public class TransportMasterNodeActionTests extends ESTestCase {
             assertTrue(listener.isDone());
             listener.get();
         } else {
-            Throwable t = new Throwable();
+            ElasticsearchException t = new ElasticsearchException("test");
+            t.addHeader("header", "is here");
             transport.handleRemoteError(capturedRequest.requestId, t);
             assertTrue(listener.isDone());
             try {
                 listener.get();
                 fail("Expected exception but returned proper result");
             } catch (ExecutionException ex) {
-                assertThat(ex.getCause().getCause(), equalTo(t));
+                final Throwable cause = ex.getCause().getCause();
+                assertThat(cause, instanceOf(ElasticsearchException.class));
+                final ElasticsearchException es = (ElasticsearchException) cause;
+                assertThat(es.getMessage(), equalTo(t.getMessage()));
+                assertThat(es.getHeader("header"), equalTo(t.getHeader("header")));
             }
         }
     }

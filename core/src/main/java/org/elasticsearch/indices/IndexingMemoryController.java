@@ -27,7 +27,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
@@ -35,6 +34,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.io.Closeable;
 import java.util.ArrayList;
@@ -43,7 +44,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Set;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -84,7 +84,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     /** Contains shards currently being throttled because we can't write segments quickly enough */
     private final Set<IndexShard> throttled = new HashSet<>();
 
-    private final ScheduledFuture scheduler;
+    private final Cancellable scheduler;
 
     private static final EnumSet<IndexShardState> CAN_WRITE_INDEX_BUFFER_STATES = EnumSet.of(
             IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, IndexShardState.STARTED, IndexShardState.RELOCATED);
@@ -128,14 +128,14 @@ public class IndexingMemoryController extends AbstractComponent implements Index
         this.threadPool = threadPool;
     }
 
-    protected ScheduledFuture<?> scheduleTask(ThreadPool threadPool) {
+    protected Cancellable scheduleTask(ThreadPool threadPool) {
         // it's fine to run it on the scheduler thread, no busy work
-        return threadPool.scheduleWithFixedDelay(statusChecker, interval);
+        return threadPool.scheduleWithFixedDelay(statusChecker, interval, Names.SAME);
     }
 
     @Override
     public void close() {
-        FutureUtils.cancel(scheduler);
+        scheduler.cancel();
     }
 
     /**

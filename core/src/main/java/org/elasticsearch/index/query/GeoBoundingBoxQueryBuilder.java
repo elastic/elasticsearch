@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
@@ -28,6 +29,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -53,7 +55,6 @@ import java.util.Optional;
  * enabled.
  * */
 public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBoundingBoxQueryBuilder> {
-    /** Name of the query. */
     public static final String NAME = "geo_bounding_box";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME, "geo_bbox");
 
@@ -155,7 +156,13 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             if (top < bottom) {
                 throw new IllegalArgumentException("top is below bottom corner: " +
                             top + " vs. " + bottom);
-                }
+            } else if (top == bottom) {
+                throw new IllegalArgumentException("top cannot be the same as bottom: " +
+                    top + " == " + bottom);
+            } else if (left == right) {
+                throw new IllegalArgumentException("left cannot be the same as right: " +
+                    left + " == " + right);
+            }
 
                 // we do not check longitudes as the query generation code can deal with flipped left/right values
         }
@@ -172,6 +179,16 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
      * */
     public GeoBoundingBoxQueryBuilder setCorners(GeoPoint topLeft, GeoPoint bottomRight) {
         return setCorners(topLeft.getLat(), topLeft.getLon(), bottomRight.getLat(), bottomRight.getLon());
+    }
+
+    /**
+     * Adds points from a single geohash.
+     * @param geohash The geohash for computing the bounding box.
+     */
+    public GeoBoundingBoxQueryBuilder setCorners(final String geohash) {
+        // get the bounding box of the geohash and set topLeft and bottomRight
+        Rectangle ghBBox = GeoHashUtils.bbox(geohash);
+        return setCorners(new GeoPoint(ghBBox.maxLat, ghBBox.minLon), new GeoPoint(ghBBox.minLat, ghBBox.maxLon));
     }
 
     /**

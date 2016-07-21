@@ -101,6 +101,10 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
         return task;
     }
 
+    /**
+     * Execute the transport action on the local node, returning the {@link Task} used to track its execution and accepting a
+     * {@link TaskListener} which listens for the completion of the action.
+     */
     public final Task execute(Request request, TaskListener<Response> listener) {
         Task task = taskManager.register("transport", actionName, request);
         execute(task, request, new ActionListener<Response>() {

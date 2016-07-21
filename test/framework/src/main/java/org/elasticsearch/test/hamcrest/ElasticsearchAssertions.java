@@ -30,6 +30,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -76,6 +77,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static java.util.Collections.emptyList;
 import static org.apache.lucene.util.LuceneTestCase.random;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -121,6 +123,17 @@ public class ElasticsearchAssertions {
     public static void assertAcked(DeleteIndexResponse response) {
         assertThat("Delete Index failed - not acked", response.isAcknowledged(), equalTo(true));
         assertVersionSerializable(response);
+    }
+
+    /**
+     * Assert that an index creation was fully acknowledged, meaning that both the index creation cluster
+     * state update was successful and that the requisite number of shard copies were started before returning.
+     */
+    public static void assertAcked(CreateIndexResponse response) {
+        assertThat(response.getClass().getSimpleName() + " failed - not acked", response.isAcknowledged(), equalTo(true));
+        assertVersionSerializable(response);
+        assertTrue(response.getClass().getSimpleName() + " failed - index creation acked but not all shards were started",
+            response.isShardsAcked());
     }
 
     /**
@@ -627,7 +640,7 @@ public class ElasticsearchAssertions {
             registry = ESIntegTestCase.internalCluster().getInstance(NamedWriteableRegistry.class);
         } else {
             registry = new NamedWriteableRegistry();
-            new SearchModule(Settings.EMPTY, registry, false);
+            new SearchModule(Settings.EMPTY, registry, false, emptyList());
         }
         assertVersionSerializable(version, streamable, registry);
     }
@@ -651,8 +664,16 @@ public class ElasticsearchAssertions {
             newInstance.readFrom(input);
             assertThat("Stream should be fully read with version [" + version + "] for streamable [" + streamable + "]", input.available(),
                     equalTo(0));
-            assertThat("Serialization failed with version [" + version + "] bytes should be equal for streamable [" + streamable + "]",
-                    serialize(version, streamable), equalTo(orig));
+            BytesReference newBytes = serialize(version, streamable);
+            if (false == orig.equals(newBytes)) {
+                // The bytes are different. That is a failure. Lets try to throw a useful exception for debugging.
+                String message = "Serialization failed with version [" + version + "] bytes should be equal for streamable [" + streamable
+                        + "]";
+                // If the bytes are different then comparing BytesRef's toStrings will show you *where* they are different
+                assertEquals(message, orig.toBytesRef().toString(), newBytes.toBytesRef().toString());
+                // They bytes aren't different. Very very weird.
+                fail(message);
+            }
         } catch (Exception ex) {
             throw new RuntimeException("failed to check serialization - version [" + version + "] for streamable [" + streamable + "]", ex);
         }

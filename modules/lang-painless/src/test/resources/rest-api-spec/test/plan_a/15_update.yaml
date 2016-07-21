@@ -15,11 +15,11 @@
           index:  test_1
           type:   test
           id:     1
-          script: "1"
           body:
-            lang:   painless
-            script: "ctx._source.foo = params.bar"
-            params: { bar: 'xxx' }
+            script:
+              lang:   painless
+              inline: "ctx._source.foo = params.bar"
+              params: { bar: 'xxx' }
 
   - match: { _index:   test_1 }
   - match: { _type:    test   }
@@ -40,8 +40,10 @@
           index:  test_1
           type:   test
           id:     1
-          lang:   painless
-          script: "ctx._source.foo = 'yyy'"
+          body:
+            script:
+              lang:   painless
+              inline: "ctx._source.foo = 'yyy'"
 
   - match: { _index:   test_1 }
   - match: { _type:    test   }

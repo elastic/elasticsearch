@@ -70,7 +70,7 @@ public class AggregationContext {
             } else if (config.valueSourceType() == ValuesSourceType.GEOPOINT) {
                 vs = (VS) ValuesSource.GeoPoint.EMPTY;
             } else if (config.valueSourceType() == ValuesSourceType.ANY || config.valueSourceType() == ValuesSourceType.BYTES) {
-                vs = (VS) ValuesSource.Bytes.EMPTY;
+                vs = (VS) ValuesSource.Bytes.WithOrdinals.EMPTY;
             } else {
                 throw new SearchParseException(searchContext, "Can't deal with unmapped ValuesSource type "
                     + config.valueSourceType(), null);
@@ -97,7 +97,7 @@ public class AggregationContext {
             } else {
                 if (config.fieldContext() != null && config.fieldContext().fieldType() != null) {
                     missing = config.fieldContext().fieldType().docValueFormat(null, DateTimeZone.UTC)
-                            .parseDouble(config.missing().toString(), false, context.nowCallable());
+                            .parseDouble(config.missing().toString(), false, context::nowInMillis);
                 } else {
                     missing = Double.parseDouble(config.missing().toString());
                 }

@@ -50,6 +50,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.RestoreSource;
@@ -63,6 +65,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
@@ -91,15 +94,17 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.FieldMaskingReader;
@@ -248,7 +253,8 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         ShardPath shardPath = ShardPath.loadShardPath(logger, env, shard.shardId(), test.getIndexSettings());
         assertNotNull(shardPath);
         // but index can't be opened for a failed shard
-        assertThat("store index should be corrupted", Store.canOpenIndex(logger, shardPath.resolveIndex(), shard.shardId()), equalTo(false));
+        assertThat("store index should be corrupted", Store.canOpenIndex(logger, shardPath.resolveIndex(), shard.shardId(), env::shardLock),
+            equalTo(false));
     }
 
     ShardStateMetaData getShardStateMetadata(IndexShard shard) {
@@ -1178,13 +1184,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         test_target_shard.updateRoutingEntry(routing);
         DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
         test_target_shard.markAsRecovering("store", new RecoveryState(routing.shardId(), routing.primary(), RecoveryState.Type.SNAPSHOT, routing.restoreSource(), localNode));
-        assertTrue(test_target_shard.restoreFromRepository(new IndexShardRepository() {
+        assertTrue(test_target_shard.restoreFromRepository(new RestoreOnlyRepository() {
             @Override
-            public void snapshot(SnapshotId snapshotId, ShardId shardId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {
-            }
-
-            @Override
-            public void restore(SnapshotId snapshotId, Version version, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
+            public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, ShardId snapshotShardId, RecoveryState recoveryState) {
                 try {
                     cleanLuceneIndex(targetStore.directory());
                     for (String file : sourceStore.directory().listAll()) {
@@ -1196,15 +1198,6 @@ public class IndexShardTests extends ESSingleNodeTestCase {
                 } catch (Exception ex) {
                     throw new RuntimeException(ex);
                 }
-            }
-
-            @Override
-            public IndexShardSnapshotStatus snapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId) {
-                return null;
-            }
-
-            @Override
-            public void verify(String verificationToken) {
             }
         }));
 
@@ -1648,5 +1641,68 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertNotNull(mappings.get("index_1").get("test"));
         assertEquals(mappings.get("index_1").get("test").get().source().string(), "{\"test\":{\"properties\":{\"foo\":{\"type\":\"text\"}}}}");
 
+    }
+
+    /** A dummy repository for testing which just needs restore overridden */
+    private abstract static class RestoreOnlyRepository extends AbstractLifecycleComponent implements Repository {
+        public RestoreOnlyRepository() {
+            super(Settings.EMPTY);
+        }
+        @Override
+        protected void doStart() {}
+        @Override
+        protected void doStop() {}
+        @Override
+        protected void doClose() {}
+        @Override
+        public RepositoryMetaData getMetadata() {
+            return null;
+        }
+        @Override
+        public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
+            return null;
+        }
+        @Override
+        public MetaData getSnapshotMetaData(SnapshotInfo snapshot, List<String> indices) throws IOException {
+            return null;
+        }
+        @Override
+        public List<SnapshotId> getSnapshots() {
+            return null;
+        }
+        @Override
+        public void initializeSnapshot(SnapshotId snapshotId, List<String> indices, MetaData metaData) {}
+        @Override
+        public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<String> indices, long startTime, String failure, int totalShards, List<SnapshotShardFailure> shardFailures) {
+            return null;
+        }
+        @Override
+        public void deleteSnapshot(SnapshotId snapshotId) {}
+        @Override
+        public long getSnapshotThrottleTimeInNanos() {
+            return 0;
+        }
+        @Override
+        public long getRestoreThrottleTimeInNanos() {
+            return 0;
+        }
+        @Override
+        public String startVerification() {
+            return null;
+        }
+        @Override
+        public void endVerification(String verificationToken) {}
+        @Override
+        public boolean isReadOnly() {
+            return false;
+        }
+        @Override
+        public void snapshotShard(IndexShard shard, SnapshotId snapshotId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {}
+        @Override
+        public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId) {
+            return null;
+        }
+        @Override
+        public void verify(String verificationToken, DiscoveryNode localNode) {}
     }
 }

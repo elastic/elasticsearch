@@ -22,18 +22,22 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.Highlighters;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
+import java.util.Arrays;
 import java.util.Collections;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -41,12 +45,11 @@ import static org.hamcrest.Matchers.sameInstance;
 public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
 
     public void testHitsExecutionNeeded() {
-        PercolateQuery percolateQuery = new PercolateQuery.Builder("", ctx -> null, new BytesArray("{}"),
-                Mockito.mock(IndexSearcher.class))
-                .build();
-
+        PercolateQuery percolateQuery = new PercolateQuery(
+                "", ctx -> null, new BytesArray("{}"), new MatchAllDocsQuery(), Mockito.mock(IndexSearcher.class), new MatchAllDocsQuery()
+        );
         PercolatorHighlightSubFetchPhase subFetchPhase = new PercolatorHighlightSubFetchPhase(Settings.EMPTY,
-            new Highlighters(Settings.EMPTY));
+            emptyMap());
         SearchContext searchContext = Mockito.mock(SearchContext.class);
         Mockito.when(searchContext.highlight()).thenReturn(new SearchContextHighlight(Collections.emptyList()));
         Mockito.when(searchContext.query()).thenReturn(new MatchAllDocsQuery());
@@ -57,10 +60,9 @@ public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
     }
 
     public void testLocatePercolatorQuery() {
-        PercolateQuery percolateQuery = new PercolateQuery.Builder("", ctx -> null, new BytesArray("{}"),
-                Mockito.mock(IndexSearcher.class))
-                .build();
-
+        PercolateQuery percolateQuery = new PercolateQuery(
+                "", ctx -> null, new BytesArray("{}"), new MatchAllDocsQuery(), Mockito.mock(IndexSearcher.class), new MatchAllDocsQuery()
+        );
         assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(new MatchAllDocsQuery()), nullValue());
         BooleanQuery.Builder bq = new BooleanQuery.Builder();
         bq.add(new MatchAllDocsQuery(), BooleanClause.Occur.FILTER);
@@ -77,6 +79,16 @@ public class PercolatorHighlightSubFetchPhaseTests extends ESTestCase {
         assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(boostQuery), nullValue());
         boostQuery = new BoostQuery(percolateQuery, 1f);
         assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(boostQuery), sameInstance(percolateQuery));
+
+        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(new MatchAllDocsQuery(), new RandomScoreFunction());
+        assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(functionScoreQuery), nullValue());
+        functionScoreQuery = new FunctionScoreQuery(percolateQuery, new RandomScoreFunction());
+        assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(functionScoreQuery), sameInstance(percolateQuery));
+
+        DisjunctionMaxQuery disjunctionMaxQuery = new DisjunctionMaxQuery(Arrays.asList(new MatchAllDocsQuery()), 1f);
+        assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(disjunctionMaxQuery), nullValue());
+        disjunctionMaxQuery = new DisjunctionMaxQuery(Arrays.asList(percolateQuery, new MatchAllDocsQuery()), 1f);
+        assertThat(PercolatorHighlightSubFetchPhase.locatePercolatorQuery(disjunctionMaxQuery), sameInstance(percolateQuery));
     }
 
 }

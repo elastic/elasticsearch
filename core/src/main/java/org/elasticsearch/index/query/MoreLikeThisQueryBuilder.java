@@ -79,7 +79,6 @@ import static org.elasticsearch.index.mapper.Uid.createUidAsBytes;
  * The documents are provided as a set of strings and/or a list of {@link Item}.
  */
 public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQueryBuilder> {
-
     public static final String NAME = "more_like_this";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME, "mlt");
 

@@ -7,9 +7,6 @@ setup:
             mappings:
               test:
                 _source: { enabled: false }
- - do:
-      cluster.health:
-          wait_for_status: yellow
 
  - do:
       index:

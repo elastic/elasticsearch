@@ -12,9 +12,6 @@
                             text:
                                 type:     text
                                 analyzer: polish
-    - do:
-       cluster.health:
-           wait_for_status: yellow
 
     - do:
       index:

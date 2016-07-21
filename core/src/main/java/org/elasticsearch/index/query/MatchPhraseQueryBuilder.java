@@ -37,9 +37,7 @@ import java.util.Optional;
  * as the result of the analysis.
  */
 public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQueryBuilder> {
-
     public static final String NAME = "match_phrase";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
     public static final ParseField SLOP_FIELD = new ParseField("slop", "phrase_slop");
 
     private final String fieldName;

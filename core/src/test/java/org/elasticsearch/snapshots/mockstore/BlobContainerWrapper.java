@@ -69,16 +69,6 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
-    public void deleteBlobs(Collection<String> blobNames) throws IOException {
-        delegate.deleteBlobs(blobNames);
-    }
-
-    @Override
-    public void deleteBlobsByPrefix(String blobNamePrefix) throws IOException {
-        delegate.deleteBlobsByPrefix(blobNamePrefix);
-    }
-
-    @Override
     public Map<String, BlobMetaData> listBlobs() throws IOException {
         return delegate.listBlobs();
     }

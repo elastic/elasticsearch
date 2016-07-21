@@ -89,6 +89,8 @@ import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -96,7 +98,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.unmodifiableMap;
@@ -139,7 +140,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private volatile TimeValue defaultSearchTimeout;
 
-    private final ScheduledFuture<?> keepAliveReaper;
+    private final Cancellable keepAliveReaper;
 
     private final AtomicLong idGenerator = new AtomicLong();
 
@@ -171,7 +172,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         elementParsers.putAll(fetchPhase.parseElements());
         this.elementParsers = unmodifiableMap(elementParsers);
 
-        this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval);
+        this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval, Names.SAME);
 
         defaultSearchTimeout = DEFAULT_SEARCH_TIMEOUT_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
@@ -224,7 +225,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     @Override
     protected void doClose() {
         doStop();
-        FutureUtils.cancel(keepAliveReaper);
+        keepAliveReaper.cancel();
     }
 
     public DfsSearchResult executeDfsPhase(ShardSearchRequest request) throws IOException {

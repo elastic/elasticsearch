@@ -19,12 +19,15 @@
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.plugins.SearchPlugin;
 
-public class CustomSuggesterPlugin extends Plugin {
+import java.util.Map;
 
-    public void onModule(SearchModule searchModule) {
-        searchModule.registerSuggester("custom", CustomSuggester.INSTANCE);
+import static java.util.Collections.singletonMap;
+
+public class CustomSuggesterPlugin extends Plugin implements SearchPlugin {
+    @Override
+    public Map<String, Suggester<?>> getSuggesters() {
+        return singletonMap("custom", CustomSuggester.INSTANCE);
     }
-
 }

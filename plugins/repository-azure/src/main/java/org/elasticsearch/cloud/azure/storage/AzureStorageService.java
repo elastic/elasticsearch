@@ -86,6 +86,4 @@ public interface AzureStorageService {
 
     void moveBlob(String account, LocationMode mode, String container, String sourceBlob, String targetBlob)
         throws URISyntaxException, StorageException;
-
-    void start();
 }

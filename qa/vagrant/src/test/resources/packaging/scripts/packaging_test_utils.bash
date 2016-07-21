@@ -475,7 +475,9 @@ run_elasticsearch_tests() {
     curl -s -XPOST 'http://localhost:9200/library/book/_count?pretty' -d '{
       "query": {
         "script": {
-          "script_file": "is_guide"
+          "script": {
+            "file": "is_guide"
+          }
         }
       }
     }' | grep \"count\"\ :\ 1

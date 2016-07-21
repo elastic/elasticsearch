@@ -35,7 +35,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHigh
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- *
+ * Integration test for highlighters registered by a plugin.
  */
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class CustomHighlighterSearchIT extends ESIntegTestCase {
@@ -52,7 +52,6 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
                         "name", "arbitrary content", "other_name", "foo", "other_other_name", "bar"),
                 client().prepareIndex("test", "test", "2").setSource(
                         "other_name", "foo", "other_other_name", "bar"));
-        ensureYellow();
     }
 
     public void testThatCustomHighlightersAreSupported() throws IOException {

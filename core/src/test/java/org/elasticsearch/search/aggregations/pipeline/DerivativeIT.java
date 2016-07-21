@@ -619,7 +619,6 @@ public class DerivativeIT extends ESIntegTestCase {
 
     public void testAvgMovavgDerivNPE() throws Exception {
         createIndex("movavg_npe");
-        ensureYellow("movavg_npe");
 
         for (int i = 0; i < 10; i++) {
             Integer value = i;

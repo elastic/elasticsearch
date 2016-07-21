@@ -42,9 +42,7 @@ import java.util.Optional;
  * A Query that matches documents containing terms with a specified prefix.
  */
 public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder> implements MultiTermQueryBuilder {
-
     public static final String NAME = "prefix";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField PREFIX_FIELD = new ParseField("value", "prefix");
     private static final ParseField REWRITE_FIELD = new ParseField("rewrite");

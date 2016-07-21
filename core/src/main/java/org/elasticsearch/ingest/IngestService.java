@@ -24,7 +24,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -43,9 +42,11 @@ public class IngestService {
     public IngestService(Settings settings, ThreadPool threadPool,
                          Environment env, ScriptService scriptService, List<IngestPlugin> ingestPlugins) {
         final TemplateService templateService = new InternalTemplateService(scriptService);
+        Processor.Parameters parameters = new Processor.Parameters(env, scriptService, templateService,
+                threadPool.getThreadContext());
         Map<String, Processor.Factory> processorFactories = new HashMap<>();
         for (IngestPlugin ingestPlugin : ingestPlugins) {
-            Map<String, Processor.Factory> newProcessors = ingestPlugin.getProcessors(env, scriptService, templateService);
+            Map<String, Processor.Factory> newProcessors = ingestPlugin.getProcessors(parameters);
             for (Map.Entry<String, Processor.Factory> entry : newProcessors.entrySet()) {
                 if (processorFactories.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Ingest processor [" + entry.getKey() + "] is already registered");

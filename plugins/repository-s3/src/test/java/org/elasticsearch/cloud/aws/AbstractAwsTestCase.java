@@ -69,6 +69,6 @@ public abstract class AbstractAwsTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(S3RepositoryPlugin.class);
+        return pluginList(TestAwsS3Service.TestPlugin.class);
     }
 }

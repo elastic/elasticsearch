@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,11 +30,10 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.script.NativeSignificanceScoreScriptNoParams;
@@ -47,6 +45,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ScriptHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -62,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
@@ -167,20 +167,22 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         }
     }
 
-    public static class CustomSignificanceHeuristicPlugin extends Plugin implements ScriptPlugin {
-
-        public void onModule(SearchModule searchModule) {
-            searchModule.registerSignificanceHeuristic(SimpleHeuristic.NAMES_FIELD, SimpleHeuristic::new, SimpleHeuristic::parse);
+    public static class CustomSignificanceHeuristicPlugin extends Plugin implements ScriptPlugin, SearchPlugin {
+        @Override
+        public List<SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>> getSignificanceHeuristics() {
+            return singletonList(new SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>(SimpleHeuristic.NAME,
+                    SimpleHeuristic::new, SimpleHeuristic::parse));
         }
 
         @Override
         public List<NativeScriptFactory> getNativeScripts() {
-            return Arrays.asList(new NativeSignificanceScoreScriptNoParams.Factory(), new NativeSignificanceScoreScriptWithParams.Factory());
+            return Arrays.asList(new NativeSignificanceScoreScriptNoParams.Factory(),
+                    new NativeSignificanceScoreScriptWithParams.Factory());
         }
     }
 
     public static class SimpleHeuristic extends SignificanceHeuristic {
-        public static final ParseField NAMES_FIELD = new ParseField("simple");
+        public static final String NAME = "simple";
 
         public SimpleHeuristic() {
         }
@@ -199,12 +201,12 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
         @Override
         public String getWriteableName() {
-            return NAMES_FIELD.getPreferredName();
+            return NAME;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(NAMES_FIELD.getPreferredName()).endObject();
+            builder.startObject(NAME).endObject();
             return builder;
         }
 
@@ -449,7 +451,6 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     public void testScriptScore() throws ExecutionException, InterruptedException, IOException {
         indexRandomFrequencies01(randomBoolean() ? "text" : "long");
         ScriptHeuristic scriptHeuristic = getScriptSignificanceHeuristic();
-        ensureYellow();
         SearchResponse response = client().prepareSearch(INDEX_NAME)
                 .addAggregation(terms("class").field(CLASS_FIELD)
                         .subAggregation(significantTerms("mySignificantTerms")

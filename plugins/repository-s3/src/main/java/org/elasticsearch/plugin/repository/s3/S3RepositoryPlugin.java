@@ -19,30 +19,28 @@
 
 package org.elasticsearch.plugin.repository.s3;
 
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cloud.aws.AwsS3Service;
-import org.elasticsearch.cloud.aws.S3Module;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardRepository;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesModule;
-import org.elasticsearch.repositories.s3.S3Repository;
-
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.cloud.aws.AwsS3Service;
+import org.elasticsearch.cloud.aws.InternalAwsS3Service;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.s3.S3Repository;
 
 /**
- *
+ * A plugin to add a repository type that writes to and from the AWS S3.
  */
-public class S3RepositoryPlugin extends Plugin {
+public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
 
     // ClientConfiguration clinit has some classloader problems
     // TODO: fix that
@@ -64,26 +62,28 @@ public class S3RepositoryPlugin extends Plugin {
         });
     }
 
-    @Override
-    public Collection<Module> nodeModules() {
-        Collection<Module> modules = new ArrayList<>();
-        modules.add(new S3Module());
-        return modules;
+    // overridable for tests
+    protected AwsS3Service createStorageService(Settings settings) {
+        return new InternalAwsS3Service(settings);
     }
 
     @Override
-    @SuppressWarnings("rawtypes") // Supertype declaration has raw types
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        return Collections.<Class<? extends LifecycleComponent>>singleton(S3Module.getS3ServiceImpl());
+    public Map<String, Repository.Factory> getRepositories(Environment env) {
+        return Collections.singletonMap(S3Repository.TYPE,
+            (metadata) -> new S3Repository(metadata, env.settings(), createStorageService(env.settings())));
     }
 
-    public void onModule(RepositoriesModule repositoriesModule) {
-        repositoriesModule.registerRepository(S3Repository.TYPE, S3Repository.class, BlobStoreIndexShardRepository.class);
+    @Override
+    public List<String> getSettingsFilter() {
+        return Arrays.asList(
+            S3Repository.Repository.KEY_SETTING.getKey(),
+            S3Repository.Repository.SECRET_SETTING.getKey());
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(        // Register global cloud aws settings: cloud.aws (might have been registered in ec2 plugin)
+        return Arrays.asList(
+        // Register global cloud aws settings: cloud.aws (might have been registered in ec2 plugin)
         AwsS3Service.KEY_SETTING,
         AwsS3Service.SECRET_SETTING,
         AwsS3Service.PROTOCOL_SETTING,
@@ -122,21 +122,6 @@ public class S3RepositoryPlugin extends Plugin {
         S3Repository.Repositories.CANNED_ACL_SETTING,
         S3Repository.Repositories.BASE_PATH_SETTING,
         S3Repository.Repositories.USE_THROTTLE_RETRIES_SETTING,
-
-        // Register S3 single repository settings
-        S3Repository.Repository.KEY_SETTING,
-        S3Repository.Repository.SECRET_SETTING,
-        S3Repository.Repository.BUCKET_SETTING,
-        S3Repository.Repository.ENDPOINT_SETTING,
-        S3Repository.Repository.PROTOCOL_SETTING,
-        S3Repository.Repository.REGION_SETTING,
-        S3Repository.Repository.SERVER_SIDE_ENCRYPTION_SETTING,
-        S3Repository.Repository.BUFFER_SIZE_SETTING,
-        S3Repository.Repository.MAX_RETRIES_SETTING,
-        S3Repository.Repository.CHUNK_SIZE_SETTING,
-        S3Repository.Repository.COMPRESS_SETTING,
-        S3Repository.Repository.STORAGE_CLASS_SETTING,
-        S3Repository.Repository.CANNED_ACL_SETTING,
-        S3Repository.Repository.BASE_PATH_SETTING);
+        S3Repository.Repositories.PATH_STYLE_ACCESS_SETTING);
     }
 }

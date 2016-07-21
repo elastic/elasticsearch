@@ -55,3 +55,11 @@ from Elasticsearch.
 Additionally, it was previously possible to set any setting in
 Elasticsearch via JVM system properties. This has been removed from
 Elasticsearch.
+
+==== Dying on fatal errors
+
+Previous versions of Elasticsearch would not halt the JVM if out of memory errors or other fatal
+errors were encountered during the life of the Elasticsearch instance. Because such errors leave
+the JVM in a questionable state, the best course of action is to halt the JVM when this occurs.
+Starting in Elasticsearch 5.x, this is now the case. Operators should consider configuring their
+Elasticsearch services so that they respawn automatically in the case of such a fatal crash.

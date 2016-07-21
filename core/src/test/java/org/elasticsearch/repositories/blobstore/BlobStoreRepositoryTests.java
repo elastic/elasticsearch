@@ -100,7 +100,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             (BlobStoreRepository) repositoriesService.repository(repositoryName);
         final List<SnapshotId> originalSnapshots = Arrays.asList(snapshotId1, snapshotId2);
 
-        List<SnapshotId> snapshotIds = repository.snapshots().stream()
+        List<SnapshotId> snapshotIds = repository.getSnapshots().stream()
                                                              .sorted((s1, s2) -> s1.getName().compareTo(s2.getName()))
                                                              .collect(Collectors.toList());
         assertThat(snapshotIds, equalTo(originalSnapshots));
@@ -110,9 +110,9 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         final BlobStoreRepository repository = setupRepo();
 
         // write to and read from a snapshot file with no entries
-        assertThat(repository.snapshots().size(), equalTo(0));
+        assertThat(repository.getSnapshots().size(), equalTo(0));
         repository.writeSnapshotsToIndexGen(Collections.emptyList());
-        assertThat(repository.snapshots().size(), equalTo(0));
+        assertThat(repository.getSnapshots().size(), equalTo(0));
 
         // write to and read from a snapshot file with a random number of entries
         final int numSnapshots = randomIntBetween(1, 1000);
@@ -121,7 +121,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), UUIDs.randomBase64UUID()));
         }
         repository.writeSnapshotsToIndexGen(snapshotIds);
-        assertThat(repository.snapshots(), equalTo(snapshotIds));
+        assertThat(repository.getSnapshots(), equalTo(snapshotIds));
     }
 
     public void testIndexGenerationalFiles() throws Exception {
@@ -165,7 +165,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), SnapshotId.UNASSIGNED_UUID));
         }
         writeOldFormat(repository, snapshotIds.stream().map(SnapshotId::getName).collect(Collectors.toList()));
-        assertThat(Sets.newHashSet(repository.snapshots()), equalTo(Sets.newHashSet(snapshotIds)));
+        assertThat(Sets.newHashSet(repository.getSnapshots()), equalTo(Sets.newHashSet(snapshotIds)));
 
         // write to and read from a snapshot file with a random number of new entries added
         final int numSnapshots = randomIntBetween(1, 1000);
@@ -173,7 +173,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), UUIDs.randomBase64UUID()));
         }
         repository.writeSnapshotsToIndexGen(snapshotIds);
-        assertThat(Sets.newHashSet(repository.snapshots()), equalTo(Sets.newHashSet(snapshotIds)));
+        assertThat(Sets.newHashSet(repository.getSnapshots()), equalTo(Sets.newHashSet(snapshotIds)));
     }
 
     public void testBlobId() {

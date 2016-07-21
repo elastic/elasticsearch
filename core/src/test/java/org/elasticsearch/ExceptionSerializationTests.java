@@ -771,7 +771,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(121, org.elasticsearch.search.aggregations.InvalidAggregationPathException.class);
         ids.put(122, null);
         ids.put(123, org.elasticsearch.indices.IndexAlreadyExistsException.class);
-        ids.put(124, org.elasticsearch.script.Script.ScriptParseException.class);
+        ids.put(124, null);
         ids.put(125, TcpTransport.HttpOnTransportException.class);
         ids.put(126, org.elasticsearch.index.mapper.MapperParsingException.class);
         ids.put(127, org.elasticsearch.search.SearchContextException.class);
@@ -791,6 +791,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(141, org.elasticsearch.index.query.QueryShardException.class);
         ids.put(142, ShardStateAction.NoLongerPrimaryShardException.class);
         ids.put(143, org.elasticsearch.script.ScriptException.class);
+        ids.put(144, org.elasticsearch.cluster.NotMasterException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

@@ -18,14 +18,22 @@
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -39,17 +47,59 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
 
     private String analyzer;
 
-    private String tokenizer;
+    private NameOrDefinition tokenizer;
 
-    private String[] tokenFilters = Strings.EMPTY_ARRAY;
+    private final List<NameOrDefinition> tokenFilters = new ArrayList<>();
 
-    private String[] charFilters = Strings.EMPTY_ARRAY;
+    private final List<NameOrDefinition> charFilters = new ArrayList<>();
 
     private String field;
 
     private boolean explain = false;
 
     private String[] attributes = Strings.EMPTY_ARRAY;
+
+    public static class NameOrDefinition implements Writeable {
+        // exactly one of these two members is not null
+        public final String name;
+        public final Settings definition;
+
+        NameOrDefinition(String name) {
+            this.name = Objects.requireNonNull(name);
+            this.definition = null;
+        }
+
+        NameOrDefinition(Map<String, ?> definition) {
+            this.name = null;
+            Objects.requireNonNull(definition);
+            try {
+                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+                builder.map(definition);
+                this.definition = Settings.builder().loadFromSource(builder.string()).build();
+            } catch (IOException e) {
+                throw new IllegalArgumentException("Failed to parse [" + definition + "]", e);
+            }
+        }
+
+        NameOrDefinition(StreamInput in) throws IOException {
+            name = in.readOptionalString();
+            if (in.readBoolean()) {
+                definition = Settings.readSettingsFromStream(in);
+            } else {
+                definition = null;
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(name);
+            boolean isNotNullDefinition = this.definition != null;
+            out.writeBoolean(isNotNullDefinition);
+            if (isNotNullDefinition) {
+                Settings.writeSettingsToStream(definition, out);
+            }
+        }
+    }
 
     public AnalyzeRequest() {
     }
@@ -82,35 +132,43 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
     }
 
     public AnalyzeRequest tokenizer(String tokenizer) {
-        this.tokenizer = tokenizer;
+        this.tokenizer = new NameOrDefinition(tokenizer);
         return this;
     }
 
-    public String tokenizer() {
+    public AnalyzeRequest tokenizer(Map<String, ?> tokenizer) {
+        this.tokenizer = new NameOrDefinition(tokenizer);
+        return this;
+    }
+
+    public NameOrDefinition tokenizer() {
         return this.tokenizer;
     }
 
-    public AnalyzeRequest tokenFilters(String... tokenFilters) {
-        if (tokenFilters == null) {
-            throw new IllegalArgumentException("token filters must not be null");
-        }
-        this.tokenFilters = tokenFilters;
+    public AnalyzeRequest addTokenFilter(String tokenFilter) {
+        this.tokenFilters.add(new NameOrDefinition(tokenFilter));
         return this;
     }
 
-    public String[] tokenFilters() {
+    public AnalyzeRequest addTokenFilter(Map<String, ?> tokenFilter) {
+        this.tokenFilters.add(new NameOrDefinition(tokenFilter));
+        return this;
+    }
+
+    public List<NameOrDefinition> tokenFilters() {
         return this.tokenFilters;
     }
 
-    public AnalyzeRequest charFilters(String... charFilters) {
-        if (charFilters == null) {
-            throw new IllegalArgumentException("char filters must not be null");
-        }
-        this.charFilters = charFilters;
+    public AnalyzeRequest addCharFilter(Map<String, ?> charFilter) {
+        this.charFilters.add(new NameOrDefinition(charFilter));
         return this;
     }
 
-    public String[] charFilters() {
+    public AnalyzeRequest addCharFilter(String charFilter) {
+        this.charFilters.add(new NameOrDefinition(charFilter));
+        return this;
+    }
+    public List<NameOrDefinition> charFilters() {
         return this.charFilters;
     }
 
@@ -158,14 +216,12 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         super.readFrom(in);
         text = in.readStringArray();
         analyzer = in.readOptionalString();
-        tokenizer = in.readOptionalString();
-        tokenFilters = in.readStringArray();
-        charFilters = in.readStringArray();
+        tokenizer = in.readOptionalWriteable(NameOrDefinition::new);
+        tokenFilters.addAll(in.readList(NameOrDefinition::new));
+        charFilters.addAll(in.readList(NameOrDefinition::new));
         field = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
-            explain = in.readBoolean();
-            attributes = in.readStringArray();
-        }
+        explain = in.readBoolean();
+        attributes = in.readStringArray();
     }
 
     @Override
@@ -173,13 +229,11 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         super.writeTo(out);
         out.writeStringArray(text);
         out.writeOptionalString(analyzer);
-        out.writeOptionalString(tokenizer);
-        out.writeStringArray(tokenFilters);
-        out.writeStringArray(charFilters);
+        out.writeOptionalWriteable(tokenizer);
+        out.writeList(tokenFilters);
+        out.writeList(charFilters);
         out.writeOptionalString(field);
-        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
-            out.writeBoolean(explain);
-            out.writeStringArray(attributes);
-        }
+        out.writeBoolean(explain);
+        out.writeStringArray(attributes);
     }
 }

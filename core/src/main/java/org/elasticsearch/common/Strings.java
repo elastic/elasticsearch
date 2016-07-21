@@ -512,10 +512,8 @@ public class Strings {
 
     /**
      * A convenience method for splitting a delimited string into
-     * a set, and also trimming any whitespace found after the
-     * delimiter.  Trimming allows splitting strings like "A, B, C"
-     * into ["A","B","C"] instead of ["A", " B", " C"].  The trimming
-     * will *only* apply if the delimiter is not a whitespace character.
+     * a set and trimming leading and trailing whitespace from all
+     * split strings.
      *
      * @param s the string to split
      * @param c the delimiter to split on
@@ -533,26 +531,32 @@ public class Strings {
             }
         }
         final Set<String> result = new HashSet<>(count);
-        final boolean doTrim = Character.isWhitespace(c) == false;
         final int len = chars.length;
         int start = 0;  // starting index in chars of the current substring.
         int pos = 0;    // current index in chars.
+        int whitespaceStart = -1; // the position of the start of the current whitespace, -1 if not on whitespace
         for (; pos < len; pos++) {
-            // if the delimiter is a non-whitespace character and we
-            // have whitespace after the comma, skip over the whitespace
-            if (doTrim && start == pos && Character.isWhitespace(chars[pos])) {
-                start++;
-                continue;
-            }
             if (chars[pos] == c) {
-                int size = pos - start;
+                int size = (whitespaceStart < 0 ? pos : whitespaceStart) - start;
                 if (size > 0) { // only add non empty strings
                     result.add(new String(chars, start, size));
                 }
                 start = pos + 1;
+                whitespaceStart = -1;
+            } else if (Character.isWhitespace(chars[pos])) {
+                if (start == pos) {
+                    // skip over preceding whitespace
+                    start++;
+                } else if (whitespaceStart < 0) {
+                    // start of whitespace
+                    whitespaceStart = pos;
+                }
+            } else {
+                // reset whitespace position
+                whitespaceStart = -1;
             }
         }
-        int size = pos - start;
+        int size = (whitespaceStart < 0 ? pos : whitespaceStart) - start;
         if (size > 0) {
             result.add(new String(chars, start, size));
         }

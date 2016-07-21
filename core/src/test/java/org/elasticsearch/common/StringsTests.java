@@ -80,8 +80,26 @@ public class StringsTests extends ESTestCase {
         assertEquals(Strings.splitStringByCommaToSet(""), Sets.newHashSet());
         assertEquals(Strings.splitStringByCommaToSet("a,b,c"), Sets.newHashSet("a","b","c"));
         assertEquals(Strings.splitStringByCommaToSet("a, b, c"), Sets.newHashSet("a","b","c"));
-        assertEquals(Strings.splitStringByCommaToSet(" a ,  b, c"), Sets.newHashSet("a ","b","c"));
+        assertEquals(Strings.splitStringByCommaToSet(" a ,  b, c  "), Sets.newHashSet("a","b","c"));
         assertEquals(Strings.splitStringByCommaToSet("aa, bb, cc"), Sets.newHashSet("aa","bb","cc"));
-        assertEquals(Strings.splitStringByCommaToSet(" a "), Sets.newHashSet("a "));
+        assertEquals(Strings.splitStringByCommaToSet(" a "), Sets.newHashSet("a"));
+        assertEquals(Strings.splitStringByCommaToSet("   a   "), Sets.newHashSet("a"));
+        assertEquals(Strings.splitStringByCommaToSet("   aa   "), Sets.newHashSet("aa"));
+        assertEquals(Strings.splitStringByCommaToSet("   "), Sets.newHashSet());
+
+        assertEquals(Strings.splitStringToSet(null, ' '), Sets.newHashSet());
+        assertEquals(Strings.splitStringToSet("", ' '), Sets.newHashSet());
+        assertEquals(Strings.splitStringToSet("a b c", ' '), Sets.newHashSet("a","b","c"));
+        assertEquals(Strings.splitStringToSet("a, b, c", ' '), Sets.newHashSet("a,","b,","c"));
+        assertEquals(Strings.splitStringToSet(" a   b c  ", ' '), Sets.newHashSet("a","b","c"));
+        assertEquals(Strings.splitStringToSet("  a   b   c  ", ' '), Sets.newHashSet("a","b","c"));
+        assertEquals(Strings.splitStringToSet("aa bb cc", ' '), Sets.newHashSet("aa","bb","cc"));
+        assertEquals(Strings.splitStringToSet(" a ", ' '), Sets.newHashSet("a"));
+        assertEquals(Strings.splitStringToSet("    a    ", ' '), Sets.newHashSet("a"));
+        assertEquals(Strings.splitStringToSet(" a   ", ' '), Sets.newHashSet("a"));
+        assertEquals(Strings.splitStringToSet("a   ", ' '), Sets.newHashSet("a"));
+        assertEquals(Strings.splitStringToSet("   aa   ", ' '), Sets.newHashSet("aa"));
+        assertEquals(Strings.splitStringToSet("aa   ", ' '), Sets.newHashSet("aa"));
+        assertEquals(Strings.splitStringToSet("   ", ' '), Sets.newHashSet());
     }
 }

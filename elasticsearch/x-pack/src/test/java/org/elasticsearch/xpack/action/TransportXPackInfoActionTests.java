@@ -10,7 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.core.LicensesService;
+import org.elasticsearch.license.plugin.core.LicenseService;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -57,7 +57,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
 
     public void testDoExecute() throws Exception {
 
-        LicensesService licensesService = mock(LicensesService.class);
+        LicenseService licenseService = mock(LicenseService.class);
 
         final Set<XPackFeatureSet> featureSets = new HashSet<>();
         int featureSetCount = randomIntBetween(0, 5);
@@ -72,7 +72,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
 
         TransportXPackInfoAction action = new TransportXPackInfoAction(Settings.EMPTY, mock(ThreadPool.class),
                 mock(TransportService.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
-                licensesService, featureSets);
+            licenseService, featureSets);
 
         License license = mock(License.class);
         long expiryDate = randomLong();
@@ -85,7 +85,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         when(license.operationMode()).thenReturn(mode);
         String uid = randomAsciiOfLength(30);
         when(license.uid()).thenReturn(uid);
-        when(licensesService.getLicense()).thenReturn(license);
+        when(licenseService.getLicense()).thenReturn(license);
 
         XPackInfoRequest request = new XPackInfoRequest();
         request.setVerbose(randomBoolean());

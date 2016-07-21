@@ -10,8 +10,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.License;
+import org.elasticsearch.license.plugin.core.LicenseService;
 import org.elasticsearch.license.plugin.core.LicenseState;
-import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.MockNetty3Plugin;
@@ -170,7 +170,7 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
 
     private void assertLicenseState(LicenseState state) throws InterruptedException {
         boolean success = awaitBusy(() -> {
-            for (LicensesService service : internalCluster().getDataNodeInstances(LicensesService.class)) {
+            for (LicenseService service : internalCluster().getDataNodeInstances(LicenseService.class)) {
                 if (service.licenseeStatus().getLicenseState() == state) {
                     return true;
                 }
@@ -182,7 +182,7 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
 
     private void assertOperationMode(License.OperationMode operationMode) throws InterruptedException {
         boolean success = awaitBusy(() -> {
-            for (LicensesService service : internalCluster().getDataNodeInstances(LicensesService.class)) {
+            for (LicenseService service : internalCluster().getDataNodeInstances(LicenseService.class)) {
                 if (service.licenseeStatus().getMode() == operationMode) {
                     return true;
                 }

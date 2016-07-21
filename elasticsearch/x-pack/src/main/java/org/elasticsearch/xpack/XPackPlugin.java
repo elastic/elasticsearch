@@ -169,7 +169,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
         if (transportClientMode == false) {
             modules.add(new TextTemplateModule());
-            // Note: this only exists so LicensesService subclasses can be bound in mock tests
+            // Note: this only exists so LicenseService subclasses can be bound in mock tests
             modules.addAll(licensing.nodeModules());
         }
         return modules;

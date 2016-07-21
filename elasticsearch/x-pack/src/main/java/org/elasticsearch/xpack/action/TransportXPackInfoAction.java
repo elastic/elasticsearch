@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.core.LicensesService;
+import org.elasticsearch.license.plugin.core.LicenseService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackBuild;
@@ -27,16 +27,16 @@ import java.util.stream.Collectors;
  */
 public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRequest, XPackInfoResponse> {
 
-    private final LicensesService licensesService;
+    private final LicenseService licenseService;
     private final Set<XPackFeatureSet> featureSets;
 
     @Inject
     public TransportXPackInfoAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                    LicensesService licensesService, Set<XPackFeatureSet> featureSets) {
+                                    LicenseService licenseService, Set<XPackFeatureSet> featureSets) {
         super(settings, XPackInfoAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 XPackInfoRequest::new);
-        this.licensesService = licensesService;
+        this.licenseService = licenseService;
         this.featureSets = featureSets;
     }
 
@@ -51,7 +51,7 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
 
         LicenseInfo licenseInfo = null;
         if (request.getCategories().contains(XPackInfoRequest.Category.LICENSE)) {
-            License license = licensesService.getLicense();
+            License license = licenseService.getLicense();
             if (license != null) {
                 licenseInfo = new LicenseInfo(license);
             }

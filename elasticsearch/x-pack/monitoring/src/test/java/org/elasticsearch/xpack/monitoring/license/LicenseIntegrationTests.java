@@ -14,10 +14,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.Licensing;
-import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
+import org.elasticsearch.license.plugin.core.LicenseService;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
-import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -31,7 +30,6 @@ import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.WatcherLicensee;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -96,7 +94,7 @@ public class LicenseIntegrationTests extends MonitoringIntegTestCase {
 
         @Override
         public Collection<Module> nodeModules() {
-            return Collections.singletonList(b -> b.bind(LicensesService.class).to(MockLicenseService.class));
+            return Collections.singletonList(b -> b.bind(LicenseService.class).to(MockLicenseService.class));
         }
 
         @Override
@@ -106,9 +104,9 @@ public class LicenseIntegrationTests extends MonitoringIntegTestCase {
             WatcherLicensee watcherLicensee = new WatcherLicensee(settings);
             MonitoringLicensee monitoringLicensee = new MonitoringLicensee(settings);
             GraphLicensee graphLicensee = new GraphLicensee(settings);
-            LicensesService licensesService = new MockLicenseService(settings, environment, resourceWatcherService,
+            LicenseService licenseService = new MockLicenseService(settings, environment, resourceWatcherService,
                     Arrays.asList(watcherLicensee, monitoringLicensee, graphLicensee));
-            return Arrays.asList(licensesService, watcherLicensee, monitoringLicensee, graphLicensee);
+            return Arrays.asList(licenseService, watcherLicensee, monitoringLicensee, graphLicensee);
         }
 
         @Override
@@ -122,7 +120,7 @@ public class LicenseIntegrationTests extends MonitoringIntegTestCase {
         }
     }
 
-    public static class MockLicenseService extends LicensesService {
+    public static class MockLicenseService extends LicenseService {
 
         private final List<Licensee> licensees;
 

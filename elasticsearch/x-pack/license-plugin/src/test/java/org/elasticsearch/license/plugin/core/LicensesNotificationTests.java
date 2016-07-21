@@ -26,19 +26,19 @@ public class LicensesNotificationTests extends AbstractLicenseServiceTestCase {
             assertingLicensees[i] = new AssertingLicensee("testLicenseNotification" + i, logger);
         }
         setInitialState(license, assertingLicensees);
-        licensesService.start();
+        licenseService.start();
         for (int i = 0; i < assertingLicensees.length; i++) {
             assertLicenseStates(assertingLicensees[i], LicenseState.ENABLED);
         }
         clock.fastForward(TimeValue.timeValueMillis(license.expiryDate() - clock.millis()));
         final LicensesMetaData licensesMetaData = new LicensesMetaData(license);
-        licensesService.onUpdate(licensesMetaData);
+        licenseService.onUpdate(licensesMetaData);
         for (AssertingLicensee assertingLicensee : assertingLicensees) {
             assertLicenseStates(assertingLicensee, LicenseState.ENABLED, LicenseState.GRACE_PERIOD);
         }
         clock.fastForward(TimeValue.timeValueMillis((license.expiryDate() +
                 LicenseState.GRACE_PERIOD_DURATION.getMillis()) - clock.millis()));
-        licensesService.onUpdate(licensesMetaData);
+        licenseService.onUpdate(licensesMetaData);
         for (AssertingLicensee assertingLicensee : assertingLicensees) {
             assertLicenseStates(assertingLicensee, LicenseState.ENABLED, LicenseState.GRACE_PERIOD, LicenseState.DISABLED);
         }
@@ -46,7 +46,7 @@ public class LicensesNotificationTests extends AbstractLicenseServiceTestCase {
         final License newLicense = TestUtils.generateSignedLicense(TimeValue.timeValueHours(2));
         clock.fastForward(TimeValue.timeValueHours(1));
         LicensesMetaData licensesMetaData1 = new LicensesMetaData(newLicense);
-        licensesService.onUpdate(licensesMetaData1);
+        licenseService.onUpdate(licensesMetaData1);
         for (AssertingLicensee assertingLicensee : assertingLicensees) {
             assertLicenseStates(assertingLicensee, LicenseState.ENABLED, LicenseState.GRACE_PERIOD, LicenseState.DISABLED,
                     LicenseState.ENABLED);

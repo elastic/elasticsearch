@@ -35,7 +35,7 @@ import static org.mockito.Mockito.when;
 
 public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
 
-    protected LicensesService licensesService;
+    protected LicenseService licenseService;
     protected ClusterService clusterService;
     protected ResourceWatcherService resourceWatcherService;
     protected ClockMock clock;
@@ -54,7 +54,7 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
     protected void setInitialState(License license, Licensee... licensees) {
         Path tempDir = createTempDir();
         when(environment.configFile()).thenReturn(tempDir);
-        licensesService = new LicensesService(Settings.EMPTY, clusterService, clock, environment,
+        licenseService = new LicenseService(Settings.EMPTY, clusterService, clock, environment,
                 resourceWatcherService, Arrays.asList(licensees));
         ClusterState state = mock(ClusterState.class);
         final ClusterBlocks noBlock = ClusterBlocks.builder().build();
@@ -74,6 +74,6 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
 
     @After
     public void after() {
-        licensesService.stop();
+        licenseService.stop();
     }
 }

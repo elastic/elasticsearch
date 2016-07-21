@@ -41,7 +41,7 @@ import java.security.PrivilegedAction;
 import java.security.PrivilegedExceptionAction;
 import java.util.function.Function;
 
-public class GceMetadataServiceImpl extends AbstractLifecycleComponent<GceMetadataServiceImpl> {
+public class GceMetadataServiceImpl extends AbstractLifecycleComponent {
 
     // Forcing Google Token API URL as set in GCE SDK to
     //      http://metadata/computeMetadata/v1/instance/service-accounts/default/token

@@ -53,9 +53,7 @@ import java.util.Optional;
  * {@link QueryBuilder} that builds a GeoShape Query
  */
 public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuilder> {
-
     public static final String NAME = "geo_shape";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     public static final String DEFAULT_SHAPE_INDEX_NAME = "shapes";
     public static final String DEFAULT_SHAPE_FIELD_NAME = "shape";

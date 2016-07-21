@@ -50,12 +50,9 @@ import java.util.Optional;
 /**
  * Filter results of a query to include only those within a specific distance to some
  * geo point.
- * */
+ */
 public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQueryBuilder> {
-
-    /** Name of the query in the query dsl. */
     public static final String NAME = "geo_distance";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     /** Default for latitude normalization (as of this writing true).*/
     public static final boolean DEFAULT_NORMALIZE_LAT = true;

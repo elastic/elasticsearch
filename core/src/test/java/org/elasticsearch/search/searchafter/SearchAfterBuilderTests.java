@@ -56,7 +56,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
         namedWriteableRegistry = new NamedWriteableRegistry();
         indicesQueriesRegistry = new IndicesQueriesRegistry();
         QueryParser<MatchAllQueryBuilder> parser = MatchAllQueryBuilder::fromXContent;
-        indicesQueriesRegistry.register(parser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
+        indicesQueriesRegistry.register(parser, MatchAllQueryBuilder.NAME);
     }
 
     @AfterClass

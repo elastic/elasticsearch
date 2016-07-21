@@ -21,17 +21,19 @@ package org.elasticsearch.http;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.search.SearchModule;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.singletonList;
+
 /**
  * Adds {@link TestDeprecationHeaderRestAction} for testing deprecation requests via HTTP.
  */
-public class TestDeprecationPlugin extends Plugin implements ActionPlugin {
+public class TestDeprecationPlugin extends Plugin implements ActionPlugin, SearchPlugin {
 
     @Override
     public List<Class<? extends RestHandler>> getRestHandlers() {
@@ -46,10 +48,10 @@ public class TestDeprecationPlugin extends Plugin implements ActionPlugin {
             TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING);
     }
 
-    public void onModule(SearchModule module) {
-        module.registerQuery(TestDeprecatedQueryBuilder::new,
-                             TestDeprecatedQueryBuilder::fromXContent,
-                             TestDeprecatedQueryBuilder.QUERY_NAME_FIELD);
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        return singletonList(new QuerySpec<>(TestDeprecatedQueryBuilder.NAME, TestDeprecatedQueryBuilder::new,
+                TestDeprecatedQueryBuilder::fromXContent));
     }
 
 }

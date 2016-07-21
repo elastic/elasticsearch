@@ -41,9 +41,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQueryBuilder> {
-
     public static final String NAME = "parent_id";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     /**
      * The default value for ignore_unmapped.

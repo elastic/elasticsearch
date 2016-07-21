@@ -242,11 +242,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
         protected void writeTermTo(StreamOutput out) throws IOException {
             throw new UnsupportedOperationException();
         }

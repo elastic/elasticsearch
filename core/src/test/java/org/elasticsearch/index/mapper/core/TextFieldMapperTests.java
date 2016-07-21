@@ -29,6 +29,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
@@ -44,6 +45,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -284,6 +286,46 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping,  mapper.mappingSource().toString());
+
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .field("analyzer", "keyword")
+            .endObject()
+            .endObject().endObject().endObject().string();
+
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping,  mapper.mappingSource().toString());
+
+        // special case: default search analyzer
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .field("analyzer", "keyword")
+            .field("search_analyzer", "default")
+            .endObject()
+            .endObject().endObject().endObject().string();
+
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping,  mapper.mappingSource().toString());
+
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .field("analyzer", "keyword")
+            .endObject()
+            .endObject().endObject().endObject().string();
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+
+        mapper.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true")));
+        String mappingString = builder.string();
+        assertTrue(mappingString.contains("analyzer"));
+        assertTrue(mappingString.contains("search_analyzer"));
+        assertTrue(mappingString.contains("search_quote_analyzer"));
     }
 
     public void testSearchQuoteAnalyzerSerialization() throws IOException {

@@ -165,89 +165,87 @@ public class S3Repository extends BlobStoreRepository {
          * access_key
          * @see  Repositories#KEY_SETTING
          */
-        Setting<String> KEY_SETTING = Setting.simpleString("access_key", Property.NodeScope, Property.Filtered);
+        Setting<String> KEY_SETTING = Setting.simpleString("access_key");
         /**
          * secret_key
          * @see  Repositories#SECRET_SETTING
          */
-        Setting<String> SECRET_SETTING = Setting.simpleString("secret_key", Property.NodeScope, Property.Filtered);
+        Setting<String> SECRET_SETTING = Setting.simpleString("secret_key");
         /**
          * bucket
          * @see  Repositories#BUCKET_SETTING
          */
-        Setting<String> BUCKET_SETTING = Setting.simpleString("bucket", Property.NodeScope);
+        Setting<String> BUCKET_SETTING = Setting.simpleString("bucket");
         /**
          * endpoint
          * @see  Repositories#ENDPOINT_SETTING
          */
-        Setting<String> ENDPOINT_SETTING = Setting.simpleString("endpoint", Property.NodeScope);
+        Setting<String> ENDPOINT_SETTING = Setting.simpleString("endpoint");
         /**
          * protocol
          * @see  Repositories#PROTOCOL_SETTING
          */
-        Setting<Protocol> PROTOCOL_SETTING =
-            new Setting<>("protocol", "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope);
+        Setting<Protocol> PROTOCOL_SETTING = new Setting<>("protocol", "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)));
         /**
          * region
          * @see  Repositories#REGION_SETTING
          */
-        Setting<String> REGION_SETTING = new Setting<>("region", "", s -> s.toLowerCase(Locale.ROOT), Property.NodeScope);
+        Setting<String> REGION_SETTING = new Setting<>("region", "", s -> s.toLowerCase(Locale.ROOT));
         /**
          * server_side_encryption
          * @see  Repositories#SERVER_SIDE_ENCRYPTION_SETTING
          */
-        Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING =
-            Setting.boolSetting("server_side_encryption", false, Property.NodeScope);
+        Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING = Setting.boolSetting("server_side_encryption", false);
         /**
          * buffer_size
          * @see  Repositories#BUFFER_SIZE_SETTING
          */
         Setting<ByteSizeValue> BUFFER_SIZE_SETTING =
             Setting.byteSizeSetting("buffer_size", new ByteSizeValue(100, ByteSizeUnit.MB),
-                new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB), Property.NodeScope);
+                new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
         /**
          * max_retries
          * @see  Repositories#MAX_RETRIES_SETTING
          */
-        Setting<Integer> MAX_RETRIES_SETTING = Setting.intSetting("max_retries", 3, Property.NodeScope);
+        Setting<Integer> MAX_RETRIES_SETTING = Setting.intSetting("max_retries", 3);
         /**
          * use_throttle_retries
          * @see  Repositories#USE_THROTTLE_RETRIES_SETTING
          */
         Setting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.boolSetting("use_throttle_retries",
-            ClientConfiguration.DEFAULT_THROTTLE_RETRIES, Property.NodeScope);
+            ClientConfiguration.DEFAULT_THROTTLE_RETRIES);
         /**
          * chunk_size
          * @see  Repositories#CHUNK_SIZE_SETTING
          */
         Setting<ByteSizeValue> CHUNK_SIZE_SETTING =
             Setting.byteSizeSetting("chunk_size", new ByteSizeValue(1, ByteSizeUnit.GB),
-                new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB), Property.NodeScope);
+                new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
         /**
          * compress
          * @see  Repositories#COMPRESS_SETTING
          */
-        Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Property.NodeScope);
+        Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false);
         /**
          * storage_class
          * @see  Repositories#STORAGE_CLASS_SETTING
          */
-        Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("storage_class", Property.NodeScope);
+        Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("storage_class");
         /**
          * canned_acl
          * @see  Repositories#CANNED_ACL_SETTING
          */
-        Setting<String> CANNED_ACL_SETTING = Setting.simpleString("canned_acl", Property.NodeScope);
+        Setting<String> CANNED_ACL_SETTING = Setting.simpleString("canned_acl");
         /**
          * base_path
          * @see  Repositories#BASE_PATH_SETTING
          */
-        Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", Property.NodeScope);
+        Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path");
         /**
          * path_style_access
          * @see  Repositories#PATH_STYLE_ACCESS_SETTING
          */
-        Setting<Boolean> PATH_STYLE_ACCESS_SETTING = Setting.boolSetting("path_style_access", false, Property.NodeScope);
+        Setting<Boolean> PATH_STYLE_ACCESS_SETTING = Setting.boolSetting("path_style_access", false);
     }
 
     private final S3BlobStore blobStore;

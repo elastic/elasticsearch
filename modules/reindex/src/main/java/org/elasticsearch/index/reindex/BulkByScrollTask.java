@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -103,6 +104,11 @@ public class BulkByScrollTask extends CancellableTask {
      */
     public long getSuccessfullyProcessed() {
         return updated.get() + created.get() + deleted.get();
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(getStatus());
     }
 
     public static class Status implements Task.Status {

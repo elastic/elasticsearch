@@ -90,18 +90,15 @@ public class NetworkService extends AbstractComponent {
         InetAddress[] resolveIfPossible(String value) throws IOException;
     }
 
-    private final List<CustomNameResolver> customNameResolvers = new CopyOnWriteArrayList<>();
+    private  List<CustomNameResolver> customNameResolvers;
 
     public NetworkService(Settings settings) {
         super(settings);
         IfConfig.logIfNecessary();
     }
 
-    /**
-     * Add a custom name resolver.
-     */
-    public void addCustomNameResolver(CustomNameResolver customNameResolver) {
-        customNameResolvers.add(customNameResolver);
+    public void setCustomNameResolvers(List<CustomNameResolver> customNameResolvers) {
+        this.customNameResolvers = customNameResolvers;
     }
 
     /**
@@ -120,11 +117,13 @@ public class NetworkService extends AbstractComponent {
                 // if we have settings use them (we have a fallback to GLOBAL_NETWORK_HOST_SETTING inline
                 bindHosts = GLOBAL_NETWORK_BINDHOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
             } else {
-                // next check any registered custom resolvers
-                for (CustomNameResolver customNameResolver : customNameResolvers) {
-                    InetAddress addresses[] = customNameResolver.resolveDefault();
-                    if (addresses != null) {
-                        return addresses;
+                // next check any registered custom resolvers if any
+                if (customNameResolvers != null) {
+                    for (CustomNameResolver customNameResolver : customNameResolvers) {
+                        InetAddress addresses[] = customNameResolver.resolveDefault();
+                        if (addresses != null) {
+                            return addresses;
+                        }
                     }
                 }
                 // we know it's not here. get the defaults
@@ -166,11 +165,13 @@ public class NetworkService extends AbstractComponent {
                 // if we have settings use them (we have a fallback to GLOBAL_NETWORK_HOST_SETTING inline
                 publishHosts = GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
             } else {
-                // next check any registered custom resolvers
-                for (CustomNameResolver customNameResolver : customNameResolvers) {
-                    InetAddress addresses[] = customNameResolver.resolveDefault();
-                    if (addresses != null) {
-                        return addresses[0];
+                // next check any registered custom resolvers if any
+                if (customNameResolvers != null) {
+                    for (CustomNameResolver customNameResolver : customNameResolvers) {
+                        InetAddress addresses[] = customNameResolver.resolveDefault();
+                        if (addresses != null) {
+                            return addresses[0];
+                        }
                     }
                 }
                 // we know it's not here. get the defaults
@@ -229,11 +230,13 @@ public class NetworkService extends AbstractComponent {
     private InetAddress[] resolveInternal(String host) throws IOException {
         if ((host.startsWith("#") && host.endsWith("#")) || (host.startsWith("_") && host.endsWith("_"))) {
             host = host.substring(1, host.length() - 1);
-            // allow custom resolvers to have special names
-            for (CustomNameResolver customNameResolver : customNameResolvers) {
-                InetAddress addresses[] = customNameResolver.resolveIfPossible(host);
-                if (addresses != null) {
-                    return addresses;
+            // next check any registered custom resolvers if any
+            if (customNameResolvers != null) {
+                for (CustomNameResolver customNameResolver : customNameResolvers) {
+                    InetAddress addresses[] = customNameResolver.resolveIfPossible(host);
+                    if (addresses != null) {
+                        return addresses;
+                    }
                 }
             }
             switch (host) {

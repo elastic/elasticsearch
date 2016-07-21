@@ -45,6 +45,9 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+
 /**
  * A module to handle registering and binding all network related classes.
  */
@@ -143,8 +146,18 @@ public class NetworkModule extends AbstractModule {
         return allocationCommandRegistry;
     }
 
+    private final List<NetworkService.CustomNameResolver> customNameResolvers = new CopyOnWriteArrayList<>();
+
+    /**
+     * Add a custom name resolver.
+     */
+    public void addCustomNameResolver(NetworkService.CustomNameResolver customNameResolver) {
+        customNameResolvers.add(customNameResolver);
+    }
+
     @Override
     protected void configure() {
+        networkService.setCustomNameResolvers(customNameResolvers);
         bind(NetworkService.class).toInstance(networkService);
         bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
         transportServiceTypes.bindType(binder(), settings, TRANSPORT_SERVICE_TYPE_KEY, "default");

@@ -34,8 +34,8 @@ public class GceMetadataServiceMock extends GceMetadataServiceImpl {
 
     protected HttpTransport mockHttpTransport;
 
-    public GceMetadataServiceMock(Settings settings, NetworkService networkService) {
-        super(settings, networkService);
+    public GceMetadataServiceMock(Settings settings) {
+        super(settings);
         this.mockHttpTransport = GceMockUtils.configureMock();
     }
 

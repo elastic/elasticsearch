@@ -26,6 +26,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Collections;
+import java.util.List;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
@@ -104,8 +106,8 @@ public class GceNetworkTests extends ESTestCase {
                 .build();
 
         NetworkService networkService = new NetworkService(nodeSettings);
-        GceMetadataServiceMock mock = new GceMetadataServiceMock(nodeSettings, networkService);
-        networkService.addCustomNameResolver(new GceNameResolver(nodeSettings, mock));
+        GceMetadataServiceMock mock = new GceMetadataServiceMock(nodeSettings);
+        networkService.setCustomNameResolvers(Collections.singletonList(new GceNameResolver(nodeSettings, mock)));
         try {
             InetAddress[] addresses = networkService.resolveBindHostAddresses(null);
             if (expected == null) {

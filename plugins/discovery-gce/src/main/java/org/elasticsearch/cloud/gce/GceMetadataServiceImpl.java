@@ -54,9 +54,8 @@ public class GceMetadataServiceImpl extends AbstractLifecycleComponent {
     private HttpTransport gceHttpTransport;
 
     @Inject
-    public GceMetadataServiceImpl(Settings settings, NetworkService networkService) {
+    public GceMetadataServiceImpl(Settings settings) {
         super(settings);
-        networkService.addCustomNameResolver(new GceNameResolver(settings, this));
     }
 
     protected synchronized HttpTransport getGceHttpTransport() throws GeneralSecurityException, IOException {

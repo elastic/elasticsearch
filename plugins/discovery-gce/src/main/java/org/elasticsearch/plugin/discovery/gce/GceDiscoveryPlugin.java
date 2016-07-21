@@ -23,11 +23,14 @@ import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.util.ClassInfo;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.gce.GceInstancesService;
+import org.elasticsearch.cloud.gce.GceMetadataServiceImpl;
 import org.elasticsearch.cloud.gce.GceModule;
+import org.elasticsearch.cloud.gce.network.GceNameResolver;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -85,10 +88,9 @@ public class GceDiscoveryPlugin extends Plugin {
     @Override
     @SuppressWarnings("rawtypes") // Supertype uses raw type
     public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
-        logger.debug("Register gce compute and metadata services");
+        logger.debug("Register gce compute service");
         Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         services.add(GceModule.getComputeServiceImpl());
-        services.add(GceModule.getMetadataServiceImpl());
         return services;
     }
 
@@ -96,6 +98,11 @@ public class GceDiscoveryPlugin extends Plugin {
         logger.debug("Register gce discovery type and gce unicast provider");
         discoveryModule.addDiscoveryType(GCE, ZenDiscovery.class);
         discoveryModule.addUnicastHostProvider(GCE, GceUnicastHostsProvider.class);
+    }
+
+    public void onModule(NetworkModule networkModule) {
+        logger.debug("Register _gce_, _gce:xxx network names");
+        networkModule.addCustomNameResolver(new GceNameResolver(settings, new GceMetadataServiceImpl(settings)));
     }
 
     @Override

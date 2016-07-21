@@ -20,6 +20,7 @@
 package org.elasticsearch.http.netty4.cors;
 
 import io.netty.handler.codec.http.DefaultHttpHeaders;
+import io.netty.handler.codec.http.EmptyHttpHeaders;
 import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 
@@ -183,7 +184,7 @@ public final class Netty4CorsConfig {
      */
     public HttpHeaders preflightResponseHeaders() {
         if (preflightHeaders.isEmpty()) {
-            return HttpHeaders.EMPTY_HEADERS;
+            return EmptyHttpHeaders.INSTANCE;
         }
         final HttpHeaders preflightHeaders = new DefaultHttpHeaders();
         for (Map.Entry<CharSequence, Callable<?>> entry : this.preflightHeaders.entrySet()) {
@@ -230,4 +231,5 @@ public final class Netty4CorsConfig {
             ", allowedRequestHeaders=" + allowedRequestHeaders +
             ", preflightHeaders=" + preflightHeaders + ']';
     }
+
 }

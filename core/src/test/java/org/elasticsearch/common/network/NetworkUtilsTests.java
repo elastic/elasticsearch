@@ -22,6 +22,10 @@ package org.elasticsearch.common.network;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Enumeration;
 
 /**
  * Tests for network utils. Please avoid using any methods that cause DNS lookups!
@@ -73,5 +77,18 @@ public class NetworkUtilsTests extends ESTestCase {
         InetAddress addresses[] = { InetAddress.getByName("::1"), InetAddress.getByName("127.0.0.1") };
         assertArrayEquals(new InetAddress[] { InetAddress.getByName("127.0.0.1") }, NetworkUtils.filterIPV4(addresses));
         assertArrayEquals(new InetAddress[] { InetAddress.getByName("::1") }, NetworkUtils.filterIPV6(addresses));
+    }
+
+    /**
+     * Test that selecting by name is possible and properly matches the addresses on all interfaces and virtual
+     * interfaces.
+     */
+    public void testAddressInterfaceLookup() throws Exception {
+        for (NetworkInterface netIf : NetworkUtils.getInterfaces()) {
+            String name = netIf.getName();
+            InetAddress[] expectedAddresses = Collections.list(netIf.getInetAddresses()).toArray(new InetAddress[0]);
+            InetAddress[] foundAddresses = NetworkUtils.getAddressesForInterface(name);
+            assertArrayEquals(expectedAddresses, foundAddresses);
+        }
     }
 }

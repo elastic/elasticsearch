@@ -145,7 +145,7 @@ public class FuzzinessTests extends ESTestCase {
     private static Fuzziness doSerializeRoundtrip(Fuzziness in) throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
         in.writeTo(output);
-        StreamInput streamInput = StreamInput.wrap(output.bytes());
+        StreamInput streamInput = output.bytes().streamInput();
         return new Fuzziness(streamInput);
     }
 }

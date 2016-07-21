@@ -19,10 +19,13 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.emptyList;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -117,7 +120,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
         }
     }
 
-    static abstract class SortedSetRangeLeafCollector extends LeafBucketCollectorBase {
+    abstract static class SortedSetRangeLeafCollector extends LeafBucketCollectorBase {
 
         final long[] froms, tos, maxTos;
         final SortedSetDocValues values;
@@ -223,7 +226,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
         protected abstract void doCollect(LeafBucketCollector sub, int doc, long bucket) throws IOException;
     }
 
-    static abstract class SortedBinaryRangeLeafCollector extends LeafBucketCollectorBase {
+    abstract static class SortedBinaryRangeLeafCollector extends LeafBucketCollectorBase {
 
         final Range[] ranges;
         final BytesRef[] maxTos;
@@ -318,19 +321,18 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long bucket) throws IOException {
-        InternalBinaryRange.Bucket[] buckets = new InternalBinaryRange.Bucket[ranges.length];
-        for (int i = 0; i < buckets.length; ++i) {
+        List<InternalBinaryRange.Bucket> buckets = new ArrayList<>(ranges.length);
+        for (int i = 0; i < ranges.length; ++i) {
             long bucketOrd = bucket * ranges.length + i;
-            buckets[i] = new InternalBinaryRange.Bucket(format, keyed,
+            buckets.add(new InternalBinaryRange.Bucket(format, keyed,
                     ranges[i].key, ranges[i].from, ranges[i].to,
-                    bucketDocCount(bucketOrd), bucketAggregations(bucketOrd));
+                    bucketDocCount(bucketOrd), bucketAggregations(bucketOrd)));
         }
         return new InternalBinaryRange(name, format, keyed, buckets, pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalBinaryRange(name, format, keyed, new InternalBinaryRange.Bucket[0], pipelineAggregators(), metaData());
+        return new InternalBinaryRange(name, format, keyed, emptyList(), pipelineAggregators(), metaData());
     }
-
 }

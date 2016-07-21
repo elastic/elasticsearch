@@ -27,7 +27,7 @@ import java.io.IOException;
 
 /**
  * This exception can be used to wrap a given, not serializable exception
- * to serialize via {@link StreamOutput#writeThrowable(Throwable)}.
+ * to serialize via {@link StreamOutput#writeException(Throwable)}.
  * This class will preserve the stacktrace as well as the suppressed exceptions of
  * the throwable it was created with instead of it's own. The stacktrace has no indication
  * of where this exception was created.

@@ -23,7 +23,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.template.SearchTemplateAction;
 import org.elasticsearch.action.search.template.SearchTemplateRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
@@ -73,7 +73,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             request.setScriptType(ScriptService.ScriptType.INLINE);
             if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
                 try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
-                    request.setScript(builder.copyCurrentStructure(parser).bytes().toUtf8());
+                    request.setScript(builder.copyCurrentStructure(parser).bytes().utf8ToString());
                 } catch (IOException e) {
                     throw new ParsingException(parser.getTokenLocation(), "Could not parse inline template", e);
                 }
@@ -88,9 +88,9 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     private final Suggesters suggesters;
 
     @Inject
-    public RestSearchTemplateAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry queryRegistry,
+    public RestSearchTemplateAction(Settings settings, RestController controller, IndicesQueriesRegistry queryRegistry,
                                     AggregatorParsers aggregatorParsers, Suggesters suggesters) {
-        super(settings, client);
+        super(settings);
         this.queryRegistry = queryRegistry;
         this.aggParsers = aggregatorParsers;
         this.suggesters = suggesters;
@@ -104,7 +104,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
+    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (RestActions.hasBodyContent(request) == false) {
             throw new ElasticsearchException("request body is required");
         }

@@ -37,7 +37,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -69,10 +69,14 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 
 public class ClusterServiceTests extends ESTestCase {
@@ -109,7 +113,7 @@ public class ClusterServiceTests extends ESTestCase {
         TimedClusterService timedClusterService = new TimedClusterService(Settings.builder().put("cluster.name",
             "ClusterServiceTests").build(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool);
-        timedClusterService.setLocalNode(new DiscoveryNode("node1", DummyTransportAddress.INSTANCE, emptyMap(),
+        timedClusterService.setLocalNode(new DiscoveryNode("node1", LocalTransportAddress.buildUnique(), emptyMap(),
             emptySet(), Version.CURRENT));
         timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
@@ -149,8 +153,8 @@ public class ClusterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                throw new RuntimeException(t);
+            public void onFailure(String source, Exception e) {
+                throw new RuntimeException(e);
             }
         });
 
@@ -163,7 +167,7 @@ public class ClusterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
+            public void onFailure(String source, Exception e) {
                 timedOut.countDown();
             }
 
@@ -183,8 +187,8 @@ public class ClusterServiceTests extends ESTestCase {
         final CountDownLatch allProcessed = new CountDownLatch(1);
         clusterService.submitStateUpdateTask("test3", new ClusterStateUpdateTask() {
             @Override
-            public void onFailure(String source, Throwable t) {
-                throw new RuntimeException(t);
+            public void onFailure(String source, Exception e) {
+                throw new RuntimeException(e);
             }
 
             @Override
@@ -212,7 +216,7 @@ public class ClusterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
+            public void onFailure(String source, Exception e) {
                 taskFailed[0] = true;
                 latch1.countDown();
             }
@@ -237,7 +241,7 @@ public class ClusterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
+            public void onFailure(String source, Exception e) {
                 taskFailed[0] = true;
                 latch2.countDown();
             }
@@ -286,7 +290,7 @@ public class ClusterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
+                public void onFailure(String source, Exception e) {
                 }
             }
         );
@@ -326,9 +330,9 @@ public class ClusterServiceTests extends ESTestCase {
 
         ClusterStateTaskListener listener = new ClusterStateTaskListener() {
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.error("unexpected failure: [{}]", t, source);
-                failures.add(new Tuple<>(source, t));
+            public void onFailure(String source, Exception e) {
+                logger.error("unexpected failure: [{}]", e, source);
+                failures.add(new Tuple<>(source, e));
                 updateLatch.countDown();
             }
 
@@ -387,8 +391,8 @@ public class ClusterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    fail(ExceptionsHelper.detailedMessage(t));
+                public void onFailure(String source, Exception e) {
+                    fail(ExceptionsHelper.detailedMessage(e));
                 }
             })) ;
         }
@@ -523,8 +527,8 @@ public class ClusterServiceTests extends ESTestCase {
         final CountDownLatch updateLatch = new CountDownLatch(totalTaskCount);
         final ClusterStateTaskListener listener = new ClusterStateTaskListener() {
             @Override
-            public void onFailure(String source, Throwable t) {
-                fail(ExceptionsHelper.detailedMessage(t));
+            public void onFailure(String source, Exception e) {
+                fail(ExceptionsHelper.detailedMessage(e));
             }
 
             @Override
@@ -608,13 +612,12 @@ public class ClusterServiceTests extends ESTestCase {
         BlockingTask block = new BlockingTask(Priority.IMMEDIATE);
         clusterService.submitStateUpdateTask("test", block);
         int taskCount = randomIntBetween(5, 20);
-        Priority[] priorities = Priority.values();
 
         // will hold all the tasks in the order in which they were executed
         List<PrioritizedTask> tasks = new ArrayList<>(taskCount);
         CountDownLatch latch = new CountDownLatch(taskCount);
         for (int i = 0; i < taskCount; i++) {
-            Priority priority = priorities[randomIntBetween(0, priorities.length - 1)];
+            Priority priority = randomFrom(Priority.values());
             clusterService.submitStateUpdateTask("test", new PrioritizedTask(priority, latch, tasks));
         }
 
@@ -647,15 +650,22 @@ public class ClusterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    fail(ExceptionsHelper.detailedMessage(t));
+                public void onFailure(String source, Exception e) {
+                    fail(ExceptionsHelper.detailedMessage(e));
                 }
             };
 
             clusterService.submitStateUpdateTask("first time", task, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
 
-            expectThrows(IllegalArgumentException.class, () -> clusterService.submitStateUpdateTask("second time", task,
-                ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener));
+            final IllegalStateException e =
+                    expectThrows(
+                            IllegalStateException.class,
+                            () -> clusterService.submitStateUpdateTask(
+                                    "second time",
+                                    task,
+                                    ClusterStateTaskConfig.build(Priority.NORMAL),
+                                    executor, listener));
+            assertThat(e, hasToString(containsString("task [1] with source [second time] is already queued")));
 
             clusterService.submitStateUpdateTask("third time a charm", new SimpleTask(1),
                 ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
@@ -693,7 +703,7 @@ public class ClusterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
+                public void onFailure(String source, Exception e) {
                     fail();
                 }
             });
@@ -710,7 +720,7 @@ public class ClusterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
+                public void onFailure(String source, Exception e) {
                     latch.countDown();
                 }
             });
@@ -727,7 +737,7 @@ public class ClusterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
+                public void onFailure(String source, Exception e) {
                     fail();
                 }
             });
@@ -745,7 +755,7 @@ public class ClusterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
+                public void onFailure(String source, Exception e) {
                     fail();
                 }
             });
@@ -788,7 +798,7 @@ public class ClusterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
+                public void onFailure(String source, Exception e) {
                     fail();
                 }
             });
@@ -807,7 +817,7 @@ public class ClusterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
+                public void onFailure(String source, Exception e) {
                     latch.countDown();
                 }
             });
@@ -824,7 +834,7 @@ public class ClusterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
+                public void onFailure(String source, Exception e) {
                     fail();
                 }
             });
@@ -841,7 +851,7 @@ public class ClusterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
+                public void onFailure(String source, Exception e) {
                     fail();
                 }
             });
@@ -859,7 +869,7 @@ public class ClusterServiceTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
+                public void onFailure(String source, Exception e) {
                     fail();
                 }
             });
@@ -886,6 +896,11 @@ public class ClusterServiceTests extends ESTestCase {
         public boolean equals(Object obj) {
             return super.equals(obj);
         }
+
+        @Override
+        public String toString() {
+            return Integer.toString(id);
+        }
     }
 
     private static class BlockingTask extends ClusterStateUpdateTask implements Releasable {
@@ -902,7 +917,7 @@ public class ClusterServiceTests extends ESTestCase {
         }
 
         @Override
-        public void onFailure(String source, Throwable t) {
+        public void onFailure(String source, Exception e) {
         }
 
         public void close() {
@@ -930,7 +945,7 @@ public class ClusterServiceTests extends ESTestCase {
         }
 
         @Override
-        public void onFailure(String source, Throwable t) {
+        public void onFailure(String source, Exception e) {
             latch.countDown();
         }
     }

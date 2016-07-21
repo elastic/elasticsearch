@@ -24,7 +24,6 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.TimestampParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.Lucene;
@@ -82,7 +81,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
         private String defaultTimestamp = Defaults.DEFAULT_TIMESTAMP;
         private Boolean ignoreMissing = null;
 
-        public Builder(MappedFieldType existing, Settings settings) {
+        public Builder(MappedFieldType existing) {
             super(Defaults.NAME, existing == null ? Defaults.FIELD_TYPE : existing, Defaults.FIELD_TYPE);
         }
 
@@ -130,7 +129,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_5_0_0_alpha4)) {
                 throw new IllegalArgumentException("[_timestamp] is removed in 5.0. As a replacement, you can use an ingest pipeline to add a field with the current timestamp to your documents.");
             }
-            Builder builder = new Builder(parserContext.mapperService().fullName(NAME), parserContext.mapperService().getIndexSettings().getSettings());
+            Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             boolean defaultSet = false;
             Boolean ignoreMissing = null;
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {

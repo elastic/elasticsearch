@@ -20,12 +20,10 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -50,8 +48,7 @@ public class SnapshotTests extends ESTestCase {
         final Snapshot original = new Snapshot(randomAsciiOfLength(randomIntBetween(2, 8)), snapshotId);
         final BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
-        final ByteBufferStreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap(out.bytes().toBytes()));
-        assertThat(new Snapshot(in), equalTo(original));
+        assertThat(new Snapshot(out.bytes().streamInput()), equalTo(original));
     }
 
 }

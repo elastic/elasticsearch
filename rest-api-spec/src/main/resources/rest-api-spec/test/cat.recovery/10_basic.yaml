@@ -16,9 +16,6 @@
         body:   { foo: bar }
         refresh: true
   - do:
-       cluster.health:
-         wait_for_status: yellow
-  - do:
       cat.recovery:
           h: i,s,t,ty,st,shost,thost,rep,snap,f,fr,fp,tf,b,br,bp,tb,to,tor,top
 

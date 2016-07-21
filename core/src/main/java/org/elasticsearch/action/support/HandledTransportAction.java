@@ -59,19 +59,19 @@ public abstract class HandledTransportAction<Request extends ActionRequest<Reque
 
         @Override
         public final void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
-            // We already got the task created on the netty layer - no need to create it again on the transport layer
+            // We already got the task created on the network layer - no need to create it again on the transport layer
             execute(task, request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {
                     try {
                         channel.sendResponse(response);
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         onFailure(e);
                     }
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {

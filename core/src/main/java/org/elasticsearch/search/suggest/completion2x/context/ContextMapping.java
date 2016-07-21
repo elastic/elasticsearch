@@ -204,7 +204,7 @@ public abstract class ContextMapping implements ToXContent {
      *  form a {@link ContextConfig} which is used to build the underlying {@link FST}. This class hold
      *  a simple method wrapping a {@link TokenStream} by provided document informations.
      */
-    public static abstract class ContextConfig {
+    public abstract static class ContextConfig {
 
         /**
          * Wrap a {@link TokenStream} for building suggestions to use context informations
@@ -225,7 +225,7 @@ public abstract class ContextMapping implements ToXContent {
      * {@link ContextMapping} such a query is used to wrap the {@link TokenStream} of the actual
      * suggestion request into a {@link TokenStream} with the context settings
      */
-    public static abstract class ContextQuery implements ToXContent {
+    public abstract static class ContextQuery implements ToXContent {
 
         protected final String name;
 

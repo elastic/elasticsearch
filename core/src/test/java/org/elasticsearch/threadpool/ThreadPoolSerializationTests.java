@@ -58,7 +58,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         output.setVersion(Version.CURRENT);
         info.writeTo(output);
 
-        StreamInput input = StreamInput.wrap(output.bytes());
+        StreamInput input = output.bytes().streamInput();
         ThreadPool.Info newInfo = new ThreadPool.Info();
         newInfo.readFrom(input);
 
@@ -70,7 +70,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         output.setVersion(Version.CURRENT);
         info.writeTo(output);
 
-        StreamInput input = StreamInput.wrap(output.bytes());
+        StreamInput input = output.bytes().streamInput();
         ThreadPool.Info newInfo = new ThreadPool.Info();
         newInfo.readFrom(input);
 
@@ -125,7 +125,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         output.setVersion(Version.CURRENT);
         info.writeTo(output);
 
-        StreamInput input = StreamInput.wrap(output.bytes());
+        StreamInput input = output.bytes().streamInput();
         ThreadPool.Info newInfo = new ThreadPool.Info();
         newInfo.readFrom(input);
 

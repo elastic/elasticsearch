@@ -37,6 +37,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -50,8 +51,8 @@ public class RestRecoveryActionTests extends ESTestCase {
 
     public void testRestRecoveryAction() {
         final Settings settings = Settings.EMPTY;
-        final RestController restController = new RestController(settings);
-        final RestRecoveryAction action = new RestRecoveryAction(settings, restController, restController, null);
+        final RestController restController = new RestController(settings, Collections.emptySet());
+        final RestRecoveryAction action = new RestRecoveryAction(settings, restController, restController);
         final int totalShards = randomIntBetween(1, 32);
         final int successfulShards = Math.max(0, totalShards - randomIntBetween(1, 2));
         final int failedShards = totalShards - successfulShards;

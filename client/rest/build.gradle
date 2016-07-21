@@ -26,6 +26,8 @@ apply plugin: 'ru.vyarus.animalsniffer'
 targetCompatibility = JavaVersion.VERSION_1_7
 sourceCompatibility = JavaVersion.VERSION_1_7
 
+group = 'org.elasticsearch.client'
+
 dependencies {
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"

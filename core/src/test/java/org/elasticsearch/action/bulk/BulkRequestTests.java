@@ -55,9 +55,9 @@ public class BulkRequestTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
-        assertThat(((IndexRequest) bulkRequest.requests().get(0)).source().toBytes(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }").toBytes()));
+        assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }")));
         assertThat(bulkRequest.requests().get(1), instanceOf(DeleteRequest.class));
-        assertThat(((IndexRequest) bulkRequest.requests().get(2)).source().toBytes(), equalTo(new BytesArray("{ \"field1\" : \"value3\" }").toBytes()));
+        assertThat(((IndexRequest) bulkRequest.requests().get(2)).source(), equalTo(new BytesArray("{ \"field1\" : \"value3\" }")));
     }
 
     public void testSimpleBulk2() throws Exception {
@@ -81,7 +81,7 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(bulkRequest.numberOfActions(), equalTo(4));
         assertThat(((UpdateRequest) bulkRequest.requests().get(0)).id(), equalTo("1"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(0)).retryOnConflict(), equalTo(2));
-        assertThat(((UpdateRequest) bulkRequest.requests().get(0)).doc().source().toUtf8(), equalTo("{\"field\":\"value\"}"));
+        assertThat(((UpdateRequest) bulkRequest.requests().get(0)).doc().source().utf8ToString(), equalTo("{\"field\":\"value\"}"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).id(), equalTo("0"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).type(), equalTo("type1"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).index(), equalTo("index1"));
@@ -93,7 +93,7 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(scriptParams, notNullValue());
         assertThat(scriptParams.size(), equalTo(1));
         assertThat(((Integer) scriptParams.get("param1")), equalTo(1));
-        assertThat(((UpdateRequest) bulkRequest.requests().get(1)).upsertRequest().source().toUtf8(), equalTo("{\"counter\":1}"));
+        assertThat(((UpdateRequest) bulkRequest.requests().get(1)).upsertRequest().source().utf8ToString(), equalTo("{\"counter\":1}"));
     }
 
     public void testBulkAllowExplicitIndex() throws Exception {

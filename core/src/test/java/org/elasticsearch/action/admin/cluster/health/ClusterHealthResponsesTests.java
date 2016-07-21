@@ -84,7 +84,7 @@ public class ClusterHealthResponsesTests extends ESTestCase {
         if (randomBoolean()) {
             BytesStreamOutput out = new BytesStreamOutput();
             clusterHealth.writeTo(out);
-            StreamInput in = StreamInput.wrap(out.bytes());
+            StreamInput in = out.bytes().streamInput();
             clusterHealth = ClusterHealthResponse.readResponseFrom(in);
         }
         return clusterHealth;

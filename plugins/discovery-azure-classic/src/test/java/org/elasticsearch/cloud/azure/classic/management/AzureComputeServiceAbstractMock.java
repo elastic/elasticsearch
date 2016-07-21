@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 /**
  *
  */
-public abstract class AzureComputeServiceAbstractMock extends AbstractLifecycleComponent<AzureComputeServiceAbstractMock>
+public abstract class AzureComputeServiceAbstractMock extends AbstractLifecycleComponent
     implements AzureComputeService {
 
     protected AzureComputeServiceAbstractMock(Settings settings) {

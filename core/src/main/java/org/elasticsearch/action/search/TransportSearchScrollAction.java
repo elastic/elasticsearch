@@ -74,7 +74,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                     throw new IllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
             }
             action.start();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             listener.onFailure(e);
         }
     }

@@ -56,6 +56,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.junit.After;
 import org.junit.Before;
 
@@ -115,7 +117,7 @@ public class RefreshListenersTests extends ESTestCase {
                 BigArrays.NON_RECYCLING_INSTANCE);
         Engine.EventListener eventListener = new Engine.EventListener() {
             @Override
-            public void onFailedEngine(String reason, @Nullable Throwable t) {
+            public void onFailedEngine(String reason, @Nullable Exception e) {
                 // we don't need to notify anybody in this test
             }
         };
@@ -222,7 +224,7 @@ public class RefreshListenersTests extends ESTestCase {
         maxListeners = between(1, threadCount * 2);
 
         // This thread just refreshes every once in a while to cause trouble.
-        ScheduledFuture<?> refresher = threadPool.scheduleWithFixedDelay(() -> engine.refresh("because test"), timeValueMillis(100));
+        Cancellable refresher = threadPool.scheduleWithFixedDelay(() -> engine.refresh("because test"), timeValueMillis(100), Names.SAME);
 
         // These threads add and block until the refresh makes the change visible and then do a non-realtime get.
         Thread[] indexers = new Thread[threadCount];
@@ -251,7 +253,7 @@ public class RefreshListenersTests extends ESTestCase {
                             getResult.docIdAndVersion().context.reader().document(getResult.docIdAndVersion().docId, visitor);
                             assertEquals(Arrays.asList(testFieldValue), visitor.fields().get("test"));
                         }
-                    } catch (Throwable t) {
+                    } catch (Exception t) {
                         throw new RuntimeException("failure on the [" + iteration + "] iteration of thread [" + threadId + "]", t);
                     }
                 }
@@ -262,7 +264,7 @@ public class RefreshListenersTests extends ESTestCase {
         for (Thread indexer: indexers) {
             indexer.join();
         }
-        FutureUtils.cancel(refresher);
+        refresher.cancel();
     }
 
     private Engine.Index index(String id) {
@@ -279,7 +281,7 @@ public class RefreshListenersTests extends ESTestCase {
         document.add(uidField);
         document.add(versionField);
         BytesReference source = new BytesArray(new byte[] { 1 });
-        ParsedDocument doc = new ParsedDocument(versionField, id, type, null, -1, -1, Arrays.asList(document), source, null); 
+        ParsedDocument doc = new ParsedDocument(versionField, id, type, null, -1, -1, Arrays.asList(document), source, null);
         Engine.Index index = new Engine.Index(new Term("_uid", uid), doc);
         engine.index(index);
         return index;
@@ -290,7 +292,7 @@ public class RefreshListenersTests extends ESTestCase {
          * When the listener is called this captures it's only argument.
          */
         AtomicReference<Boolean> forcedRefresh = new AtomicReference<>();
-        private volatile Throwable error;
+        private volatile Exception error;
 
         @Override
         public void accept(Boolean forcedRefresh) {
@@ -298,7 +300,7 @@ public class RefreshListenersTests extends ESTestCase {
                 assertNotNull(forcedRefresh);
                 Boolean oldValue = this.forcedRefresh.getAndSet(forcedRefresh);
                 assertNull("Listener called twice", oldValue);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 error = e;
             }
         }

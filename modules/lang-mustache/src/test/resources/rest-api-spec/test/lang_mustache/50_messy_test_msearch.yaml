@@ -28,6 +28,6 @@
       msearch:
         body: 
           - index: test_1
-          - query: { "template": { "query": { "term": { "foo": { "value": "{{template}}" } } }, "params": { "template": "bar" } } }
+          - query: { "template": { "inline": { "term": { "foo": { "value": "{{template}}" } } }, "params": { "template": "bar" } } }
   - match: { responses.0.hits.total: 1 }
 

@@ -19,21 +19,10 @@
 
 package org.elasticsearch.search;
 
-import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
-
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.atomic.AtomicLong;
-
+import com.carrotsearch.hppc.ObjectFloatHashMap;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -57,8 +46,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.InnerHitBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -100,13 +89,25 @@ import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 
-import com.carrotsearch.hppc.ObjectFloatHashMap;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
 /**
  *
  */
-public class SearchService extends AbstractLifecycleComponent<SearchService> implements IndexEventListener {
+public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
 
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
     public static final Setting<TimeValue> DEFAULT_KEEPALIVE_SETTING =
@@ -139,7 +140,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
     private volatile TimeValue defaultSearchTimeout;
 
-    private final ScheduledFuture<?> keepAliveReaper;
+    private final Cancellable keepAliveReaper;
 
     private final AtomicLong idGenerator = new AtomicLong();
 
@@ -171,7 +172,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         elementParsers.putAll(fetchPhase.parseElements());
         this.elementParsers = unmodifiableMap(elementParsers);
 
-        this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval);
+        this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval, Names.SAME);
 
         defaultSearchTimeout = DEFAULT_SEARCH_TIMEOUT_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
@@ -224,7 +225,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     @Override
     protected void doClose() {
         doStop();
-        FutureUtils.cancel(keepAliveReaper);
+        keepAliveReaper.cancel();
     }
 
     public DfsSearchResult executeDfsPhase(ShardSearchRequest request) throws IOException {
@@ -234,7 +235,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             dfsPhase.execute(context);
             contextProcessedSuccessfully(context);
             return context.dfsResult();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             logger.trace("Dfs phase failed", e);
             processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
@@ -273,10 +274,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             operationListener.onQueryPhase(context, System.nanoTime() - time);
 
             return context.queryResult();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             // execution exception can happen while loading the cache, strip it
             if (e instanceof ExecutionException) {
-                e = e.getCause();
+                e = (e.getCause() == null || e.getCause() instanceof Exception) ?
+                        (Exception) e.getCause() : new ElasticsearchException(e.getCause());
             }
             operationListener.onFailedQueryPhase(context);
             logger.trace("Query phase failed", e);
@@ -299,7 +301,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             contextProcessedSuccessfully(context);
             operationListener.onQueryPhase(context, System.nanoTime() - time);
             return new ScrollQuerySearchResult(context.queryResult(), context.shardTarget());
-        } catch (Throwable e) {
+        } catch (Exception e) {
             operationListener.onFailedQueryPhase(context);
             logger.trace("Query phase failed", e);
             processFailure(context, e);
@@ -327,7 +329,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             }
             operationListener.onQueryPhase(context, System.nanoTime() - time);
             return context.queryResult();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             operationListener.onFailedQueryPhase(context);
             logger.trace("Query phase failed", e);
             processFailure(context, e);
@@ -356,7 +358,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             long time = System.nanoTime();
             try {
                 loadOrExecuteQueryPhase(request, context);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 operationListener.onFailedQueryPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
@@ -371,13 +373,13 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 } else {
                     contextProcessedSuccessfully(context);
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 operationListener.onFailedFetchPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
             operationListener.onFetchPhase(context, System.nanoTime() - time2);
             return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
-        } catch (Throwable e) {
+        } catch (Exception e) {
             logger.trace("Fetch phase failed", e);
             processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
@@ -396,7 +398,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             long time = System.nanoTime();
             try {
                 queryPhase.execute(context);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 operationListener.onFailedQueryPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
@@ -411,13 +413,13 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 } else {
                     contextProcessedSuccessfully(context);
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 operationListener.onFailedFetchPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
             operationListener.onFetchPhase(context, System.nanoTime() - time2);
             return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
-        } catch (Throwable e) {
+        } catch (Exception e) {
             logger.trace("Fetch phase failed", e);
             processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
@@ -436,7 +438,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             long time = System.nanoTime();
             try {
                 queryPhase.execute(context);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 operationListener.onFailedQueryPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
@@ -451,13 +453,13 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 } else {
                     contextProcessedSuccessfully(context);
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 operationListener.onFailedFetchPhase(context);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
             operationListener.onFetchPhase(context, System.nanoTime() - time2);
             return new ScrollQueryFetchSearchResult(new QueryFetchSearchResult(context.queryResult(), context.fetchResult()), context.shardTarget());
-        } catch (Throwable e) {
+        } catch (Exception e) {
             logger.trace("Fetch phase failed", e);
             processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
@@ -485,7 +487,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             }
             operationListener.onFetchPhase(context, System.nanoTime() - time);
             return context.fetchResult();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             operationListener.onFailedFetchPhase(context);
             logger.trace("Fetch phase failed", e);
             processFailure(context, e);
@@ -567,7 +569,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 keepAlive = request.scroll().keepAlive().millis();
             }
             context.keepAlive(keepAlive);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             context.close();
             throw ExceptionsHelper.convertToRuntime(e);
         }
@@ -624,14 +626,15 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         SearchContext.removeCurrent();
     }
 
-    private void processFailure(SearchContext context, Throwable t) {
+    private void processFailure(SearchContext context, Exception e) {
         freeContext(context.id());
         try {
-            if (Lucene.isCorruptionException(t)) {
-                context.indexShard().failShard("search execution corruption failure", t);
+            if (Lucene.isCorruptionException(e)) {
+                context.indexShard().failShard("search execution corruption failure", e);
             }
-        } catch (Throwable e) {
-            logger.warn("failed to process shard failure to (potentially) send back shard failure on corruption", e);
+        } catch (Exception inner) {
+            inner.addSuppressed(e);
+            logger.warn("failed to process shard failure to (potentially) send back shard failure on corruption", inner);
         }
     }
 
@@ -713,8 +716,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 throw new SearchContextException(context, "failed to create RescoreSearchContext", e);
             }
         }
-        if (source.fields() != null) {
-            context.fieldNames().addAll(source.fields());
+        if (source.storedFields() != null) {
+            context.fieldNames().addAll(source.storedFields());
         }
         if (source.explain() != null) {
             context.explain(source.explain());
@@ -722,9 +725,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         if (source.fetchSource() != null) {
             context.fetchSourceContext(source.fetchSource());
         }
-        if (source.fieldDataFields() != null) {
+        if (source.docValueFields() != null) {
             FieldDataFieldsContext fieldDataFieldsContext = context.getFetchSubPhaseContext(FieldDataFieldsFetchSubPhase.CONTEXT_FACTORY);
-            for (String field : source.fieldDataFields()) {
+            for (String field : source.docValueFields()) {
                 fieldDataFieldsContext.add(new FieldDataField(field));
             }
             fieldDataFieldsContext.setHitExecutionNeeded(true);
@@ -772,7 +775,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 String sSource = "_na_";
                 try {
                     sSource = source.toString();
-                } catch (Throwable e1) {
+                } catch (Exception inner) {
+                    e.addSuppressed(inner);
                     // ignore
                 }
                 XContentLocation location = extParser != null ? extParser.getTokenLocation() : null;
@@ -842,20 +846,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             }
             context.docIdsToLoad(docIdsToLoad, 0, counter);
         }
-    }
-
-    private void shortcutDocIdsToLoadForScanning(SearchContext context) {
-        TopDocs topDocs = context.queryResult().topDocs();
-        if (topDocs.scoreDocs.length == 0) {
-            // no more docs...
-            context.docIdsToLoad(EMPTY_DOC_IDS, 0, 0);
-            return;
-        }
-        int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
-        for (int i = 0; i < docIdsToLoad.length; i++) {
-            docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
-        }
-        context.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
     }
 
     private void processScroll(InternalScrollSearchRequest request, SearchContext context) {

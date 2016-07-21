@@ -706,7 +706,7 @@ public class RecoveryState implements ToXContent, Streamable {
 
         private Map<String, File> fileDetails = new HashMap<>();
 
-        public final static long UNKNOWN = -1L;
+        public static final long UNKNOWN = -1L;
 
         private long version = UNKNOWN;
         private long sourceThrottlingInNanos = UNKNOWN;

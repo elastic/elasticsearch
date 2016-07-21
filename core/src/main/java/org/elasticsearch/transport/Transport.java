@@ -35,7 +35,7 @@ import java.util.Map;
 /**
  *
  */
-public interface Transport extends LifecycleComponent<Transport> {
+public interface Transport extends LifecycleComponent {
 
 
     Setting<Boolean> TRANSPORT_TCP_COMPRESS = Setting.boolSetting("transport.tcp.compress", false, Property.NodeScope);
@@ -86,6 +86,7 @@ public interface Transport extends LifecycleComponent<Transport> {
 
     /**
      * Sends the request to the node.
+     * @throws NodeNotConnectedException if the given node is not connected
      */
     void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws
         IOException, TransportException;

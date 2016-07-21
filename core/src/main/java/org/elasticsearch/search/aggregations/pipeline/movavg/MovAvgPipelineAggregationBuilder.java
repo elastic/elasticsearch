@@ -50,7 +50,7 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
 
 public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<MovAvgPipelineAggregationBuilder> {
-    public static final String NAME = MovAvgPipelineAggregator.TYPE.name();
+    public static final String NAME = "moving_avg";
     public static final ParseField AGGREGATION_FIELD_NAME = new ParseField(NAME);
 
     public static final ParseField MODEL = new ParseField("model");
@@ -67,14 +67,14 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
     private Boolean minimize;
 
     public MovAvgPipelineAggregationBuilder(String name, String bucketsPath) {
-        super(name, MovAvgPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
+        super(name, NAME, new String[] { bucketsPath });
     }
 
     /**
      * Read from a stream.
      */
     public MovAvgPipelineAggregationBuilder(StreamInput in) throws IOException {
-        super(in, MovAvgPipelineAggregator.TYPE.name());
+        super(in, NAME);
         format = in.readOptionalString();
         gapPolicy = GapPolicy.readFrom(in);
         window = in.readVInt();

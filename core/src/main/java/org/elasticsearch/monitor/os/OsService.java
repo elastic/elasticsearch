@@ -38,7 +38,7 @@ public class OsService extends AbstractComponent {
 
     private SingleObjectCache<OsStats> osStatsCache;
 
-    public final static Setting<TimeValue> REFRESH_INTERVAL_SETTING =
+    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("monitor.os.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
             Property.NodeScope);
 

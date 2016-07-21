@@ -75,11 +75,11 @@ import java.util.function.Function;
  */
 public class HunspellService extends AbstractComponent {
 
-    public final static Setting<Boolean> HUNSPELL_LAZY_LOAD =
+    public static final Setting<Boolean> HUNSPELL_LAZY_LOAD =
         Setting.boolSetting("indices.analysis.hunspell.dictionary.lazy", Boolean.FALSE, Property.NodeScope);
-    public final static Setting<Boolean> HUNSPELL_IGNORE_CASE =
+    public static final Setting<Boolean> HUNSPELL_IGNORE_CASE =
         Setting.boolSetting("indices.analysis.hunspell.dictionary.ignore_case", Boolean.FALSE, Property.NodeScope);
-    public final static Setting<Settings> HUNSPELL_DICTIONARY_OPTIONS =
+    public static final Setting<Settings> HUNSPELL_DICTIONARY_OPTIONS =
         Setting.groupSetting("indices.analysis.hunspell.dictionary.", Property.NodeScope);
     private final ConcurrentHashMap<String, Dictionary> dictionaries = new ConcurrentHashMap<>();
     private final Map<String, Dictionary> knownDictionaries;
@@ -96,7 +96,7 @@ public class HunspellService extends AbstractComponent {
         this.loadingFunction = (locale) -> {
             try {
                 return loadDictionary(locale, settings, env);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 throw new IllegalStateException("failed to load hunspell dictionary for locale: " + locale, e);
             }
         };
@@ -135,7 +135,7 @@ public class HunspellService extends AbstractComponent {
                             if (inner.iterator().hasNext()) { // just making sure it's indeed a dictionary dir
                                 try {
                                     getDictionary(file.getFileName().toString());
-                                } catch (Throwable e) {
+                                } catch (Exception e) {
                                     // The cache loader throws unchecked exception (see #loadDictionary()),
                                     // here we simply report the exception and continue loading the dictionaries
                                     logger.error("exception while loading dictionary {}", e, file.getFileName());

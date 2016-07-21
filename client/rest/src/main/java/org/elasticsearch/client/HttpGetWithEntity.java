@@ -28,7 +28,7 @@ import java.net.URI;
  */
 final class HttpGetWithEntity extends HttpEntityEnclosingRequestBase {
 
-    final static String METHOD_NAME = HttpGet.METHOD_NAME;
+    static final String METHOD_NAME = HttpGet.METHOD_NAME;
 
     HttpGetWithEntity(final URI uri) {
         setURI(uri);

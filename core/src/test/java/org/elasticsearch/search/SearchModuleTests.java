@@ -27,75 +27,138 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
+import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
 import org.elasticsearch.search.highlight.CustomHighlighter;
 import org.elasticsearch.search.highlight.FastVectorHighlighter;
+import org.elasticsearch.search.highlight.Highlighter;
 import org.elasticsearch.search.highlight.PlainHighlighter;
 import org.elasticsearch.search.highlight.PostingsHighlighter;
 import org.elasticsearch.search.suggest.CustomSuggester;
+import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
+import org.elasticsearch.search.suggest.term.TermSuggester;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SearchModuleTests extends ModuleTestCase {
 
-   public void testDoubleRegister() {
-       SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
-       try {
-           module.registerHighlighter("fvh", new PlainHighlighter());
-       } catch (IllegalArgumentException e) {
-           assertEquals(e.getMessage(), "Can't register the same [highlighter] more than once for [fvh]");
-       }
+    public void testDoubleRegister() {
+        SearchPlugin registersDupeHighlighter = new SearchPlugin() {
+            @Override
+            public Map<String, Highlighter> getHighlighters() {
+                return singletonMap("plain", new PlainHighlighter());
+            }
+        };
+        expectThrows(IllegalArgumentException.class,
+                () -> new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false, singletonList(registersDupeHighlighter)));
 
-       try {
-           module.registerSuggester("term", PhraseSuggester.INSTANCE);
-       } catch (IllegalArgumentException e) {
-           assertEquals(e.getMessage(), "Can't register the same [suggester] more than once for [term]");
-       }
-   }
+        SearchPlugin registersDupeSuggester = new SearchPlugin() {
+            @Override
+            public Map<String,org.elasticsearch.search.suggest.Suggester<?>> getSuggesters() {
+                return singletonMap("term", TermSuggester.INSTANCE);
+            }
+        };
+        expectThrows(IllegalArgumentException.class,
+                () -> new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false, singletonList(registersDupeSuggester)));
+
+        SearchPlugin registersDupeScoreFunction = new SearchPlugin() {
+            @Override
+            public List<ScoreFunctionSpec<?>> getScoreFunctions() {
+                return singletonList(new ScoreFunctionSpec<>(GaussDecayFunctionBuilder.NAME, GaussDecayFunctionBuilder::new,
+                        GaussDecayFunctionBuilder.PARSER));
+            }
+        };
+        expectThrows(IllegalArgumentException.class,
+                () -> new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false, singletonList(registersDupeScoreFunction)));
+
+        SearchPlugin registersDupeSignificanceHeuristic = new SearchPlugin() {
+            @Override
+            public List<SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>> getSignificanceHeuristics() {
+                return singletonList(new SearchExtensionSpec<>(ChiSquare.NAME, ChiSquare::new, ChiSquare.PARSER));
+            }
+        };
+        expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false,
+                singletonList(registersDupeSignificanceHeuristic)));
+
+        SearchPlugin registersDupeMovAvgModel = new SearchPlugin() {
+            @Override
+            public List<SearchExtensionSpec<MovAvgModel, MovAvgModel.AbstractModelParser>> getMovingAverageModels() {
+                return singletonList(new SearchExtensionSpec<>(SimpleModel.NAME, SimpleModel::new, SimpleModel.PARSER));
+            }
+        };
+        expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false,
+                singletonList(registersDupeMovAvgModel)));
+
+        SearchPlugin registersDupeFetchSubPhase = new SearchPlugin() {
+            @Override
+            public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
+                return singletonList(new ExplainFetchSubPhase());
+            }
+        };
+        expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false,
+                singletonList(registersDupeFetchSubPhase)));
+
+        SearchPlugin registersDupeFetchQuery = new SearchPlugin() {
+            public List<SearchPlugin.QuerySpec<?>> getQueries() {
+                return singletonList(new QuerySpec<>(TermQueryBuilder.NAME, TermQueryBuilder::new, TermQueryBuilder::fromXContent));
+            }
+        };
+        expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false,
+                singletonList(registersDupeFetchQuery)));
+    }
 
     public void testRegisterSuggester() {
-        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
-        module.registerSuggester("custom", CustomSuggester.INSTANCE);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> module.registerSuggester("custom", CustomSuggester.INSTANCE));
-        assertEquals("Can't register the same [suggester] more than once for [custom]", e.getMessage());
+        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false, singletonList(new SearchPlugin() {
+            @Override
+            public Map<String, Suggester<?>> getSuggesters() {
+                return singletonMap("custom", CustomSuggester.INSTANCE);
+            }
+        }));
+        assertSame(TermSuggester.INSTANCE, module.getSuggesters().getSuggester("term"));
+        assertSame(PhraseSuggester.INSTANCE, module.getSuggesters().getSuggester("phrase"));
+        assertSame(CompletionSuggester.INSTANCE, module.getSuggesters().getSuggester("completion"));
+        assertSame(CustomSuggester.INSTANCE, module.getSuggesters().getSuggester("custom"));
     }
 
     public void testRegisterHighlighter() {
-        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
         CustomHighlighter customHighlighter = new CustomHighlighter();
-        module.registerHighlighter("custom",  customHighlighter);
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> module.registerHighlighter("custom", new CustomHighlighter()));
-        assertEquals("Can't register the same [highlighter] more than once for [custom]", exception.getMessage());
+        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false, singletonList(new SearchPlugin() {
+            @Override
+            public Map<String, Highlighter> getHighlighters() {
+                return singletonMap("custom", customHighlighter);
+            }
+        }));
 
-        exception = expectThrows(IllegalArgumentException.class,
-            () -> module.registerHighlighter("custom", null));
-        assertEquals("Can't register null highlighter for key: [custom]", exception.getMessage());
-        Highlighters highlighters = module.getHighlighters();
-        assertEquals(highlighters.get("fvh").getClass(), FastVectorHighlighter.class);
-        assertEquals(highlighters.get("plain").getClass(), PlainHighlighter.class);
-        assertEquals(highlighters.get("postings").getClass(), PostingsHighlighter.class);
+        Map<String, Highlighter> highlighters = module.getHighlighters();
+        assertEquals(FastVectorHighlighter.class, highlighters.get("fvh").getClass());
+        assertEquals(PlainHighlighter.class, highlighters.get("plain").getClass());
+        assertEquals(PostingsHighlighter.class, highlighters.get("postings").getClass());
         assertSame(highlighters.get("custom"), customHighlighter);
     }
 
-    public void testRegisterQueryParserDuplicate() {
-        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> module
-                .registerQuery(TermQueryBuilder::new, TermQueryBuilder::fromXContent, TermQueryBuilder.QUERY_NAME_FIELD));
-        assertThat(e.getMessage(), containsString("] already registered for [query][term] while trying to register [org.elasticsearch."));
-    }
-
     public void testRegisteredQueries() throws IOException {
-        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry());
+        SearchModule module = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false, emptyList());
         List<String> allSupportedQueries = new ArrayList<>();
         Collections.addAll(allSupportedQueries, NON_DEPRECATED_QUERIES);
         Collections.addAll(allSupportedQueries, DEPRECATED_QUERIES);
@@ -165,7 +228,6 @@ public class SearchModuleTests extends ModuleTestCase {
             "span_or",
             "span_term",
             "span_within",
-            "template",
             "term",
             "terms",
             "type",

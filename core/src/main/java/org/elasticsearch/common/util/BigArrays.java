@@ -89,7 +89,7 @@ public class BigArrays implements Releasable {
         recycler.close();
     }
 
-    private static abstract class AbstractArrayWrapper extends AbstractArray implements BigArray {
+    private abstract static class AbstractArrayWrapper extends AbstractArray implements BigArray {
 
         protected static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(ByteArrayWrapper.class);
 

@@ -22,7 +22,6 @@ package org.elasticsearch.messy.tests;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -316,7 +315,8 @@ public class MinDocCountTests extends AbstractTermsTestCase {
                     Thread.sleep(60000);
                     logger.debug("1m passed. retrying.");
                     testMinDocCountOnTerms(field, script, order, include, false);
-                } catch (Throwable secondFailure) {
+                } catch (Exception secondFailure) {
+                    secondFailure.addSuppressed(ae);
                     logger.error("exception on retry (will re-throw the original in a sec)", secondFailure);
                 }
                 throw ae;

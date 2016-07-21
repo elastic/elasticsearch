@@ -56,10 +56,10 @@ dependencies {
   compile "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   compile "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
-  compile 'org.elasticsearch:securesm:1.0'
+  compile 'org.elasticsearch:securesm:1.1'
 
   // utilities
-  compile 'net.sf.jopt-simple:jopt-simple:4.9'
+  compile 'net.sf.jopt-simple:jopt-simple:5.0.2'
   compile 'com.carrotsearch:hppc:0.7.1'
 
   // time handling, remove with java 8 time
@@ -74,8 +74,6 @@ dependencies {
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
 
-  // network stack
-  compile 'io.netty:netty:3.10.5.Final'
   // percentiles aggregation
   compile 'com.tdunning:t-digest:3.0'
   // precentil ranks aggregation
@@ -152,25 +150,10 @@ processResources {
 }
 
 thirdPartyAudit.excludes = [
-  // uses internal java api: sun.security.x509 (X509CertInfo, X509CertImpl, X500Name)
-  'org.jboss.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
-
   // classes are missing!
 
   // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
   'com.fasterxml.jackson.databind.ObjectMapper', 
-
-  // from org.jboss.netty.handler.codec.protobuf.ProtobufVarint32FrameDecoder (netty)
-  'com.google.protobuf.CodedInputStream', 
-
-  // from org.jboss.netty.handler.codec.protobuf.ProtobufVarint32LengthFieldPrepender (netty)
-  'com.google.protobuf.CodedOutputStream', 
-
-  // from org.jboss.netty.handler.codec.protobuf.ProtobufDecoder (netty)
-  'com.google.protobuf.ExtensionRegistry', 
-  'com.google.protobuf.MessageLite$Builder', 
-  'com.google.protobuf.MessageLite', 
-  'com.google.protobuf.Parser', 
 
   // from org.apache.log4j.receivers.net.JMSReceiver (log4j-extras)
   'javax.jms.Message', 
@@ -196,72 +179,8 @@ thirdPartyAudit.excludes = [
   'javax.mail.internet.MimeMessage', 
   'javax.mail.internet.MimeMultipart', 
   'javax.mail.internet.MimeUtility', 
-
-  // from org.jboss.netty.channel.socket.http.HttpTunnelingServlet (netty)
-  'javax.servlet.ServletConfig', 
-  'javax.servlet.ServletException', 
-  'javax.servlet.ServletOutputStream', 
-  'javax.servlet.http.HttpServlet', 
-  'javax.servlet.http.HttpServletRequest', 
-  'javax.servlet.http.HttpServletResponse', 
-
-  // from org.jboss.netty.logging.CommonsLoggerFactory (netty)
-  'org.apache.commons.logging.Log', 
-  'org.apache.commons.logging.LogFactory',
-
-  // from org.jboss.netty.handler.ssl.OpenSslEngine (netty)
-  'org.apache.tomcat.jni.Buffer', 
-  'org.apache.tomcat.jni.Library', 
-  'org.apache.tomcat.jni.Pool', 
-  'org.apache.tomcat.jni.SSL', 
-  'org.apache.tomcat.jni.SSLContext', 
-  
-  // from org.jboss.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
-  'org.bouncycastle.asn1.x500.X500Name', 
-  'org.bouncycastle.cert.X509v3CertificateBuilder', 
-  'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter', 
-  'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder', 
-  'org.bouncycastle.jce.provider.BouncyCastleProvider', 
-  'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder', 
-
-  // from org.jboss.netty.handler.ssl.JettyNpnSslEngine (netty)
-  'org.eclipse.jetty.npn.NextProtoNego$ClientProvider', 
-  'org.eclipse.jetty.npn.NextProtoNego$ServerProvider', 
-  'org.eclipse.jetty.npn.NextProtoNego', 
-
-  // from org.jboss.netty.logging.JBossLoggerFactory (netty)
-  'org.jboss.logging.Logger', 
-
-  // from org.jboss.netty.handler.codec.marshalling.ChannelBufferByteInput (netty)
-  'org.jboss.marshalling.ByteInput', 
-
-  // from org.jboss.netty.handler.codec.marshalling.ChannelBufferByteOutput (netty)
-  'org.jboss.marshalling.ByteOutput', 
-
-  // from org.jboss.netty.handler.codec.marshalling.CompatibleMarshallingEncoder (netty)
-  'org.jboss.marshalling.Marshaller', 
-
-  // from org.jboss.netty.handler.codec.marshalling.ContextBoundUnmarshallerProvider (netty)
-  'org.jboss.marshalling.MarshallerFactory', 
-  'org.jboss.marshalling.MarshallingConfiguration', 
-  'org.jboss.marshalling.Unmarshaller', 
-
   // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
   'org.noggit.JSONParser', 
-
-  // from org.jboss.netty.container.osgi.NettyBundleActivator (netty)
-  'org.osgi.framework.BundleActivator', 
-  'org.osgi.framework.BundleContext', 
-
-  // from org.jboss.netty.logging.OsgiLoggerFactory$1 (netty)
-  'org.osgi.framework.ServiceReference', 
-  'org.osgi.service.log.LogService', 
-  'org.osgi.util.tracker.ServiceTracker', 
-  'org.osgi.util.tracker.ServiceTrackerCustomizer', 
-
-  // from org.netty.util.internal.logging.InternalLoggerFactory (netty) - it's optional
-  'org.slf4j.Logger',
-  'org.slf4j.LoggerFactory',
 ]
 
 // dependency license are currently checked in distribution

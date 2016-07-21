@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
@@ -254,11 +255,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     public void testUpdateMappingConcurrently() throws Throwable {
         createIndex("test1", "test2");
 
-        // This is important. The test assumes all nodes are aware of all indices. Due to initializing shard throttling
-        // not all shards are allocated with the initial create index. Wait for it..
-        ensureYellow();
-
-        final Throwable[] threadException = new Throwable[1];
+        final AtomicReference<Exception> threadException = new AtomicReference<>();
         final AtomicBoolean stop = new AtomicBoolean(false);
         Thread[] threads = new Thread[3];
         final CyclicBarrier barrier = new CyclicBarrier(threads.length);
@@ -298,8 +295,8 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                             assertThat(mappings.containsKey(typeName), equalTo(true));
                             assertThat(((Map<String, Object>) mappings.get(typeName).getSourceAsMap().get("properties")).keySet(), Matchers.hasItem(fieldName));
                         }
-                    } catch (Throwable t) {
-                        threadException[0] = t;
+                    } catch (Exception e) {
+                        threadException.set(e);
                         stop.set(true);
                     }
                 }
@@ -311,8 +308,8 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
         for (Thread t : threads) t.join();
 
-        if (threadException[0] != null) {
-            throw threadException[0];
+        if (threadException.get() != null) {
+            throw threadException.get();
         }
 
     }

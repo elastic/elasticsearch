@@ -33,6 +33,7 @@ public class RestTestSuite {
     private final String name;
 
     private SetupSection setupSection;
+    private TeardownSection teardownSection;
 
     private Set<TestSection> testSections = new TreeSet<>();
 
@@ -59,6 +60,14 @@ public class RestTestSuite {
 
     public void setSetupSection(SetupSection setupSection) {
         this.setupSection = setupSection;
+    }
+
+    public TeardownSection getTeardownSection() {
+        return teardownSection;
+    }
+
+    public void setTeardownSection(TeardownSection teardownSection) {
+        this.teardownSection = teardownSection;
     }
 
     /**

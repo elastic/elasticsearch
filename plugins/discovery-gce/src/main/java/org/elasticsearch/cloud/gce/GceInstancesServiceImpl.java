@@ -49,8 +49,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-public class GceInstancesServiceImpl extends AbstractLifecycleComponent<GceInstancesService>
-    implements GceInstancesService {
+public class GceInstancesServiceImpl extends AbstractLifecycleComponent implements GceInstancesService {
 
     // all settings just used for testing - not registered by default
     public static final Setting<Boolean> GCE_VALIDATE_CERTIFICATES =

@@ -1,7 +1,7 @@
 ---
 "REST test with headers":
   - skip:
-      features: headers
+      features: ["headers", "yaml"]
 
   - do:
       index:
@@ -18,13 +18,9 @@
         type: _all
         id:   1
 
-  - match:
-      $body: |
-        /^---\n
-          _index:\s+\"test_1"\n
-          _type:\s+"test"\n
-          _id:\s+"1"\n
-          _version:\s+1\n
-          found:\s+true\n
-          _source:\n
-          \s+body:\s+"foo"\n$/
+  - match: {_index: "test_1"}
+  - match: {_type: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match: { _source: { body: foo }}

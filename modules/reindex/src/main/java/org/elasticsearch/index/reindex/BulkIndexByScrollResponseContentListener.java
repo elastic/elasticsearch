@@ -21,9 +21,9 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
@@ -35,7 +35,7 @@ import java.util.Map;
 /**
  * RestBuilderListener that returns higher than 200 status if there are any failures and allows to set XContent.Params.
  */
-public class BulkIndexByScrollResponseContentListener<R extends BulkIndexByScrollResponse> extends RestBuilderListener<R> {
+public class BulkIndexByScrollResponseContentListener extends RestBuilderListener<BulkIndexByScrollResponse> {
 
     private final Map<String, String> params;
 
@@ -45,14 +45,14 @@ public class BulkIndexByScrollResponseContentListener<R extends BulkIndexByScrol
     }
 
     @Override
-    public RestResponse buildResponse(R response, XContentBuilder builder) throws Exception {
+    public RestResponse buildResponse(BulkIndexByScrollResponse response, XContentBuilder builder) throws Exception {
         builder.startObject();
         response.toXContent(builder, new ToXContent.DelegatingMapParams(params, channel.request()));
         builder.endObject();
         return new BytesRestResponse(getStatus(response), builder);
     }
 
-    private RestStatus getStatus(R response) {
+    private RestStatus getStatus(BulkIndexByScrollResponse response) {
         /*
          * Return the highest numbered rest status under the assumption that higher numbered statuses are "more error" and thus more
          * interesting to the user.
@@ -61,13 +61,13 @@ public class BulkIndexByScrollResponseContentListener<R extends BulkIndexByScrol
         if (response.isTimedOut()) {
             status = RestStatus.REQUEST_TIMEOUT;
         }
-        for (Failure failure : response.getIndexingFailures()) {
+        for (Failure failure : response.getBulkFailures()) {
             if (failure.getStatus().getStatus() > status.getStatus()) {
                 status = failure.getStatus();
             }
         }
-        for (ShardSearchFailure failure: response.getSearchFailures()) {
-            RestStatus failureStatus = ExceptionsHelper.status(failure.getCause());
+        for (SearchFailure failure: response.getSearchFailures()) {
+            RestStatus failureStatus = ExceptionsHelper.status(failure.getReason());
             if (failureStatus.getStatus() > status.getStatus()) {
                 status = failureStatus;
             }

@@ -50,7 +50,7 @@ public interface ScriptDocValues<T> extends List<T> {
      */
     List<T> getValues();
 
-    public final static class Strings extends AbstractList<String> implements ScriptDocValues<String> {
+    public static final class Strings extends AbstractList<String> implements ScriptDocValues<String> {
 
         private final SortedBinaryDocValues values;
 

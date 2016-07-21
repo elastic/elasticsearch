@@ -94,7 +94,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     private Settings nodeSettings(String dataPath) {
         return Settings.builder()
-                .put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH.getKey(), false)
+                .put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), false)
                 .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath)
                 .put(FsDirectoryService.INDEX_LOCK_FACTOR_SETTING.getKey(), randomFrom("native", "simple"))
                 .build();
@@ -277,7 +277,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .build();
 
         prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
-        ensureYellow(IDX);
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
 
@@ -335,7 +334,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .build();
 
         prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
-        ensureYellow(IDX);
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
 
@@ -379,7 +377,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
     }
 
-    public void testPrimaryRelocationWithConcurrentIndexing() throws Throwable {
+    public void testPrimaryRelocationWithConcurrentIndexing() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
 
@@ -395,7 +393,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .build();
 
         prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
-        ensureYellow(IDX);
         // Node1 has the primary, now node2 has the replica
         String node2 = internalCluster().startNode(nodeSettings);
         ensureGreen(IDX);
@@ -408,7 +405,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         final int numPhase2Docs = scaledRandomIntBetween(25, 200);
         final CountDownLatch phase1finished = new CountDownLatch(1);
         final CountDownLatch phase2finished = new CountDownLatch(1);
-        final CopyOnWriteArrayList<Throwable> exceptions = new CopyOnWriteArrayList<>();
+        final CopyOnWriteArrayList<Exception> exceptions = new CopyOnWriteArrayList<>();
         Thread thread = new Thread() {
             @Override
             public void run() {
@@ -418,8 +415,8 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                         final IndexResponse indexResponse = client().prepareIndex(IDX, "doc",
                                 Integer.toString(counter.incrementAndGet())).setSource("foo", "bar").get();
                         assertTrue(indexResponse.isCreated());
-                    } catch (Throwable t) {
-                        exceptions.add(t);
+                    } catch (Exception e) {
+                        exceptions.add(e);
                     }
                     final int docCount = counter.get();
                     if (docCount == numPhase1Docs) {
@@ -454,7 +451,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
     public void testPrimaryRelocationWhereRecoveryFails() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = Settings.builder()
-                .put("node.add_id_to_custom_path", false)
+                .put("node.add_lock_id_to_custom_path", false)
                 .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath)
                 .build();
 
@@ -470,7 +467,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .build();
 
         prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
-        ensureYellow(IDX);
         // Node1 has the primary, now node2 has the replica
         String node2 = internalCluster().startNode(nodeSettings);
         ensureGreen(IDX);
@@ -677,7 +673,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         client().prepareIndex(IDX, "doc", "4").setSource("foo", "eggplant").get();
         flushAndRefresh(IDX);
 
-        SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).addFieldDataField("foo").addSort("foo", SortOrder.ASC).get();
+        SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).addDocValueField("foo").addSort("foo", SortOrder.ASC).get();
         assertHitCount(resp, 4);
         assertOrderedSearchHits(resp, "2", "3", "4", "1");
         SearchHit[] hits = resp.getHits().hits();
@@ -859,7 +855,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                                        .build();
 
         prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
-        ensureYellow(IDX);
 
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();

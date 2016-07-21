@@ -90,6 +90,14 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
     }
 
     @Override
+    public void ensureClusterStateVersion(long clusterStateVersion) {
+        transportService.submitRequest(targetNode, RecoveryTargetService.Actions.WAIT_CLUSTERSTATE,
+            new RecoveryWaitForClusterStateRequest(recoveryId, shardId, clusterStateVersion),
+            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
+            EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+    }
+
+    @Override
     public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
         final RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(
                 recoveryId, shardId, operations, totalTranslogOps);

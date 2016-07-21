@@ -47,7 +47,7 @@ import java.util.function.Function;
 public class DiscoveryModule extends AbstractModule {
 
     public static final Setting<String> DISCOVERY_TYPE_SETTING =
-        new Setting<>("discovery.type", settings -> DiscoveryNode.isLocalNode(settings) ? "local" : "zen", Function.identity(),
+        new Setting<>("discovery.type", "zen", Function.identity(),
             Property.NodeScope);
     public static final Setting<String> ZEN_MASTER_SERVICE_TYPE_SETTING =
         new Setting<>("discovery.zen.masterservice.type", "zen", Function.identity(), Property.NodeScope);

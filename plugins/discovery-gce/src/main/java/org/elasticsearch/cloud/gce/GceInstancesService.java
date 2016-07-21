@@ -30,7 +30,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-public interface GceInstancesService extends LifecycleComponent<GceInstancesService> {
+public interface GceInstancesService extends LifecycleComponent {
 
     /**
      * GCE API Version: Elasticsearch/GceCloud/1.0

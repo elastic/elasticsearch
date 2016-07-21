@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
@@ -35,7 +34,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
@@ -218,7 +216,7 @@ public class MapperService extends AbstractIndexComponent {
                         requireRefresh = true;
                     }
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 logger.warn("[{}] failed to add mapping [{}], source [{}]", e, index(), mappingType, mappingSource);
                 throw e;
             }
@@ -316,7 +314,7 @@ public class MapperService extends AbstractIndexComponent {
         Collections.addAll(fieldMappers, newMapper.mapping().metadataMappers);
         MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers);
         checkFieldUniqueness(newMapper.type(), objectMappers, fieldMappers);
-        checkObjectsCompatibility(newMapper.type(), objectMappers, fieldMappers, updateAllTypes);
+        checkObjectsCompatibility(objectMappers, updateAllTypes);
 
         // 3. update lookup data-structures
         // this will in particular make sure that the merged fields are compatible with other types
@@ -381,7 +379,7 @@ public class MapperService extends AbstractIndexComponent {
         for (DocumentMapper mapper : docMappers(false)) {
             List<FieldMapper> fieldMappers = new ArrayList<>();
             Collections.addAll(fieldMappers, mapper.mapping().metadataMappers);
-            MapperUtils.collect(mapper.root(), new ArrayList<ObjectMapper>(), fieldMappers);
+            MapperUtils.collect(mapper.root(), new ArrayList<>(), fieldMappers);
             for (FieldMapper fieldMapper : fieldMappers) {
                 assert fieldMapper.fieldType() == fieldTypes.get(fieldMapper.name()) : fieldMapper.name();
             }
@@ -449,7 +447,7 @@ public class MapperService extends AbstractIndexComponent {
         }
     }
 
-    private void checkObjectsCompatibility(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers, boolean updateAllTypes) {
+    private void checkObjectsCompatibility(Collection<ObjectMapper> objectMappers, boolean updateAllTypes) {
         assert Thread.holdsLock(this);
 
         for (ObjectMapper newObjectMapper : objectMappers) {
@@ -540,7 +538,8 @@ public class MapperService extends AbstractIndexComponent {
             return new DocumentMapperForType(mapper, null);
         }
         if (!dynamic) {
-            throw new TypeMissingException(index(), type, "trying to auto create mapping, but dynamic mapping is disabled");
+            throw new TypeMissingException(index(),
+                    new IllegalStateException("trying to auto create mapping, but dynamic mapping is disabled"), type);
         }
         mapper = parse(type, null, true);
         return new DocumentMapperForType(mapper, mapper.mapping());

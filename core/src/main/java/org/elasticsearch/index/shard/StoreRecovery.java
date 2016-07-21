@@ -40,10 +40,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.repositories.Repository;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -130,7 +130,7 @@ final class StoreRecovery {
         return false;
     }
 
-    final void addIndices(RecoveryState.Index indexRecoveryStats, Directory target, Directory... sources) throws IOException {
+    void addIndices(RecoveryState.Index indexRecoveryStats, Directory target, Directory... sources) throws IOException {
         target = new org.apache.lucene.store.HardlinkCopyDirectoryWrapper(target);
         try (IndexWriter writer = new IndexWriter(new StatsDirectoryWrapper(target, indexRecoveryStats),
             new IndexWriterConfig(null)
@@ -219,14 +219,14 @@ final class StoreRecovery {
     }
 
     /**
-     * Recovers an index from a given {@link IndexShardRepository}. This method restores a
+     * Recovers an index from a given {@link Repository}. This method restores a
      * previously created index snapshot into an existing initializing shard.
      * @param indexShard the index shard instance to recovery the snapshot from
      * @param repository the repository holding the physical files the shard should be recovered from
      * @return <code>true</code> if the shard has been recovered successfully, <code>false</code> if the recovery
      * has been ignored due to a concurrent modification of if the clusters state has changed due to async updates.
      */
-    boolean recoverFromRepository(final IndexShard indexShard, IndexShardRepository repository) {
+    boolean recoverFromRepository(final IndexShard indexShard, Repository repository) {
         if (canRecover(indexShard)) {
             final ShardRouting shardRouting = indexShard.routingEntry();
             if (shardRouting.restoreSource() == null) {
@@ -319,12 +319,13 @@ final class StoreRecovery {
                 store.failIfCorrupted();
                 try {
                     si = store.readLastCommittedSegmentsInfo();
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     String files = "_unknown_";
                     try {
                         files = Arrays.toString(store.directory().listAll());
-                    } catch (Throwable e1) {
-                        files += " (failure=" + ExceptionsHelper.detailedMessage(e1) + ")";
+                    } catch (Exception inner) {
+                        inner.addSuppressed(e);
+                        files += " (failure=" + ExceptionsHelper.detailedMessage(inner) + ")";
                     }
                     if (indexShouldExists) {
                         throw new IndexShardRecoveryException(shardId, "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files, e);
@@ -340,7 +341,7 @@ final class StoreRecovery {
                         Lucene.cleanLuceneIndex(store.directory());
                     }
                 }
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 throw new IndexShardRecoveryException(shardId, "failed to fetch index version after copying it over", e);
             }
             recoveryState.getIndex().updateVersion(version);
@@ -379,7 +380,7 @@ final class StoreRecovery {
     /**
      * Restores shard from {@link RestoreSource} associated with this shard in routing table
      */
-    private void restore(final IndexShard indexShard, final IndexShardRepository indexShardRepository) {
+    private void restore(final IndexShard indexShard, final Repository repository) {
         RestoreSource restoreSource = indexShard.routingEntry().restoreSource();
         final RecoveryState.Translog translogState = indexShard.recoveryState().getTranslog();
         if (restoreSource == null) {
@@ -396,12 +397,12 @@ final class StoreRecovery {
             if (!shardId.getIndexName().equals(restoreSource.index())) {
                 snapshotShardId = new ShardId(restoreSource.index(), IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
             }
-            indexShardRepository.restore(restoreSource.snapshot().getSnapshotId(), restoreSource.version(), shardId, snapshotShardId, indexShard.recoveryState());
+            repository.restoreShard(indexShard, restoreSource.snapshot().getSnapshotId(), restoreSource.version(), snapshotShardId, indexShard.recoveryState());
             indexShard.skipTranslogRecovery();
             indexShard.finalizeRecovery();
             indexShard.postRecovery("restore done");
-        } catch (Throwable t) {
-            throw new IndexShardRestoreFailedException(shardId, "restore failed", t);
+        } catch (Exception e) {
+            throw new IndexShardRestoreFailedException(shardId, "restore failed", e);
         }
     }
 

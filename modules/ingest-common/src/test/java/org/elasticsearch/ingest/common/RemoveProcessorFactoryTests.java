@@ -19,8 +19,8 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -44,8 +44,7 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         String processorTag = randomAsciiOfLength(10);
-        config.put(AbstractProcessorFactory.TAG_KEY, processorTag);
-        RemoveProcessor removeProcessor = factory.create(config);
+        RemoveProcessor removeProcessor = factory.create(null, processorTag, config);
         assertThat(removeProcessor.getTag(), equalTo(processorTag));
         assertThat(removeProcessor.getField().execute(Collections.emptyMap()), equalTo("field1"));
     }
@@ -53,11 +52,20 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
     public void testCreateMissingField() throws Exception {
         Map<String, Object> config = new HashMap<>();
         try {
-            factory.create(config);
+            factory.create(null, null, config);
             fail("factory create should have failed");
         } catch(ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
         }
     }
 
+    public void testInvalidMustacheTemplate() throws Exception {
+        RemoveProcessor.Factory factory = new RemoveProcessor.Factory(TestTemplateService.instance(true));
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        String processorTag = randomAsciiOfLength(10);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, config));
+        assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
+        assertThat(exception.getHeader("processor_tag").get(0), equalTo(processorTag));
+    }
 }

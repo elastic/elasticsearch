@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,7 +41,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -66,7 +65,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-    private DiscoveryNode node = new DiscoveryNode("node-0", DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT);
+    private DiscoveryNode node = new DiscoveryNode("node-0", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
     private static Decision.Multi yesDecision = new Decision.Multi();
     private static Decision.Multi noDecision = new Decision.Multi();
 
@@ -202,10 +201,10 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
                 yesDecision, nodeWeight, storeStatus, "", activeAllocationIds, false);
         nodeExplanations.put(ne.getNode(), ne);
         ClusterAllocationExplanation cae = new ClusterAllocationExplanation(shard, true,
-                "assignedNode", allocationDelay, remainingDelay, null, false, nodeExplanations);
+                "assignedNode", allocationDelay, remainingDelay, null, false, nodeExplanations, null);
         BytesStreamOutput out = new BytesStreamOutput();
         cae.writeTo(out);
-        StreamInput in = StreamInput.wrap(out.bytes());
+        StreamInput in = out.bytes().streamInput();
         ClusterAllocationExplanation cae2 = new ClusterAllocationExplanation(in);
         assertEquals(shard, cae2.getShard());
         assertTrue(cae2.isPrimary());
@@ -215,9 +214,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         assertEquals(allocationDelay, cae2.getAllocationDelayMillis());
         assertEquals(remainingDelay, cae2.getRemainingDelayMillis());
         for (Map.Entry<DiscoveryNode, NodeExplanation> entry : cae2.getNodeExplanations().entrySet()) {
-            DiscoveryNode node = entry.getKey();
             NodeExplanation explanation = entry.getValue();
-            IndicesShardStoresResponse.StoreStatus status = explanation.getStoreStatus();
             assertNotNull(explanation.getStoreStatus());
             assertNotNull(explanation.getDecision());
             assertEquals(nodeWeight, explanation.getWeight());
@@ -240,7 +237,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
         Map<DiscoveryNode, NodeExplanation> nodeExplanations = new HashMap<>(1);
         nodeExplanations.put(ne.getNode(), ne);
         ClusterAllocationExplanation cae = new ClusterAllocationExplanation(shardId, true,
-                "assignedNode", 42, 42, null, false, nodeExplanations);
+                "assignedNode", 42, 42, null, false, nodeExplanations, null);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"shard\":{\"index\":\"foo\",\"index_uuid\":\"uuid\",\"id\":0,\"primary\":true},\"assigned\":true," +

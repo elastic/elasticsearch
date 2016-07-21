@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -31,26 +30,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
-*
-*/
 public class InternalStats extends InternalNumericMetricsAggregation.MultiValue implements Stats {
-
-    public final static Type TYPE = new Type("stats");
-
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalStats readResult(StreamInput in) throws IOException {
-            InternalStats result = new InternalStats();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     enum Metrics {
 
         count, sum, min, max, avg;
@@ -60,12 +40,10 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         }
     }
 
-    protected long count;
-    protected double min;
-    protected double max;
-    protected double sum;
-
-    protected InternalStats() {} // for serialization
+    protected final long count;
+    protected final double min;
+    protected final double max;
+    protected final double sum;
 
     public InternalStats(String name, long count, double sum, double min, double max, DocValueFormat formatter,
             List<PipelineAggregator> pipelineAggregators,
@@ -76,6 +54,36 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
         this.min = min;
         this.max = max;
         this.format = formatter;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public InternalStats(StreamInput in) throws IOException {
+        super(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
+        count = in.readVLong();
+        min = in.readDouble();
+        max = in.readDouble();
+        sum = in.readDouble();
+    }
+
+    @Override
+    protected final void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(format);
+        out.writeVLong(count);
+        out.writeDouble(min);
+        out.writeDouble(max);
+        out.writeDouble(sum);
+        writeOtherStatsTo(out);
+    }
+
+    protected void writeOtherStatsTo(StreamOutput out) throws IOException {
+    }
+
+    @Override
+    public String getWriteableName() {
+        return StatsAggregationBuilder.NAME;
     }
 
     @Override
@@ -129,11 +137,6 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
     }
 
     @Override
-    public Type type() {
-        return TYPE;
-    }
-
-    @Override
     public double value(String name) {
         Metrics metrics = Metrics.valueOf(name);
         switch (metrics) {
@@ -161,32 +164,6 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             sum += stats.getSum();
         }
         return new InternalStats(name, count, sum, min, max, format, pipelineAggregators(), getMetaData());
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        format = in.readNamedWriteable(DocValueFormat.class);
-        count = in.readVLong();
-        min = in.readDouble();
-        max = in.readDouble();
-        sum = in.readDouble();
-        readOtherStatsFrom(in);
-    }
-
-    public void readOtherStatsFrom(StreamInput in) throws IOException {
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(format);
-        out.writeVLong(count);
-        out.writeDouble(min);
-        out.writeDouble(max);
-        out.writeDouble(sum);
-        writeOtherStatsTo(out);
-    }
-
-    protected void writeOtherStatsTo(StreamOutput out) throws IOException {
     }
 
     static class Fields {

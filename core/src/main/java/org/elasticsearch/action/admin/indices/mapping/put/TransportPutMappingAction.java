@@ -91,7 +91,7 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
                 }
 
                 @Override
-                public void onFailure(Throwable t) {
+                public void onFailure(Exception t) {
                     logger.debug("failed to put mappings on indices [{}], type [{}]", t, concreteIndices, request.type());
                     listener.onFailure(t);
                 }

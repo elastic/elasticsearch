@@ -17,8 +17,9 @@
             index:   source
             query:
               script:
-                lang: painless
-                script: throw new IllegalArgumentException("Cats!")
+                script:
+                  lang: painless
+                  inline: throw new IllegalArgumentException("Cats!")
           dest:
             index:   dest
   - match: {created: 0}

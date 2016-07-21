@@ -161,7 +161,7 @@ public class TimeValueTests extends ESTestCase {
         value.writeTo(out);
         assertEquals(expectedSize, out.size());
 
-        StreamInput in = StreamInput.wrap(out.bytes());
+        StreamInput in = out.bytes().streamInput();
         TimeValue inValue = new TimeValue(in);
 
         assertThat(inValue, equalTo(value));

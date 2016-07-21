@@ -20,14 +20,19 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.shrink.ShrinkRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
+
+import java.io.IOException;
 
 /**
  *
@@ -35,15 +40,15 @@ import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 public class RestShrinkIndexAction extends BaseRestHandler {
 
     @Inject
-    public RestShrinkIndexAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestShrinkIndexAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.PUT, "/{index}/_shrink/{target}", this);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_shrink/{target}", this);
     }
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         if (request.param("target") == null) {
             throw new IllegalArgumentException("no target index");
         }
@@ -56,6 +61,12 @@ public class RestShrinkIndexAction extends BaseRestHandler {
         }
         shrinkIndexRequest.timeout(request.paramAsTime("timeout", shrinkIndexRequest.timeout()));
         shrinkIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", shrinkIndexRequest.masterNodeTimeout()));
-        client.admin().indices().shrinkIndex(shrinkIndexRequest, new AcknowledgedRestListener<>(channel));
+        shrinkIndexRequest.setWaitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));
+        client.admin().indices().shrinkIndex(shrinkIndexRequest, new AcknowledgedRestListener<ShrinkResponse>(channel) {
+            @Override
+            public void addCustomFields(XContentBuilder builder, ShrinkResponse response) throws IOException {
+                response.addCustomFields(builder);
+            }
+        });
     }
 }

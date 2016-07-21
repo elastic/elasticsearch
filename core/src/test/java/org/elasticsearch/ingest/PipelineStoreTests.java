@@ -56,9 +56,8 @@ public class PipelineStoreTests extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        store = new PipelineStore(Settings.EMPTY);
-        ProcessorsRegistry.Builder registryBuilder = new ProcessorsRegistry.Builder();
-        registryBuilder.registerProcessor("set", (registry) -> config -> {
+        Map<String, Processor.Factory> processorFactories = new HashMap<>();
+        processorFactories.put("set", (factories, tag, config) -> {
             String field = (String) config.remove("field");
             String value = (String) config.remove("value");
             return new Processor() {
@@ -78,7 +77,7 @@ public class PipelineStoreTests extends ESTestCase {
                 }
             };
         });
-        registryBuilder.registerProcessor("remove", (registry) -> config -> {
+        processorFactories.put("remove", (factories, tag, config) -> {
             String field = (String) config.remove("field");
             return new Processor() {
                 @Override
@@ -97,7 +96,7 @@ public class PipelineStoreTests extends ESTestCase {
                 }
             };
         });
-        store.buildProcessorFactoryRegistry(registryBuilder, mock(ScriptService.class), mock(ClusterService.class));
+        store = new PipelineStore(Settings.EMPTY, processorFactories);
     }
 
     public void testUpdatePipelines() {
@@ -259,7 +258,7 @@ public class PipelineStoreTests extends ESTestCase {
             store.validatePipeline(ingestInfos, putRequest);
             fail("exception expected");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Processor type [remove] is not installed on node [{_node_id2}{local}{local[_id]}]"));
+            assertThat(e.getMessage(), equalTo("Processor type [remove] is not installed on node [" + node2 + "]"));
         }
 
         ingestInfos.put(node2, new IngestInfo(Arrays.asList(new ProcessorInfo("set"), new ProcessorInfo("remove"))));

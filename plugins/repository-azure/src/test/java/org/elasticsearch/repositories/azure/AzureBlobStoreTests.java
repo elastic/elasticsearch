@@ -23,11 +23,10 @@ import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cloud.azure.blobstore.AzureBlobStore;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.ESBlobStoreTestCase;
-import org.elasticsearch.repositories.RepositoryName;
-import org.elasticsearch.repositories.RepositorySettings;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -44,11 +43,10 @@ public class AzureBlobStoreTests extends ESBlobStoreTestCase {
     @Override
     protected BlobStore newBlobStore() throws IOException {
         try {
-            RepositoryName repositoryName = new RepositoryName("azure", "ittest");
             Settings settings = readSettingsFromFile();
-            RepositorySettings repositorySettings = new RepositorySettings(settings, Settings.builder().build());
+            RepositoryMetaData metadata = new RepositoryMetaData("ittest", "azure", Settings.EMPTY);
             AzureStorageService storageService = new AzureStorageServiceImpl(settings);
-            AzureBlobStore blobStore = new AzureBlobStore(repositoryName, settings, repositorySettings, storageService);
+            AzureBlobStore blobStore = new AzureBlobStore(metadata, settings, storageService);
             blobStore.createContainer(blobStore.container());
             return blobStore;
         } catch (URISyntaxException | StorageException e) {

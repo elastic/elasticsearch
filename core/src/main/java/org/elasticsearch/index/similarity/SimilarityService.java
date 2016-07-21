@@ -36,7 +36,7 @@ import java.util.function.BiFunction;
 
 public final class SimilarityService extends AbstractIndexComponent {
 
-    public final static String DEFAULT_SIMILARITY = "BM25";
+    public static final String DEFAULT_SIMILARITY = "BM25";
     private final Similarity defaultSimilarity;
     private final Similarity baseSimilarity;
     private final Map<String, SimilarityProvider> similarities;

@@ -66,7 +66,7 @@ public final class ElasticsearchDirectoryReader extends FilterDirectoryReader {
         return new ElasticsearchDirectoryReader(reader, new SubReaderWrapper(shardId), shardId);
     }
 
-    private final static class SubReaderWrapper extends FilterDirectoryReader.SubReaderWrapper {
+    private static final class SubReaderWrapper extends FilterDirectoryReader.SubReaderWrapper {
         private final ShardId shardId;
         SubReaderWrapper(ShardId shardId) {
             this.shardId = shardId;

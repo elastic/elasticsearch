@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.admin.indices.shards.TransportIndicesShardStoresAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -145,7 +146,7 @@ public class TransportClusterAllocationExplainAction
             // No copies of the data
             storeCopy = ClusterAllocationExplanation.StoreCopy.NONE;
         } else {
-            final Throwable storeErr = storeStatus.getStoreException();
+            final Exception storeErr = storeStatus.getStoreException();
             if (storeErr != null) {
                 if (ExceptionsHelper.unwrapCause(storeErr) instanceof CorruptIndexException) {
                     storeCopy = ClusterAllocationExplanation.StoreCopy.CORRUPT;
@@ -219,7 +220,7 @@ public class TransportClusterAllocationExplainAction
     public static ClusterAllocationExplanation explainShard(ShardRouting shard, RoutingAllocation allocation, RoutingNodes routingNodes,
                                                             boolean includeYesDecisions, ShardsAllocator shardAllocator,
                                                             List<IndicesShardStoresResponse.StoreStatus> shardStores,
-                                                            GatewayAllocator gatewayAllocator) {
+                                                            GatewayAllocator gatewayAllocator, ClusterInfo clusterInfo) {
         // don't short circuit deciders, we want a full explanation
         allocation.debugDecision(true);
         // get the existing unassigned info if available
@@ -262,16 +263,17 @@ public class TransportClusterAllocationExplainAction
             explanations.put(node, nodeExplanation);
         }
         return new ClusterAllocationExplanation(shard.shardId(), shard.primary(),
-            shard.currentNodeId(), allocationDelayMillis, remainingDelayMillis, ui,
-            gatewayAllocator.hasFetchPending(shard.shardId(), shard.primary()), explanations);
+                shard.currentNodeId(), allocationDelayMillis, remainingDelayMillis, ui,
+                gatewayAllocator.hasFetchPending(shard.shardId(), shard.primary()), explanations, clusterInfo);
     }
 
     @Override
     protected void masterOperation(final ClusterAllocationExplainRequest request, final ClusterState state,
                                    final ActionListener<ClusterAllocationExplainResponse> listener) {
         final RoutingNodes routingNodes = state.getRoutingNodes();
+        final ClusterInfo clusterInfo = clusterInfoService.getClusterInfo();
         final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, state,
-                clusterInfoService.getClusterInfo(), System.nanoTime(), false);
+                clusterInfo, System.nanoTime(), false);
 
         ShardRouting foundShard = null;
         if (request.useAnyUnassignedShard()) {
@@ -318,12 +320,13 @@ public class TransportClusterAllocationExplainAction
                         shardStoreResponse.getStoreStatuses().get(shardRouting.getIndexName());
                 List<IndicesShardStoresResponse.StoreStatus> shardStoreStatus = shardStatuses.get(shardRouting.id());
                 ClusterAllocationExplanation cae = explainShard(shardRouting, allocation, routingNodes,
-                        request.includeYesDecisions(), shardAllocator, shardStoreStatus, gatewayAllocator);
+                        request.includeYesDecisions(), shardAllocator, shardStoreStatus, gatewayAllocator,
+                        request.includeDiskInfo() ? clusterInfo : null);
                 listener.onResponse(new ClusterAllocationExplainResponse(cae));
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
         });

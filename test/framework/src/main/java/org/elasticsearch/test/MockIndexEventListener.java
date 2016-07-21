@@ -70,7 +70,7 @@ public final class MockIndexEventListener {
         }
 
         @Override
-        public Collection<Module> nodeModules() {
+        public Collection<Module> createGuiceModules() {
             return Collections.singleton(binder -> binder.bind(TestEventListener.class).toInstance(listener));
         }
     }

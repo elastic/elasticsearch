@@ -311,10 +311,10 @@ curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
    "fields" : ["answer_count"] <1>
    "index_constraints" : { <2>
       "creation_date" : { <3>
-         "min_value" : { <4>
+         "max_value" : { <4>
             "gte" : "2014-01-01T00:00:00.000Z"
          },
-         "max_value" : {
+         "min_value" : { <4>
             "lt" : "2015-01-01T00:00:00.000Z"
          }
       }
@@ -325,7 +325,7 @@ curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
 <1> The fields to compute and return field stats for.
 <2> The set index constraints. Note that index constrains can be defined for fields that aren't defined in the `fields` option.
 <3> Index constraints for the field `creation_date`.
-<4> An index constraint on the `min_value` property of a field statistic.
+<4> Index constraints on the `max_value` and `min_value` property of a field statistic.
 
 For a field, index constraints can be defined on the `min_value` statistic, `max_value` statistic or both.
 Each index constraint support the following comparisons:
@@ -345,11 +345,11 @@ curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
    "fields" : ["answer_count"]
    "index_constraints" : {
       "creation_date" : {
-         "min_value" : {
+         "max_value" : {
             "gte" : "2014-01-01",
             "format" : "date_optional_time" <1>
          },
-         "max_value" : {
+         "min_value" : {
             "lt" : "2015-01-01",
             "format" : "date_optional_time"
          }

@@ -44,20 +44,20 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 
 public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<CumulativeSumPipelineAggregationBuilder> {
-    public static final String NAME = CumulativeSumPipelineAggregator.TYPE.name();
+    public static final String NAME = "cumulative_sum";
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private String format;
 
     public CumulativeSumPipelineAggregationBuilder(String name, String bucketsPath) {
-        super(name, CumulativeSumPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
+        super(name, NAME, new String[] { bucketsPath });
     }
 
     /**
      * Read from a stream.
      */
     public CumulativeSumPipelineAggregationBuilder(StreamInput in) throws IOException {
-        super(in, CumulativeSumPipelineAggregator.TYPE.name());
+        super(in, NAME);
         format = in.readOptionalString();
     }
 

@@ -210,7 +210,7 @@ fi
 }
 
 @test "[$GROUP] install discovery-azure-classic plugin" {
-    install_and_check_plugin discovery azure azure-core-*.jar
+    install_and_check_plugin discovery azure-classic azure-core-*.jar
 }
 
 @test "[$GROUP] install discovery-ec2 plugin" {
@@ -226,6 +226,10 @@ fi
 
 @test "[$GROUP] install ingest-geoip plugin" {
     install_and_check_plugin ingest geoip geoip2-*.jar jackson-annotations-*.jar jackson-databind-*.jar maxmind-db-*.jar
+}
+
+@test "[$GROUP] install ingest-user-agent plugin" {
+    install_and_check_plugin ingest user-agent
 }
 
 @test "[$GROUP] check ingest-common module" {
@@ -355,6 +359,10 @@ fi
 
 @test "[$GROUP] remove ingest-geoip plugin" {
     remove_plugin ingest-geoip
+}
+
+@test "[$GROUP] remove ingest-user-agent plugin" {
+    remove_plugin ingest-user-agent
 }
 
 @test "[$GROUP] remove javascript plugin" {

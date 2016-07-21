@@ -19,6 +19,26 @@
 
 package org.elasticsearch.plugins;
 
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
@@ -39,34 +59,8 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.script.NativeScriptFactory;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
-
-import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
@@ -179,16 +173,8 @@ public class PluginsService extends AbstractComponent {
 
         // we don't log jars in lib/ we really shouldn't log modules,
         // but for now: just be transparent so we can debug any potential issues
-        Set<String> moduleNames = new HashSet<>();
-        Set<String> jvmPluginNames = new HashSet<>();
-        for (PluginInfo moduleInfo : info.getModuleInfos()) {
-            moduleNames.add(moduleInfo.getName());
-        }
-        for (PluginInfo pluginInfo : info.getPluginInfos()) {
-            jvmPluginNames.add(pluginInfo.getName());
-        }
-
-        logger.info("modules {}, plugins {}", moduleNames, jvmPluginNames);
+        logPluginInfo(info.getModuleInfos(), "module", logger);
+        logPluginInfo(info.getPluginInfos(), "plugin", logger);
 
         Map<Plugin, List<OnModuleReference>> onModuleReferences = new HashMap<>();
         for (Tuple<PluginInfo, Plugin> pluginEntry : plugins) {
@@ -223,6 +209,17 @@ public class PluginsService extends AbstractComponent {
             }
         }
         this.onModuleReferences = Collections.unmodifiableMap(onModuleReferences);
+    }
+
+    private static void logPluginInfo(final List<PluginInfo> pluginInfos, final String type, final ESLogger logger) {
+        assert pluginInfos != null;
+        if (pluginInfos.isEmpty()) {
+            logger.info("no " + type + "s loaded");
+        } else {
+            for (final String name : pluginInfos.stream().map(PluginInfo::getName).sorted().collect(Collectors.toList())) {
+                logger.info("loaded " + type + " [" + name + "]");
+            }
+        }
     }
 
     private List<Tuple<PluginInfo, Plugin>> plugins() {
@@ -274,10 +271,10 @@ public class PluginsService extends AbstractComponent {
         return builder.put(this.settings).build();
     }
 
-    public Collection<Module> nodeModules() {
+    public Collection<Module> createGuiceModules() {
         List<Module> modules = new ArrayList<>();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            modules.addAll(plugin.v2().nodeModules());
+            modules.addAll(plugin.v2().createGuiceModules());
         }
         return modules;
     }
@@ -290,10 +287,11 @@ public class PluginsService extends AbstractComponent {
         return builders;
     }
 
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+    /** Returns all classes injected into guice by plugins which extend {@link LifecycleComponent}. */
+    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
         List<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            services.addAll(plugin.v2().nodeServices());
+            services.addAll(plugin.v2().getGuiceServiceClasses());
         }
         return services;
     }
@@ -457,7 +455,7 @@ public class PluginsService extends AbstractComponent {
                         "Settings instance");
                 }
             }
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new ElasticsearchException("Failed to load plugin class [" + pluginClass.getName() + "]", e);
         }
     }

@@ -32,7 +32,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.indices.IndicesService;
@@ -47,8 +46,6 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
 
     private final ClusterService clusterService;
 
-    private final NodeEnvironment nodeEnv;
-
     private final GatewayMetaState metaState;
 
     private final TransportNodesListGatewayMetaState listGatewayMetaState;
@@ -57,14 +54,13 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
     private final IndicesService indicesService;
     private final NodeServicesProvider nodeServicesProvider;
 
-    public Gateway(Settings settings, ClusterService clusterService, NodeEnvironment nodeEnv, GatewayMetaState metaState,
+    public Gateway(Settings settings, ClusterService clusterService, GatewayMetaState metaState,
                    TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery,
                    NodeServicesProvider nodeServicesProvider, IndicesService indicesService) {
         super(settings);
         this.nodeServicesProvider = nodeServicesProvider;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
-        this.nodeEnv = nodeEnv;
         this.metaState = metaState;
         this.listGatewayMetaState = listGatewayMetaState;
         this.minimumMasterNodesProvider = discovery::getMinimumMasterNodes;

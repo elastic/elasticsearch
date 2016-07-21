@@ -78,18 +78,17 @@ public class GceDiscoveryPlugin extends Plugin {
     }
 
     @Override
-    public Collection<Module> nodeModules() {
+    public Collection<Module> createGuiceModules() {
         return Collections.singletonList(new GceModule(settings));
     }
 
     @Override
     @SuppressWarnings("rawtypes") // Supertype uses raw type
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
         logger.debug("Register gce compute and metadata services");
-        Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
-        services.add(GceModule.getComputeServiceImpl());
-        services.add(GceModule.getMetadataServiceImpl());
-        return services;
+        return Collections.singletonList(
+            GceModule.getComputeServiceImpl(),
+            GceModule.getMetadataServiceImpl());
     }
 
     public void onModule(DiscoveryModule discoveryModule) {

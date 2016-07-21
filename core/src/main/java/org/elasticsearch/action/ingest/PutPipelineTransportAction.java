@@ -90,7 +90,7 @@ public class PutPipelineTransportAction extends TransportMasterNodeAction<PutPip
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
         });

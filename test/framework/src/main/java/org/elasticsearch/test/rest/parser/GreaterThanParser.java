@@ -32,7 +32,8 @@ public class GreaterThanParser implements RestTestFragmentParser<GreaterThanAsse
     public GreaterThanAssertion parse(RestTestSuiteParseContext parseContext) throws IOException, RestTestParseException {
         Tuple<String,Object> stringObjectTuple = parseContext.parseTuple();
         if (! (stringObjectTuple.v2() instanceof Comparable) ) {
-            throw new RestTestParseException("gt section can only be used with objects that support natural ordering, found " + stringObjectTuple.v2().getClass().getSimpleName());
+            throw new RestTestParseException("gt section can only be used with objects that support natural ordering, found "
+                    + stringObjectTuple.v2().getClass().getSimpleName());
         }
         return new GreaterThanAssertion(stringObjectTuple.v1(), stringObjectTuple.v2());
     }

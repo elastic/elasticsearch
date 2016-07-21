@@ -78,7 +78,7 @@ public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<V
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
         });

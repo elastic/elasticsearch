@@ -44,6 +44,7 @@ import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanNotQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
@@ -107,6 +108,102 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
+    }
+
+    public void testPercolatorRangeQueries() throws Exception {
+        createIndex("test", client().admin().indices().prepareCreate("test")
+                .addMapping("type", "field1", "type=long", "field2", "type=double", "field3", "type=ip")
+                .addMapping("queries", "query", "type=percolator")
+        );
+
+        client().prepareIndex("test", "queries", "1")
+                .setSource(jsonBuilder().startObject().field("query", rangeQuery("field1").from(10).to(12)).endObject())
+                .get();
+        client().prepareIndex("test", "queries", "2")
+                .setSource(jsonBuilder().startObject().field("query", rangeQuery("field1").from(20).to(22)).endObject())
+                .get();
+        client().prepareIndex("test", "queries", "3")
+                .setSource(jsonBuilder().startObject().field("query", boolQuery()
+                        .must(rangeQuery("field1").from(10).to(12))
+                        .must(rangeQuery("field1").from(12).to(14))
+                ).endObject()).get();
+        client().admin().indices().prepareRefresh().get();
+        client().prepareIndex("test", "queries", "4")
+                .setSource(jsonBuilder().startObject().field("query", rangeQuery("field2").from(10).to(12)).endObject())
+                .get();
+        client().prepareIndex("test", "queries", "5")
+                .setSource(jsonBuilder().startObject().field("query", rangeQuery("field2").from(20).to(22)).endObject())
+                .get();
+        client().prepareIndex("test", "queries", "6")
+                .setSource(jsonBuilder().startObject().field("query", boolQuery()
+                        .must(rangeQuery("field2").from(10).to(12))
+                        .must(rangeQuery("field2").from(12).to(14))
+                ).endObject()).get();
+        client().admin().indices().prepareRefresh().get();
+        client().prepareIndex("test", "queries", "7")
+                .setSource(jsonBuilder().startObject()
+                        .field("query", rangeQuery("field3").from("192.168.1.0").to("192.168.1.5"))
+                        .endObject())
+                .get();
+        client().prepareIndex("test", "queries", "8")
+                .setSource(jsonBuilder().startObject()
+                        .field("query", rangeQuery("field3").from("192.168.1.20").to("192.168.1.30"))
+                        .endObject())
+                .get();
+        client().prepareIndex("test", "queries", "9")
+                .setSource(jsonBuilder().startObject().field("query", boolQuery()
+                        .must(rangeQuery("field3").from("192.168.1.0").to("192.168.1.5"))
+                        .must(rangeQuery("field3").from("192.168.1.5").to("192.168.1.10"))
+                ).endObject()).get();
+        client().admin().indices().prepareRefresh().get();
+
+        // Test long range:
+        BytesReference source = jsonBuilder().startObject().field("field1", 12).endObject().bytes();
+        SearchResponse response = client().prepareSearch()
+                .setQuery(new PercolateQueryBuilder("query", "type", source))
+                .get();
+        assertHitCount(response, 2);
+        assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
+        assertThat(response.getHits().getAt(1).getId(), equalTo("1"));
+
+        source = jsonBuilder().startObject().field("field1", 11).endObject().bytes();
+        response = client().prepareSearch()
+                .setQuery(new PercolateQueryBuilder("query", "type", source))
+                .get();
+        assertHitCount(response, 1);
+        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+
+        // Test double range:
+        source = jsonBuilder().startObject().field("field2", 12).endObject().bytes();
+        response = client().prepareSearch()
+                .setQuery(new PercolateQueryBuilder("query", "type", source))
+                .get();
+        assertHitCount(response, 2);
+        assertThat(response.getHits().getAt(0).getId(), equalTo("6"));
+        assertThat(response.getHits().getAt(1).getId(), equalTo("4"));
+
+        source = jsonBuilder().startObject().field("field2", 11).endObject().bytes();
+        response = client().prepareSearch()
+                .setQuery(new PercolateQueryBuilder("query", "type", source))
+                .get();
+        assertHitCount(response, 1);
+        assertThat(response.getHits().getAt(0).getId(), equalTo("4"));
+
+        // Test IP range:
+        source = jsonBuilder().startObject().field("field3", "192.168.1.5").endObject().bytes();
+        response = client().prepareSearch()
+                .setQuery(new PercolateQueryBuilder("query", "type", source))
+                .get();
+        assertHitCount(response, 2);
+        assertThat(response.getHits().getAt(0).getId(), equalTo("9"));
+        assertThat(response.getHits().getAt(1).getId(), equalTo("7"));
+
+        source = jsonBuilder().startObject().field("field3", "192.168.1.4").endObject().bytes();
+        response = client().prepareSearch()
+                .setQuery(new PercolateQueryBuilder("query", "type", source))
+                .get();
+        assertHitCount(response, 1);
+        assertThat(response.getHits().getAt(0).getId(), equalTo("7"));
     }
 
     public void testPercolatorQueryExistingDocument() throws Exception {

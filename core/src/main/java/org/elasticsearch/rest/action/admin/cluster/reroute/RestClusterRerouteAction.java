@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.admin.cluster.reroute;
 
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommandRegistry;
@@ -65,16 +65,16 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     private final AllocationCommandRegistry registry;
 
     @Inject
-    public RestClusterRerouteAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter,
+    public RestClusterRerouteAction(Settings settings, RestController controller, SettingsFilter settingsFilter,
             AllocationCommandRegistry registry) {
-        super(settings, client);
+        super(settings);
         this.settingsFilter = settingsFilter;
         this.registry = registry;
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/reroute", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         ClusterRerouteRequest clusterRerouteRequest = createRequest(request, registry, parseFieldMatcher);
         client.admin().cluster().reroute(clusterRerouteRequest, new AcknowledgedRestListener<ClusterRerouteResponse>(channel) {
             @Override

@@ -100,7 +100,7 @@ public class HotThreadsIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     logger.error("FAILED", e);
                     hasErrors.set(true);
                     latch.countDown();

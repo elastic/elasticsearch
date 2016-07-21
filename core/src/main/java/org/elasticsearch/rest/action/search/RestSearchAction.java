@@ -22,8 +22,9 @@ package org.elasticsearch.rest.action.search;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -67,9 +68,9 @@ public class RestSearchAction extends BaseRestHandler {
     private final Suggesters suggesters;
 
     @Inject
-    public RestSearchAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry queryRegistry,
+    public RestSearchAction(Settings settings, RestController controller, IndicesQueriesRegistry queryRegistry,
             AggregatorParsers aggParsers, Suggesters suggesters) {
-        super(settings, client);
+        super(settings);
         this.queryRegistry = queryRegistry;
         this.aggParsers = aggParsers;
         this.suggesters = suggesters;
@@ -82,7 +83,7 @@ public class RestSearchAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws IOException {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         BytesReference restContent = RestActions.hasBodyContent(request) ? RestActions.getRestContent(request) : null;
         parseSearchRequest(searchRequest, queryRegistry, request, parseFieldMatcher, aggParsers, suggesters, restContent);
@@ -175,27 +176,35 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
 
-        String sField = request.param("fields");
+        if (request.param("fields") != null) {
+            throw new IllegalArgumentException("The parameter [" +
+                SearchSourceBuilder.FIELDS_FIELD + "] is no longer supported, please use [" +
+                SearchSourceBuilder.STORED_FIELDS_FIELD + "] to retrieve stored fields or _source filtering " +
+                "if the field is not stored");
+        }
+
+        String sField = request.param("stored_fields");
         if (sField != null) {
             if (!Strings.hasText(sField)) {
-                searchSourceBuilder.noFields();
+                searchSourceBuilder.noStoredFields();
             } else {
                 String[] sFields = Strings.splitStringByCommaToArray(sField);
                 if (sFields != null) {
                     for (String field : sFields) {
-                        searchSourceBuilder.field(field);
+                        searchSourceBuilder.storedField(field);
                     }
                 }
             }
         }
-        String sFieldDataFields = request.param("fielddata_fields");
-        if (sFieldDataFields != null) {
-            if (Strings.hasText(sFieldDataFields)) {
-                String[] sFields = Strings.splitStringByCommaToArray(sFieldDataFields);
-                if (sFields != null) {
-                    for (String field : sFields) {
-                        searchSourceBuilder.fieldDataField(field);
-                    }
+        String sDocValueFields = request.param("docvalue_fields");
+        if (sDocValueFields == null) {
+            sDocValueFields = request.param("fielddata_fields");
+        }
+        if (sDocValueFields != null) {
+            if (Strings.hasText(sDocValueFields)) {
+                String[] sFields = Strings.splitStringByCommaToArray(sDocValueFields);
+                for (String field : sFields) {
+                    searchSourceBuilder.docValueField(field);
                 }
             }
         }

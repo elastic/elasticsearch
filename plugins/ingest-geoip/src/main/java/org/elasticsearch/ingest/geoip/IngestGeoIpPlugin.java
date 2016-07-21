@@ -19,11 +19,6 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import com.maxmind.geoip2.DatabaseReader;
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.node.NodeModule;
-import org.elasticsearch.plugins.Plugin;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -38,20 +33,31 @@ import java.util.Map;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 
-public class IngestGeoIpPlugin extends Plugin implements Closeable {
+import com.maxmind.geoip2.DatabaseReader;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.Plugin;
+
+public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable {
 
     private Map<String, DatabaseReader> databaseReaders;
 
-    public void onModule(NodeModule nodeModule) throws IOException {
+    @Override
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         if (databaseReaders != null) {
             throw new IllegalStateException("called onModule twice for geoip plugin!!");
         }
-        Path geoIpConfigDirectory = nodeModule.getNode().getEnvironment().configFile().resolve("ingest-geoip");
-        databaseReaders = loadDatabaseReaders(geoIpConfigDirectory);
-        nodeModule.registerProcessor(GeoIpProcessor.TYPE, (registry) -> new GeoIpProcessor.Factory(databaseReaders));
+        Path geoIpConfigDirectory = parameters.env.configFile().resolve("ingest-geoip");
+        try {
+            databaseReaders = loadDatabaseReaders(geoIpConfigDirectory);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return Collections.singletonMap(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(databaseReaders));
     }
 
-    public static Map<String, DatabaseReader> loadDatabaseReaders(Path geoIpConfigDirectory) throws IOException {
+    static Map<String, DatabaseReader> loadDatabaseReaders(Path geoIpConfigDirectory) throws IOException {
         if (Files.exists(geoIpConfigDirectory) == false && Files.isDirectory(geoIpConfigDirectory)) {
             throw new IllegalStateException("the geoip directory [" + geoIpConfigDirectory  + "] containing databases doesn't exist");
         }

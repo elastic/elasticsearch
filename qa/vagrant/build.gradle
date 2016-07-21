@@ -30,7 +30,7 @@ List<String> availableBoxes = [
     'centos-6',
     'centos-7',
     'debian-8',
-    'fedora-22',
+    'fedora-24',
     'oel-6',
     'oel-7',
     'opensuse-13',

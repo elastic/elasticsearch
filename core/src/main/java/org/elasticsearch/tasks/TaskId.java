@@ -31,7 +31,7 @@ import java.io.IOException;
  */
 public final class TaskId implements Writeable {
 
-    public final static TaskId EMPTY_TASK_ID = new TaskId();
+    public static final TaskId EMPTY_TASK_ID = new TaskId();
 
     private final String nodeId;
     private final long id;

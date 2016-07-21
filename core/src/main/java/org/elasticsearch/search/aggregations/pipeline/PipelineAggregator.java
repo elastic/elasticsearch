@@ -21,28 +21,26 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 
-public abstract class PipelineAggregator implements Streamable {
-
+public abstract class PipelineAggregator implements NamedWriteable {
     /**
      * Parse the {@link PipelineAggregationBuilder} from a {@link QueryParseContext}.
      */
     @FunctionalInterface
-    public static interface Parser {
-        public static final ParseField BUCKETS_PATH = new ParseField("buckets_path");
-        public static final ParseField FORMAT = new ParseField("format");
-        public static final ParseField GAP_POLICY = new ParseField("gap_policy");
+    public interface Parser {
+        ParseField BUCKETS_PATH = new ParseField("buckets_path");
+        ParseField FORMAT = new ParseField("format");
+        ParseField GAP_POLICY = new ParseField("gap_policy");
 
         /**
          * Returns the pipeline aggregator factory with which this parser is
@@ -64,14 +62,30 @@ public abstract class PipelineAggregator implements Streamable {
     private String[] bucketsPaths;
     private Map<String, Object> metaData;
 
-    protected PipelineAggregator() { // for Serialisation
-    }
-
     protected PipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metaData) {
         this.name = name;
         this.bucketsPaths = bucketsPaths;
         this.metaData = metaData;
     }
+
+    /**
+     * Read from a stream.
+     */
+    protected PipelineAggregator(StreamInput in) throws IOException {
+        name = in.readString();
+        bucketsPaths = in.readStringArray();
+        metaData = in.readMap();
+    }
+
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeStringArray(bucketsPaths);
+        out.writeMap(metaData);
+        doWriteTo(out);
+    }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
     public String name() {
         return name;
@@ -85,27 +99,5 @@ public abstract class PipelineAggregator implements Streamable {
         return metaData;
     }
 
-    public abstract Type type();
-
     public abstract InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext);
-
-    @Override
-    public final void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        out.writeStringArray(bucketsPaths);
-        out.writeMap(metaData);
-        doWriteTo(out);
-    }
-
-    protected abstract void doWriteTo(StreamOutput out) throws IOException;
-
-    @Override
-    public final void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
-        bucketsPaths = in.readStringArray();
-        metaData = in.readMap();
-        doReadFrom(in);
-    }
-
-    protected abstract void doReadFrom(StreamInput in) throws IOException;
 }

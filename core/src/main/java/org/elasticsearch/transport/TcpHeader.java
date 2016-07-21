@@ -41,7 +41,7 @@ public class TcpHeader {
         output.writeByte((byte)'E');
         output.writeByte((byte)'S');
         // write the size, the size indicates the remaining message size, not including the size int
-        output.writeInt(messageSize - TcpHeader.MARKER_BYTES_SIZE - TcpHeader.MESSAGE_LENGTH_SIZE);
+        output.writeInt(messageSize + REQUEST_ID_SIZE + STATUS_SIZE + VERSION_ID_SIZE);
         output.writeLong(requestId);
         output.writeByte(status);
         output.writeInt(version.id);

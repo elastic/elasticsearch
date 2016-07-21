@@ -22,11 +22,11 @@ package org.elasticsearch.bwcompat;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESBackcompatTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.MockTransportClient;
 
 import java.lang.reflect.Method;
 
@@ -44,9 +44,9 @@ public class NodesStatsBasicBackwardsCompatIT extends ESBackcompatTestCase {
 
         // We explicitly connect to each node with a custom TransportClient
         for (NodeInfo n : nodesInfo.getNodes()) {
-            TransportClient tc = TransportClient.builder().settings(settings).build().addTransportAddress(n.getNode().getAddress());
+            TransportClient tc = new MockTransportClient(settings).addTransportAddress(n.getNode().getAddress());
             // Just verify that the NS can be sent and serialized/deserialized between nodes with basic indices
-            NodesStatsResponse ns = tc.admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
+            tc.admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
             tc.close();
         }
     }
@@ -62,7 +62,7 @@ public class NodesStatsBasicBackwardsCompatIT extends ESBackcompatTestCase {
 
         // We explicitly connect to each node with a custom TransportClient
         for (NodeInfo n : nodesInfo.getNodes()) {
-            TransportClient tc = TransportClient.builder().settings(settings).build().addTransportAddress(n.getNode().getAddress());
+            TransportClient tc = new MockTransportClient(settings).addTransportAddress(n.getNode().getAddress());
 
             // randomize the combination of flags set
             // Uses reflection to find methods in an attempt to future-proof this test against newly added flags
@@ -78,7 +78,7 @@ public class NodesStatsBasicBackwardsCompatIT extends ESBackcompatTestCase {
                     method.invoke(nsBuilder);
                 }
             }
-            NodesStatsResponse ns = nsBuilder.execute().actionGet();
+            nsBuilder.execute().actionGet();
             tc.close();
 
         }

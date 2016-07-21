@@ -68,6 +68,23 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
         return this.type;
     }
 
+    public String getDisplayType() {
+        switch (type) {
+            case 0:
+                return "integer";
+            case 1:
+                return "float";
+            case 2:
+                return "date";
+            case 3:
+                return "string";
+            case 4:
+                return "ip";
+            default:
+                throw new IllegalArgumentException("Unknown type.");
+        }
+    }
+
     /**
      * @return the total number of documents.
      *
@@ -220,23 +237,24 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Fields.MAX_DOC, maxDoc);
-        builder.field(Fields.DOC_COUNT, docCount);
-        builder.field(Fields.DENSITY, getDensity());
-        builder.field(Fields.SUM_DOC_FREQ, sumDocFreq);
-        builder.field(Fields.SUM_TOTAL_TERM_FREQ, sumTotalTermFreq);
-        builder.field(Fields.SEARCHABLE, isSearchable);
-        builder.field(Fields.AGGREGATABLE, isAggregatable);
+        builder.field(TYPE_FIELD, getDisplayType());
+        builder.field(MAX_DOC_FIELD, maxDoc);
+        builder.field(DOC_COUNT_FIELD, docCount);
+        builder.field(DENSITY_FIELD, getDensity());
+        builder.field(SUM_DOC_FREQ_FIELD, sumDocFreq);
+        builder.field(SUM_TOTAL_TERM_FREQ_FIELD, sumTotalTermFreq);
+        builder.field(SEARCHABLE_FIELD, isSearchable);
+        builder.field(AGGREGATABLE_FIELD, isAggregatable);
         toInnerXContent(builder);
         builder.endObject();
         return builder;
     }
 
     protected void toInnerXContent(XContentBuilder builder) throws IOException {
-        builder.field(Fields.MIN_VALUE, getMinValue());
-        builder.field(Fields.MIN_VALUE_AS_STRING, getMinValueAsString());
-        builder.field(Fields.MAX_VALUE, getMaxValue());
-        builder.field(Fields.MAX_VALUE_AS_STRING, getMaxValueAsString());
+        builder.field(MIN_VALUE_FIELD, getMinValue());
+        builder.field(MIN_VALUE_AS_STRING_FIELD, getMinValueAsString());
+        builder.field(MAX_VALUE_FIELD, getMaxValue());
+        builder.field(MAX_VALUE_AS_STRING_FIELD, getMaxValueAsString());
     }
 
     @Override
@@ -484,8 +502,8 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
 
         @Override
         protected void toInnerXContent(XContentBuilder builder) throws IOException {
-            builder.field(Fields.MIN_VALUE, getMinValueAsString());
-            builder.field(Fields.MAX_VALUE, getMaxValueAsString());
+            builder.field(MIN_VALUE_FIELD, getMinValueAsString());
+            builder.field(MAX_VALUE_FIELD, getMaxValueAsString());
         }
     }
 
@@ -598,34 +616,16 @@ public abstract class FieldStats<T> implements Writeable, ToXContent {
         }
     }
 
-    public static String typeName(byte type) {
-        switch (type) {
-            case 0:
-                return "whole-number";
-            case 1:
-                return "floating-point";
-            case 2:
-                return "date";
-            case 3:
-                return "text";
-            case 4:
-                return "ip";
-            default:
-                throw new IllegalArgumentException("Unknown type.");
-        }
-    }
-
-    private final static class Fields {
-        final static String MAX_DOC = new String("max_doc");
-        final static String DOC_COUNT = new String("doc_count");
-        final static String DENSITY = new String("density");
-        final static String SUM_DOC_FREQ = new String("sum_doc_freq");
-        final static String SUM_TOTAL_TERM_FREQ = new String("sum_total_term_freq");
-        final static String SEARCHABLE = new String("searchable");
-        final static String AGGREGATABLE = new String("aggregatable");
-        final static String MIN_VALUE = new String("min_value");
-        final static String MIN_VALUE_AS_STRING = new String("min_value_as_string");
-        final static String MAX_VALUE = new String("max_value");
-        final static String MAX_VALUE_AS_STRING = new String("max_value_as_string");
-    }
+    static final String TYPE_FIELD = new String("type");
+    static final String MAX_DOC_FIELD = new String("max_doc");
+    static final String DOC_COUNT_FIELD = new String("doc_count");
+    static final String DENSITY_FIELD = new String("density");
+    static final String SUM_DOC_FREQ_FIELD = new String("sum_doc_freq");
+    static final String SUM_TOTAL_TERM_FREQ_FIELD = new String("sum_total_term_freq");
+    static final String SEARCHABLE_FIELD = new String("searchable");
+    static final String AGGREGATABLE_FIELD = new String("aggregatable");
+    static final String MIN_VALUE_FIELD = new String("min_value");
+    static final String MIN_VALUE_AS_STRING_FIELD = new String("min_value_as_string");
+    static final String MAX_VALUE_FIELD = new String("max_value");
+    static final String MAX_VALUE_AS_STRING_FIELD = new String("max_value_as_string");
 }

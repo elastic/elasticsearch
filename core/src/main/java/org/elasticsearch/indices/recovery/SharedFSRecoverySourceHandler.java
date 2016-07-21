@@ -19,11 +19,14 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * A recovery handler that skips phase 1 as well as sending the snapshot. During phase 3 the shard is marked
@@ -34,9 +37,10 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
     private final IndexShard shard;
     private final StartRecoveryRequest request;
 
-    public SharedFSRecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, StartRecoveryRequest request, ESLogger
-            logger) {
-        super(shard, recoveryTarget, request, -1, logger);
+    public SharedFSRecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, StartRecoveryRequest request,
+                                         Supplier<Long> currentClusterStateVersionSupplier,
+                                         Function<String, Releasable> delayNewRecoveries, ESLogger logger) {
+        super(shard, recoveryTarget, request, currentClusterStateVersionSupplier, delayNewRecoveries, -1, logger);
         this.shard = shard;
         this.request = request;
     }
@@ -61,7 +65,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
             prepareTargetForTranslog(0);
             finalizeRecovery();
             return response;
-        } catch (Throwable t) {
+        } catch (Exception e) {
             if (engineClosed) {
                 // If the relocation fails then the primary is closed and can't be
                 // used anymore... (because it's closed) that's a problem, so in
@@ -69,11 +73,11 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
                 // create a new IndexWriter
                 logger.info("recovery failed for primary shadow shard, failing shard");
                 // pass the failure as null, as we want to ensure the store is not marked as corrupted
-                shard.failShard("primary relocation failed on shared filesystem", t);
+                shard.failShard("primary relocation failed on shared filesystem", e);
             } else {
-                logger.info("recovery failed on shared filesystem", t);
+                logger.info("recovery failed on shared filesystem", e);
             }
-            throw t;
+            throw e;
         }
     }
 

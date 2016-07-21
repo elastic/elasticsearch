@@ -91,8 +91,8 @@ public class DeflateCompressedXContentTests extends ESTestCase {
         // of different size are being used
         assertFalse(b1.equals(b2));
         // we used the compressed representation directly and did not recompress
-        assertArrayEquals(b1.toBytes(), new CompressedXContent(b1).compressed());
-        assertArrayEquals(b2.toBytes(), new CompressedXContent(b2).compressed());
+        assertArrayEquals(BytesReference.toBytes(b1), new CompressedXContent(b1).compressed());
+        assertArrayEquals(BytesReference.toBytes(b2), new CompressedXContent(b2).compressed());
         // but compressedstring instances are still equal
         assertEquals(new CompressedXContent(b1), new CompressedXContent(b2));
     }

@@ -148,7 +148,7 @@ public class ShardStateActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception e) {
                 success.set(false);
                 latch.countDown();
                 assert false;
@@ -196,7 +196,7 @@ public class ShardStateActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 success.set(false);
                 latch.countDown();
                 assert false;
@@ -245,9 +245,9 @@ public class ShardStateActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception e) {
                 success.set(false);
-                throwable.set(t);
+                throwable.set(e);
                 latch.countDown();
                 assert false;
             }
@@ -281,7 +281,7 @@ public class ShardStateActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception e) {
                 failure.set(true);
             }
         });
@@ -313,7 +313,7 @@ public class ShardStateActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception e) {
                 success.set(false);
                 latch.countDown();
                 assert false;
@@ -348,8 +348,8 @@ public class ShardStateActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                failure.set(t);
+            public void onFailure(Exception e) {
+                failure.set(e);
                 latch.countDown();
             }
         });
@@ -401,7 +401,7 @@ public class ShardStateActionTests extends ESTestCase {
         }
     }
 
-    private Throwable getSimulatedFailure() {
+    private Exception getSimulatedFailure() {
         return new CorruptIndexException("simulated", (String) null);
     }
 }

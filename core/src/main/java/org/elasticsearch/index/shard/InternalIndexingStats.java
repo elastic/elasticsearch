@@ -86,7 +86,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     @Override
-    public void postIndex(Engine.Index index, Throwable ex) {
+    public void postIndex(Engine.Index index, Exception ex) {
         if (!index.origin().isRecovery()) {
             totalStats.indexCurrent.dec();
             typeStats(index.type()).indexCurrent.dec();
@@ -118,7 +118,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
     }
 
     @Override
-    public void postDelete(Engine.Delete delete, Throwable ex) {
+    public void postDelete(Engine.Delete delete, Exception ex) {
         if (!delete.origin().isRecovery()) {
             totalStats.deleteCurrent.dec();
             typeStats(delete.type()).deleteCurrent.dec();

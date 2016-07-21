@@ -87,7 +87,7 @@ public class TimestampTTLBWIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .setSize(randomIntBetween(1, numDocs + 5))
                 .addSort("_timestamp", order)
-                .addField("_timestamp")
+                .addStoredField("_timestamp")
                 .execute().actionGet();
         assertNoFailures(searchResponse);
         SearchHit[] hits = searchResponse.getHits().hits();

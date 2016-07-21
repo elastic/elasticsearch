@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,7 +38,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation.FailedShard;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.recovery.RecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -123,7 +124,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         for (Iterator<Entry<DiscoveryNode, IndicesClusterStateService>> it = clusterStateServiceMap.entrySet().iterator(); it.hasNext(); ) {
             DiscoveryNode node = it.next().getKey();
-            if (state.nodes().nodeExists(node.getId()) == false) {
+            if (state.nodes().nodeExists(node) == false) {
                 it.remove();
             }
         }
@@ -140,7 +141,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             CreateIndexRequest request = new CreateIndexRequest(name, Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
                 .put(SETTING_NUMBER_OF_REPLICAS, randomInt(2))
-                .build());
+                .build()).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metaData().hasIndex(name));
         }
@@ -254,7 +255,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         for (DiscoveryNode.Role mustHaveRole : mustHaveRoles) {
             roles.add(mustHaveRole);
         }
-        return new DiscoveryNode("node_" + randomAsciiOfLength(8), DummyTransportAddress.INSTANCE, Collections.emptyMap(), roles,
+        return new DiscoveryNode("node_" + randomAsciiOfLength(8), LocalTransportAddress.buildUnique(), Collections.emptyMap(), roles,
             Version.CURRENT);
     }
 
@@ -270,7 +271,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final TransportService transportService = new TransportService(Settings.EMPTY, null, threadPool);
         final ClusterService clusterService = mock(ClusterService.class);
         final RepositoriesService repositoriesService = new RepositoriesService(Settings.EMPTY, clusterService,
-            transportService, null, null);
+            transportService, null);
         final RecoveryTargetService recoveryTargetService = new RecoveryTargetService(Settings.EMPTY, threadPool,
             transportService, null, clusterService);
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);

@@ -32,7 +32,7 @@ import org.gradle.util.ConfigureUtil
  */
 public class RestIntegTestTask extends RandomizedTestingTask {
 
-    ClusterConfiguration clusterConfig = new ClusterConfiguration()
+    ClusterConfiguration clusterConfig
 
     /** Flag indicating whether the rest tests in the rest spec should be run. */
     @Input
@@ -44,6 +44,7 @@ public class RestIntegTestTask extends RandomizedTestingTask {
         dependsOn(project.testClasses)
         classpath = project.sourceSets.test.runtimeClasspath
         testClassesDir = project.sourceSets.test.output.classesDir
+        clusterConfig = new ClusterConfiguration(project)
 
         // start with the common test configuration
         configure(BuildPlugin.commonTestConfig(project))

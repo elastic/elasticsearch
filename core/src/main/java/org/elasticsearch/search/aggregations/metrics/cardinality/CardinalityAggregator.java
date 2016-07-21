@@ -156,7 +156,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         Releasables.close(counts, collector);
     }
 
-    private static abstract class Collector extends LeafBucketCollector implements Releasable {
+    private abstract static class Collector extends LeafBucketCollector implements Releasable {
 
         public abstract void postCollect();
 
@@ -293,7 +293,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     /**
      * Representation of a list of hash values. There might be dups and there is no guarantee on the order.
      */
-    static abstract class MurmurHash3Values {
+    abstract static class MurmurHash3Values {
 
         public abstract void setDocument(int docId);
 

@@ -104,9 +104,9 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.error("unexpected failure during [{}]", t, source);
-                    listener.onFailure(t);
+                public void onFailure(String source, Exception e) {
+                    logger.error("unexpected failure during [{}]", e, source);
+                    listener.onFailure(e);
                 }
 
                 @Override

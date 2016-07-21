@@ -39,8 +39,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 /**
  * Abstract base class for allocating an unassigned shard to a node
@@ -62,7 +60,7 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
     /**
      * Works around ObjectParser not supporting constructor arguments.
      */
-    protected static abstract class Builder<T extends AbstractAllocateAllocationCommand> {
+    protected abstract static class Builder<T extends AbstractAllocateAllocationCommand> {
         protected String index;
         protected int shard = -1;
         protected String node;

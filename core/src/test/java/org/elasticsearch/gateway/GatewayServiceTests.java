@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -36,11 +35,8 @@ public class GatewayServiceTests extends ESTestCase {
         ClusterService clusterService = new ClusterService(Settings.builder().put("cluster.name", "GatewayServiceTests").build(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 null);
-        return new GatewayService(Settings.builder()
-                .put("http.enabled", "false")
-                .put("discovery.type", "local")
-                .put(settings.build()).build(),
-                null, clusterService, null, null, null, null, new NoopDiscovery(), null, null);
+        return new GatewayService(settings.build(),
+                null, clusterService, null, null, null, new NoopDiscovery(), null, null);
     }
 
     public void testDefaultRecoverAfterTime() throws IOException {

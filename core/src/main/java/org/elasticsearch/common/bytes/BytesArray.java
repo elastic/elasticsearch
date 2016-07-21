@@ -27,19 +27,15 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
-public final class BytesArray implements BytesReference {
+public final class BytesArray extends BytesReference {
 
     public static final BytesArray EMPTY = new BytesArray(BytesRef.EMPTY_BYTES, 0, 0);
-
-    private byte[] bytes;
-    private int offset;
-    private int length;
+    private final byte[] bytes;
+    private final int offset;
+    private final int length;
 
     public BytesArray(String bytes) {
-        BytesRef bytesRef = new BytesRef(bytes);
-        this.bytes = bytesRef.bytes;
-        this.offset = bytesRef.offset;
-        this.length = bytesRef.length;
+        this(new BytesRef(bytes));
     }
 
     public BytesArray(BytesRef bytesRef) {
@@ -48,21 +44,15 @@ public final class BytesArray implements BytesReference {
 
     public BytesArray(BytesRef bytesRef, boolean deepCopy) {
         if (deepCopy) {
-            BytesRef copy = BytesRef.deepCopyOf(bytesRef);
-            bytes = copy.bytes;
-            offset = copy.offset;
-            length = copy.length;
-        } else {
-            bytes = bytesRef.bytes;
-            offset = bytesRef.offset;
-            length = bytesRef.length;
+            bytesRef = BytesRef.deepCopyOf(bytesRef);
         }
+        bytes = bytesRef.bytes;
+        offset = bytesRef.offset;
+        length = bytesRef.length;
     }
 
     public BytesArray(byte[] bytes) {
-        this.bytes = bytes;
-        this.offset = 0;
-        this.length = bytes.length;
+        this(bytes, 0, bytes.length);
     }
 
     public BytesArray(byte[] bytes, int offset, int length) {
@@ -89,55 +79,12 @@ public final class BytesArray implements BytesReference {
         return new BytesArray(bytes, offset + from, length);
     }
 
-    @Override
-    public StreamInput streamInput() {
-        return StreamInput.wrap(bytes, offset, length);
-    }
-
-    @Override
-    public void writeTo(OutputStream os) throws IOException {
-        os.write(bytes, offset, length);
-    }
-
-    @Override
-    public byte[] toBytes() {
-        if (offset == 0 && bytes.length == length) {
-            return bytes;
-        }
-        return Arrays.copyOfRange(bytes, offset, offset + length);
-    }
-
-    @Override
-    public BytesArray toBytesArray() {
-        return this;
-    }
-
-    @Override
-    public BytesArray copyBytesArray() {
-        return new BytesArray(Arrays.copyOfRange(bytes, offset, offset + length));
-    }
-
-    @Override
-    public boolean hasArray() {
-        return true;
-    }
-
-    @Override
     public byte[] array() {
         return bytes;
     }
 
-    @Override
-    public int arrayOffset() {
+    public int offset() {
         return offset;
-    }
-
-    @Override
-    public String toUtf8() {
-        if (length == 0) {
-            return "";
-        }
-        return new String(bytes, offset, length, StandardCharsets.UTF_8);
     }
 
     @Override
@@ -146,17 +93,8 @@ public final class BytesArray implements BytesReference {
     }
 
     @Override
-    public BytesRef copyBytesRef() {
-        return new BytesRef(Arrays.copyOfRange(bytes, offset, offset + length));
+    public long ramBytesUsed() {
+        return bytes.length;
     }
 
-    @Override
-    public int hashCode() {
-        return Helper.bytesHashCode(this);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        return Helper.bytesEqual(this, (BytesReference) obj);
-    }
 }

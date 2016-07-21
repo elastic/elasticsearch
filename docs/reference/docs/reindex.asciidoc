@@ -39,7 +39,7 @@ That will return something like this:
     "search": 0
   },
   "throttled_millis": 0,
-  "requests_per_second": "unlimited",
+  "requests_per_second": -1.0,
   "throttled_until_millis": 0,
   "total": 120,
   "failures" : [ ]
@@ -178,7 +178,7 @@ POST _reindex
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT twitter\nPUT blog\nGET _cluster\/health?wait_for_status=yellow\n/]
+// TEST[s/^/PUT twitter\nPUT blog\n/]
 
 It's also possible to limit the number of processed documents by setting
 `size`. This will only copy a single document from `twitter` to
@@ -320,7 +320,7 @@ POST _reindex
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
+// TEST[s/^/PUT source\n/]
 
 By default `_reindex` uses scroll batches of 1000. You can change the
 batch size with the `size` field in the `source` element:
@@ -340,7 +340,7 @@ POST _reindex
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
+// TEST[s/^/PUT source\n/]
 
 Reindex can also use the <<ingest>> feature by specifying a
 `pipeline` like this:
@@ -359,7 +359,61 @@ POST _reindex
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT source\nGET _cluster\/health?wait_for_status=yellow\n/]
+// TEST[s/^/PUT source\n/]
+
+[float]
+=== Reindex from Remote
+
+Reindex supports reindexing from a remote Elasticsearch cluster:
+
+[source,js]
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "remote": {
+      "host": "http://otherhost:9200",
+      "username": "user",
+      "password": "pass"
+    },
+    "index": "source",
+    "query": {
+      "match": {
+        "test": "data"
+      }
+    }
+  },
+  "dest": {
+    "index": "dest"
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:host]
+// TEST[s/^/PUT source\n/]
+// TEST[s/otherhost:9200",/\${host}"/]
+// TEST[s/"username": "user",//]
+// TEST[s/"password": "pass"//]
+
+The `host` parameter must contain a scheme, host, and port (e.g.
+`https://otherhost:9200`). The `username` and `password` parameters are
+optional and when they are present reindex will connect to the remote
+Elasticsearch node using using basic auth. Be sure to use `https` when using
+basic auth or the password will be sent in plain text.
+
+Remote hosts have to be explicitly whitelisted in elasticsearch.yaml using the
+`reindex.remote.whitelist` property. It can be set to a comma delimited list
+of allowed remote `host` and `port` combinations (e.g.
+`otherhost:9200, another:9200`). Scheme is ignored by the whitelist - only host
+and port are used.
+
+This feature should work with remote clusters of any version of Elasticsearch
+you are likely to find. This should allow you to upgrade from any version of
+Elasticsearch to the current version by reindexing from a cluster of the old
+version.
+
+To enable queries sent to older versions of Elasticsearch the `query` parameter
+is sent directly to the remote host without validation or modification.
 
 [float]
 === URL Parameters
@@ -385,15 +439,15 @@ request. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
 <<docs-bulk,Bulk API>>.
 
-`requests_per_second` can be set to any decimal number (`1.4`, `6`, `1000`, etc)
-and throttles the number of requests per second that the reindex issues. The
-throttling is done waiting between bulk batches so that it can manipulate the
-scroll timeout. The wait time is the difference between the time it took the
-batch to complete and the time `requests_per_second * requests_in_the_batch`.
-Since the batch isn't broken into multiple bulk requests large batch sizes will
-cause Elasticsearch to create many requests and then wait for a while before
-starting the next set. This is "bursty" instead of "smooth". The default is
-`unlimited` which is also the only non-number value that it accepts.
+`requests_per_second` can be set to any positive decimal number (`1.4`, `6`,
+`1000`, etc) and throttles the number of requests per second that the reindex
+issues or it can be set to `-1` to disabled throttling. The throttling is done
+waiting between bulk batches so that it can manipulate the scroll timeout. The
+wait time is the difference between the time it took the batch to complete and
+the time `requests_per_second * requests_in_the_batch`. Since the batch isn't
+broken into multiple bulk requests large batch sizes will cause Elasticsearch
+to create many requests and then wait for a while before starting the next set.
+This is "bursty" instead of "smooth". The default is `-1`.
 
 [float]
 [[docs-reindex-response-body]]
@@ -559,18 +613,18 @@ the `_rethrottle` API:
 
 [source,js]
 --------------------------------------------------
-POST _reindex/taskid:1/_rethrottle?requests_per_second=unlimited
+POST _reindex/taskid:1/_rethrottle?requests_per_second=-1
 --------------------------------------------------
 // CONSOLE
 
 The `task_id` can be found using the tasks API above.
 
-Just like when setting it on the `_reindex` API `requests_per_second` can be
-either `unlimited` to disable throttling or any decimal number like `1.7` or
-`12` to throttle to that level. Rethrottling that speeds up the query takes
-effect immediately but rethrotting that slows down the query will take effect
-on after completing the current batch. This prevents scroll timeouts.
-
+Just like when setting it on the `_reindex` API `requests_per_second`
+can be either `-1` to disable throttling or any decimal number
+like `1.7` or `12` to throttle to that level. Rethrottling that speeds up the
+query takes effect immediately but rethrotting that slows down the query will
+take effect on after completing the current batch. This prevents scroll
+timeouts.
 
 [float]
 === Reindex to change the name of a field

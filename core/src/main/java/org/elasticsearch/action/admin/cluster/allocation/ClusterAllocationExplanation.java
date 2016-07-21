@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Nullable;
@@ -48,10 +49,11 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
     private final long allocationDelayMillis;
     private final long remainingDelayMillis;
     private final Map<DiscoveryNode, NodeExplanation> nodeExplanations;
+    private final ClusterInfo clusterInfo;
 
     public ClusterAllocationExplanation(ShardId shard, boolean primary, @Nullable String assignedNodeId, long allocationDelayMillis,
                                         long remainingDelayMillis, @Nullable UnassignedInfo unassignedInfo, boolean hasPendingAsyncFetch,
-                                        Map<DiscoveryNode, NodeExplanation> nodeExplanations) {
+                                        Map<DiscoveryNode, NodeExplanation> nodeExplanations, @Nullable ClusterInfo clusterInfo) {
         this.shard = shard;
         this.primary = primary;
         this.hasPendingAsyncFetch = hasPendingAsyncFetch;
@@ -60,6 +62,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         this.allocationDelayMillis = allocationDelayMillis;
         this.remainingDelayMillis = remainingDelayMillis;
         this.nodeExplanations = nodeExplanations;
+        this.clusterInfo = clusterInfo;
     }
 
     public ClusterAllocationExplanation(StreamInput in) throws IOException {
@@ -78,6 +81,11 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
             nodeToExplanation.put(nodeExplanation.getNode(), nodeExplanation);
         }
         this.nodeExplanations = nodeToExplanation;
+        if (in.readBoolean()) {
+            this.clusterInfo = new ClusterInfo(in);
+        } else {
+            this.clusterInfo = null;
+        }
     }
 
     @Override
@@ -93,6 +101,12 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         out.writeVInt(this.nodeExplanations.size());
         for (NodeExplanation explanation : this.nodeExplanations.values()) {
             explanation.writeTo(out);
+        }
+        if (this.clusterInfo != null) {
+            out.writeBoolean(true);
+            this.clusterInfo.writeTo(out);
+        } else {
+            out.writeBoolean(false);
         }
     }
 
@@ -143,6 +157,12 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         return this.nodeExplanations;
     }
 
+    /** Return the cluster disk info for the cluster or null if none available */
+    @Nullable
+    public ClusterInfo getClusterInfo() {
+        return this.clusterInfo;
+    }
+
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(); {
             builder.startObject("shard"); {
@@ -164,11 +184,18 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
                 builder.timeValueField("allocation_delay_in_millis", "allocation_delay", TimeValue.timeValueMillis(allocationDelayMillis));
                 builder.timeValueField("remaining_delay_in_millis", "remaining_delay", TimeValue.timeValueMillis(remainingDelayMillis));
             }
-            builder.startObject("nodes");
-            for (NodeExplanation explanation : nodeExplanations.values()) {
-                explanation.toXContent(builder, params);
+            builder.startObject("nodes"); {
+                for (NodeExplanation explanation : nodeExplanations.values()) {
+                    explanation.toXContent(builder, params);
+                }
             }
             builder.endObject(); // end nodes
+            if (this.clusterInfo != null) {
+                builder.startObject("cluster_info"); {
+                    this.clusterInfo.toXContent(builder, params);
+                }
+                builder.endObject(); // end "cluster_info"
+            }
         }
         builder.endObject(); // end wrapping object
         return builder;

@@ -166,9 +166,9 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
 
     private SearchRequestBuilder prepareSearch() {
         SearchRequestBuilder request = client().prepareSearch("test").setTypes("test");
-        request.addField("foo.token_count");
+        request.addStoredField("foo.token_count");
         if (loadCountedFields) {
-            request.addField("foo");
+            request.addStoredField("foo");
         }
         return request;
     }

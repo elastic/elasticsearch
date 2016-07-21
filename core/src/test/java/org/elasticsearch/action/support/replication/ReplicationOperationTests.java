@@ -81,11 +81,11 @@ public class ReplicationOperationTests extends ESTestCase {
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, state);
 
-        final Map<ShardRouting, Throwable> expectedFailures = new HashMap<>();
+        final Map<ShardRouting, Exception> expectedFailures = new HashMap<>();
         final Set<ShardRouting> expectedFailedShards = new HashSet<>();
         for (ShardRouting replica : expectedReplicas) {
             if (randomBoolean()) {
-                Throwable t;
+                Exception t;
                 boolean criticalFailure = randomBoolean();
                 if (criticalFailure) {
                     t = new CorruptIndexException("simulated", (String) null);
@@ -166,7 +166,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, state);
 
-        final Map<ShardRouting, Throwable> expectedFailures = new HashMap<>();
+        final Map<ShardRouting, Exception> expectedFailures = new HashMap<>();
         final ShardRouting failedReplica = randomFrom(new ArrayList<>(expectedReplicas));
         expectedFailures.put(failedReplica, new CorruptIndexException("simulated", (String) null));
 
@@ -175,9 +175,9 @@ public class ReplicationOperationTests extends ESTestCase {
         final ClusterState finalState = state;
         final TestReplicaProxy replicasProxy = new TestReplicaProxy(expectedFailures) {
             @Override
-            public void failShard(ShardRouting replica, ShardRouting primary, String message, Throwable throwable,
-                                  Runnable onSuccess, Consumer<Throwable> onPrimaryDemoted,
-                                  Consumer<Throwable> onIgnoredFailure) {
+            public void failShard(ShardRouting replica, ShardRouting primary, String message, Exception exception,
+                                  Runnable onSuccess, Consumer<Exception> onPrimaryDemoted,
+                                  Consumer<Exception> onIgnoredFailure) {
                 assertThat(replica, equalTo(failedReplica));
                 onPrimaryDemoted.accept(new ElasticsearchException("the king is dead"));
             }
@@ -185,7 +185,7 @@ public class ReplicationOperationTests extends ESTestCase {
         AtomicBoolean primaryFailed = new AtomicBoolean();
         final TestPrimary primary = new TestPrimary(primaryShard, primaryTerm) {
             @Override
-            public void failShard(String message, Throwable throwable) {
+            public void failShard(String message, Exception exception) {
                 assertTrue(primaryFailed.compareAndSet(false, true));
             }
         };
@@ -376,8 +376,8 @@ public class ReplicationOperationTests extends ESTestCase {
         }
 
         @Override
-        public void failShard(String message, Throwable throwable) {
-            throw new AssertionError("should shouldn't be failed with [" + message + "]", throwable);
+        public void failShard(String message, Exception exception) {
+            throw new AssertionError("should shouldn't be failed with [" + message + "]", exception);
         }
 
         @Override
@@ -415,7 +415,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
     static class TestReplicaProxy implements ReplicationOperation.Replicas<Request> {
 
-        final Map<ShardRouting, Throwable> opFailures;
+        final Map<ShardRouting, Exception> opFailures;
 
         final Set<ShardRouting> failedReplicas = ConcurrentCollections.newConcurrentSet();
 
@@ -423,7 +423,7 @@ public class ReplicationOperationTests extends ESTestCase {
             this(Collections.emptyMap());
         }
 
-        TestReplicaProxy(Map<ShardRouting, Throwable> opFailures) {
+        TestReplicaProxy(Map<ShardRouting, Exception> opFailures) {
             this.opFailures = opFailures;
         }
 
@@ -438,8 +438,8 @@ public class ReplicationOperationTests extends ESTestCase {
         }
 
         @Override
-        public void failShard(ShardRouting replica, ShardRouting primary, String message, Throwable throwable, Runnable onSuccess,
-                              Consumer<Throwable> onPrimaryDemoted, Consumer<Throwable> onIgnoredFailure) {
+        public void failShard(ShardRouting replica, ShardRouting primary, String message, Exception exception, Runnable onSuccess,
+                              Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
             if (failedReplicas.add(replica) == false) {
                 fail("replica [" + replica + "] was failed twice");
             }

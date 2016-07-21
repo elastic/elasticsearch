@@ -65,11 +65,8 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -800,7 +797,7 @@ public class UpdateIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(numberOfThreads);
         final CountDownLatch startLatch = new CountDownLatch(1);
         final int numberOfUpdatesPerThread = scaledRandomIntBetween(100, 500);
-        final List<Throwable> failures = new CopyOnWriteArrayList<>();
+        final List<Exception> failures = new CopyOnWriteArrayList<>();
 
         for (int i = 0; i < numberOfThreads; i++) {
             Runnable r = new Runnable() {
@@ -832,7 +829,7 @@ public class UpdateIT extends ESIntegTestCase {
                         logger.warn("Test was forcefully stopped. Client [{}] may still have outstanding requests.", Thread.currentThread().getName());
                         failures.add(e);
                         Thread.currentThread().interrupt();
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         failures.add(e);
                     } finally {
                         latch.countDown();
@@ -900,7 +897,7 @@ public class UpdateIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     synchronized (failedMap) {
                         incrementMapValue(id, failedMap);
                     }
@@ -922,7 +919,7 @@ public class UpdateIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     synchronized (failedMap) {
                         incrementMapValue(id, failedMap);
                     }
@@ -976,7 +973,7 @@ public class UpdateIT extends ESIntegTestCase {
                             }
                         }
                     }
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     logger.error("Something went wrong", e);
                     failures.add(e);
                 } finally {

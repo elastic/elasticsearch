@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
-import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -146,7 +145,6 @@ public class ClusterModule extends AbstractModule {
         bind(ClusterInfoService.class).to(clusterInfoServiceImpl).asEagerSingleton();
         bind(GatewayAllocator.class).asEagerSingleton();
         bind(AllocationService.class).asEagerSingleton();
-        bind(DiscoveryNodeService.class).asEagerSingleton();
         bind(ClusterService.class).toInstance(clusterService);
         bind(NodeConnectionsService.class).asEagerSingleton();
         bind(MetaDataCreateIndexService.class).asEagerSingleton();

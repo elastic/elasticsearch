@@ -34,11 +34,11 @@ import java.util.List;
 import java.util.Map;
 
 public class SumBucketPipelineAggregationBuilder extends BucketMetricsPipelineAggregationBuilder<SumBucketPipelineAggregationBuilder> {
-    public static final String NAME = SumBucketPipelineAggregator.TYPE.name();
+    public static final String NAME = "sum_bucket";
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public SumBucketPipelineAggregationBuilder(String name, String bucketsPath) {
-        super(name, SumBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
+        super(name, NAME, new String[] { bucketsPath });
     }
 
     /**

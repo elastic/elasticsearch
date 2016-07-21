@@ -391,7 +391,7 @@ public class QueryPhase implements SearchPhase {
 
             return rescore;
 
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext, "Failed to execute main query", e);
         }
     }

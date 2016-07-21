@@ -95,7 +95,7 @@ setup:
   - do:
       search:
         body:
-          fields: [ include.field2 ]
+          stored_fields: [ include.field2 ]
           query: { match_all: {} }
   - is_false:  hits.hits.0._source
 
@@ -104,7 +104,7 @@ setup:
   - do:
         search:
           body:
-            fields: [ include.field2, _source ]
+            stored_fields: [ include.field2, _source ]
             query: { match_all: {} }
   - match: { hits.hits.0._source.include.field2: v2 }
   - is_true:  hits.hits.0._source
@@ -113,5 +113,5 @@ setup:
 "fielddata_fields":
   - do:
       search:
-        fielddata_fields: [ "count" ]
+        docvalue_fields: [ "count" ]
   - match: { hits.hits.0.fields.count: [1] }

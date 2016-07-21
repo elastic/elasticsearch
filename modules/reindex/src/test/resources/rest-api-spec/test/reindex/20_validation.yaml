@@ -152,7 +152,7 @@
 ---
 "requests_per_second cannot be an empty string":
   - do:
-      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      catch: /\[requests_per_second\] must be a float greater than 0. Use -1 to disable throttling./
       reindex:
         requests_per_second: ""
         body:
@@ -164,7 +164,7 @@
 ---
 "requests_per_second cannot be negative":
   - do:
-      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      catch: /\[requests_per_second\] must be a float greater than 0. Use -1 to disable throttling./
       reindex:
         requests_per_second: -12
         body:
@@ -176,9 +176,21 @@
 ---
 "requests_per_second cannot be zero":
   - do:
-      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      catch: /\[requests_per_second\] must be a float greater than 0. Use -1 to disable throttling./
       reindex:
         requests_per_second: 0
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+
+---
+"requests_per_second cannot be unlimited":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use -1 to disable throttling./
+      reindex:
+        requests_per_second: unlimited
         body:
           source:
             index: test
@@ -216,11 +228,54 @@
 ---
 "source fields may not be modified":
   - do:
-      catch: /fields is not supported in this context/
+      catch: /stored_fields is not supported in this context/
       reindex:
         body:
           source:
             index: test
-            fields: [_id]
+            stored_fields: [_id]
+          dest:
+            index: dest
+
+---
+"unwhitelisted remote host fails":
+  - do:
+      catch: /\[badremote:9200\] not whitelisted in reindex.remote.whitelist/
+      reindex:
+        body:
+          source:
+            remote:
+              host: http://badremote:9200
+            index: test
+          dest:
+            index: dest
+
+---
+"badly formatted remote host fails":
+  - do:
+      catch: /\[host\] must be of the form \[scheme\].//\[host\].\[port\]/
+      reindex:
+        body:
+          source:
+            remote:
+              host: badremote
+              weird: stuff
+              badkey: is bad
+            index: test
+          dest:
+            index: dest
+
+---
+"junk in remote fails":
+  - do:
+      catch: /Unsupported fields in \[remote\]. \[weird,badkey\]/
+      reindex:
+        body:
+          source:
+            remote:
+              host: http://okremote:9200
+              weird: stuff
+              badkey: is bad
+            index: test
           dest:
             index: dest

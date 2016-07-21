@@ -70,7 +70,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public abstract class SearchContext implements Releasable {
 
     private static ThreadLocal<SearchContext> current = new ThreadLocal<>();
-    public final static int DEFAULT_TERMINATE_AFTER = 0;
+    public static final int DEFAULT_TERMINATE_AFTER = 0;
 
     public static void setCurrent(SearchContext value) {
         current.set(value);
@@ -142,15 +142,6 @@ public abstract class SearchContext implements Releasable {
         nowInMillisUsed = true;
         return nowInMillisImpl();
     }
-
-    public final Callable<Long> nowCallable() {
-        return new Callable<Long>() {
-            @Override
-            public Long call() throws Exception {
-                return nowInMillis();
-            }
-        };
-    };
 
     public final boolean nowInMillisUsed() {
         return nowInMillisUsed;

@@ -16,9 +16,6 @@
             number_of_shards: "1"
             number_of_replicas: "0"
   - do:
-       cluster.health:
-         wait_for_status: yellow
-  - do:
       cat.indices: {}
 
   - match:
@@ -26,6 +23,7 @@
                /^(green  \s+
                   open   \s+
                   index1 \s+
+                  ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
                   1      \s+
                   0      \s+
                   0      \s+
@@ -62,6 +60,7 @@
                /^(       \s+
                   close  \s+
                   index1 \s+
+                  ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
                          \s+
                          \s+
                          \s+

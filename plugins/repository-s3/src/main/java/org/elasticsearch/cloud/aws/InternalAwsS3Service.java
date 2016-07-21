@@ -31,6 +31,7 @@ import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.S3ClientOptions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -44,21 +45,20 @@ import java.util.Map;
 /**
  *
  */
-public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Service> implements AwsS3Service {
+public class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Service {
 
     /**
      * (acceskey, endpoint) -&gt; client
      */
     private Map<Tuple<String, String>, AmazonS3Client> clients = new HashMap<>();
 
-    @Inject
     public InternalAwsS3Service(Settings settings) {
         super(settings);
     }
 
     @Override
     public synchronized AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries,
-                                        boolean useThrottleRetries) {
+                                        boolean useThrottleRetries, Boolean pathStyleAccess) {
         if (Strings.isNullOrEmpty(endpoint)) {
             // We need to set the endpoint based on the region
             if (region != null) {
@@ -70,11 +70,11 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             }
         }
 
-        return getClient(endpoint, protocol, account, key, maxRetries, useThrottleRetries);
+        return getClient(endpoint, protocol, account, key, maxRetries, useThrottleRetries, pathStyleAccess);
     }
 
     private synchronized AmazonS3 getClient(String endpoint, Protocol protocol, String account, String key, Integer maxRetries,
-                                            boolean useThrottleRetries) {
+                                            boolean useThrottleRetries, Boolean pathStyleAccess) {
         Tuple<String, String> clientDescriptor = new Tuple<>(endpoint, account);
         AmazonS3Client client = clients.get(clientDescriptor);
         if (client != null) {
@@ -131,6 +131,11 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         if (endpoint != null) {
             client.setEndpoint(endpoint);
         }
+
+        if (pathStyleAccess != null) {
+            client.setS3ClientOptions(new S3ClientOptions().withPathStyleAccess(pathStyleAccess));
+        }
+
         clients.put(clientDescriptor, client);
         return client;
     }

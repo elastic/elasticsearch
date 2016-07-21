@@ -74,9 +74,9 @@ public class Completion090PostingsFormat extends PostingsFormat {
     public static final int SUGGEST_VERSION_CURRENT = SUGGEST_CODEC_VERSION;
     public static final String EXTENSION = "cmp";
 
-    private final static ESLogger logger = Loggers.getLogger(Completion090PostingsFormat.class);
+    private static final ESLogger logger = Loggers.getLogger(Completion090PostingsFormat.class);
     private PostingsFormat delegatePostingsFormat;
-    private final static Map<String, CompletionLookupProvider> providers;
+    private static final Map<String, CompletionLookupProvider> providers;
     private CompletionLookupProvider writeProvider;
 
 
@@ -267,7 +267,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
         }
     }
 
-    public static abstract class CompletionLookupProvider implements PayloadProcessor, CompletionTokenStream.ToFiniteStrings {
+    public abstract static class CompletionLookupProvider implements PayloadProcessor, CompletionTokenStream.ToFiniteStrings {
 
         public static final char UNIT_SEPARATOR = '\u001f';
 
@@ -344,7 +344,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
         return completionStats;
     }
 
-    public static abstract class LookupFactory implements Accountable {
+    public abstract static class LookupFactory implements Accountable {
         public abstract Lookup getLookup(CompletionFieldMapper2x.CompletionFieldType fieldType,
                                          CompletionSuggestionContext suggestionContext);
         public abstract CompletionStats stats(String ... fields);

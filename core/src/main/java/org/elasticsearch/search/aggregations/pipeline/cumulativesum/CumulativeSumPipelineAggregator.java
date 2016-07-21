@@ -24,13 +24,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,23 +40,7 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class CumulativeSumPipelineAggregator extends PipelineAggregator {
-
-    public final static Type TYPE = new Type("cumulative_sum");
-
-    public final static PipelineAggregatorStreams.Stream STREAM = in -> {
-        CumulativeSumPipelineAggregator result = new CumulativeSumPipelineAggregator();
-        result.readFrom(in);
-        return result;
-    };
-
-    public static void registerStreams() {
-        PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    private DocValueFormat formatter;
-
-    public CumulativeSumPipelineAggregator() {
-    }
+    private final DocValueFormat formatter;
 
     public CumulativeSumPipelineAggregator(String name, String[] bucketsPaths, DocValueFormat formatter,
             Map<String, Object> metadata) {
@@ -66,9 +48,22 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
         this.formatter = formatter;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public CumulativeSumPipelineAggregator(StreamInput in) throws IOException {
+        super(in);
+        formatter = in.readNamedWriteable(DocValueFormat.class);
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    public void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(formatter);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return CumulativeSumPipelineAggregationBuilder.NAME;
     }
 
     @Override
@@ -91,15 +86,5 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
             newBuckets.add(newBucket);
         }
         return factory.create(newBuckets, histo);
-    }
-
-    @Override
-    public void doReadFrom(StreamInput in) throws IOException {
-        formatter = in.readNamedWriteable(DocValueFormat.class);
-    }
-
-    @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(formatter);
     }
 }

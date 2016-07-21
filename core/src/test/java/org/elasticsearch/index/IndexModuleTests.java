@@ -193,7 +193,6 @@ public class IndexModuleTests extends ESTestCase {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
         IndexModule module = new IndexModule(indexSettings, null,
                 new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap()));
-        Consumer<Settings> listener = (s) -> {};
         module.addIndexEventListener(eventListener);
         IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, indicesQueryCache, mapperRegistry,
             new IndicesFieldDataCache(settings, this.listener));

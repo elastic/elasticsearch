@@ -103,7 +103,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
 
         // 2. already existing index
         IndexService indexService = createIndex("index2");
-        expectThrows(ExecutionException.class, () -> {
+        e = expectThrows(ExecutionException.class, () -> {
             client().prepareIndex("index1", MapperService.DEFAULT_MAPPING, "2").setSource().execute().get();
         });
         throwable = ExceptionsHelper.unwrapCause(e.getCause());

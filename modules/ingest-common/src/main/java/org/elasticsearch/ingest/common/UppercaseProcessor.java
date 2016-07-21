@@ -43,7 +43,7 @@ public final class UppercaseProcessor extends AbstractStringProcessor {
         return TYPE;
     }
 
-    public static final class Factory extends AbstractStringProcessor.Factory<UppercaseProcessor> {
+    public static final class Factory extends AbstractStringProcessor.Factory {
 
         public Factory() {
             super(TYPE);

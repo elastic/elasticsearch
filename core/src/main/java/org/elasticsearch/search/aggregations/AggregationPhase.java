@@ -154,8 +154,8 @@ public class AggregationPhase implements SearchPhase {
                     siblingPipelineAggregators.add((SiblingPipelineAggregator) pipelineAggregator);
                 } else {
                     throw new AggregationExecutionException("Invalid pipeline aggregation named [" + pipelineAggregator.name()
-                            + "] of type [" + pipelineAggregator.type().name()
-                            + "]. Only sibling pipeline aggregations are allowed at the top level");
+                            + "] of type [" + pipelineAggregator.getWriteableName() + "]. Only sibling pipeline aggregations are "
+                            + "allowed at the top level");
                 }
             }
             context.queryResult().pipelineAggregators(siblingPipelineAggregators);

@@ -61,7 +61,7 @@ public class ReindexFailureTests extends ReindexTestCase {
         assertThat(response, matcher()
                 .batches(1)
                 .failures(both(greaterThan(0)).and(lessThanOrEqualTo(maximumNumberOfShards()))));
-        for (Failure failure: response.getIndexingFailures()) {
+        for (Failure failure: response.getBulkFailures()) {
             assertThat(failure.getMessage(), containsString("NumberFormatException[For input string: \"words words\"]"));
         }
     }
@@ -79,7 +79,7 @@ public class ReindexFailureTests extends ReindexTestCase {
 
         BulkIndexByScrollResponse response = copy.get();
         assertThat(response, matcher().batches(1).versionConflicts(1).failures(1).created(99));
-        for (Failure failure: response.getIndexingFailures()) {
+        for (Failure failure: response.getBulkFailures()) {
             assertThat(failure.getMessage(), containsString("VersionConflictEngineException[[test]["));
         }
     }

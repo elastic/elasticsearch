@@ -98,27 +98,27 @@ public final class GeoPoint {
         return this.resetFromIndexHash(BitUtil.flipFlop((geohashLong >>> 4) << ((level * 5) + 2)));
     }
 
-    public final double lat() {
+    public double lat() {
         return this.lat;
     }
 
-    public final double getLat() {
+    public double getLat() {
         return this.lat;
     }
 
-    public final double lon() {
+    public double lon() {
         return this.lon;
     }
 
-    public final double getLon() {
+    public double getLon() {
         return this.lon;
     }
 
-    public final String geohash() {
+    public String geohash() {
         return stringEncode(lon, lat);
     }
 
-    public final String getGeohash() {
+    public String getGeohash() {
         return stringEncode(lon, lat);
     }
 

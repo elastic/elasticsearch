@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.rounding;
 
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.rounding.TimeZoneRounding.TimeIntervalRounding;
 import org.elasticsearch.common.rounding.TimeZoneRounding.TimeUnitRounding;
 import org.elasticsearch.common.unit.TimeValue;
@@ -31,10 +32,13 @@ import org.joda.time.DateTimeConstants;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -328,27 +332,68 @@ public class TimeZoneRoundingTests extends ESTestCase {
             long interval = unit.toMillis(randomIntBetween(1, 365));
             DateTimeZone tz = randomDateTimeZone();
             TimeZoneRounding rounding = new TimeZoneRounding.TimeIntervalRounding(interval, tz);
-            long date = Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
-            try {
-                final long roundedDate = rounding.round(date);
-                final long nextRoundingValue = rounding.nextRoundingValue(roundedDate);
-                assertThat("Rounding should be idempotent", roundedDate, equalTo(rounding.round(roundedDate)));
-                assertThat("Rounded value smaller or equal than unrounded", roundedDate, lessThanOrEqualTo(date));
-                assertThat("Values smaller than rounded value should round further down", rounding.round(roundedDate - 1),
-                        lessThan(roundedDate));
+            long mainDate = Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
+            if (randomBoolean()) {
+                mainDate = nastyDate(mainDate, tz, interval);
+            }
+            // check two intervals around date
+            long previousRoundedValue = Long.MIN_VALUE;
+            for (long date = mainDate - 2 * interval; date < mainDate + 2 * interval; date += interval / 2) {
+                try {
+                    final long roundedDate = rounding.round(date);
+                    final long nextRoundingValue = rounding.nextRoundingValue(roundedDate);
+                    assertThat("Rounding should be idempotent", roundedDate, equalTo(rounding.round(roundedDate)));
+                    assertThat("Rounded value smaller or equal than unrounded", roundedDate, lessThanOrEqualTo(date));
+                    assertThat("Values smaller than rounded value should round further down", rounding.round(roundedDate - 1),
+                            lessThan(roundedDate));
+                    assertThat("Rounding should be >= previous rounding value", roundedDate, greaterThanOrEqualTo(previousRoundedValue));
 
-                if (tz.isFixed()) {
-                    assertThat("NextRounding value should be greater than date", nextRoundingValue, greaterThan(roundedDate));
-                    assertThat("NextRounding value should be interval from rounded value", nextRoundingValue - roundedDate,
-                            equalTo(interval));
-                    assertThat("NextRounding value should be a rounded date", nextRoundingValue,
-                            equalTo(rounding.round(nextRoundingValue)));
+                    if (tz.isFixed()) {
+                        assertThat("NextRounding value should be greater than date", nextRoundingValue, greaterThan(roundedDate));
+                        assertThat("NextRounding value should be interval from rounded value", nextRoundingValue - roundedDate,
+                                equalTo(interval));
+                        assertThat("NextRounding value should be a rounded date", nextRoundingValue,
+                                equalTo(rounding.round(nextRoundingValue)));
+                    }
+                    previousRoundedValue = roundedDate;
+                } catch (AssertionError e) {
+                    logger.error("Rounding error at {}, timezone {}, interval: {},", new DateTime(date, tz), tz, interval);
+                    throw e;
                 }
-            } catch (AssertionError e) {
-                logger.error("Rounding error at {}, timezone {}, interval: {},", new DateTime(date, tz), tz, interval);
-                throw e;
             }
         }
+    }
+
+    /**
+     * Test that rounded values are always greater or equal to last rounded value if date is increasing.
+     * The example covers an interval around 2011-10-30T02:10:00+01:00, time zone CET, interval: 2700000ms
+     */
+    public void testIntervalRoundingMonotonic_CET() {
+        long interval = TimeUnit.MINUTES.toMillis(45);
+        DateTimeZone tz = DateTimeZone.forID("CET");
+        TimeZoneRounding rounding = new TimeZoneRounding.TimeIntervalRounding(interval, tz);
+        List<Tuple<String, String>> expectedDates = new ArrayList<Tuple<String, String>>();
+        // first date is the date to be rounded, second the expected result
+        expectedDates.add(new Tuple<>("2011-10-30T01:40:00.000+02:00", "2011-10-30T01:30:00.000+02:00"));
+        expectedDates.add(new Tuple<>("2011-10-30T02:02:30.000+02:00", "2011-10-30T01:30:00.000+02:00"));
+        expectedDates.add(new Tuple<>("2011-10-30T02:25:00.000+02:00", "2011-10-30T02:15:00.000+02:00"));
+        expectedDates.add(new Tuple<>("2011-10-30T02:47:30.000+02:00", "2011-10-30T02:15:00.000+02:00"));
+        expectedDates.add(new Tuple<>("2011-10-30T02:10:00.000+01:00", "2011-10-30T02:15:00.000+02:00"));
+        expectedDates.add(new Tuple<>("2011-10-30T02:32:30.000+01:00", "2011-10-30T02:15:00.000+01:00"));
+        expectedDates.add(new Tuple<>("2011-10-30T02:55:00.000+01:00", "2011-10-30T02:15:00.000+01:00"));
+        expectedDates.add(new Tuple<>("2011-10-30T03:17:30.000+01:00", "2011-10-30T03:00:00.000+01:00"));
+
+        long previousDate = Long.MIN_VALUE;
+        for (Tuple<String, String> dates : expectedDates) {
+                final long roundedDate = rounding.round(time(dates.v1()));
+                assertThat(roundedDate, isDate(time(dates.v2()), tz));
+                assertThat(roundedDate, greaterThanOrEqualTo(previousDate));
+                previousDate = roundedDate;
+        }
+        // here's what this means for interval widths
+        assertEquals(TimeUnit.MINUTES.toMillis(45), time("2011-10-30T02:15:00.000+02:00") - time("2011-10-30T01:30:00.000+02:00"));
+        assertEquals(TimeUnit.MINUTES.toMillis(60), time("2011-10-30T02:15:00.000+01:00") - time("2011-10-30T02:15:00.000+02:00"));
+        assertEquals(TimeUnit.MINUTES.toMillis(45), time("2011-10-30T03:00:00.000+01:00") - time("2011-10-30T02:15:00.000+01:00"));
     }
 
     /**

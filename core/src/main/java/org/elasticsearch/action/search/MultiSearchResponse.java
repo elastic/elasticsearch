@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -45,22 +44,22 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
      */
     public static class Item implements Streamable {
         private SearchResponse response;
-        private Throwable throwable;
+        private Exception exception;
 
         Item() {
 
         }
 
-        public Item(SearchResponse response, Throwable throwable) {
+        public Item(SearchResponse response, Exception exception) {
             this.response = response;
-            this.throwable = throwable;
+            this.exception = exception;
         }
 
         /**
          * Is it a failed search?
          */
         public boolean isFailure() {
-            return throwable != null;
+            return exception != null;
         }
 
         /**
@@ -68,7 +67,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
          */
         @Nullable
         public String getFailureMessage() {
-            return throwable == null ? null : throwable.getMessage();
+            return exception == null ? null : exception.getMessage();
         }
 
         /**
@@ -91,7 +90,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
                 this.response = new SearchResponse();
                 response.readFrom(in);
             } else {
-                throwable = in.readThrowable();
+                exception = in.readException();
             }
         }
 
@@ -102,12 +101,12 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
                 response.writeTo(out);
             } else {
                 out.writeBoolean(false);
-                out.writeThrowable(throwable);
+                out.writeException(exception);
             }
         }
 
-        public Throwable getFailure() {
-            return throwable;
+        public Exception getFailure() {
+            return exception;
         }
     }
 
@@ -156,7 +155,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         for (Item item : items) {
             builder.startObject();
             if (item.isFailure()) {
-                ElasticsearchException.renderThrowable(builder, params, item.getFailure());
+                ElasticsearchException.renderException(builder, params, item.getFailure());
                 builder.field(Fields.STATUS, ExceptionsHelper.status(item.getFailure()).getStatus());
             } else {
                 item.getResponse().toXContent(builder, params);

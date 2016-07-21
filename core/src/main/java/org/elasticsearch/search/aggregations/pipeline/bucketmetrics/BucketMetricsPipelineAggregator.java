@@ -45,18 +45,33 @@ import java.util.Map;
  */
 public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAggregator {
 
-    protected DocValueFormat format;
-    protected GapPolicy gapPolicy;
-
-    public BucketMetricsPipelineAggregator() {
-        super();
-    }
+    protected final DocValueFormat format;
+    protected final GapPolicy gapPolicy;
 
     protected BucketMetricsPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, DocValueFormat format,
             Map<String, Object> metaData) {
         super(name, bucketsPaths, metaData);
         this.gapPolicy = gapPolicy;
         this.format = format;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected BucketMetricsPipelineAggregator(StreamInput in) throws IOException {
+        super(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
+        gapPolicy = GapPolicy.readFrom(in);
+    }
+
+    @Override
+    public final void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(format);
+        gapPolicy.writeTo(out);
+        innerWriteTo(out);
+    }
+
+    protected void innerWriteTo(StreamOutput out) throws IOException {
     }
 
     @Override
@@ -109,25 +124,4 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
      *            for this bucket
      */
     protected abstract void collectBucketValue(String bucketKey, Double bucketValue);
-
-    @Override
-    public final void doReadFrom(StreamInput in) throws IOException {
-        format = in.readNamedWriteable(DocValueFormat.class);
-        gapPolicy = GapPolicy.readFrom(in);
-        innerReadFrom(in);
-    }
-
-    protected void innerReadFrom(StreamInput in) throws IOException {
-    }
-
-    @Override
-    public final void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(format);
-        gapPolicy.writeTo(out);
-        innerWriteTo(out);
-    }
-
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-    }
-
 }

@@ -43,7 +43,7 @@ public interface IndexingOperationListener {
     /**
      * Called after the indexing operation occurred with exception.
      */
-    default void postIndex(Engine.Index index, Throwable ex) {}
+    default void postIndex(Engine.Index index, Exception ex) {}
 
     /**
      * Called before the delete occurs.
@@ -61,7 +61,7 @@ public interface IndexingOperationListener {
     /**
      * Called after the delete operation occurred with exception.
      */
-    default void postDelete(Engine.Delete delete, Throwable ex) {}
+    default void postDelete(Engine.Delete delete, Exception ex) {}
 
     /**
      * A Composite listener that multiplexes calls to each of the listeners methods.
@@ -81,8 +81,8 @@ public interface IndexingOperationListener {
             for (IndexingOperationListener listener : listeners) {
                 try {
                     listener.preIndex(operation);
-                } catch (Throwable t) {
-                    logger.warn("preIndex listener [{}] failed", t, listener);
+                } catch (Exception e) {
+                    logger.warn("preIndex listener [{}] failed", e, listener);
                 }
             }
             return operation;
@@ -94,20 +94,21 @@ public interface IndexingOperationListener {
             for (IndexingOperationListener listener : listeners) {
                 try {
                     listener.postIndex(index, created);
-                } catch (Throwable t) {
-                    logger.warn("postIndex listener [{}] failed", t, listener);
+                } catch (Exception e) {
+                    logger.warn("postIndex listener [{}] failed", e, listener);
                 }
             }
         }
 
         @Override
-        public void postIndex(Engine.Index index, Throwable ex) {
+        public void postIndex(Engine.Index index, Exception ex) {
             assert index != null && ex != null;
             for (IndexingOperationListener listener : listeners) {
                 try {
                     listener.postIndex(index, ex);
-                } catch (Throwable t) {
-                    logger.warn("postIndex listener [{}] failed", t, listener);
+                } catch (Exception inner) {
+                    inner.addSuppressed(ex);
+                    logger.warn("postIndex listener [{}] failed", inner, listener);
                 }
             }
         }
@@ -118,8 +119,8 @@ public interface IndexingOperationListener {
             for (IndexingOperationListener listener : listeners) {
                 try {
                     listener.preDelete(delete);
-                } catch (Throwable t) {
-                    logger.warn("preDelete listener [{}] failed", t, listener);
+                } catch (Exception e) {
+                    logger.warn("preDelete listener [{}] failed", e, listener);
                 }
             }
             return delete;
@@ -131,20 +132,21 @@ public interface IndexingOperationListener {
             for (IndexingOperationListener listener : listeners) {
                 try {
                     listener.postDelete(delete);
-                } catch (Throwable t) {
-                    logger.warn("postDelete listener [{}] failed", t, listener);
+                } catch (Exception e) {
+                    logger.warn("postDelete listener [{}] failed", e, listener);
                 }
             }
         }
 
         @Override
-        public void postDelete(Engine.Delete delete, Throwable ex) {
+        public void postDelete(Engine.Delete delete, Exception ex) {
             assert delete != null && ex != null;
             for (IndexingOperationListener listener : listeners) {
                 try {
                     listener.postDelete(delete, ex);
-                } catch (Throwable t) {
-                    logger.warn("postDelete listener [{}] failed", t, listener);
+                } catch (Exception inner) {
+                    inner.addSuppressed(ex);
+                    logger.warn("postDelete listener [{}] failed", inner, listener);
                 }
             }
         }

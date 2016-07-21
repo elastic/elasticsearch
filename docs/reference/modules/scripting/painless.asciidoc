@@ -143,7 +143,7 @@ First, let's look at the source data for a player by submitting the following re
 ----------------------------------------------------------------
 GET hockey/_search
 {
-  "fields": [
+  "stored_fields": [
     "_id",
     "_source"
   ],

@@ -79,7 +79,7 @@ public class SliceBuilderTests extends ESTestCase {
         namedWriteableRegistry = new NamedWriteableRegistry();
         indicesQueriesRegistry = new IndicesQueriesRegistry();
         QueryParser<MatchAllQueryBuilder> parser = MatchAllQueryBuilder::fromXContent;
-        indicesQueriesRegistry.register(parser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
+        indicesQueriesRegistry.register(parser, MatchAllQueryBuilder.NAME);
     }
 
     @AfterClass
@@ -88,7 +88,7 @@ public class SliceBuilderTests extends ESTestCase {
         indicesQueriesRegistry = null;
     }
 
-    private final SliceBuilder randomSliceBuilder() throws IOException {
+    private SliceBuilder randomSliceBuilder() throws IOException {
         int max = randomIntBetween(2, MAX_SLICE);
         int id = randomInt(max - 1);
         String field = randomAsciiOfLengthBetween(5, 20);
@@ -99,7 +99,7 @@ public class SliceBuilderTests extends ESTestCase {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in =
-                     new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+                     new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 return new SliceBuilder(in);
             }
         }

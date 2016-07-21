@@ -80,7 +80,8 @@ public class RoutingNode implements Iterable<ShardRouting> {
         return this.node;
     }
 
-    public @Nullable ShardRouting getByShardId(ShardId id) {
+    @Nullable
+    public ShardRouting getByShardId(ShardId id) {
         return shards.get(id);
     }
 

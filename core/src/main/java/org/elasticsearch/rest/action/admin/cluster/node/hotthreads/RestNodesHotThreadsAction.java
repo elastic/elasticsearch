@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.cluster.node.hotthreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -42,8 +42,8 @@ import org.elasticsearch.rest.action.support.RestResponseListener;
 public class RestNodesHotThreadsAction extends BaseRestHandler {
 
     @Inject
-    public RestNodesHotThreadsAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestNodesHotThreadsAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/hotthreads", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/hot_threads", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/nodes/{nodeId}/hotthreads", this);
@@ -56,7 +56,7 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         NodesHotThreadsRequest nodesHotThreadsRequest = new NodesHotThreadsRequest(nodesIds);
         nodesHotThreadsRequest.threads(request.paramAsInt("threads", nodesHotThreadsRequest.threads()));

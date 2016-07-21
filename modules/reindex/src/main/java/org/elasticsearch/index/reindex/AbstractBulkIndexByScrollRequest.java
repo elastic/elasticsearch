@@ -74,7 +74,7 @@ public abstract class AbstractBulkIndexByScrollRequest<Self extends AbstractBulk
     protected void searchToString(StringBuilder b) {
         super.searchToString(b);
         if (script != null) {
-            b.append(" updated with [").append(script).append(']');
+            b.append(" updated with ").append(script);
         }
     }
 }

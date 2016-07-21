@@ -26,19 +26,22 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.test.ESAllocationTestCase;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -76,13 +79,14 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
     public void testSerialization() throws Exception {
         UnassignedInfo.Reason reason = RandomPicks.randomFrom(random(), UnassignedInfo.Reason.values());
         UnassignedInfo meta = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ?
-            new UnassignedInfo(reason, randomBoolean() ? randomAsciiOfLength(4) : null, null, randomIntBetween(1, 100), System.nanoTime(), System.currentTimeMillis(), false):
+            new UnassignedInfo(reason, randomBoolean() ? randomAsciiOfLength(4) : null, null, randomIntBetween(1, 100), System.nanoTime(),
+                               System.currentTimeMillis(), false, AllocationStatus.NO_ATTEMPT):
             new UnassignedInfo(reason, randomBoolean() ? randomAsciiOfLength(4) : null);
         BytesStreamOutput out = new BytesStreamOutput();
         meta.writeTo(out);
         out.close();
 
-        UnassignedInfo read = new UnassignedInfo(StreamInput.wrap(out.bytes()));
+        UnassignedInfo read = new UnassignedInfo(out.bytes().streamInput());
         assertThat(read.getReason(), equalTo(meta.getReason()));
         assertThat(read.getUnassignedTimeInMillis(), equalTo(meta.getUnassignedTimeInMillis()));
         assertThat(read.getMessage(), equalTo(meta.getMessage()));
@@ -265,7 +269,8 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      */
     public void testRemainingDelayCalculation() throws Exception {
         final long baseTime = System.nanoTime();
-        UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "test", null, 0, baseTime, System.currentTimeMillis(), randomBoolean());
+        UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "test", null, 0, baseTime,
+                                                           System.currentTimeMillis(), randomBoolean(), AllocationStatus.NO_ATTEMPT);
         final long totalDelayNanos = TimeValue.timeValueMillis(10).nanos();
         final Settings indexSettings = Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueNanos(totalDelayNanos)).build();
         long delay = unassignedInfo.getRemainingDelay(baseTime, indexSettings);
@@ -339,5 +344,15 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         }
 
         assertThat(UnassignedInfo.findNextDelayedAllocation(baseTime + delta, clusterState), equalTo(expectMinDelaySettingsNanos - delta));
+    }
+
+    public void testAllocationStatusSerialization() throws IOException {
+        for (AllocationStatus allocationStatus : AllocationStatus.values()) {
+            BytesStreamOutput out = new BytesStreamOutput();
+            allocationStatus.writeTo(out);
+            ByteBufferStreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap(out.bytes().toBytesRef().bytes));
+            AllocationStatus readStatus = AllocationStatus.readFrom(in);
+            assertThat(readStatus, equalTo(allocationStatus));
+        }
     }
 }

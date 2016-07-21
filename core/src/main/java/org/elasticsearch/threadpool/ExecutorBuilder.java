@@ -78,7 +78,7 @@ public abstract class ExecutorBuilder<U extends ExecutorBuilder.ExecutorSettings
      */
     abstract String formatInfo(ThreadPool.Info info);
 
-    static abstract class ExecutorSettings {
+    abstract static class ExecutorSettings {
 
         protected final String nodeName;
 

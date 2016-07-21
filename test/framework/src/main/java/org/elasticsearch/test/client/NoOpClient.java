@@ -50,8 +50,8 @@ public class NoOpClient extends AbstractClient {
     public void close() {
         try {
             ThreadPool.terminate(threadPool(), 10, TimeUnit.SECONDS);
-        } catch (Throwable t) {
-            throw new ElasticsearchException(t.getMessage(), t);
+        } catch (Exception e) {
+            throw new ElasticsearchException(e.getMessage(), e);
         }
     }
 }

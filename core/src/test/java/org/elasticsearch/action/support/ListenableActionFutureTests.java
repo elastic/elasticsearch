@@ -45,15 +45,15 @@ public class ListenableActionFutureTests extends ESTestCase {
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     error.set(e);
                     listenerCalled.countDown();
                 }
             });
             Thread networkThread = new Thread(new AbstractRunnable() {
                 @Override
-                public void onFailure(Throwable t) {
-                    error.set(t);
+                public void onFailure(Exception e) {
+                    error.set(e);
                     listenerCalled.countDown();
                 }
 

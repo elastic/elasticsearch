@@ -19,86 +19,57 @@
 
 package org.elasticsearch.rest;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class RestControllerTests extends ESTestCase {
 
-    public void testRegisterRelevantHeaders() throws InterruptedException {
-
-        final RestController restController = new RestController(Settings.EMPTY);
-
-        int iterations = randomIntBetween(1, 5);
-
-        Set<String> headers = new HashSet<>();
-        ExecutorService executorService = Executors.newFixedThreadPool(iterations);
-        for (int i = 0; i < iterations; i++) {
-            int headersCount = randomInt(10);
-            final Set<String> newHeaders = new HashSet<>();
-            for (int j = 0; j < headersCount; j++) {
-                String usefulHeader = randomRealisticUnicodeOfLengthBetween(1, 30);
-                newHeaders.add(usefulHeader);
-            }
-            headers.addAll(newHeaders);
-
-            executorService.submit((Runnable) () -> restController.registerRelevantHeaders(newHeaders.toArray(new String[newHeaders.size()])));
-        }
-
-        executorService.shutdown();
-        assertThat(executorService.awaitTermination(1, TimeUnit.SECONDS), equalTo(true));
-        String[] relevantHeaders = restController.relevantHeaders().toArray(new String[restController.relevantHeaders().size()]);
-        assertThat(relevantHeaders.length, equalTo(headers.size()));
-
-        Arrays.sort(relevantHeaders);
-        String[] headersArray = new String[headers.size()];
-        headersArray = headers.toArray(headersArray);
-        Arrays.sort(headersArray);
-        assertThat(relevantHeaders, equalTo(headersArray));
-    }
-
     public void testApplyRelevantHeaders() throws Exception {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        final RestController restController = new RestController(Settings.EMPTY) {
+        Set<String> headers = new HashSet<>(Arrays.asList("header.1", "header.2"));
+        final RestController restController = new RestController(Settings.EMPTY, headers) {
             @Override
             boolean checkRequestParameters(RestRequest request, RestChannel channel) {
                 return true;
             }
 
             @Override
-            void executeHandler(RestRequest request, RestChannel channel) throws Exception {
+            void executeHandler(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 assertEquals("true", threadContext.getHeader("header.1"));
                 assertEquals("true", threadContext.getHeader("header.2"));
                 assertNull(threadContext.getHeader("header.3"));
-
             }
         };
         threadContext.putHeader("header.3", "true");
-        restController.registerRelevantHeaders("header.1", "header.2");
         Map<String, String> restHeaders = new HashMap<>();
         restHeaders.put("header.1", "true");
         restHeaders.put("header.2", "true");
         restHeaders.put("header.3", "false");
-        restController.dispatchRequest(new FakeRestRequest.Builder().withHeaders(restHeaders).build(), null, threadContext);
+        restController.dispatchRequest(new FakeRestRequest.Builder().withHeaders(restHeaders).build(), null, null, threadContext);
         assertNull(threadContext.getHeader("header.1"));
         assertNull(threadContext.getHeader("header.2"));
         assertEquals("true", threadContext.getHeader("header.3"));
     }
 
     public void testCanTripCircuitBreaker() throws Exception {
-        RestController controller = new RestController(Settings.EMPTY);
+        RestController controller = new RestController(Settings.EMPTY, Collections.emptySet());
         // trip circuit breaker by default
         controller.registerHandler(RestRequest.Method.GET, "/trip", new FakeRestHandler(true));
         controller.registerHandler(RestRequest.Method.GET, "/do-not-trip", new FakeRestHandler(false));
@@ -109,6 +80,48 @@ public class RestControllerTests extends ESTestCase {
         assertFalse(controller.canTripCircuitBreaker(new FakeRestRequest.Builder().withPath("/do-not-trip").build()));
     }
 
+    public void testRegisterAsDeprecatedHandler() {
+        RestController controller = mock(RestController.class);
+
+        RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        String path = "/_" + randomAsciiOfLengthBetween(1, 6);
+        RestHandler handler = mock(RestHandler.class);
+        String deprecationMessage = randomAsciiOfLengthBetween(1, 10);
+        DeprecationLogger logger = mock(DeprecationLogger.class);
+
+        // don't want to test everything -- just that it actually wraps the handler
+        doCallRealMethod().when(controller).registerAsDeprecatedHandler(method, path, handler, deprecationMessage, logger);
+
+        controller.registerAsDeprecatedHandler(method, path, handler, deprecationMessage, logger);
+
+        verify(controller).registerHandler(eq(method), eq(path), any(DeprecationRestHandler.class));
+    }
+
+    public void testRegisterWithDeprecatedHandler() {
+        final RestController controller = mock(RestController.class);
+
+        final RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        final String path = "/_" + randomAsciiOfLengthBetween(1, 6);
+        final RestHandler handler = mock(RestHandler.class);
+        final RestRequest.Method deprecatedMethod = randomFrom(RestRequest.Method.values());
+        final String deprecatedPath = "/_" + randomAsciiOfLengthBetween(1, 6);
+        final DeprecationLogger logger = mock(DeprecationLogger.class);
+
+        final String deprecationMessage = "[" + deprecatedMethod.name() + " " + deprecatedPath + "] is deprecated! Use [" +
+            method.name() + " " + path + "] instead.";
+
+        // don't want to test everything -- just that it actually wraps the handlers
+        doCallRealMethod().when(controller).registerWithDeprecatedHandler(method, path, handler, deprecatedMethod, deprecatedPath, logger);
+
+        controller.registerWithDeprecatedHandler(method, path, handler, deprecatedMethod, deprecatedPath, logger);
+
+        verify(controller).registerHandler(method, path, handler);
+        verify(controller).registerAsDeprecatedHandler(deprecatedMethod, deprecatedPath, handler, deprecationMessage, logger);
+    }
+
+    /**
+     * Useful for testing with deprecation handler.
+     */
     private static class FakeRestHandler implements RestHandler {
         private final boolean canTripCircuitBreaker;
 
@@ -117,7 +130,7 @@ public class RestControllerTests extends ESTestCase {
         }
 
         @Override
-        public void handleRequest(RestRequest request, RestChannel channel) throws Exception {
+        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
             //no op
         }
 

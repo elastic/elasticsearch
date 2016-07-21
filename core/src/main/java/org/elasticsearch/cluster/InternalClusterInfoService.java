@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -30,7 +29,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -280,7 +278,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         return latch;
     }
 
-    private final void maybeRefresh() {
+    private void maybeRefresh() {
         // Short-circuit if not enabled
         if (enabled) {
             refresh();
@@ -309,7 +307,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 if (e instanceof ReceiveTimeoutTransportException) {
                     logger.error("NodeStatsAction timed out for ClusterInfoUpdateJob", e);
                 } else {
@@ -339,7 +337,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 if (e instanceof ReceiveTimeoutTransportException) {
                     logger.error("IndicesStatsAction timed out for ClusterInfoUpdateJob", e);
                 } else {

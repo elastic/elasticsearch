@@ -52,10 +52,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.query.TemplateQueryBuilder;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -108,31 +105,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     private final ScriptMetrics scriptMetrics = new ScriptMetrics();
 
     private ClusterState clusterState;
-
-    /**
-     * @deprecated Use {@link org.elasticsearch.script.Script.ScriptField} instead. This should be removed in
-     *             2.0
-     */
-    @Deprecated
-    public static final ParseField SCRIPT_LANG = new ParseField("lang","script_lang");
-    /**
-     * @deprecated Use {@link ScriptType#getParseField()} instead. This should
-     *             be removed in 2.0
-     */
-    @Deprecated
-    public static final ParseField SCRIPT_FILE = new ParseField("script_file");
-    /**
-     * @deprecated Use {@link ScriptType#getParseField()} instead. This should
-     *             be removed in 2.0
-     */
-    @Deprecated
-    public static final ParseField SCRIPT_ID = new ParseField("script_id");
-    /**
-     * @deprecated Use {@link ScriptType#getParseField()} instead. This should
-     *             be removed in 2.0
-     */
-    @Deprecated
-    public static final ParseField SCRIPT_INLINE = new ParseField("script");
 
     public ScriptService(Settings settings, Environment env,
                          ResourceWatcherService resourceWatcherService, ScriptEngineRegistry scriptEngineRegistry,
@@ -236,7 +208,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
 
         ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
-        if (canExecuteScript(lang, scriptEngineService, script.getType(), scriptContext) == false) {
+        if (canExecuteScript(lang, script.getType(), scriptContext) == false) {
             throw new IllegalStateException("scripts of type [" + script.getType() + "], operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
         }
 
@@ -346,47 +318,42 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return script;
     }
 
-    void validate(String id, String scriptLang, BytesReference scriptBytes) {
+    void validateStoredScript(String id, String scriptLang, BytesReference scriptBytes) {
         validateScriptSize(id, scriptBytes.length());
-        try (XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes)) {
-            parser.nextToken();
-            Template template = TemplateQueryBuilder.parse(scriptLang, parser, parseFieldMatcher, "params", "script", "template");
-            if (Strings.hasLength(template.getScript())) {
-                //Just try and compile it
-                try {
-                    ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(scriptLang);
-                    //we don't know yet what the script will be used for, but if all of the operations for this lang with
-                    //indexed scripts are disabled, it makes no sense to even compile it.
-                    if (isAnyScriptContextEnabled(scriptLang, scriptEngineService, ScriptType.STORED)) {
-                        Object compiled = scriptEngineService.compile(id, template.getScript(), Collections.emptyMap());
-                        if (compiled == null) {
-                            throw new IllegalArgumentException("Unable to parse [" + template.getScript() +
-                                    "] lang [" + scriptLang + "] (ScriptService.compile returned null)");
-                        }
-                    } else {
-                        logger.warn(
-                                "skipping compile of script [{}], lang [{}] as all scripted operations are disabled for indexed scripts",
-                                template.getScript(), scriptLang);
+        String script = ScriptMetaData.parseStoredScript(scriptBytes);
+        if (Strings.hasLength(scriptBytes)) {
+            //Just try and compile it
+            try {
+                ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(scriptLang);
+                //we don't know yet what the script will be used for, but if all of the operations for this lang with
+                //indexed scripts are disabled, it makes no sense to even compile it.
+                if (isAnyScriptContextEnabled(scriptLang, ScriptType.STORED)) {
+                    Object compiled = scriptEngineService.compile(id, script, Collections.emptyMap());
+                    if (compiled == null) {
+                        throw new IllegalArgumentException("Unable to parse [" + script + "] lang [" + scriptLang +
+                                "] (ScriptService.compile returned null)");
                     }
-                } catch (ScriptException good) {
-                    // TODO: remove this when all script engines have good exceptions!
-                    throw good; // its already good!
-                } catch (Exception e) {
-                    throw new IllegalArgumentException("Unable to parse [" + template.getScript() +
-                            "] lang [" + scriptLang + "]", e);
+                } else {
+                    logger.warn(
+                            "skipping compile of script [{}], lang [{}] as all scripted operations are disabled for indexed scripts",
+                            script, scriptLang);
                 }
-            } else {
-                throw new IllegalArgumentException("Unable to find script in : " + scriptBytes.toUtf8());
+            } catch (ScriptException good) {
+                // TODO: remove this when all script engines have good exceptions!
+                throw good; // its already good!
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Unable to parse [" + script +
+                        "] lang [" + scriptLang + "]", e);
             }
-        } catch (IOException e) {
-            throw new IllegalArgumentException("failed to parse template script", e);
+        } else {
+            throw new IllegalArgumentException("Unable to find script in : " + scriptBytes.utf8ToString());
         }
     }
 
     public void storeScript(ClusterService clusterService, PutStoredScriptRequest request, ActionListener<PutStoredScriptResponse> listener) {
         String scriptLang = validateScriptLanguage(request.scriptLang());
         //verify that the script compiles
-        validate(request.id(), scriptLang, request.script());
+        validateStoredScript(request.id(), scriptLang, request.script());
         clusterService.submitStateUpdateTask("put-script-" + request.id(), new AckedClusterStateUpdateTask<PutStoredScriptResponse>(request, listener) {
 
             @Override
@@ -466,16 +433,16 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return getScriptEngineServiceForLang(compiledScript.lang()).search(compiledScript, lookup, script.getParams());
     }
 
-    private boolean isAnyScriptContextEnabled(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType) {
+    private boolean isAnyScriptContextEnabled(String lang, ScriptType scriptType) {
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
-            if (canExecuteScript(lang, scriptEngineService, scriptType, scriptContext)) {
+            if (canExecuteScript(lang, scriptType, scriptContext)) {
                 return true;
             }
         }
         return false;
     }
 
-    private boolean canExecuteScript(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType, ScriptContext scriptContext) {
+    private boolean canExecuteScript(String lang, ScriptType scriptType, ScriptContext scriptContext) {
         assert lang != null;
         if (scriptContextRegistry.isSupportedContext(scriptContext) == false) {
             throw new IllegalArgumentException("script context [" + scriptContext.getKey() + "] not supported");
@@ -556,7 +523,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 try {
                     //we don't know yet what the script will be used for, but if all of the operations for this lang
                     // with file scripts are disabled, it makes no sense to even compile it and cache it.
-                    if (isAnyScriptContextEnabled(engineService.getType(), engineService, ScriptType.FILE)) {
+                    if (isAnyScriptContextEnabled(engineService.getType(), ScriptType.FILE)) {
                         logger.info("compiling script file [{}]", file.toAbsolutePath());
                         try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8)) {
                             String script = Streams.copyToString(reader);
@@ -571,7 +538,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                     } else {
                         logger.warn("skipping compile of script file [{}] as all scripted operations are disabled for file scripts", file.toAbsolutePath());
                     }
-                } catch (Throwable e) {
+                } catch (Exception e) {
                     logger.warn("failed to load/compile script [{}]", e, scriptNameExt.v1());
                 }
             }

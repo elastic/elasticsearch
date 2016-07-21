@@ -37,25 +37,22 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- *
- */
 public final class ExceptionsHelper {
 
     private static final ESLogger logger = Loggers.getLogger(ExceptionsHelper.class);
 
-    public static RuntimeException convertToRuntime(Throwable t) {
-        if (t instanceof RuntimeException) {
-            return (RuntimeException) t;
+    public static RuntimeException convertToRuntime(Exception e) {
+        if (e instanceof RuntimeException) {
+            return (RuntimeException) e;
         }
-        return new ElasticsearchException(t);
+        return new ElasticsearchException(e);
     }
 
-    public static ElasticsearchException convertToElastic(Throwable t) {
-        if (t instanceof ElasticsearchException) {
-            return (ElasticsearchException) t;
+    public static ElasticsearchException convertToElastic(Exception e) {
+        if (e instanceof ElasticsearchException) {
+            return (ElasticsearchException) e;
         }
-        return new ElasticsearchException(t);
+        return new ElasticsearchException(e);
     }
 
     public static RestStatus status(Throwable t) {
@@ -164,8 +161,8 @@ public final class ExceptionsHelper {
     }
 
     public static IOException unwrapCorruption(Throwable t) {
-        return (IOException) unwrap(t, CorruptIndexException.class, 
-                                       IndexFormatTooOldException.class, 
+        return (IOException) unwrap(t, CorruptIndexException.class,
+                                       IndexFormatTooOldException.class,
                                        IndexFormatTooNewException.class);
     }
 
@@ -208,7 +205,6 @@ public final class ExceptionsHelper {
         }
         return true;
     }
-
 
     /**
      * Deduplicate the failures by exception message and index.

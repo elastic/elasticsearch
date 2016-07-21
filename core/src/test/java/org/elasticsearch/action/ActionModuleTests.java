@@ -23,6 +23,7 @@ import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.TransportMainAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -115,7 +116,7 @@ public class ActionModuleTests extends ESTestCase {
     public void testPluginCanRegisterRestHandler() {
         class FakeHandler implements RestHandler {
             @Override
-            public void handleRequest(RestRequest request, RestChannel channel) throws Exception {
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
             }
         }
         ActionPlugin registersFakeHandler = new ActionPlugin() {

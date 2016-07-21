@@ -61,7 +61,7 @@ public class BlockingClusterStatePublishResponseHandler {
      * Called for each failure obtained from non master nodes
      * @param node the node that replied to the publish event
      */
-    public void onFailure(DiscoveryNode node, Throwable t) {
+    public void onFailure(DiscoveryNode node, Exception e) {
         boolean found = pendingNodes.remove(node);
         assert found : "node [" + node + "] already responded or failed";
         latch.countDown();

@@ -45,9 +45,7 @@ import java.util.Set;
  * Builder for the 'has_parent' query.
  */
 public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBuilder> {
-
     public static final String NAME = "has_parent";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     /**
      * The default value for ignore_unmapped.
@@ -309,9 +307,10 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder rewrite = query.rewrite(queryShardContext);
-        if (rewrite != query) {
-            return new HasParentQueryBuilder(type, rewrite, score, innerHit);
+        QueryBuilder rewrittenQuery = query.rewrite(queryShardContext);
+        if (rewrittenQuery != query) {
+            InnerHitBuilder rewrittenInnerHit = InnerHitBuilder.rewrite(innerHit, rewrittenQuery);
+            return new HasParentQueryBuilder(type, rewrittenQuery, score, rewrittenInnerHit);
         }
         return this;
     }

@@ -121,7 +121,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         setMinimumMasterNodes(1);
         internalCluster().stopRandomDataNode();
 
-        // make sure the cluster state is green, and all has been recovered
+        // make sure the cluster state is yellow, and all has been recovered
         assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForYellowStatus().setWaitForRelocatingShards(0).setWaitForNodes("1"));
 
         logger.info("--> one node left, verifying data");

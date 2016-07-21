@@ -76,13 +76,13 @@ public class SloppyMathTests extends ESTestCase {
         assertThat("distance between("+lat1+", "+lon1+") and ("+lat2+", "+lon2+"))", sloppy, closeTo(accurate, maxError(accurate)));
     }
 
-    private static final double randomLatitude() {
+    private static double randomLatitude() {
         // crop pole areas, sine we now there the function
         // is not accurate around lat(89°, 90°) and lat(-90°, -89°)
         return (random().nextDouble() - 0.5) * 178.0;
     }
 
-    private static final double randomLongitude() {
+    private static double randomLongitude() {
         return (random().nextDouble() - 0.5) * 360.0;
     }
 }

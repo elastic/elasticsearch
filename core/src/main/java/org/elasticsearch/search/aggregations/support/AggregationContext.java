@@ -35,9 +35,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class AggregationContext {
 
     private final SearchContext searchContext;
@@ -58,7 +55,10 @@ public class AggregationContext {
      *  no value source could be built. */
     @Nullable
     public <VS extends ValuesSource> VS valuesSource(ValuesSourceConfig<VS> config, SearchContext context) throws IOException {
-        assert config.valid() : "value source config is invalid - must have either a field context or a script or marked as unmapped";
+        if (!config.valid()) {
+            throw new IllegalStateException(
+                    "value source config is invalid; must have either a field context or a script or marked as unwrapped");
+        }
 
         final VS vs;
         if (config.unmapped()) {
@@ -70,7 +70,7 @@ public class AggregationContext {
             } else if (config.valueSourceType() == ValuesSourceType.GEOPOINT) {
                 vs = (VS) ValuesSource.GeoPoint.EMPTY;
             } else if (config.valueSourceType() == ValuesSourceType.ANY || config.valueSourceType() == ValuesSourceType.BYTES) {
-                vs = (VS) ValuesSource.Bytes.EMPTY;
+                vs = (VS) ValuesSource.Bytes.WithOrdinals.EMPTY;
             } else {
                 throw new SearchParseException(searchContext, "Can't deal with unmapped ValuesSource type "
                     + config.valueSourceType(), null);
@@ -97,7 +97,7 @@ public class AggregationContext {
             } else {
                 if (config.fieldContext() != null && config.fieldContext().fieldType() != null) {
                     missing = config.fieldContext().fieldType().docValueFormat(null, DateTimeZone.UTC)
-                            .parseDouble(config.missing().toString(), false, context.nowCallable());
+                            .parseDouble(config.missing().toString(), false, context::nowInMillis);
                 } else {
                     missing = Double.parseDouble(config.missing().toString());
                 }

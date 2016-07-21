@@ -72,8 +72,8 @@ public class BooleanFieldMapper extends FieldMapper {
     }
 
     public static class Values {
-        public final static BytesRef TRUE = new BytesRef("T");
-        public final static BytesRef FALSE = new BytesRef("F");
+        public static final BytesRef TRUE = new BytesRef("T");
+        public static final BytesRef FALSE = new BytesRef("F");
     }
 
     public static class Builder extends FieldMapper.Builder<Builder, BooleanFieldMapper> {

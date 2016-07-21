@@ -90,13 +90,14 @@ public class TaskPersistenceService extends AbstractComponent {
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
                         // we have the index, do it
                         try {
                             doPersist(taskResult, listener);
-                        } catch (Throwable e1) {
-                            listener.onFailure(e1);
+                        } catch (Exception inner) {
+                            inner.addSuppressed(e);
+                            listener.onFailure(inner);
                         }
                     } else {
                         listener.onFailure(e);
@@ -115,7 +116,7 @@ public class TaskPersistenceService extends AbstractComponent {
                                  }
 
                                  @Override
-                                 public void onFailure(Throwable e) {
+                                 public void onFailure(Exception e) {
                                      listener.onFailure(e);
                                  }
                              }
@@ -142,7 +143,7 @@ public class TaskPersistenceService extends AbstractComponent {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
         });

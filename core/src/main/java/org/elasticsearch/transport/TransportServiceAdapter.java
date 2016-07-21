@@ -37,7 +37,7 @@ public interface TransportServiceAdapter {
     void onResponseSent(long requestId, String action, TransportResponse response, TransportResponseOptions options);
 
     /** called by the {@link Transport} implementation after an exception was sent as a response to an incoming request */
-    void onResponseSent(long requestId, String action, Throwable t);
+    void onResponseSent(long requestId, String action, Exception e);
 
     /**
      * called by the {@link Transport} implementation when a response or an exception has been received for a previously

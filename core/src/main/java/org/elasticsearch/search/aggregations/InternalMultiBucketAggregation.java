@@ -19,20 +19,25 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 public abstract class InternalMultiBucketAggregation<A extends InternalMultiBucketAggregation, B extends InternalMultiBucketAggregation.InternalBucket>
         extends InternalAggregation implements MultiBucketsAggregation {
-
-    public InternalMultiBucketAggregation() {
-    }
-
     public InternalMultiBucketAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected InternalMultiBucketAggregation(StreamInput in) throws IOException {
+        super(in);
     }
 
     /**
@@ -71,7 +76,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
         }
     }
 
-    public static abstract class InternalBucket implements Bucket {
+    public abstract static class InternalBucket implements Bucket {
         @Override
         public Object getProperty(String containingAggName, List<String> path) {
             if (path.isEmpty()) {

@@ -55,7 +55,6 @@ import java.util.stream.IntStream;
  * A filter for a field based on several terms matching on any of them.
  */
 public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
-
     public static final String NAME = "terms";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME, "in");
 

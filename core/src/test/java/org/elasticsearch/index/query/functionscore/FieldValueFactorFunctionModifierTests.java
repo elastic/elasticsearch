@@ -44,70 +44,70 @@ public class FieldValueFactorFunctionModifierTests extends ESTestCase {
     public void testWriteTo() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             FieldValueFactorFunction.Modifier.NONE.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(0));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             FieldValueFactorFunction.Modifier.LOG.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(1));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             FieldValueFactorFunction.Modifier.LOG1P.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(2));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             FieldValueFactorFunction.Modifier.LOG2P.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(3));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             FieldValueFactorFunction.Modifier.LN.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(4));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             FieldValueFactorFunction.Modifier.LN1P.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(5));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             FieldValueFactorFunction.Modifier.LN2P.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(6));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             FieldValueFactorFunction.Modifier.SQUARE.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(7));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             FieldValueFactorFunction.Modifier.SQRT.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(8));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             FieldValueFactorFunction.Modifier.RECIPROCAL.writeTo(out);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(in.readVInt(), equalTo(9));
             }
         }
@@ -116,70 +116,70 @@ public class FieldValueFactorFunctionModifierTests extends ESTestCase {
     public void testReadFrom() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(0);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(FieldValueFactorFunction.Modifier.readFromStream(in), equalTo(FieldValueFactorFunction.Modifier.NONE));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(1);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(FieldValueFactorFunction.Modifier.readFromStream(in), equalTo(FieldValueFactorFunction.Modifier.LOG));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(2);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(FieldValueFactorFunction.Modifier.readFromStream(in), equalTo(FieldValueFactorFunction.Modifier.LOG1P));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(3);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(FieldValueFactorFunction.Modifier.readFromStream(in), equalTo(FieldValueFactorFunction.Modifier.LOG2P));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(4);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(FieldValueFactorFunction.Modifier.readFromStream(in), equalTo(FieldValueFactorFunction.Modifier.LN));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(5);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(FieldValueFactorFunction.Modifier.readFromStream(in), equalTo(FieldValueFactorFunction.Modifier.LN1P));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(6);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(FieldValueFactorFunction.Modifier.readFromStream(in), equalTo(FieldValueFactorFunction.Modifier.LN2P));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(7);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(FieldValueFactorFunction.Modifier.readFromStream(in), equalTo(FieldValueFactorFunction.Modifier.SQUARE));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(8);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(FieldValueFactorFunction.Modifier.readFromStream(in), equalTo(FieldValueFactorFunction.Modifier.SQRT));
             }
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.writeVInt(9);
-            try (StreamInput in = StreamInput.wrap(out.bytes())) {
+            try (StreamInput in = out.bytes().streamInput()) {
                 assertThat(FieldValueFactorFunction.Modifier.readFromStream(in), equalTo(FieldValueFactorFunction.Modifier.RECIPROCAL));
             }
         }

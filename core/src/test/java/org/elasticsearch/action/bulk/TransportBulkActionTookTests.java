@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class TransportBulkActionTookTests extends ESTestCase {
 
-    static private ThreadPool threadPool;
+    private static ThreadPool threadPool;
     private ClusterService clusterService;
 
     @BeforeClass
@@ -201,7 +201,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
 
             }
         });

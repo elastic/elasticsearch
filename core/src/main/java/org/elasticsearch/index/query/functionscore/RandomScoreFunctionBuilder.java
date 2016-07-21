@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,7 +39,6 @@ import java.util.Objects;
  */
 public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScoreFunctionBuilder> {
     public static final String NAME = "random_score";
-    public static final ParseField FUNCTION_NAME_FIELD = new ParseField(NAME);
     private Integer seed;
 
     public RandomScoreFunctionBuilder() {

@@ -26,6 +26,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
+import org.apache.http.RequestLine;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.entity.BufferedHttpEntity;
 import org.apache.http.entity.ContentType;
@@ -55,7 +56,7 @@ final class RequestLogger {
      */
     static void logResponse(Log logger, HttpUriRequest request, HttpHost host, HttpResponse httpResponse) {
         if (logger.isDebugEnabled()) {
-            logger.debug("request [" + request.getMethod() + " " + host + request.getRequestLine().getUri() +
+            logger.debug("request [" + request.getMethod() + " " + host + getUri(request.getRequestLine()) +
                     "] returned [" + httpResponse.getStatusLine() + "]");
         }
         if (tracer.isTraceEnabled()) {
@@ -81,8 +82,10 @@ final class RequestLogger {
      * Logs a request that failed
      */
     static void logFailedRequest(Log logger, HttpUriRequest request, HttpHost host, IOException e) {
-        logger.debug("request [" + request.getMethod() + " " + host + request.getRequestLine().getUri() + "] failed", e);
-        if (logger.isTraceEnabled()) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("request [" + request.getMethod() + " " + host + getUri(request.getRequestLine()) + "] failed", e);
+        }
+        if (tracer.isTraceEnabled()) {
             String traceRequest;
             try {
                 traceRequest = buildTraceRequest(request, host);
@@ -98,7 +101,7 @@ final class RequestLogger {
      * Creates curl output for given request
      */
     static String buildTraceRequest(HttpUriRequest request, HttpHost host) throws IOException {
-        String requestLine = "curl -iX " + request.getMethod() + " '" + host + request.getRequestLine().getUri() + "'";
+        String requestLine = "curl -iX " + request.getMethod() + " '" + host + getUri(request.getRequestLine()) + "'";
         if (request instanceof  HttpEntityEnclosingRequest) {
             HttpEntityEnclosingRequest enclosingRequest = (HttpEntityEnclosingRequest) request;
             if (enclosingRequest.getEntity() != null) {
@@ -142,5 +145,12 @@ final class RequestLogger {
             }
         }
         return responseLine;
+    }
+
+    private static String getUri(RequestLine requestLine) {
+        if (requestLine.getUri().charAt(0) != '/') {
+            return "/" + requestLine.getUri();
+        }
+        return requestLine.getUri();
     }
 }

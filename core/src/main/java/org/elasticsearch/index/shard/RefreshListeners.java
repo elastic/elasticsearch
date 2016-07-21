@@ -200,8 +200,8 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener 
                 for (Consumer<Boolean> listener : finalListenersToFire) {
                     try {
                         listener.accept(false);
-                    } catch (Throwable t) {
-                        logger.warn("Error firing refresh listener", t);
+                    } catch (Exception e) {
+                        logger.warn("Error firing refresh listener", e);
                     }
                 }
             });

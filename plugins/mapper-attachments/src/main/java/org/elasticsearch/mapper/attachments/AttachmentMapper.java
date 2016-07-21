@@ -482,7 +482,7 @@ public class AttachmentMapper extends FieldMapper {
         String parsedContent;
         try {
             parsedContent = TikaImpl.parse(content, metadata, indexedChars);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             // #18: we could ignore errors when Tika does not parse data
             if (!ignoreErrors) {
                 logger.trace("exception caught", e);
@@ -508,8 +508,8 @@ public class AttachmentMapper extends FieldMapper {
                 }
                 context = context.createExternalValueContext(language);
                 languageMapper.parse(context);
-            } catch(Throwable t) {
-                logger.debug("Cannot detect language: [{}]", t.getMessage());
+            } catch(Exception e) {
+                logger.debug("Cannot detect language: [{}]", e.getMessage());
             }
         }
 

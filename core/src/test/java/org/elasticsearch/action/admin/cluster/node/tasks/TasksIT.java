@@ -99,6 +99,11 @@ public class TasksIT extends ESIntegTestCase {
     private Map<Tuple<String, String>, RecordingTaskManagerListener> listeners = new HashMap<>();
 
     @Override
+    protected boolean addMockTransportService() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(MockTransportService.TestPlugin.class, TestTaskPlugin.class);
     }
@@ -738,12 +743,12 @@ public class TasksIT extends ESIntegTestCase {
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         throw new RuntimeException(e);
                     }
                 });
         b.await();
- 
+
         // Now we can find it!
         GetTaskResponse response = expectFinishedTask(new TaskId("fake:1"));
         assertEquals("test", response.getTask().getTask().getAction());

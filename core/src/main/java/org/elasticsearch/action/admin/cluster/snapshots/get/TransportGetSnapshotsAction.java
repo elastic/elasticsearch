@@ -120,8 +120,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 snapshotInfoBuilder.addAll(snapshotsService.snapshots(repository, new ArrayList<>(toResolve), request.ignoreUnavailable()));
             }
             listener.onResponse(new GetSnapshotsResponse(snapshotInfoBuilder));
-        } catch (Throwable t) {
-            listener.onFailure(t);
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 

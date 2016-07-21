@@ -44,6 +44,11 @@ public interface RecoveryTargetHandler {
     void finalizeRecovery();
 
     /**
+     * Blockingly waits for cluster state with at least clusterStateVersion to be available
+     */
+    void ensureClusterStateVersion(long clusterStateVersion);
+
+    /**
      * Index a set of translog operations on the target
      * @param operations operations to index
      * @param totalTranslogOps current number of total operations expected to be indexed

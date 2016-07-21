@@ -165,8 +165,8 @@ public abstract class MultiValuesSourceParser<VS extends ValuesSource> implement
         return factory;
     }
 
-    private final void parseMissingAndAdd(final String aggregationName, final String currentFieldName,
-                                          XContentParser parser, final Map<String, Object> missing) throws IOException {
+    private void parseMissingAndAdd(final String aggregationName, final String currentFieldName,
+                                    XContentParser parser, final Map<String, Object> missing) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == null) {
             token = parser.nextToken();

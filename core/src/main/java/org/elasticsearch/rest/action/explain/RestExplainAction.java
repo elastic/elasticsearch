@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.explain;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -56,15 +56,15 @@ public class RestExplainAction extends BaseRestHandler {
     private final IndicesQueriesRegistry indicesQueriesRegistry;
 
     @Inject
-    public RestExplainAction(Settings settings, RestController controller, Client client, IndicesQueriesRegistry indicesQueriesRegistry) {
-        super(settings, client);
+    public RestExplainAction(Settings settings, RestController controller, IndicesQueriesRegistry indicesQueriesRegistry) {
+        super(settings);
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         controller.registerHandler(GET, "/{index}/{type}/{id}/_explain", this);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_explain", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final ExplainRequest explainRequest = new ExplainRequest(request.param("index"), request.param("type"), request.param("id"));
         explainRequest.parent(request.param("parent"));
         explainRequest.routing(request.param("routing"));

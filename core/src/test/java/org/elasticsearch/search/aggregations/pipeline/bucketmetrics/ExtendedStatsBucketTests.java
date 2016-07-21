@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregationBuilder;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -51,7 +50,7 @@ public class ExtendedStatsBucketTests extends AbstractBucketMetricsTestCase<Exte
         parser.nextToken(); // skip object start
 
         ExtendedStatsBucketPipelineAggregationBuilder builder = (ExtendedStatsBucketPipelineAggregationBuilder) aggParsers
-            .pipelineParser(ExtendedStatsBucketPipelineAggregator.TYPE.name(), parseFieldMatcher)
+            .pipelineParser(ExtendedStatsBucketPipelineAggregationBuilder.NAME, parseFieldMatcher)
             .parse("test", parseContext);
 
         assertThat(builder.sigma(), equalTo(5.0));

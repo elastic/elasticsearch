@@ -24,14 +24,18 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.plugins.SearchPlugin;
 
 import java.io.IOException;
+import java.util.List;
 
-public class DummyQueryParserPlugin extends Plugin {
+import static java.util.Collections.singletonList;
 
-    public void onModule(SearchModule module) {
-        module.registerQuery(DummyQueryBuilder::new, DummyQueryBuilder::fromXContent, DummyQueryBuilder.QUERY_NAME_FIELD);
+public class DummyQueryParserPlugin extends Plugin implements SearchPlugin {
+
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        return singletonList(new QuerySpec<>(DummyQueryBuilder.NAME, DummyQueryBuilder::new, DummyQueryBuilder::fromXContent));
     }
 
     public static class DummyQuery extends Query {

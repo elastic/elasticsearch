@@ -1110,7 +1110,7 @@ public long ramBytesUsed() {
             this.analyzed.copyBytes(analyzed);
         }
 
-        private final static class SurfaceFormAndPayload implements Comparable<SurfaceFormAndPayload> {
+        private static final class SurfaceFormAndPayload implements Comparable<SurfaceFormAndPayload> {
             BytesRef payload;
             long weight;
 

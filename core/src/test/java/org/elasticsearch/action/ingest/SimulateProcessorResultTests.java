@@ -37,27 +37,39 @@ public class SimulateProcessorResultTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         String processorTag = randomAsciiOfLengthBetween(1, 10);
-        boolean isFailure = randomBoolean();
+        boolean isSuccessful = randomBoolean();
+        boolean isIgnoredException = randomBoolean();
         SimulateProcessorResult simulateProcessorResult;
-        if (isFailure) {
-            simulateProcessorResult = new SimulateProcessorResult(processorTag, new IllegalArgumentException("test"));
-        } else {
+        if (isSuccessful) {
             IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-            simulateProcessorResult = new SimulateProcessorResult(processorTag, ingestDocument);
+            if (isIgnoredException) {
+                simulateProcessorResult = new SimulateProcessorResult(processorTag, ingestDocument, new IllegalArgumentException("test"));
+            } else {
+                simulateProcessorResult = new SimulateProcessorResult(processorTag, ingestDocument);
+            }
+        } else {
+            simulateProcessorResult = new SimulateProcessorResult(processorTag, new IllegalArgumentException("test"));
         }
 
         BytesStreamOutput out = new BytesStreamOutput();
         simulateProcessorResult.writeTo(out);
-        StreamInput streamInput = StreamInput.wrap(out.bytes());
+        StreamInput streamInput = out.bytes().streamInput();
         SimulateProcessorResult otherSimulateProcessorResult = new SimulateProcessorResult(streamInput);
         assertThat(otherSimulateProcessorResult.getProcessorTag(), equalTo(simulateProcessorResult.getProcessorTag()));
-        if (isFailure) {
-            assertThat(simulateProcessorResult.getIngestDocument(), is(nullValue()));
+        if (isSuccessful) {
+            assertIngestDocument(otherSimulateProcessorResult.getIngestDocument(), simulateProcessorResult.getIngestDocument());
+            if (isIgnoredException) {
+                assertThat(otherSimulateProcessorResult.getFailure(), instanceOf(IllegalArgumentException.class));
+                IllegalArgumentException e = (IllegalArgumentException) otherSimulateProcessorResult.getFailure();
+                assertThat(e.getMessage(), equalTo("test"));
+            } else {
+                assertThat(otherSimulateProcessorResult.getFailure(), nullValue());
+            }
+        } else {
+            assertThat(otherSimulateProcessorResult.getIngestDocument(), is(nullValue()));
             assertThat(otherSimulateProcessorResult.getFailure(), instanceOf(IllegalArgumentException.class));
             IllegalArgumentException e = (IllegalArgumentException) otherSimulateProcessorResult.getFailure();
             assertThat(e.getMessage(), equalTo("test"));
-        } else {
-            assertIngestDocument(otherSimulateProcessorResult.getIngestDocument(), simulateProcessorResult.getIngestDocument());
         }
     }
 }

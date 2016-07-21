@@ -24,6 +24,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
@@ -92,6 +93,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
@@ -344,8 +346,14 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Pick a random object from the given array. The array must not be empty. */
     public static <T> T randomFrom(T... array) {
-        return RandomPicks.randomFrom(random(), array);
+        return randomFrom(random(), array);
     }
+
+    /** Pick a random object from the given array. The array must not be empty. */
+    public static <T> T randomFrom(Random random, T... array) {
+        return RandomPicks.randomFrom(random, array);
+    }
+
 
     /** Pick a random object from the given list. */
     public static <T> T randomFrom(List<T> list) {
@@ -654,6 +662,20 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         // Oh well, we didn't get enough unique things. It'll be ok.
         return things;
+    }
+
+    public static String randomGeohash(int minPrecision, int maxPrecision) {
+        return geohashGenerator.ofStringLength(random(), minPrecision, maxPrecision);
+    }
+
+    private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
+
+    public static class GeohashGenerator extends CodepointSetGenerator {
+        private static final char[] ASCII_SET = "0123456789bcdefghjkmnpqrstuvwxyz".toCharArray();
+
+        public GeohashGenerator() {
+            super(ASCII_SET);
+        }
     }
 
     /**

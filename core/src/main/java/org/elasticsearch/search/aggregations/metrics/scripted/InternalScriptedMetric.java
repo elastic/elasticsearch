@@ -26,7 +26,6 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -39,36 +38,34 @@ import java.util.List;
 import java.util.Map;
 
 public class InternalScriptedMetric extends InternalMetricsAggregation implements ScriptedMetric {
+    private final Script reduceScript;
+    private final Object aggregation;
 
-    public final static Type TYPE = new Type("scripted_metric");
-
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalScriptedMetric readResult(StreamInput in) throws IOException {
-            InternalScriptedMetric result = new InternalScriptedMetric();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    private Script reduceScript;
-    private Object aggregation;
-
-    private InternalScriptedMetric() {
-    }
-
-    private InternalScriptedMetric(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    public InternalScriptedMetric(String name, Object aggregation, Script reduceScript, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
-    }
-
-    public InternalScriptedMetric(String name, Object aggregation, Script reduceScript, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        this(name, pipelineAggregators, metaData);
         this.aggregation = aggregation;
         this.reduceScript = reduceScript;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public InternalScriptedMetric(StreamInput in) throws IOException {
+        super(in);
+        reduceScript = in.readOptionalWriteable(Script::new);
+        aggregation = in.readGenericValue();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeOptionalWriteable(reduceScript);
+        out.writeGenericValue(aggregation);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ScriptedMetricAggregationBuilder.NAME;
     }
 
     @Override
@@ -98,13 +95,9 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
         } else {
             aggregation = aggregationObjects;
         }
-        return new InternalScriptedMetric(firstAggregation.getName(), aggregation, firstAggregation.reduceScript, pipelineAggregators(), getMetaData());
+        return new InternalScriptedMetric(firstAggregation.getName(), aggregation, firstAggregation.reduceScript, pipelineAggregators(),
+                getMetaData());
 
-    }
-
-    @Override
-    public Type type() {
-        return TYPE;
     }
 
     @Override
@@ -116,24 +109,6 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            reduceScript = new Script(in);
-        }
-        aggregation = in.readGenericValue();
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        boolean hasScript = reduceScript != null;
-        out.writeBoolean(hasScript);
-        if (hasScript) {
-            reduceScript.writeTo(out);
-        }
-        out.writeGenericValue(aggregation);
     }
 
     @Override

@@ -323,7 +323,7 @@ public class GeolocationContextMapping extends ContextMapping {
         return new GeoQuery(name, geohash, precisions);
     }
 
-    private static final int parsePrecision(XContentParser parser) throws IOException, ElasticsearchParseException {
+    private static int parsePrecision(XContentParser parser) throws IOException, ElasticsearchParseException {
         switch (parser.currentToken()) {
         case VALUE_STRING:
             return GeoUtils.geoHashLevelsForPrecision(parser.text());

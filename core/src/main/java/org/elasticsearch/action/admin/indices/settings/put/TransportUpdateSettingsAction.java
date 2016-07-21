@@ -91,7 +91,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 logger.debug("failed to update settings on indices [{}]", t, (Object)concreteIndices);
                 listener.onFailure(t);
             }

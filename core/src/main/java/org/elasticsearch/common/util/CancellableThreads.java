@@ -42,7 +42,7 @@ public class CancellableThreads {
     }
 
 
-    /** call this will throw an exception if operation was cancelled. Override {@link #onCancel(String, java.lang.Throwable)} for custom failure logic */
+    /** call this will throw an exception if operation was cancelled. Override {@link #onCancel(String, Exception)} for custom failure logic */
     public synchronized void checkForCancel() {
         if (isCancelled()) {
             onCancel(reason, null);
@@ -53,11 +53,10 @@ public class CancellableThreads {
      * called if {@link #checkForCancel()} was invoked after the operation was cancelled.
      * the default implementation always throws an {@link ExecutionCancelledException}, suppressing
      * any other exception that occurred before cancellation
-     *
-     * @param reason              reason for failure supplied by the caller of {@link #cancel}
+     *  @param reason              reason for failure supplied by the caller of {@link #cancel}
      * @param suppressedException any error that was encountered during the execution before the operation was cancelled.
      */
-    protected void onCancel(String reason, @Nullable Throwable suppressedException) {
+    protected void onCancel(String reason, @Nullable Exception suppressedException) {
         RuntimeException e = new ExecutionCancelledException("operation was cancelled reason [" + reason + "]");
         if (suppressedException != null) {
             e.addSuppressed(suppressedException);

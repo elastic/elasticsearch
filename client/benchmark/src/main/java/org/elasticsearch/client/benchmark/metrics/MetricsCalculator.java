@@ -29,6 +29,11 @@ import java.util.concurrent.TimeUnit;
 
 public final class MetricsCalculator {
     public static List<Metrics> calculate(Collection<Sample> samples) {
+        Map<String, List<Sample>> samplesPerOperation = groupByOperation(samples);
+        return calculateMetricsPerOperation(samplesPerOperation);
+    }
+
+    private static Map<String, List<Sample>> groupByOperation(Collection<Sample> samples) {
         Map<String, List<Sample>> samplesPerOperation = new HashMap<>();
 
         for (Sample sample : samples) {
@@ -37,24 +42,26 @@ public final class MetricsCalculator {
             }
             samplesPerOperation.get(sample.getOperation()).add(sample);
         }
+        return samplesPerOperation;
+    }
 
+    private static List<Metrics> calculateMetricsPerOperation(Map<String, List<Sample>> samplesPerOperation) {
         List<Metrics> metrics = new ArrayList<>();
-
         for (Map.Entry<String, List<Sample>> operationAndMetrics : samplesPerOperation.entrySet()) {
-            List<Sample> m = operationAndMetrics.getValue();
-            double[] serviceTimes = new double[m.size()];
+            List<Sample> samples = operationAndMetrics.getValue();
+            double[] serviceTimes = new double[samples.size()];
             int it = 0;
             long firstStart = Long.MAX_VALUE;
             long latestEnd = Long.MIN_VALUE;
-            for (Sample sample : m) {
+            for (Sample sample : samples) {
                 firstStart = Math.min(sample.getStartTimestamp(), firstStart);
                 latestEnd = Math.max(sample.getStopTimestamp(), latestEnd);
                 serviceTimes[it++] = sample.getServiceTime();
             }
 
             metrics.add(new Metrics(operationAndMetrics.getKey(),
-                m.stream().filter((r) -> r.isSuccess()).count(),
-                m.stream().filter((r) -> !r.isSuccess()).count(),
+                samples.stream().filter((r) -> r.isSuccess()).count(),
+                samples.stream().filter((r) -> !r.isSuccess()).count(),
                 // throughput calculation is based on the total (Wall clock) time it took to generate all samples
                 calculateThroughput(samples.size(), latestEnd - firstStart),
                 // convert ns -> ms without losing precision

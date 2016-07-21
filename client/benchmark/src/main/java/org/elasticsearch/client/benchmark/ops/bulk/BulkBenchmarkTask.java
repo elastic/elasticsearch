@@ -106,7 +106,6 @@ public class BulkBenchmarkTask implements BenchmarkTask {
                 List<String> bulkData = new ArrayList<>(bulkSize);
                 while ((line = reader.readLine()) != null) {
                     if (bulkIndex == bulkSize) {
-                        // send bulk
                         sendBulk(bulkData);
                         // reset data structures
                         bulkData = new ArrayList<>(bulkSize);

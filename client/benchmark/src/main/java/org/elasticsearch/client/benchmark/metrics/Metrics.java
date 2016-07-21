@@ -43,5 +43,3 @@ public final class Metrics {
         this.serviceTimeP9999 = serviceTimeP9999;
     }
 }
-
-

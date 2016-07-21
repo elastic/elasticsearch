@@ -34,10 +34,6 @@ public final class BenchmarkRunner {
     private final BenchmarkTask task;
 
     public BenchmarkRunner(int warmupIterations, int iterations, BenchmarkTask task) {
-        this(warmupIterations, iterations, 1, task);
-    }
-
-    public BenchmarkRunner(int warmupIterations, int iterations, int operationsPerIteration, BenchmarkTask task) {
         this.warmupIterations = warmupIterations;
         this.iterations = iterations;
         this.task = task;

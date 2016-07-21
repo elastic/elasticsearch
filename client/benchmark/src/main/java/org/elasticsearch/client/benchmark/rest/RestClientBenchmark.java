@@ -47,10 +47,7 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
 
     @Override
     protected RestClient client(String benchmarkTargetHost) {
-        CloseableHttpClient httpClient = HttpClients
-            .custom()
-            .setRetryHandler(new StandardHttpRequestRetryHandler(3, true))
-            .build();
+        CloseableHttpClient httpClient = HttpClients.createDefault();
 
         return RestClient.builder(new HttpHost(benchmarkTargetHost, 9200))
             .setHttpClient(httpClient)

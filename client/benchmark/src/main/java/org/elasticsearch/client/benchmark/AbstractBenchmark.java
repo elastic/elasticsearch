@@ -70,7 +70,7 @@ public abstract class AbstractBenchmark<T extends Closeable> {
                     System.out.println("=============");
 
                     for (int throughput = 100; throughput <= 100_000; throughput *= 10) {
-                        //force a GC between trials
+                        //request a GC between trials to reduce the likelihood of a GC occurring in the middle of a trial.
                         System.gc();
 
                         BenchmarkRunner searchBenchmark = new BenchmarkRunner(SEARCH_BENCHMARK_ITERATIONS, SEARCH_BENCHMARK_ITERATIONS,

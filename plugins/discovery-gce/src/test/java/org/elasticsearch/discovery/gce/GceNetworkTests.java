@@ -107,7 +107,7 @@ public class GceNetworkTests extends ESTestCase {
 
         NetworkService networkService = new NetworkService(nodeSettings);
         GceMetadataServiceMock mock = new GceMetadataServiceMock(nodeSettings);
-        networkService.setCustomNameResolvers(Collections.singletonList(new GceNameResolver(nodeSettings, mock)));
+        networkService.addCustomNameResolver(new GceNameResolver(nodeSettings, mock));
         try {
             InetAddress[] addresses = networkService.resolveBindHostAddresses(null);
             if (expected == null) {

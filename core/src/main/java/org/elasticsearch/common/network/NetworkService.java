@@ -90,15 +90,15 @@ public class NetworkService extends AbstractComponent {
         InetAddress[] resolveIfPossible(String value) throws IOException;
     }
 
-    private  List<CustomNameResolver> customNameResolvers;
+    private final List<CustomNameResolver> customNameResolvers = new CopyOnWriteArrayList<>();;
 
     public NetworkService(Settings settings) {
         super(settings);
         IfConfig.logIfNecessary();
     }
 
-    public void setCustomNameResolvers(List<CustomNameResolver> customNameResolvers) {
-        this.customNameResolvers = customNameResolvers;
+    public void addCustomNameResolver(CustomNameResolver customNameResolver) {
+        this.customNameResolvers.add(customNameResolver);
     }
 
     /**

@@ -45,12 +45,12 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
@@ -75,7 +75,8 @@ public class ClusterRerouteRequestTests extends ESTestCase {
 
     public ClusterRerouteRequestTests() {
         namedWriteableRegistry = new NamedWriteableRegistry();
-        allocationCommandRegistry = new NetworkModule(null, null, true, namedWriteableRegistry).getAllocationCommandRegistry();
+        allocationCommandRegistry = new NetworkModule(null, null, true, namedWriteableRegistry, Collections.emptyList())
+            .getAllocationCommandRegistry();
     }
 
     private ClusterRerouteRequest randomRequest() {

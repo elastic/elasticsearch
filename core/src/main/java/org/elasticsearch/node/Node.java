@@ -92,6 +92,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -280,7 +281,8 @@ public class Node implements Closeable {
             }
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             modules.add(new NodeModule(this, monitorService));
-            modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
+            modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry,
+                pluginsService.filterPlugins(DiscoveryPlugin.class)));
             modules.add(new DiscoveryModule(this.settings));
             ClusterModule clusterModule = new ClusterModule(settings, clusterService);
             modules.add(clusterModule);

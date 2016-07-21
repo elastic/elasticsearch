@@ -54,6 +54,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -122,7 +123,7 @@ public abstract class TransportClient extends AbstractClient {
             for (Module pluginModule : pluginsService.createGuiceModules()) {
                 modules.add(pluginModule);
             }
-            modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));
+            modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry, pluginsService.filterPlugins(DiscoveryPlugin.class)));
             modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
             modules.add(new SearchModule(settings, namedWriteableRegistry, true, pluginsService.filterPlugins(SearchPlugin.class)));
             ActionModule actionModule = new ActionModule(false, true, settings, null, settingsModule.getClusterSettings(),

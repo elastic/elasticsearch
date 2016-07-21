@@ -31,12 +31,14 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.gce.GceUnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 
 import java.security.AccessController;
@@ -47,7 +49,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-public class GceDiscoveryPlugin extends Plugin {
+public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
     public static final String GCE = "gce";
     private final Settings settings;
@@ -100,9 +102,10 @@ public class GceDiscoveryPlugin extends Plugin {
         discoveryModule.addUnicastHostProvider(GCE, GceUnicastHostsProvider.class);
     }
 
-    public void onModule(NetworkModule networkModule) {
+    @Override
+    public NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
         logger.debug("Register _gce_, _gce:xxx network names");
-        networkModule.addCustomNameResolver(new GceNameResolver(settings, new GceMetadataServiceImpl(settings)));
+        return new GceNameResolver(settings, new GceMetadataServiceImpl(settings));
     }
 
     @Override

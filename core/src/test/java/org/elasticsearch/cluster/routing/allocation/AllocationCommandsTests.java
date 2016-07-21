@@ -51,7 +51,10 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.test.ESAllocationTestCase;
+
+import java.util.Collections;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -434,7 +437,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         // Since the commands are named writeable we need to register them and wrap the input stream
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        new NetworkModule(null, Settings.EMPTY, true, namedWriteableRegistry);
+        new NetworkModule(null, Settings.EMPTY, true, namedWriteableRegistry, Collections.emptyList());
         in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
 
         // Now we can read them!
@@ -480,8 +483,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         // move two tokens, parser expected to be "on" `commands` field
         parser.nextToken();
         parser.nextToken();
-        AllocationCommandRegistry registry = new NetworkModule(null, Settings.EMPTY, true, new NamedWriteableRegistry())
-                .getAllocationCommandRegistry();
+        AllocationCommandRegistry registry = new NetworkModule(null, Settings.EMPTY, true, new NamedWriteableRegistry(),
+            Collections.emptyList()).getAllocationCommandRegistry();
         AllocationCommands sCommands = AllocationCommands.fromXContent(parser, ParseFieldMatcher.STRICT, registry);
 
         assertThat(sCommands.commands().size(), equalTo(5));

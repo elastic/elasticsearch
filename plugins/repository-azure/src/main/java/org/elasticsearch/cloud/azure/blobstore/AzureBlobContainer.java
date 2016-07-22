@@ -71,10 +71,6 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     public InputStream readBlob(String blobName) throws IOException {
         logger.trace("readBlob({})", blobName);
 
-        if (!blobExists(blobName)) {
-            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
-        }
-
         try {
             return blobStore.getInputStream(blobStore.container(), buildKey(blobName));
         } catch (StorageException e) {

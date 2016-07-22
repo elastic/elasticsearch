@@ -189,9 +189,6 @@ public class GoogleCloudStorageBlobStore extends AbstractComponent implements Bl
      * @return an InputStream
      */
     InputStream readBlob(String blobName) throws IOException {
-        if (!blobExists(blobName)) {
-            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
-        }
         return doPrivileged(() -> {
             try {
                 Storage.Objects.Get object = client.objects().get(bucket, blobName);

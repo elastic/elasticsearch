@@ -24,7 +24,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
-import java.util.Collection;
 import java.util.Map;
 
 /**

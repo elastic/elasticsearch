@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -24,19 +22,6 @@ esplugin {
   classname 'org.elasticsearch.index.reindex.ReindexPlugin'
   hasClientJar = true
 }
-
-Task integTestNetty4 = tasks.create("integTestNetty4", RestIntegTestTask) {
-  suffix = 'Netty4'
-  cluster {
-    setting 'http.type', 'netty4'
-    setting 'transport.type', 'netty4'
-    setting 'reindex.remote.whitelist', 'myself'
-  }
-}
-integTestNetty4.dependsOn(project.bundlePlugin)
-integTestNetty4.clusterConfig.module(project)
-
-integTest.dependsOn integTestNetty4
 
 integTest {
   cluster {

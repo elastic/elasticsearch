@@ -10,4 +10,4 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.modules.0.name: transport-netty4  }
+    - match:  { nodes.$master.modules.1.name: transport-netty4  }

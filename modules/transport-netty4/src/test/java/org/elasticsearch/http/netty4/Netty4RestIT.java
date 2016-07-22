@@ -17,22 +17,25 @@
  * under the License.
  */
 
-task buildZip(type: Zip) {
-  baseName = 'elasticsearch'
-  with archivesFiles
-}
+package org.elasticsearch.http.netty4;
 
-artifacts {
-  'default' buildZip
-  archives buildZip
-}
+import com.carrotsearch.randomizedtesting.annotations.Name;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.RestTestCandidate;
+import org.elasticsearch.test.rest.parser.RestTestParseException;
 
-publishing {
-  publications {
-    nebula {
-      artifact buildZip
+import java.io.IOException;
+
+public class Netty4RestIT extends ESRestTestCase {
+
+    public Netty4RestIT(@Name("yaml") RestTestCandidate testCandidate) {
+        super(testCandidate);
     }
-  }
-}
 
-integTest.dependsOn buildZip
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+        return ESRestTestCase.createParameters(0, 1);
+    }
+
+}

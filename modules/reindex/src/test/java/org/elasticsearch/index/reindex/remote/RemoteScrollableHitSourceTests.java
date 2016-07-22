@@ -361,7 +361,8 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
                 } else {
                     StatusLine statusLine = new BasicStatusLine(protocolVersion, 200, "");
                     HttpResponse httpResponse = new BasicHttpResponse(statusLine);
-                    httpResponse.setEntity(new InputStreamEntity(resource.openStream(), ContentType.APPLICATION_JSON));
+                    httpResponse.setEntity(new InputStreamEntity(resource.openStream(),
+                            randomBoolean() ? ContentType.APPLICATION_JSON : null));
                     futureCallback.completed(httpResponse);
                 }
                 return null;

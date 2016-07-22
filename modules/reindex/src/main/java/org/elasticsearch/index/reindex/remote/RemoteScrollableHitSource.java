@@ -34,6 +34,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
@@ -139,9 +140,16 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                     public void onSuccess(org.elasticsearch.client.Response response) {
                         T parsedResponse;
                         try {
-                            InputStream content = response.getEntity().getContent();
-                            XContentType xContentType = XContentType.fromMediaTypeOrFormat(
-                                    response.getEntity().getContentType().getValue());
+                            HttpEntity responseEntity = response.getEntity();
+                            InputStream content = responseEntity.getContent();
+                            XContentType xContentType = null;
+                            if (responseEntity.getContentType() != null) {
+                                 xContentType = XContentType.fromMediaTypeOrFormat(responseEntity.getContentType().getValue());
+                            }
+                            if (xContentType == null) {
+                                //auto-detect as a fallback
+                                xContentType = XContentFactory.xContentType(content);
+                            }
                             try(XContentParser xContentParser = xContentType.xContent().createParser(content)) {
                                 parsedResponse = parser.apply(xContentParser, () -> ParseFieldMatcher.STRICT);
                             }

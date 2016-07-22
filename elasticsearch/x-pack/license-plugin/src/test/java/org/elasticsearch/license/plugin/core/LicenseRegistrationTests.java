@@ -25,7 +25,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
             "testTrialLicenseRequestOnEmptyLicenseState", logger);
         setInitialState(null, licensee);
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
-        licensesService.start();
+        licenseService.start();
 
         ClusterState state = ClusterState.builder(new ClusterName("a")).build();
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
@@ -34,14 +34,14 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         LicensesMetaData licenseMetaData = stateWithLicense.metaData().custom(LicensesMetaData.TYPE);
         assertNotNull(licenseMetaData);
         assertNotNull(licenseMetaData.getLicense());
-        assertEquals(clock.millis() + LicensesService.TRIAL_LICENSE_DURATION.millis(), licenseMetaData.getLicense().expiryDate());
+        assertEquals(clock.millis() + LicenseService.TRIAL_LICENSE_DURATION.millis(), licenseMetaData.getLicense().expiryDate());
     }
 
     public void testNotificationOnRegistration() throws Exception {
         TestUtils.AssertingLicensee licensee = new TestUtils.AssertingLicensee(
                 "testNotificationOnRegistration", logger);
         setInitialState(TestUtils.generateSignedLicense(TimeValue.timeValueHours(2)), licensee);
-        licensesService.start();
+        licenseService.start();
         assertThat(licensee.statuses.size(), equalTo(1));
         final LicenseState licenseState = licensee.statuses.get(0).getLicenseState();
         assertTrue(licenseState == LicenseState.ENABLED);

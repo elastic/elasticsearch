@@ -21,8 +21,8 @@ import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
+import org.elasticsearch.license.plugin.core.LicenseService;
 import org.elasticsearch.license.plugin.core.Licensee;
-import org.elasticsearch.license.plugin.core.LicensesService;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.junit.Assert;
 
@@ -146,12 +146,12 @@ public class TestUtils {
         return PathUtils.get(TestUtils.class.getResource(resource).toURI());
     }
 
-    public static void registerAndAckSignedLicenses(final LicensesService licensesService, License license,
+    public static void registerAndAckSignedLicenses(final LicenseService licenseService, License license,
                                                     final LicensesStatus expectedStatus) {
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(license).acknowledge(true);
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<LicensesStatus> status = new AtomicReference<>();
-        licensesService.registerLicense(putLicenseRequest, new ActionListener<PutLicenseResponse>() {
+        licenseService.registerLicense(putLicenseRequest, new ActionListener<PutLicenseResponse>() {
             @Override
             public void onResponse(PutLicenseResponse licensesUpdateResponse) {
                 status.set(licensesUpdateResponse.status());

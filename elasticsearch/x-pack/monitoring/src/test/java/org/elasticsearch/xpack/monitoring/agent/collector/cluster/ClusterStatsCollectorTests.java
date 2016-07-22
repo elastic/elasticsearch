@@ -11,7 +11,7 @@ import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.plugin.core.LicensesService;
+import org.elasticsearch.license.plugin.core.LicenseService;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
@@ -133,7 +133,7 @@ public class ClusterStatsCollectorTests extends AbstractCollectorTestCase {
                 internalCluster().getInstance(MonitoringSettings.class, nodeId),
                 internalCluster().getInstance(MonitoringLicensee.class, nodeId),
                 securedClient(nodeId),
-                internalCluster().getInstance(LicensesService.class, nodeId));
+                internalCluster().getInstance(LicenseService.class, nodeId));
     }
 
     private void assertCanCollect(AbstractCollector collector, Class<?>... classes) {

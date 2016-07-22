@@ -72,7 +72,7 @@ public abstract class RestRequest implements ToXContent.Params {
     /**
      * The non decoded, raw path provided.
      */
-    public final String rawPath() {
+    public String rawPath() {
         return rawPath;
     }
 
@@ -119,7 +119,7 @@ public abstract class RestRequest implements ToXContent.Params {
         return value;
     }
 
-    public final Map<String, String> params() {
+    public Map<String, String> params() {
         return params;
     }
 

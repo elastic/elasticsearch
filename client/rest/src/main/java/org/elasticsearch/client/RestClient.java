@@ -46,6 +46,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -373,30 +374,35 @@ public final class RestClient implements Closeable {
      * In case there are no healthy hosts available, or dead ones to be be retried, one dead host gets returned.
      */
     private Iterable<HttpHost> nextHost() {
-        Set<HttpHost> filteredHosts = new HashSet<>(hosts);
-        for (Map.Entry<HttpHost, DeadHostState> entry : blacklist.entrySet()) {
-            if (System.nanoTime() - entry.getValue().getDeadUntilNanos() < 0) {
-                filteredHosts.remove(entry.getKey());
-            }
-        }
-
-        if (filteredHosts.isEmpty()) {
-            //last resort: if there are no good hosts to use, return a single dead one, the one that's closest to being retried
-            List<Map.Entry<HttpHost, DeadHostState>> sortedHosts = new ArrayList<>(blacklist.entrySet());
-            Collections.sort(sortedHosts, new Comparator<Map.Entry<HttpHost, DeadHostState>>() {
-                @Override
-                public int compare(Map.Entry<HttpHost, DeadHostState> o1, Map.Entry<HttpHost, DeadHostState> o2) {
-                    return Long.compare(o1.getValue().getDeadUntilNanos(), o2.getValue().getDeadUntilNanos());
+        Collection<HttpHost> nextHosts = Collections.emptySet();
+        do {
+            Set<HttpHost> filteredHosts = new HashSet<>(hosts);
+            for (Map.Entry<HttpHost, DeadHostState> entry : blacklist.entrySet()) {
+                if (System.nanoTime() - entry.getValue().getDeadUntilNanos() < 0) {
+                    filteredHosts.remove(entry.getKey());
                 }
-            });
-            HttpHost deadHost = sortedHosts.get(0).getKey();
-            logger.trace("resurrecting host [" + deadHost + "]");
-            return Collections.singleton(deadHost);
-        }
-
-        List<HttpHost> rotatedHosts = new ArrayList<>(filteredHosts);
-        Collections.rotate(rotatedHosts, rotatedHosts.size() - lastHostIndex.getAndIncrement());
-        return rotatedHosts;
+            }
+            if (filteredHosts.isEmpty()) {
+                //last resort: if there are no good hosts to use, return a single dead one, the one that's closest to being retried
+                List<Map.Entry<HttpHost, DeadHostState>> sortedHosts = new ArrayList<>(blacklist.entrySet());
+                if (sortedHosts.size() > 0) {
+                    Collections.sort(sortedHosts, new Comparator<Map.Entry<HttpHost, DeadHostState>>() {
+                        @Override
+                        public int compare(Map.Entry<HttpHost, DeadHostState> o1, Map.Entry<HttpHost, DeadHostState> o2) {
+                            return Long.compare(o1.getValue().getDeadUntilNanos(), o2.getValue().getDeadUntilNanos());
+                        }
+                    });
+                    HttpHost deadHost = sortedHosts.get(0).getKey();
+                    logger.trace("resurrecting host [" + deadHost + "]");
+                    nextHosts = Collections.singleton(deadHost);
+                }
+            } else {
+                List<HttpHost> rotatedHosts = new ArrayList<>(filteredHosts);
+                Collections.rotate(rotatedHosts, rotatedHosts.size() - lastHostIndex.getAndIncrement());
+                nextHosts = rotatedHosts;
+            }
+        } while(nextHosts.isEmpty());
+        return nextHosts;
     }
 
     /**

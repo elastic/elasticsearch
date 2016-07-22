@@ -57,6 +57,7 @@ import static org.hamcrest.Matchers.hasSize;
  * tests won't verify that.
  */
 public class RetryTests extends ESSingleNodeTestCase {
+
     private static final int DOC_COUNT = 20;
 
     private List<CyclicBarrier> blockedExecutors = new ArrayList<>();
@@ -67,6 +68,23 @@ public class RetryTests extends ESSingleNodeTestCase {
     public void setUp() throws Exception {
         super.setUp();
         useNetty4 = randomBoolean();
+        createIndex("source");
+        // Build the test data. Don't use indexRandom because that won't work consistently with such small thread pools.
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < DOC_COUNT; i++) {
+            bulk.add(client().prepareIndex("source", "test").setSource("foo", "bar " + i));
+        }
+        Retry retry = Retry.on(EsRejectedExecutionException.class).policy(BackoffPolicy.exponentialBackoff());
+        BulkResponse response = retry.withSyncBackoff(client(), bulk.request());
+        assertFalse(response.buildFailureMessage(), response.hasFailures());
+        client().admin().indices().prepareRefresh("source").get();
+    }
+
+    @After
+    public void forceUnblockAllExecutors() {
+        for (CyclicBarrier barrier: blockedExecutors) {
+            barrier.reset();
+        }
     }
 
     @Override
@@ -112,27 +130,6 @@ public class RetryTests extends ESSingleNodeTestCase {
             settings.put(NetworkModule.TRANSPORT_TYPE_KEY, Netty4Plugin.NETTY_TRANSPORT_NAME);
         }
         return settings.build();
-    }
-
-    @Before
-    public void setupSourceIndex() throws Exception {
-        createIndex("source");
-        // Build the test data. Don't use indexRandom because that won't work consistently with such small thread pools.
-        BulkRequestBuilder bulk = client().prepareBulk();
-        for (int i = 0; i < DOC_COUNT; i++) {
-            bulk.add(client().prepareIndex("source", "test").setSource("foo", "bar " + i));
-        }
-        Retry retry = Retry.on(EsRejectedExecutionException.class).policy(BackoffPolicy.exponentialBackoff());
-        BulkResponse response = retry.withSyncBackoff(client(), bulk.request());
-        assertFalse(response.buildFailureMessage(), response.hasFailures());
-        client().admin().indices().prepareRefresh("source").get();
-    }
-
-    @After
-    public void forceUnblockAllExecutors() {
-        for (CyclicBarrier barrier: blockedExecutors) {
-            barrier.reset();
-        }
     }
 
     public void testReindex() throws Exception {
@@ -239,4 +236,5 @@ public class RetryTests extends ESSingleNodeTestCase {
         assertThat(response.getTasks(), hasSize(1));
         return (BulkByScrollTask.Status) response.getTasks().get(0).getStatus();
     }
+
 }

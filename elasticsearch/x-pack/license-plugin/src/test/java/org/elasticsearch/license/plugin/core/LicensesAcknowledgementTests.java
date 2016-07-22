@@ -32,23 +32,23 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
         String[] acknowledgeMessages = new String[] {"message"};
         TestUtils.AssertingLicensee licensee = new TestUtils.AssertingLicensee(id, logger);
         setInitialState(TestUtils.generateSignedLicense("trial", TimeValue.timeValueHours(2)), licensee);
-        licensesService.start();
+        licenseService.start();
         licensee.setAcknowledgementMessages(acknowledgeMessages);
         // try installing a signed license
         License signedLicense = generateSignedLicense(TimeValue.timeValueHours(10));
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(signedLicense);
         // ensure acknowledgement message was part of the response
-        licensesService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(false, LicensesStatus.VALID,
+        licenseService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(false, LicensesStatus.VALID,
                 Collections.singletonMap(id, acknowledgeMessages)));
         assertThat(licensee.acknowledgementRequested.size(), equalTo(1));
         assertThat(licensee.acknowledgementRequested.get(0).v2(), equalTo(signedLicense.operationMode()));
-        assertThat(licensesService.getLicense(), not(signedLicense));
+        assertThat(licenseService.getLicense(), not(signedLicense));
 
         // try installing a signed license with acknowledgement
         putLicenseRequest = new PutLicenseRequest().license(signedLicense).acknowledge(true);
         // ensure license was installed and no acknowledgment message was returned
         licensee.setAcknowledgementMessages(new String[0]);
-        licensesService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(true, LicensesStatus.VALID,
+        licenseService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(true, LicensesStatus.VALID,
                 Collections.<String, String[]>emptyMap()));
         verify(clusterService, times(1)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
         assertThat(licensee.acknowledgementRequested.size(), equalTo(1));
@@ -65,7 +65,7 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
         TestUtils.AssertingLicensee licensee2 = new TestUtils.AssertingLicensee(id2, logger);
         licensee2.setAcknowledgementMessages(acknowledgeMessages2);
         setInitialState(TestUtils.generateSignedLicense("trial", TimeValue.timeValueHours(2)), licensee1, licensee2);
-        licensesService.start();
+        licenseService.start();
         // try installing a signed license
         License signedLicense = generateSignedLicense(TimeValue.timeValueHours(10));
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(signedLicense);
@@ -73,21 +73,21 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
         final HashMap<String, String[]> expectedMessages = new HashMap<>();
         expectedMessages.put(id1, acknowledgeMessages1);
         expectedMessages.put(id2, acknowledgeMessages2);
-        licensesService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(false, LicensesStatus.VALID,
+        licenseService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(false, LicensesStatus.VALID,
                 expectedMessages));
         verify(clusterService, times(0)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
         assertThat(licensee2.acknowledgementRequested.size(), equalTo(1));
         assertThat(licensee2.acknowledgementRequested.get(0).v2(), equalTo(signedLicense.operationMode()));
         assertThat(licensee1.acknowledgementRequested.size(), equalTo(1));
         assertThat(licensee1.acknowledgementRequested.get(0).v2(), equalTo(signedLicense.operationMode()));
-        assertThat(licensesService.getLicense(), not(signedLicense));
+        assertThat(licenseService.getLicense(), not(signedLicense));
 
         // try installing a signed license with acknowledgement
         putLicenseRequest = new PutLicenseRequest().license(signedLicense).acknowledge(true);
         // ensure license was installed and no acknowledgment message was returned
         licensee1.setAcknowledgementMessages(new String[0]);
         licensee2.setAcknowledgementMessages(new String[0]);
-        licensesService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(true, LicensesStatus.VALID,
+        licenseService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(true, LicensesStatus.VALID,
                 Collections.<String, String[]>emptyMap()));
         verify(clusterService, times(1)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
     }

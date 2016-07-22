@@ -37,12 +37,12 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
     public void setup() {
         licensee = new TestUtils.AssertingLicensee("LicenseClusterChangeTests", logger);
         setInitialState(null, licensee);
-        licensesService.start();
+        licenseService.start();
     }
 
     @After
     public void teardown() {
-        licensesService.stop();
+        licenseService.stop();
     }
 
 
@@ -51,7 +51,7 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
         final License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(24));
         MetaData metaData = MetaData.builder().putCustom(LicensesMetaData.TYPE, new LicensesMetaData(license)).build();
         ClusterState newState = ClusterState.builder(new ClusterName("a")).metaData(metaData).build();
-        licensesService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
+        licenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
         assertThat(licensee.statuses.size(), equalTo(1));
         assertTrue(licensee.statuses.get(0).getLicenseState() == LicenseState.ENABLED);
     }
@@ -61,7 +61,7 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
         MetaData metaData = MetaData.builder().putCustom(LicensesMetaData.TYPE, new LicensesMetaData(license)).build();
         ClusterState newState = ClusterState.builder(new ClusterName("a")).metaData(metaData).build();
         ClusterState oldState = ClusterState.builder(newState).build();
-        licensesService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
+        licenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
         assertThat(licensee.statuses.size(), equalTo(0));
     }
 
@@ -72,13 +72,13 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
         ClusterState newState = ClusterState.builder(oldState).nodes(discoveryNodes).build();
 
-        licensesService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
+        licenseService.clusterChanged(new ClusterChangedEvent("simulated", newState, oldState));
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
         verify(clusterService, times(1)).submitStateUpdateTask(any(), stateUpdater.capture());
         ClusterState stateWithLicense = stateUpdater.getValue().execute(newState);
         LicensesMetaData licenseMetaData = stateWithLicense.metaData().custom(LicensesMetaData.TYPE);
         assertNotNull(licenseMetaData);
         assertNotNull(licenseMetaData.getLicense());
-        assertEquals(clock.millis() + LicensesService.TRIAL_LICENSE_DURATION.millis(), licenseMetaData.getLicense().expiryDate());
+        assertEquals(clock.millis() + LicenseService.TRIAL_LICENSE_DURATION.millis(), licenseMetaData.getLicense().expiryDate());
     }
 }

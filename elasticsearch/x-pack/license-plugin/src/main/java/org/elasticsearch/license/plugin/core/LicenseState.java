@@ -8,7 +8,7 @@ package org.elasticsearch.license.plugin.core;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
 
-import static org.elasticsearch.license.plugin.core.LicensesService.days;
+import static org.elasticsearch.license.plugin.core.LicenseService.days;
 
 /**
  * States of a registered licensee

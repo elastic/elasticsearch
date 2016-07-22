@@ -57,7 +57,7 @@ import java.util.stream.Collectors;
  * When a new license is notified as enabled to the registered listener, a notification is scheduled at the time of license expiry.
  * Registered listeners are notified using {@link #onUpdate(LicensesMetaData)}
  */
-public class LicensesService extends AbstractLifecycleComponent implements ClusterStateListener, SchedulerEngine.Listener {
+public class LicenseService extends AbstractLifecycleComponent implements ClusterStateListener, SchedulerEngine.Listener {
 
     // pkg private for tests
     static final TimeValue TRIAL_LICENSE_DURATION = TimeValue.timeValueHours(30 * 24);
@@ -98,8 +98,8 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, " +
             "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
 
-    public LicensesService(Settings settings, ClusterService clusterService, Clock clock, Environment env,
-                           ResourceWatcherService resourceWatcherService, List<Licensee> registeredLicensees) {
+    public LicenseService(Settings settings, ClusterService clusterService, Clock clock, Environment env,
+                          ResourceWatcherService resourceWatcherService, List<Licensee> registeredLicensees) {
         super(settings);
         this.clusterService = clusterService;
         this.clock = clock;

@@ -16,21 +16,21 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.plugin.core.LicensesService;
+import org.elasticsearch.license.plugin.core.LicenseService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLicenseRequest, PutLicenseResponse> {
 
-    private final LicensesService licensesService;
+    private final LicenseService licenseService;
 
     @Inject
     public TransportPutLicenseAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                     LicensesService licensesService, ThreadPool threadPool, ActionFilters actionFilters,
+                                     LicenseService licenseService, ThreadPool threadPool, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, PutLicenseAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 PutLicenseRequest::new);
-        this.licensesService = licensesService;
+        this.licenseService = licenseService;
     }
 
     @Override
@@ -51,7 +51,7 @@ public class TransportPutLicenseAction extends TransportMasterNodeAction<PutLice
     @Override
     protected void masterOperation(final PutLicenseRequest request, ClusterState state, final ActionListener<PutLicenseResponse>
             listener) throws ElasticsearchException {
-        licensesService.registerLicense(request, listener);
+        licenseService.registerLicense(request, listener);
     }
 
 }

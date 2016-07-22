@@ -20,7 +20,7 @@ import org.elasticsearch.license.plugin.action.get.TransportGetLicenseAction;
 import org.elasticsearch.license.plugin.action.put.PutLicenseAction;
 import org.elasticsearch.license.plugin.action.put.TransportPutLicenseAction;
 import org.elasticsearch.license.plugin.core.LicensesMetaData;
-import org.elasticsearch.license.plugin.core.LicensesService;
+import org.elasticsearch.license.plugin.core.LicenseService;
 import org.elasticsearch.license.plugin.rest.RestDeleteLicenseAction;
 import org.elasticsearch.license.plugin.rest.RestGetLicenseAction;
 import org.elasticsearch.license.plugin.rest.RestPutLicenseAction;
@@ -92,11 +92,11 @@ public class Licensing implements ActionPlugin {
         WatcherLicensee watcherLicensee = new WatcherLicensee(settings);
         MonitoringLicensee monitoringLicensee = new MonitoringLicensee(settings);
         GraphLicensee graphLicensee = new GraphLicensee(settings);
-        LicensesService licensesService = new LicensesService(settings, clusterService, clock,
+        LicenseService licenseService = new LicenseService(settings, clusterService, clock,
                 environment, resourceWatcherService,
                 Arrays.asList(securityLicensee, watcherLicensee, monitoringLicensee, graphLicensee));
 
-        return Arrays.asList(licensesService, securityLicenseState, securityLicensee, watcherLicensee, monitoringLicensee, graphLicensee);
+        return Arrays.asList(licenseService, securityLicenseState, securityLicensee, watcherLicensee, monitoringLicensee, graphLicensee);
     }
 
     public List<Setting<?>> getSettings() {

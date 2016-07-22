@@ -48,11 +48,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.RestClientTestUtil.getAllStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.elasticsearch.client.RestClientTestUtil.randomStatusCode;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
@@ -214,5 +217,35 @@ public class RestClientIntegTests extends RestClientTestCase {
         }
         assertEquals(statusCode, esResponse.getStatusLine().getStatusCode());
         assertEquals(requestBody, EntityUtils.toString(esResponse.getEntity()));
+    }
+
+    public void testAsyncRequests() throws Exception {
+        int numRequests = randomIntBetween(2, 10);
+        final CountDownLatch latch = new CountDownLatch(numRequests);
+        for (int i = 0; i < numRequests; i++) {
+            final String method = RestClientTestUtil.randomHttpMethod(getRandom());
+            final int statusCode = randomStatusCode(getRandom());
+            restClient.performRequest(method, "/" + statusCode, new ResponseListener() {
+                @Override
+                public void onSuccess(Response response) {
+                    latch.countDown();
+                    assertResponse(response);
+                }
+
+                @Override
+                public void onFailure(Exception exception) {
+                    latch.countDown();
+                    assertThat(exception, instanceOf(ResponseException.class));
+                    ResponseException responseException = (ResponseException) exception;
+                    assertResponse(responseException.getResponse());
+                }
+
+                private void assertResponse(Response response) {
+                    assertEquals(method, response.getRequestLine().getMethod());
+                    assertEquals(statusCode, response.getStatusLine().getStatusCode());
+                }
+            });
+        }
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
     }
 }

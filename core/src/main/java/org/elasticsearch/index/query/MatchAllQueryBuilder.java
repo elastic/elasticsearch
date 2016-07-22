@@ -35,9 +35,7 @@ import java.util.Optional;
  * A query that matches on all documents.
  */
 public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuilder> {
-
     public static final String NAME = "match_all";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     public MatchAllQueryBuilder() {
     }

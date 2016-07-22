@@ -46,11 +46,8 @@ import java.util.Optional;
  * a Wildcard term should not start with one of the wildcards <tt>*</tt> or
  * <tt>?</tt>.
  */
-public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuilder>
-        implements MultiTermQueryBuilder {
-
+public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "wildcard";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField WILDCARD_FIELD = new ParseField("wildcard");
     private static final ParseField VALUE_FIELD = new ParseField("value");

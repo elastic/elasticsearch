@@ -39,12 +39,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
-
-    /**
-     * The queries name used while parsing
-     */
     public static final String NAME = "nested";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
     /**
      * The default value for ignore_unmapped.
      */

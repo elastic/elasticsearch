@@ -169,8 +169,8 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
     public static class CustomSignificanceHeuristicPlugin extends Plugin implements ScriptPlugin, SearchPlugin {
         @Override
-        public List<SearchPluginSpec<SignificanceHeuristic, SignificanceHeuristicParser>> getSignificanceHeuristics() {
-            return singletonList(new SearchPluginSpec<SignificanceHeuristic, SignificanceHeuristicParser>(SimpleHeuristic.NAME,
+        public List<SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>> getSignificanceHeuristics() {
+            return singletonList(new SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>(SimpleHeuristic.NAME,
                     SimpleHeuristic::new, SimpleHeuristic::parse));
         }
 

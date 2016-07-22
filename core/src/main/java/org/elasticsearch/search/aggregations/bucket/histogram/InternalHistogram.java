@@ -303,11 +303,6 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     }
 
     @Override
-    public Type type() {
-        return TYPE;
-    }
-
-    @Override
     public List<B> getBuckets() {
         return buckets;
     }

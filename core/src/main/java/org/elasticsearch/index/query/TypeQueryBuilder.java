@@ -37,7 +37,6 @@ import java.util.Optional;
 
 public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
     public static final String NAME = "type";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField VALUE_FIELD = new ParseField("value");
 

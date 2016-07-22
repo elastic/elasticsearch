@@ -40,9 +40,7 @@ import java.util.Optional;
  * Span query that matches the union of its clauses. Maps to {@link SpanOrQuery}.
  */
 public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder> implements SpanQueryBuilder {
-
     public static final String NAME = "span_or";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField CLAUSES_FIELD = new ParseField("clauses");
 

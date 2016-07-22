@@ -53,6 +53,13 @@ public class ParseFieldRegistry<T> {
     /**
      * Register a parser.
      */
+    public void register(T value, String name) {
+        register(value, new ParseField(name));
+    }
+
+    /**
+     * Register a parser.
+     */
     public void register(T value, ParseField parseField) {
         Tuple<ParseField, T> parseFieldParserTuple = new Tuple<>(parseField, value);
         for (String name: parseField.getAllNamesIncludedDeprecated()) {

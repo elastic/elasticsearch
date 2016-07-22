@@ -19,12 +19,16 @@
 
 package org.elasticsearch.plugins;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
@@ -56,14 +60,14 @@ public interface SearchPlugin {
      * The new {@link SignificanceHeuristic}s defined by this plugin. {@linkplain SignificanceHeuristic}s are used by the
      * {@link SignificantTerms} aggregation to pick which terms are significant for a given query.
      */
-    default List<SearchPluginSpec<SignificanceHeuristic, SignificanceHeuristicParser>> getSignificanceHeuristics() {
+    default List<SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser>> getSignificanceHeuristics() {
         return emptyList();
     }
     /**
      * The new {@link MovAvgModel}s defined by this plugin. {@linkplain MovAvgModel}s are used by the {@link MovAvgPipelineAggregator} to
      * model trends in data.
      */
-    default List<SearchPluginSpec<MovAvgModel, MovAvgModel.AbstractModelParser>> getMovingAverageModels() {
+    default List<SearchExtensionSpec<MovAvgModel, MovAvgModel.AbstractModelParser>> getMovingAverageModels() {
         return emptyList();
     }
     /**
@@ -84,16 +88,54 @@ public interface SearchPlugin {
     default Map<String, Suggester<?>> getSuggesters() {
         return emptyMap();
     }
+    /**
+     * The new {@link Query}s defined by this plugin.
+     */
+    default List<QuerySpec<?>> getQueries() {
+        return emptyList();
+    }
 
     /**
      * Specification of custom {@link ScoreFunction}.
      */
-    public class ScoreFunctionSpec<T extends ScoreFunctionBuilder<T>> extends SearchPluginSpec<T, ScoreFunctionParser<T>> {
+    public class ScoreFunctionSpec<T extends ScoreFunctionBuilder<T>> extends SearchExtensionSpec<T, ScoreFunctionParser<T>> {
         public ScoreFunctionSpec(ParseField name, Reader<T> reader, ScoreFunctionParser<T> parser) {
             super(name, reader, parser);
         }
 
         public ScoreFunctionSpec(String name, Reader<T> reader, ScoreFunctionParser<T> parser) {
+            super(name, reader, parser);
+        }
+    }
+
+    /**
+     * Specification of custom {@link Query}.
+     */
+    public class QuerySpec<T extends QueryBuilder> extends SearchExtensionSpec<T, QueryParser<T>> {
+        /**
+         * Specification of custom {@link Query}.
+         *
+         * @param name holds the names by which this query might be parsed. The {@link ParseField#getPreferredName()} is special as it
+         *        is the name by under which the reader is registered. So it is the name that the query should use as its
+         *        {@link NamedWriteable#getWriteableName()} too.
+         * @param reader the reader registered for this query's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the query builder from xcontent
+         */
+        public QuerySpec(ParseField name, Reader<T> reader, QueryParser<T> parser) {
+            super(name, reader, parser);
+        }
+
+        /**
+         * Specification of custom {@link Query}.
+         *
+         * @param name the name by which this query might be parsed or deserialized. Make sure that the query builder returns this name for
+         *        {@link NamedWriteable#getWriteableName()}.
+         * @param reader the reader registered for this query's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the query builder from xcontent
+         */
+        public QuerySpec(String name, Reader<T> reader, QueryParser<T> parser) {
             super(name, reader, parser);
         }
     }
@@ -106,7 +148,7 @@ public interface SearchPlugin {
      * @param P the type of the parser for this spec. The parser runs on the coordinating node, converting {@link XContent} into the
      *        behavior to execute
      */
-    public class SearchPluginSpec<W extends NamedWriteable, P> {
+    public class SearchExtensionSpec<W extends NamedWriteable, P> {
         private final ParseField name;
         private final Writeable.Reader<W> reader;
         private final P parser;
@@ -120,7 +162,7 @@ public interface SearchPlugin {
          * @param reader reader that reads the behavior from the internode protocol
          * @param parser parser that read the behavior from a REST request
          */
-        public SearchPluginSpec(ParseField name, Writeable.Reader<W> reader, P parser) {
+        public SearchExtensionSpec(ParseField name, Writeable.Reader<W> reader, P parser) {
             this.name = name;
             this.reader = reader;
             this.parser = parser;
@@ -134,7 +176,7 @@ public interface SearchPlugin {
          * @param reader reader that reads the behavior from the internode protocol
          * @param parser parser that read the behavior from a REST request
          */
-        public SearchPluginSpec(String name, Writeable.Reader<W> reader, P parser) {
+        public SearchExtensionSpec(String name, Writeable.Reader<W> reader, P parser) {
             this(new ParseField(name), reader, parser);
         }
 

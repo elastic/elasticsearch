@@ -193,4 +193,17 @@ public class CompoundProcessorTests extends ESTestCase {
         assertThat(firstProcessor.getInvokedCounter(), equalTo(1));
         assertThat(secondProcessor.getInvokedCounter(), equalTo(1));
     }
+
+    public void testBreakOnFailure() throws Exception {
+        TestProcessor firstProcessor = new TestProcessor("id1", "first", ingestDocument -> {throw new RuntimeException("error1");});
+        TestProcessor secondProcessor = new TestProcessor("id2", "second", ingestDocument -> {throw new RuntimeException("error2");});
+        TestProcessor onFailureProcessor = new TestProcessor("id2", "on_failure", ingestDocument -> {});
+        CompoundProcessor pipeline = new CompoundProcessor(false, Arrays.asList(firstProcessor, secondProcessor),
+            Collections.singletonList(onFailureProcessor));
+        pipeline.execute(ingestDocument);
+        assertThat(firstProcessor.getInvokedCounter(), equalTo(1));
+        assertThat(secondProcessor.getInvokedCounter(), equalTo(0));
+        assertThat(onFailureProcessor.getInvokedCounter(), equalTo(1));
+
+    }
 }

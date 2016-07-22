@@ -143,9 +143,9 @@ remove their `onModule(NetworkModule)` implemnetation.
 
 ==== SearchPlugin
 
-Plugins that register custom search time behavior (`Suggester`, `ScoreFunction`,
-`FetchSubPhase`, `Highlighter`, etc) should implement `SearchPlugin` and remove
-their `onModule(SearchModule)` implementation.
+Plugins that register custom search time behavior (`Query`, `Suggester`,
+`ScoreFunction`, `FetchSubPhase`, `Highlighter`, etc) should implement
+`SearchPlugin` and remove their `onModule(SearchModule)` implementation.
 
 ==== Mapper-Size plugin
 

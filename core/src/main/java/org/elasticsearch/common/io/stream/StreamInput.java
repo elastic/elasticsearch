@@ -420,6 +420,17 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
+    public <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
+        int size = readVInt();
+        Map<K, V> map = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            K key = keyReader.read(this);
+            V value = valueReader.read(this);
+            map.put(key, value);
+        }
+        return map;
+    }
+
     @Nullable
     @SuppressWarnings("unchecked")
     public Map<String, Object> readMap() throws IOException {
@@ -821,6 +832,18 @@ public abstract class StreamInput extends InputStream {
         List<T> builder = new ArrayList<>(count);
         for (int i=0; i<count; i++) {
             builder.add(reader.read(this));
+        }
+        return builder;
+    }
+
+    /**
+     * Reads a list of {@link NamedWriteable}s.
+     */
+    public <T extends NamedWriteable> List<T> readNamedWriteableList(Class<T> categoryClass) throws IOException {
+        int count = readVInt();
+        List<T> builder = new ArrayList<>(count);
+        for (int i=0; i<count; i++) {
+            builder.add(readNamedWriteable(categoryClass));
         }
         return builder;
     }

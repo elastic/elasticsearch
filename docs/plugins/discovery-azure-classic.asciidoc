@@ -101,7 +101,8 @@ The following are a list of settings that can further control the credential API
 
 `cloud.azure.management.cloud.service.name`::
 
-    your_azure_cloud_service_name
+    your_azure_cloud_service_name. This is the cloud service name/DNS but without the `cloudapp.net` part.
+    So if the DNS name is `abc.cloudapp.net` then the `cloud.service.name` to use is just `abc`.
 
 
 [[discovery-azure-classic-settings-advanced]]

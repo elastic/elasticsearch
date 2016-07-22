@@ -43,9 +43,7 @@ import java.util.Optional;
  * A Query that does fuzzy matching for a specific value.
  */
 public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder> implements MultiTermQueryBuilder {
-
     public static final String NAME = "regexp";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     public static final int DEFAULT_FLAGS_VALUE = RegexpFlag.ALL.value();
     public static final int DEFAULT_MAX_DETERMINIZED_STATES = Operations.DEFAULT_MAX_DETERMINIZED_STATES;

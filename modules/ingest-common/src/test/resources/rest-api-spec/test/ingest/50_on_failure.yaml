@@ -19,6 +19,11 @@
                   "target_field" : "date",
                   "formats" : ["yyyy"]
                 }
+              },
+              {
+                "uppercase" : {
+                  "field": "field1"
+                }
               }
             ],
             "on_failure" : [

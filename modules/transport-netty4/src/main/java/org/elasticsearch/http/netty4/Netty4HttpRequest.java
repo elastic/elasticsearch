@@ -37,14 +37,13 @@ class Netty4HttpRequest extends RestRequest {
 
     private final FullHttpRequest request;
     private final Channel channel;
-    private final Map<String, String> params;
+    private final Map<String, String> params = new HashMap<>();
     private final String rawPath;
     private final BytesReference content;
 
     Netty4HttpRequest(FullHttpRequest request, Channel channel) {
         this.request = request;
         this.channel = channel;
-        this.params = new HashMap<>();
         if (request.content().isReadable()) {
             this.content = Netty4Utils.toBytesReference(request.content());
         } else {

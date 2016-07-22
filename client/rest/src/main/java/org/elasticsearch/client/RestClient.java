@@ -504,6 +504,11 @@ public final class RestClient implements Closeable {
         }
     }
 
+    /**
+     * Listener used in any async call to wrap the provided user listener (or SyncResponseListener in sync calls).
+     * Allows to track potential failures coming from the different retry attempts and returning to the original listener
+     * only when we got a response (successful or not to be retried) or there are no hosts to retry against.
+     */
     static class FailureTrackingResponseListener {
         private final ResponseListener responseListener;
         private volatile Exception exception;
@@ -512,20 +517,32 @@ public final class RestClient implements Closeable {
             this.responseListener = responseListener;
         }
 
+        /**
+         * Notifies the caller of a response through the wrapped listener
+         */
         void onSuccess(Response response) {
             responseListener.onSuccess(response);
         }
 
+        /**
+         * Tracks one last definitive failure and returns to the caller by notifying the wrapped listener
+         */
         void onDefinitiveFailure(Exception exception) {
             trackFailure(exception);
             responseListener.onFailure(this.exception);
         }
 
+        /**
+         * Tracks an exception, which caused a retry hence we should not return yet to the caller
+         */
         void trackFailure(Exception exception) {
             this.exception = addSuppressedException(this.exception, exception);
         }
     }
 
+    /**
+     * Listener used in any sync performRequest calls, it waits for a response or an exception back up to a timeout
+     */
     static class SyncResponseListener implements ResponseListener {
         private final CountDownLatch latch = new CountDownLatch(1);
         private final AtomicReference<Response> response = new AtomicReference<>();
@@ -559,6 +576,9 @@ public final class RestClient implements Closeable {
             latch.countDown();
         }
 
+        /**
+         * Waits (up to a timeout) for some result of the request: either a response, or an exception.
+         */
         Response get() throws IOException {
             try {
                 //providing timeout is just a safety measure to prevent everlasting waits

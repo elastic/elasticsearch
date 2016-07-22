@@ -451,7 +451,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
                 }
             });
         } else {
-            future.addListener(future1 -> sendListener.run());
+            future.addListener(f -> sendListener.run());
         }
     }
 

@@ -46,7 +46,10 @@ final class Netty4SizeHeaderFrameDecoder extends ByteToMessageDecoder {
         } catch (IllegalArgumentException ex) {
             throw new TooLongFrameException(ex);
         } catch (IllegalStateException ex) {
-
+            /* decode will be called until the ByteBuf is fully consumed; when it is fully
+             * consumed, transport#validateMessageHeader will throw an IllegalStateException which
+             * is okay, it means we have finished consuming the ByteBuf and we can get out
+             */
         }
     }
 

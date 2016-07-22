@@ -21,7 +21,6 @@ package org.elasticsearch.search.profile.aggregation;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgAggregator;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregator;
@@ -99,7 +98,8 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(aggProfileResultsList.size(), equalTo(1));
             ProfileResult histoAggResult = aggProfileResultsList.get(0);
             assertThat(histoAggResult, notNullValue());
-            assertThat(histoAggResult.getQueryName(), equalTo(HistogramAggregator.class.getName()));
+            assertThat(histoAggResult.getQueryName(),
+                    equalTo("org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
             assertThat(histoAggResult.getProfiledChildren().size(), equalTo(0));
             assertThat(histoAggResult.getTime(), greaterThan(0L));
@@ -135,7 +135,8 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(aggProfileResultsList.size(), equalTo(1));
             ProfileResult histoAggResult = aggProfileResultsList.get(0);
             assertThat(histoAggResult, notNullValue());
-            assertThat(histoAggResult.getQueryName(), equalTo(HistogramAggregator.class.getName()));
+            assertThat(histoAggResult.getQueryName(),
+                    equalTo("org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
             assertThat(histoAggResult.getTime(), greaterThan(0L));
             Map<String, Long> histoBreakdown = histoAggResult.getTimeBreakdown();
@@ -212,7 +213,8 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(aggProfileResultsList.size(), equalTo(1));
             ProfileResult histoAggResult = aggProfileResultsList.get(0);
             assertThat(histoAggResult, notNullValue());
-            assertThat(histoAggResult.getQueryName(), equalTo(HistogramAggregator.class.getName()));
+            assertThat(histoAggResult.getQueryName(),
+                    equalTo("org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator"));
             assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
             assertThat(histoAggResult.getTime(), greaterThan(0L));
             Map<String, Long> histoBreakdown = histoAggResult.getTimeBreakdown();

@@ -11,11 +11,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.Before;
 
 import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;

@@ -9,18 +9,18 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.extensions.XPackExtension;
-import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
+import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
@@ -54,7 +54,8 @@ public class SecurityTests extends ESTestCase {
         Environment env = new Environment(settings);
         Security security = new Security(settings, env);
         ThreadPool threadPool = mock(ThreadPool.class);
-        return security.createComponents(null, threadPool, null, null, Arrays.asList(extensions));
+        ClusterService clusterService = mock(ClusterService.class);
+        return security.createComponents(null, threadPool, clusterService, null, Arrays.asList(extensions));
     }
 
     private <T> T findComponent(Class<T> type, Collection<Object> components) {
@@ -91,7 +92,8 @@ public class SecurityTests extends ESTestCase {
 
     public void testDisabledByDefault() throws Exception {
         Collection<Object> components = createComponents(Settings.EMPTY);
-        assertNull(findComponent(AuditTrailService.class, components));
+        AuditTrailService auditTrailService = findComponent(AuditTrailService.class, components);
+        assertEquals(0, auditTrailService.getAuditTrails().size());
     }
 
     public void testIndexAuditTrail() throws Exception {

@@ -208,7 +208,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         startWatcher();
 
         refresh();
-        SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").get();
+        SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*").get();
         assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getHits().getAt(0).id(), Matchers.equalTo(wid.value()));
         assertThat(searchResponse.getHits().getAt(0).sourceAsMap().get(WatchRecord.Field.STATE.getPreferredName()).toString(),

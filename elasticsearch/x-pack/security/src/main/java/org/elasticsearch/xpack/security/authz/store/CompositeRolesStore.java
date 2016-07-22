@@ -21,7 +21,6 @@ public class CompositeRolesStore implements RolesStore {
     private final NativeRolesStore nativeRolesStore;
     private final ReservedRolesStore reservedRolesStore;
 
-    @Inject
     public CompositeRolesStore(FileRolesStore fileRolesStore, NativeRolesStore nativeRolesStore, ReservedRolesStore reservedRolesStore) {
         this.fileRolesStore = fileRolesStore;
         this.nativeRolesStore = nativeRolesStore;

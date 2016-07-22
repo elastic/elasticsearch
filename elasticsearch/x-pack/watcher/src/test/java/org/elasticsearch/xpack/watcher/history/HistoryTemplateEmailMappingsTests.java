@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.history;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -17,9 +16,7 @@ import org.elasticsearch.xpack.notification.email.support.EmailServer;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
-import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
@@ -107,7 +104,7 @@ public class HistoryTemplateEmailMappingsTests extends AbstractWatcherIntegratio
         // the action should fail as no email server is available
         assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
 
-        SearchResponse response = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").setSource(searchSource()
+        SearchResponse response = client().prepareSearch(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*").setSource(searchSource()
                 .aggregation(terms("from").field("result.actions.email.message.from"))
                 .aggregation(terms("to").field("result.actions.email.message.to"))
                 .aggregation(terms("cc").field("result.actions.email.message.cc"))

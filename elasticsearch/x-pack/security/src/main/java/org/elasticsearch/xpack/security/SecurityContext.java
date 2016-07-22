@@ -5,110 +5,58 @@
  */
 package org.elasticsearch.xpack.security;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.inject.Inject;
+import java.io.IOException;
+
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.threadpool.ThreadPool;
-
-import java.io.IOException;
-import java.util.concurrent.Callable;
 
 /**
- *
+ * A lightweight utility that can find the current user and authentication information for the local thread.
  */
-public interface SecurityContext {
+public class SecurityContext {
 
-    void executeAs(User user, Runnable runnable);
+    private final ESLogger logger;
+    private final ThreadContext threadContext;
+    private final CryptoService cryptoService;
+    private final boolean signUserHeader;
 
-    <V> V executeAs(User user, Callable<V> callable);
-
-    User getUser();
-
-    Authentication getAuthentication();
-
-    default boolean hasAuthentication() {
-        return getAuthentication() != null;
+    /**
+     * Creates a new security context.
+     * If cryptoService is null, security is disabled and {@link #getUser()}
+     * and {@link #getAuthentication()} will always return null.
+     */
+    public SecurityContext(Settings settings, ThreadPool threadPool, CryptoService cryptoService) {
+        this.logger = Loggers.getLogger(getClass(), settings);
+        this.threadContext = threadPool.getThreadContext();
+        this.cryptoService = cryptoService;
+        this.signUserHeader = AuthenticationService.SIGN_USER_HEADER.get(settings);
     }
 
-    class Insecure implements SecurityContext {
-
-        public static final Insecure INSTANCE = new Insecure();
-
-        private Insecure() {
-        }
-
-        @Override
-        public void executeAs(User user, Runnable runnable) {
-            runnable.run();
-        }
-
-        @Override
-        public <V> V executeAs(User user, Callable<V> callable) {
-            try {
-                return callable.call();
-            } catch (Exception e) {
-                throw new ElasticsearchException(e);
-            }
-        }
-
-        @Override
-        public User getUser() {
-            return null;
-        }
-
-        @Override
-        public Authentication getAuthentication() {
-            return null;
-        }
+    /** Returns the current user information, or null if the current request has no authentication info. */
+    public User getUser() {
+        Authentication authentication = getAuthentication();
+        return authentication == null ? null : authentication.getUser();
     }
 
-    class Secure implements SecurityContext {
-
-        private final ThreadContext threadContext;
-        private final AuthenticationService authcService;
-
-        @Inject
-        public Secure(ThreadPool threadPool, AuthenticationService authcService) {
-            this.threadContext = threadPool.getThreadContext();
-            this.authcService = authcService;
+    /** Returns the authentication information, or null if the current request has no authentication info. */
+    public Authentication getAuthentication() {
+        if (cryptoService == null) {
+            return null;
         }
-
-        public void executeAs(User user, Runnable runnable) {
-            try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-                setUser(user);
-                runnable.run();
-            }
-        }
-
-        public <V> V executeAs(User user, Callable<V> callable) {
-            try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-                setUser(user);
-                return callable.call();
-            } catch (Exception e) {
-                throw new ElasticsearchException(e);
-            }
-        }
-
-        @Override
-        public User getUser() {
-            Authentication authentication = authcService.getCurrentAuthentication();
-            return authentication == null ? null : authentication.getUser();
-        }
-
-        @Override
-        public Authentication getAuthentication() {
-            return authcService.getCurrentAuthentication();
-        }
-
-        private void setUser(User user) {
-            try {
-                authcService.attachUserIfMissing(user);
-            } catch (IOException | IllegalArgumentException e) {
-                throw new ElasticsearchException("failed to attach user to request", e);
-            }
+        try {
+            return Authentication.readFromContext(threadContext, cryptoService, signUserHeader);
+        } catch (IOException e) {
+            // TODO: this seems bogus, the only way to get an ioexception here is from a corrupt or tampered
+            // auth header, which should be be audited?
+            logger.error("failed to read authentication", e);
+            return null;
         }
     }
 }

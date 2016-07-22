@@ -135,7 +135,7 @@ public class IndexActionIntegrationTests extends AbstractWatcherIntegrationTestC
 
         assertThat(client().admin().indices().prepareExists("idx").get().isExists(), is(false));
 
-        assertThat(docCount(HistoryStore.INDEX_PREFIX + "*", HistoryStore.DOC_TYPE, searchSource()
+        assertThat(docCount(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*", HistoryStore.DOC_TYPE, searchSource()
                 .query(matchQuery("result.actions.status", "failure"))), is(1L));
 
     }

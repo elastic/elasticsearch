@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.Realms;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RolesStore;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -44,7 +45,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
     private Realms realms;
     private NamedWriteableRegistry namedWriteableRegistry;
     private IPFilter ipFilter;
-    private RolesStore rolesStore;
+    private CompositeRolesStore rolesStore;
     private AuditTrailService auditTrail;
     private CryptoService cryptoService;
 
@@ -55,7 +56,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
         realms = mock(Realms.class);
         namedWriteableRegistry = mock(NamedWriteableRegistry.class);
         ipFilter = mock(IPFilter.class);
-        rolesStore = mock(RolesStore.class);
+        rolesStore = mock(CompositeRolesStore.class);
         auditTrail = mock(AuditTrailService.class);
         cryptoService = mock(CryptoService.class);
     }

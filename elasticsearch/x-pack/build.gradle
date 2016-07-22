@@ -235,10 +235,6 @@ thirdPartyAudit.excludes = [
 // someone figure out what the x-plugins logic should be
 licenseHeaders.enabled = false
 
-forbiddenApisMain {
-  signaturesURLs += [file('signatures.txt').toURI().toURL()]
-}
-
 modifyPom { MavenPom pom ->
   pom.withXml { XmlProvider xml ->
     // first find if we have dependencies at all, and grab the node

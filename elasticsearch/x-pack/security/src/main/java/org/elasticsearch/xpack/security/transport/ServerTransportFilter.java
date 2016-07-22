@@ -5,25 +5,25 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.transport.TcpTransportChannel;
-import org.elasticsearch.xpack.security.authc.Authentication;
-import org.elasticsearch.xpack.security.action.SecurityActionMapper;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
-import org.elasticsearch.xpack.security.authz.AuthorizationService;
-import org.elasticsearch.transport.DelegatingTransportChannel;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.handler.ssl.SslHandler;
-
 import javax.net.ssl.SSLPeerUnverifiedException;
 import java.io.IOException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.transport.DelegatingTransportChannel;
+import org.elasticsearch.transport.TcpTransportChannel;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.security.action.SecurityActionMapper;
+import org.elasticsearch.xpack.security.authc.Authentication;
+import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.handler.ssl.SslHandler;
 
 import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;
 

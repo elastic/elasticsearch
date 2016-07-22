@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authz.indicesresolver;
 
+import java.util.Set;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -20,31 +22,30 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
-import org.elasticsearch.xpack.security.authz.InternalAuthorizationService;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
-import org.elasticsearch.xpack.security.authz.store.RolesStore;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
-
-import java.util.Set;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -60,7 +61,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
 
     private User user;
     private User userNoIndices;
-    private RolesStore rolesStore;
+    private CompositeRolesStore rolesStore;
     private MetaData metaData;
     private DefaultIndicesAndAliasesResolver defaultIndicesResolver;
     private IndexNameExpressionResolver indexNameExpressionResolver;
@@ -91,7 +92,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
 
         user = new User("user", "role");
         userNoIndices = new User("test", "test");
-        rolesStore = mock(RolesStore.class);
+        rolesStore = mock(CompositeRolesStore.class);
         String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed" };
         when(rolesStore.role("role")).thenReturn(Role.builder("role").add(IndexPrivilege.ALL, authorizedIndices).build());
         when(rolesStore.role("test")).thenReturn(Role.builder("test").cluster(ClusterPrivilege.MONITOR).build());
@@ -101,8 +102,8 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(metaData);
 
-        InternalAuthorizationService authzService = new InternalAuthorizationService(settings, rolesStore, clusterService,
-                mock(AuditTrail.class), new DefaultAuthenticationFailureHandler(), mock(ThreadPool.class), indexNameExpressionResolver);
+        AuthorizationService authzService = new AuthorizationService(settings, rolesStore, clusterService,
+                mock(AuditTrailService.class), new DefaultAuthenticationFailureHandler(), mock(ThreadPool.class));
         defaultIndicesResolver = new DefaultIndicesAndAliasesResolver(authzService, indexNameExpressionResolver);
     }
 

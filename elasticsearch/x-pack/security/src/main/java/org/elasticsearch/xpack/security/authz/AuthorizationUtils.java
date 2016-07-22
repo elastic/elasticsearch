@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.security.authz;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.user.SystemUser;
-import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.security.authc.InternalAuthenticationService;
 import org.elasticsearch.xpack.security.support.AutomatonPredicate;
 import org.elasticsearch.xpack.security.support.Automatons;
 
@@ -52,7 +50,7 @@ public final class AuthorizationUtils {
 
         // we have a internal action being executed by a user that is not the system user, lets verify that there is a
         // originating action that is not a internal action
-        final String originatingAction = threadContext.getTransient(InternalAuthorizationService.ORIGINATING_ACTION_KEY);
+        final String originatingAction = threadContext.getTransient(AuthorizationService.ORIGINATING_ACTION_KEY);
         if (originatingAction != null && isInternalAction(originatingAction) == false) {
             return true;
         }

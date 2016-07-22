@@ -140,7 +140,7 @@ public class WatcherScheduleEngineBenchmark {
             try (Node node = new MockNode(settings, Arrays.asList(XPackPlugin.class, XPackPlugin.class))) {
                 try (final Client client = node.client()) {
                     client.admin().cluster().prepareHealth().setWaitForNodes("2").get();
-                    client.admin().indices().prepareDelete(HistoryStore.INDEX_PREFIX + "*").get();
+                    client.admin().indices().prepareDelete(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*").get();
                     client.admin().cluster().prepareHealth(WatchStore.INDEX, "test").setWaitForYellowStatus().get();
 
                     Clock clock = node.injector().getInstance(Clock.class);
@@ -185,10 +185,10 @@ public class WatcherScheduleEngineBenchmark {
                             }
                         }
                     }
-                    client.admin().indices().prepareRefresh(HistoryStore.INDEX_PREFIX + "*").get();
+                    client.admin().indices().prepareRefresh(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*").get();
                     Script script = new Script("doc['trigger_event.schedule.triggered_time'].value - doc['trigger_event.schedule" +
                             ".scheduled_time'].value");
-                    SearchResponse searchResponse = client.prepareSearch(HistoryStore.INDEX_PREFIX + "*")
+                    SearchResponse searchResponse = client.prepareSearch(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*")
                             .setQuery(QueryBuilders.rangeQuery("trigger_event.schedule.scheduled_time").gte(startTime).lte(endTime))
                             .addAggregation(terms("state").field("state"))
                             .addAggregation(histogram("delay")

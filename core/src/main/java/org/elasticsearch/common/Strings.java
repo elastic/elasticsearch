@@ -534,29 +534,25 @@ public class Strings {
         final int len = chars.length;
         int start = 0;  // starting index in chars of the current substring.
         int pos = 0;    // current index in chars.
-        int whitespaceStart = -1; // the position of the start of the current whitespace, -1 if not on whitespace
+        int end = 0; // the position of the end of the current token
         for (; pos < len; pos++) {
             if (chars[pos] == c) {
-                int size = (whitespaceStart < 0 ? pos : whitespaceStart) - start;
+                int size = end - start;
                 if (size > 0) { // only add non empty strings
                     result.add(new String(chars, start, size));
                 }
                 start = pos + 1;
-                whitespaceStart = -1;
+                end = start;
             } else if (Character.isWhitespace(chars[pos])) {
                 if (start == pos) {
                     // skip over preceding whitespace
                     start++;
-                } else if (whitespaceStart < 0) {
-                    // start of whitespace
-                    whitespaceStart = pos;
                 }
             } else {
-                // reset whitespace position
-                whitespaceStart = -1;
+                end = pos + 1;
             }
         }
-        int size = (whitespaceStart < 0 ? pos : whitespaceStart) - start;
+        int size = end - start;
         if (size > 0) {
             result.add(new String(chars, start, size));
         }

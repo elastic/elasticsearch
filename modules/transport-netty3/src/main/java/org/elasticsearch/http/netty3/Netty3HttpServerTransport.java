@@ -81,9 +81,11 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
@@ -390,14 +392,10 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {
             builder.allowCredentials();
         }
-        String[] strMethods = settings.getAsArray(SETTING_CORS_ALLOW_METHODS.getKey());
-        HttpMethod[] methods = Arrays.asList(strMethods)
-                                     .stream()
-                                     .map(HttpMethod::valueOf)
-                                     .toArray(size -> new HttpMethod[size]);
-        return builder.allowedRequestMethods(methods)
+        Set<String> strMethods = Strings.splitStringByCommaToSet(SETTING_CORS_ALLOW_METHODS.get(settings));
+        return builder.allowedRequestMethods(strMethods.stream().map(HttpMethod::valueOf).collect(Collectors.toSet()))
                       .maxAge(SETTING_CORS_MAX_AGE.get(settings))
-                      .allowedRequestHeaders(settings.getAsArray(SETTING_CORS_ALLOW_HEADERS.getKey()))
+                      .allowedRequestHeaders(Strings.splitStringByCommaToSet(SETTING_CORS_ALLOW_HEADERS.get(settings)))
                       .shortCircuit()
                       .build();
     }

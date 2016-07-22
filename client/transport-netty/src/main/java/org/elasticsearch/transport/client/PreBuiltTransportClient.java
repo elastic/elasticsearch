@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.client;
 
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.ReindexPlugin;
@@ -74,6 +75,14 @@ public class PreBuiltTransportClient extends TransportClient {
         @Override
         public List<Setting<?>> getSettings() {
             return Collections.singletonList(ASSERT_NETTY_BUGLEVEL);
+        }
+
+        @Override
+        public Settings additionalSettings() {
+            return Settings.builder()
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, Netty3Plugin.NETTY_TRANSPORT_NAME)
+                    .put(NetworkModule.HTTP_TYPE_KEY, Netty3Plugin.NETTY_HTTP_TRANSPORT_NAME)
+                    .build();
         }
 
     }

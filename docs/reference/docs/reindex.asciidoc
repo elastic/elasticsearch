@@ -212,7 +212,7 @@ document's metadata. This example bumps the version of the source document:
 POST /_reindex
 {
   "source": {
-    "index": "twitter",
+    "index": "twitter"
   },
   "dest": {
     "index": "new_twitter",

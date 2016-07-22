@@ -227,7 +227,14 @@ public abstract class NetworkUtils {
     
     /** Returns addresses for the given interface (it must be marked up) */
     static InetAddress[] getAddressesForInterface(String name) throws SocketException {
-        NetworkInterface intf = NetworkInterface.getByName(name);
+        NetworkInterface intf = null;
+        for (NetworkInterface networkInterface : getInterfaces()) {
+            if (name.equals(networkInterface.getName())) {
+                intf = networkInterface;
+                break;
+            }
+        }
+
         if (intf == null) {
             throw new IllegalArgumentException("No interface named '" + name + "' found, got " + getInterfaces());
         }

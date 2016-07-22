@@ -1001,10 +1001,7 @@ public class HistogramTests extends ESIntegTestCase {
 
         // constructing the newly expected bucket list
         int bucketsCount = (int) ((boundsMaxKey - boundsMinKey) / interval) + 1;
-        long[] extendedValueCounts = new long[bucketsCount];
-        System.arraycopy(valueCounts, 0, extendedValueCounts, addedBucketsLeft, valueCounts.length);
-
-        SearchResponse response = null;
+        SearchResponse response;
         try {
             response = client().prepareSearch("idx")
                     .setQuery(QueryBuilders.termQuery("foo", "bar")).addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME)

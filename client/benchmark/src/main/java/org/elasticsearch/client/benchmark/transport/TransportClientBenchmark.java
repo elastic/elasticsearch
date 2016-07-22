@@ -30,8 +30,8 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.client.PreBuiltTransportClient;
 
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
@@ -46,8 +46,7 @@ public final class TransportClientBenchmark extends AbstractBenchmark<TransportC
 
     @Override
     protected TransportClient client(String benchmarkTargetHost) throws Exception {
-        Settings clientSettings = Settings.builder().put(Node.NODE_MODE_SETTING.getKey(), "network").build();
-        TransportClient client = TransportClient.builder().settings(clientSettings).build();
+        TransportClient client = new PreBuiltTransportClient(Settings.EMPTY);
         client.addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName(benchmarkTargetHost), 9300));
         return client;
     }

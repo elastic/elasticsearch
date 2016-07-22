@@ -23,9 +23,6 @@ import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.client.StandardHttpRequestRetryHandler;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -47,11 +44,7 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
 
     @Override
     protected RestClient client(String benchmarkTargetHost) {
-        CloseableHttpClient httpClient = HttpClients.createDefault();
-
-        return RestClient.builder(new HttpHost(benchmarkTargetHost, 9200))
-            .setHttpClient(httpClient)
-            .build();
+        return RestClient.builder(new HttpHost(benchmarkTargetHost, 9200)).build();
     }
 
     @Override
@@ -115,7 +108,6 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
             Response response = null;
             try {
                 response = client.performRequest("GET", endpoint, Collections.emptyMap(), searchBody);
-                //System.out.println(new Scanner(response.getEntity().getContent()).useDelimiter("\\A").next().substring(0, 20));
                 return response.getStatusLine().getStatusCode() == HttpStatus.SC_OK;
             } catch (IOException e) {
                 throw new ElasticsearchException(e);

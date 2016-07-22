@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.user;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
@@ -49,12 +50,12 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
             if (authorizationExceptionsEnabled) {
                 assertThat(statusCode, is(403));
                 assertThat(response.getHeader("WWW-Authenticate"), nullValue());
-                assertThat(e.getResponseBody(), containsString("security_exception"));
+                assertThat(EntityUtils.toString(response.getEntity()), containsString("security_exception"));
             } else {
                 assertThat(statusCode, is(401));
                 assertThat(response.getHeader("WWW-Authenticate"), notNullValue());
                 assertThat(response.getHeader("WWW-Authenticate"), containsString("Basic"));
-                assertThat(e.getResponseBody(), containsString("security_exception"));
+                assertThat(EntityUtils.toString(response.getEntity()), containsString("security_exception"));
             }
         }
     }

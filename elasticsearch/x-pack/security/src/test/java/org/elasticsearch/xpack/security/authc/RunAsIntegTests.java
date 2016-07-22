@@ -140,13 +140,12 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         }
 
         // but when running as a different user it should work
-        try (Response response = getRestClient().performRequest("GET", "/_nodes",
+        Response response = getRestClient().performRequest("GET", "/_nodes",
                 new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                         UsernamePasswordToken.basicAuthHeaderValue(RUN_AS_USER,
                                 SecuredStringTests.build(SecuritySettingsSource.DEFAULT_PASSWORD))),
-                new BasicHeader(AuthenticationService.RUN_AS_USER_HEADER, SecuritySettingsSource.DEFAULT_USER_NAME))) {
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
-        }
+                new BasicHeader(AuthenticationService.RUN_AS_USER_HEADER, SecuritySettingsSource.DEFAULT_USER_NAME));
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 
     public void testEmptyUserImpersonationHeader() throws Exception {

@@ -41,11 +41,10 @@ public class PkiWithoutSSLTests extends SecurityIntegTestCase {
     }
 
     public void testThatHttpWorks() throws Exception {
-        try (Response response = getRestClient().performRequest("GET", "/_nodes",
+        Response response = getRestClient().performRequest("GET", "/_nodes",
                 new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                         UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                                new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
-        }
+                                new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))));
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 }

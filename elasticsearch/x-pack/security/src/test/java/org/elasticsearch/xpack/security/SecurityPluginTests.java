@@ -41,11 +41,10 @@ public class SecurityPluginTests extends SecurityIntegTestCase {
         }
 
         logger.info("executing authorized request to /_xpack infos");
-        try (Response response = getRestClient().performRequest("GET", "/_xpack",
+        Response response = getRestClient().performRequest("GET", "/_xpack",
                 new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                         basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                                new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
-            assertThat(response.getStatusLine().getStatusCode(), is(OK.getStatus()));
-        }
+                                new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))));
+        assertThat(response.getStatusLine().getStatusCode(), is(OK.getStatus()));
     }
 }

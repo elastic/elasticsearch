@@ -22,13 +22,13 @@ package org.elasticsearch.test.rest;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.client.RestTestResponse;
+import org.elasticsearch.test.rest.client.RestTestResponseException;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
 import org.elasticsearch.test.rest.section.DoSection;
@@ -270,15 +270,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     @After
-    public void wipeCluster() throws Exception {
+    public void wipeCluster() throws IOException {
         // wipe indices
         Map<String, String> deleteIndicesArgs = new HashMap<>();
         deleteIndicesArgs.put("index", "*");
         try {
             adminExecutionContext.callApi("indices.delete", deleteIndicesArgs, Collections.emptyList(), Collections.emptyMap());
-        } catch (ResponseException e) {
+        } catch (RestTestResponseException e) {
             // 404 here just means we had no indexes
-            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+            if (e.getResponseException().getResponse().getStatusLine().getStatusCode() != 404) {
                 throw e;
             }
         }
@@ -299,7 +299,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * other tests.
      */
     @After
-    public void logIfThereAreRunningTasks() throws InterruptedException, IOException {
+    public void logIfThereAreRunningTasks() throws IOException {
         RestTestResponse tasks = adminExecutionContext.callApi("tasks.list", emptyMap(), emptyList(), emptyMap());
         Set<String> runningTasks = runningTasks(tasks);
         // Ignore the task list API - it doens't count against us
@@ -341,7 +341,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     @Before
-    public void reset() throws IOException {
+    public void reset() throws Exception {
         // admin context must be available for @After always, regardless of whether the test was blacklisted
         adminExecutionContext.initClient(clusterUrls, restAdminSettings());
         adminExecutionContext.clear();

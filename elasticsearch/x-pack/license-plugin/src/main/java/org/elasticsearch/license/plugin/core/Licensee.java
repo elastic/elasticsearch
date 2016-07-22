@@ -44,69 +44,60 @@ public interface Licensee {
      * whenever checking different parts of the {@code Status}:
      * <pre>
      * Status status = this.status;
-     * return status.getLicenseState() != LicenseState.DISABLED &amp;&amp;
-     *        (status.getMode() == OperationMode.TRAIL || status.getMode == OperationMode.PLATINUM);
+     * return status.isActive() &amp;&amp;
+     *        (status.getMode() == OperationMode.TRIAL || status.getMode == OperationMode.PLATINUM);
      * </pre>
      * Otherwise the license has the potential to change in-between both checks.
      */
     class Status {
 
-        public static Status ENABLED = new Status(OperationMode.TRIAL, LicenseState.ENABLED);
-        public static Status MISSING = new Status(OperationMode.MISSING, LicenseState.DISABLED);
+        public static Status ENABLED = new Status(OperationMode.TRIAL, true);
+        public static Status MISSING = new Status(OperationMode.MISSING, false);
 
         private final OperationMode mode;
-        private final LicenseState licenseState;
+        private final boolean active;
 
-        public Status(OperationMode mode, LicenseState licenseState) {
+        public Status(OperationMode mode, boolean active) {
             this.mode = mode;
-            this.licenseState = licenseState;
+            this.active = active;
         }
 
         /**
          * Returns the operation mode of the license
          * responsible for the current <code>licenseState</code>
          * <p>
-         * Note: Knowing the mode does not indicate whether the {@link #getLicenseState() state} is disabled. If that matters (e.g.,
-         * disabling services when a license becomes disabled), then you should check it as well!
+         * Note: Knowing the mode does not indicate whether the license is active. If that matters (e.g.,
+         * disabling services when a license becomes disabled), then check {@link #isActive()}.
          */
         public OperationMode getMode() {
             return mode;
         }
 
-        /**
-         * When a license is active, the state is
-         * {@link LicenseState#ENABLED}, upon license expiry
-         * the state changes to {@link LicenseState#GRACE_PERIOD}
-         * and after the grace period has ended the state changes
-         * to {@link LicenseState#DISABLED}
-         */
-        public LicenseState getLicenseState() {
-            return licenseState;
+        /** Returns true if the license is within the issue date and grace period, or false otherwise */
+        public boolean isActive() {
+            return active;
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-
             Status status = (Status) o;
-            return Objects.equals(mode, status.mode) && Objects.equals(licenseState, status.licenseState);
+            return active == status.active &&
+                mode == status.mode;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(mode, licenseState);
+            return Objects.hash(mode, active);
         }
 
         @Override
         public String toString() {
-            switch (licenseState) {
-                case DISABLED:
-                    return "disabled " + mode.name().toLowerCase(Locale.ROOT);
-                case GRACE_PERIOD:
-                    return mode.name().toLowerCase(Locale.ROOT) + " grace period";
-                default:
-                    return mode.name().toLowerCase(Locale.ROOT);
+            if (active) {
+                return mode.name().toLowerCase(Locale.ROOT);
+            } else {
+                return "disabled " + mode.name().toLowerCase(Locale.ROOT);
             }
         }
     }

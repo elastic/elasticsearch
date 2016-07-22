@@ -35,7 +35,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.license.plugin.core.LicenseService;
-import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
@@ -309,13 +308,13 @@ public class LicensingTests extends SecurityIntegTestCase {
 
         void enable(OperationMode operationMode) {
             for (Licensee licensee : licensees) {
-                licensee.onChange(new Licensee.Status(operationMode, LicenseState.ENABLED));
+                licensee.onChange(new Licensee.Status(operationMode, true));
             }
         }
 
         void disable(OperationMode operationMode) {
             for (Licensee licensee : licensees) {
-                licensee.onChange(new Licensee.Status(operationMode, LicenseState.DISABLED));
+                licensee.onChange(new Licensee.Status(operationMode, false));
             }
         }
 

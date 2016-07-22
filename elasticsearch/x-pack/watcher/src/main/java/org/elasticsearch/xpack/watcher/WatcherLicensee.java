@@ -9,7 +9,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeComponent;
-import org.elasticsearch.license.plugin.core.LicenseState;
 
 public class WatcherLicensee extends AbstractLicenseeComponent {
 
@@ -60,7 +59,7 @@ public class WatcherLicensee extends AbstractLicenseeComponent {
         // status is volatile, so a local variable is used for a consistent view
         Status localStatus = status;
 
-        if (localStatus.getLicenseState() == LicenseState.DISABLED) {
+        if (localStatus.isActive() == false) {
             return false;
         }
 

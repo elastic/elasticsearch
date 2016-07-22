@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.monitoring.license;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.license.plugin.core.AbstractLicenseeTestCase;
-import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee.Status;
 import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
 
@@ -46,19 +45,19 @@ public class MonitoringLicenseeTests extends AbstractLicenseeTestCase {
     }
 
     public void testCollectionEnabledIsTrueForActiveState() {
-        assertEnabled(randomEnabledOrGracePeriodState(), MonitoringLicensee::collectionEnabled, true);
+        assertEnabled(true, MonitoringLicensee::collectionEnabled, true);
     }
 
     public void testCollectionEnabledIsFalseForInactiveState() {
-        assertEnabled(LicenseState.DISABLED, MonitoringLicensee::collectionEnabled, false);
+        assertEnabled(false, MonitoringLicensee::collectionEnabled, false);
     }
 
     public void testCleaningEnabledIsTrueForActiveState() {
-        assertEnabled(randomEnabledOrGracePeriodState(), MonitoringLicensee::cleaningEnabled, true);
+        assertEnabled(true, MonitoringLicensee::cleaningEnabled, true);
     }
 
     public void testCleaningEnabledIsFalseForInactiveState() {
-        assertEnabled(LicenseState.DISABLED, MonitoringLicensee::cleaningEnabled, false);
+        assertEnabled(false, MonitoringLicensee::cleaningEnabled, false);
     }
 
     public void testAllowUpdateRetentionIsTrueForNotBasic() {
@@ -77,19 +76,19 @@ public class MonitoringLicenseeTests extends AbstractLicenseeTestCase {
     /**
      * Assert that the {@link #licensee} is {@code predicate}d as {@code expected} when setting the {@code state}.
      *
-     * @param state The state that should cause the {@code expected} {@code predicate}.
+     * @param active The state that should cause the {@code expected} {@code predicate}.
      * @param predicate The method to invoke (expected to be an instance method).
      * @param expected The expected outcome given the {@code state} and {@code predicate}.
      */
-    private void assertEnabled(LicenseState state, Predicate<MonitoringLicensee> predicate, boolean expected) {
+    private void assertEnabled(boolean active, Predicate<MonitoringLicensee> predicate, boolean expected) {
         Status status = mock(Status.class);
-        when(status.getLicenseState()).thenReturn(state);
+        when(status.isActive()).thenReturn(active);
 
         licensee.onChange(status);
 
         assertThat(predicate.test(licensee), equalTo(expected));
 
-        verify(status).getLicenseState();
+        verify(status).isActive();
     }
 
     /**

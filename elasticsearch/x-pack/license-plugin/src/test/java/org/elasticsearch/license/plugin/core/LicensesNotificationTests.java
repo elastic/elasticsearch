@@ -28,19 +28,19 @@ public class LicensesNotificationTests extends AbstractLicenseServiceTestCase {
         setInitialState(license, assertingLicensees);
         licenseService.start();
         for (int i = 0; i < assertingLicensees.length; i++) {
-            assertLicenseStates(assertingLicensees[i], LicenseState.ENABLED);
+            assertLicenseStates(assertingLicensees[i], true);
         }
         clock.fastForward(TimeValue.timeValueMillis(license.expiryDate() - clock.millis()));
         final LicensesMetaData licensesMetaData = new LicensesMetaData(license);
         licenseService.onUpdate(licensesMetaData);
         for (AssertingLicensee assertingLicensee : assertingLicensees) {
-            assertLicenseStates(assertingLicensee, LicenseState.ENABLED, LicenseState.GRACE_PERIOD);
+            assertLicenseStates(assertingLicensee, true);
         }
         clock.fastForward(TimeValue.timeValueMillis((license.expiryDate() +
-                LicenseState.GRACE_PERIOD_DURATION.getMillis()) - clock.millis()));
+                LicenseService.GRACE_PERIOD_DURATION.getMillis()) - clock.millis()));
         licenseService.onUpdate(licensesMetaData);
         for (AssertingLicensee assertingLicensee : assertingLicensees) {
-            assertLicenseStates(assertingLicensee, LicenseState.ENABLED, LicenseState.GRACE_PERIOD, LicenseState.DISABLED);
+            assertLicenseStates(assertingLicensee, true, false);
         }
         clock.setTime(new DateTime(DateTimeZone.UTC));
         final License newLicense = TestUtils.generateSignedLicense(TimeValue.timeValueHours(2));
@@ -48,12 +48,11 @@ public class LicensesNotificationTests extends AbstractLicenseServiceTestCase {
         LicensesMetaData licensesMetaData1 = new LicensesMetaData(newLicense);
         licenseService.onUpdate(licensesMetaData1);
         for (AssertingLicensee assertingLicensee : assertingLicensees) {
-            assertLicenseStates(assertingLicensee, LicenseState.ENABLED, LicenseState.GRACE_PERIOD, LicenseState.DISABLED,
-                    LicenseState.ENABLED);
+            assertLicenseStates(assertingLicensee, true, false, true);
         }
     }
 
-    private void assertLicenseStates(AssertingLicensee licensee, LicenseState... states) {
+    private void assertLicenseStates(AssertingLicensee licensee, boolean... states) {
         StringBuilder msg = new StringBuilder();
         msg.append("Actual: ");
         msg.append(dumpLicensingStates(licensee.statuses));
@@ -61,7 +60,7 @@ public class LicensesNotificationTests extends AbstractLicenseServiceTestCase {
         msg.append(dumpLicensingStates(states));
         assertThat(msg.toString(), licensee.statuses.size(), equalTo(states.length));
         for (int i = 0; i < states.length; i++) {
-            assertThat(msg.toString(), licensee.statuses.get(i).getLicenseState(), equalTo(states[i]));
+            assertThat(msg.toString(), licensee.statuses.get(i).isActive(), equalTo(states[i]));
         }
     }
 
@@ -70,18 +69,18 @@ public class LicensesNotificationTests extends AbstractLicenseServiceTestCase {
     }
 
     private String dumpLicensingStates(Licensee.Status... statuses) {
-        LicenseState[] states = new LicenseState[statuses.length];
+        boolean[] states = new boolean[statuses.length];
         for (int i = 0; i < statuses.length; i++) {
-            states[i] = statuses[i].getLicenseState();
+            states[i] = statuses[i].isActive();
         }
         return dumpLicensingStates(states);
     }
 
-    private String dumpLicensingStates(LicenseState... states) {
+    private String dumpLicensingStates(boolean... states) {
         StringBuilder sb = new StringBuilder();
         sb.append("[");
         for (int i = 0; i < states.length; i++) {
-            sb.append(states[i].name());
+            sb.append(states[i]);
             if (i != states.length - 1) {
                 sb.append(", ");
             }

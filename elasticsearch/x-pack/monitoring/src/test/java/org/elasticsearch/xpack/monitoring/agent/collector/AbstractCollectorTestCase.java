@@ -26,7 +26,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.Licensing;
 import org.elasticsearch.license.plugin.core.LicenseService;
-import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
@@ -110,7 +109,7 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
 
         final License license = createTestingLicense(issueDate, expiryDate);
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
-            service.onChange(license.operationMode(), LicenseState.ENABLED);
+            service.onChange(license.operationMode(), true);
         }
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
             service.update(license);
@@ -123,7 +122,7 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
 
         final License license = createTestingLicense(issueDate, expiryDate);
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
-            service.onChange(license.operationMode(), LicenseState.GRACE_PERIOD);
+            service.onChange(license.operationMode(), true);
         }
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
             service.update(license);
@@ -136,7 +135,7 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
 
         final License license = createTestingLicense(issueDate, expiryDate);
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
-            service.onChange(license.operationMode(), LicenseState.DISABLED);
+            service.onChange(license.operationMode(), false);
         }
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
             service.update(license);
@@ -149,7 +148,7 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
 
         final License license = createTestingLicense(issueDate, expiryDate);
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
-            service.onChange(license.operationMode(), LicenseState.DISABLED);
+            service.onChange(license.operationMode(), false);
         }
         for (LicenseServiceForCollectors service : internalCluster().getInstances(LicenseServiceForCollectors.class)) {
             service.update(license);
@@ -238,14 +237,14 @@ public abstract class AbstractCollectorTestCase extends MonitoringIntegTestCase 
             this.licensees = licensees;
         }
 
-        public void onChange(License.OperationMode operationMode, LicenseState state) {
+        public void onChange(License.OperationMode operationMode, boolean active) {
             for (Licensee licensee : licensees) {
-                licensee.onChange(new Licensee.Status(operationMode, state));
+                licensee.onChange(new Licensee.Status(operationMode, active));
             }
         }
 
         @Override
-        public Licensee.Status licenseeStatus() {
+        public Licensee.Status licenseeStatus(License license) {
             return null;
         }
 

@@ -67,6 +67,7 @@ import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
 import org.elasticsearch.test.disruption.LongGCDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
+import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDelay;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkLinkDisruptionType;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkUnresponsive;
@@ -1202,7 +1203,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         switch (randomInt(2)) {
             case 0: disruptionType = new NetworkUnresponsive(); break;
             case 1: disruptionType = new NetworkDisconnect(); break;
-            case 2: disruptionType = new NetworkDisruption.NetworkDelay(random()); break;
+            case 2: disruptionType = NetworkDelay.random(random()); break;
             default: throw new IllegalArgumentException();
         }
         final ServiceDisruptionScheme scheme;

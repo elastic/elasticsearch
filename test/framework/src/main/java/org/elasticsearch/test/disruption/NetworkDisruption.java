@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
@@ -269,7 +270,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
     }
 
     /**
-     * Creates two partitions with symmetric failures and a node that can connect two both of the partitions
+     * Creates two partitions with symmetric failures and a bridge node that can connect to both of the partitions
      */
     public static class Bridge extends DisruptedLinks {
 
@@ -324,10 +325,6 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
             return false;
         }
 
-        protected String getDescription() {
-            return "bridge (super connected node: [" + bridgeNode + "])";
-        }
-
         public String getBridgeNode() {
             return bridgeNode;
         }
@@ -346,24 +343,47 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         }
     }
 
+    /**
+     * Abstract class representing various types of network disruptions. Instances of this class override the {@link #applyDisruption}
+     * method to apply their specific disruption type to requests that are send from a source to a target node.
+     */
     public abstract static class NetworkLinkDisruptionType {
 
-        public abstract void applyDisruption(MockTransportService transportService1, MockTransportService transportService2);
+        /**
+         * Applies network disruption for requests send from the node represented by the source transport service to the node represented
+         * by the target transport service.
+         *
+         * @param sourceTransportService source transport service from which requests are sent
+         * @param targetTransportService target transport service to which requests are sent
+         */
+        public abstract void applyDisruption(MockTransportService sourceTransportService, MockTransportService targetTransportService);
 
-        public void removeDisruption(MockTransportService transportService1, MockTransportService transportService2) {
-            transportService1.clearRule(transportService2);
+        /**
+         * Removes network disruption that was added by {@link #applyDisruption}.
+         *
+         * @param sourceTransportService source transport service from which requests are sent
+         * @param targetTransportService target transport service to which requests are sent
+         */
+        public void removeDisruption(MockTransportService sourceTransportService, MockTransportService targetTransportService) {
+            sourceTransportService.clearRule(targetTransportService);
         }
 
+        /**
+         * Returns expected time to heal after disruption has been removed. Defaults to instant healing.
+         */
         public TimeValue expectedTimeToHeal() {
             return TimeValue.timeValueMillis(0);
         }
     }
 
+    /**
+     * Simulates a network disconnect. Sending a request from source to target node throws a {@link ConnectTransportException}.
+     */
     public static class NetworkDisconnect extends NetworkLinkDisruptionType {
 
         @Override
-        public void applyDisruption(MockTransportService transportService1, MockTransportService transportService2) {
-            transportService1.addFailToSendNoConnectRule(transportService2);
+        public void applyDisruption(MockTransportService sourceTransportService, MockTransportService targetTransportService) {
+            sourceTransportService.addFailToSendNoConnectRule(targetTransportService);
         }
 
         @Override
@@ -372,10 +392,14 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         }
     }
 
+    /**
+     * Simulates an unresponsive target node by dropping requests sent from source to target node.
+     */
     public static class NetworkUnresponsive extends NetworkLinkDisruptionType {
+
         @Override
-        public void applyDisruption(MockTransportService transportService1, MockTransportService transportService2) {
-            transportService1.addUnresponsiveRule(transportService2);
+        public void applyDisruption(MockTransportService sourceTransportService, MockTransportService targetTransportService) {
+            sourceTransportService.addUnresponsiveRule(targetTransportService);
         }
 
         @Override
@@ -384,40 +408,61 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         }
     }
 
+    /**
+     * Simulates slow or congested network. Delivery of requests that are sent from source to target node are delayed by a configurable
+     * time amount.
+     */
     public static class NetworkDelay extends NetworkLinkDisruptionType {
 
-        private static TimeValue DEFAULT_DELAY_MIN = TimeValue.timeValueSeconds(10);
-        private static TimeValue DEFAULT_DELAY_MAX = TimeValue.timeValueSeconds(90);
+        public static TimeValue DEFAULT_DELAY_MIN = TimeValue.timeValueSeconds(10);
+        public static TimeValue DEFAULT_DELAY_MAX = TimeValue.timeValueSeconds(90);
 
-        private final TimeValue duration;
+        private final TimeValue delay;
 
-        public NetworkDelay(Random random) {
-            this(random, DEFAULT_DELAY_MIN, DEFAULT_DELAY_MAX);
+        /**
+         * Delays requests by a fixed time value.
+         *
+         * @param delay time to delay requests
+         */
+        public NetworkDelay(TimeValue delay) {
+            this.delay = delay;
         }
 
-        public NetworkDelay(Random random, TimeValue delayMin, TimeValue delayMax) {
-            this(TimeValue.timeValueMillis(delayMin.millis() == delayMax.millis() ?
+        /**
+         * Delays requests by a random but fixed time value between {@link #DEFAULT_DELAY_MIN} and {@link #DEFAULT_DELAY_MAX}.
+         *
+         * @param random instance to use for randomization of delay
+         */
+        public static NetworkDelay random(Random random) {
+            return random(random, DEFAULT_DELAY_MIN, DEFAULT_DELAY_MAX);
+        }
+
+        /**
+         * Delays requests by a random but fixed time value between delayMin and delayMax.
+         *
+         * @param random   instance to use for randomization of delay
+         * @param delayMin minimum delay
+         * @param delayMax maximum delay
+         */
+        public static NetworkDelay random(Random random, TimeValue delayMin, TimeValue delayMax) {
+            return new NetworkDelay(TimeValue.timeValueMillis(delayMin.millis() == delayMax.millis() ?
                     delayMin.millis() :
                     delayMin.millis() + random.nextInt((int) (delayMax.millis() - delayMin.millis()))));
         }
 
-        public NetworkDelay(TimeValue duration) {
-            this.duration = duration;
-        }
-
         @Override
-        public void applyDisruption(MockTransportService transportService1, MockTransportService transportService2) {
-            transportService1.addUnresponsiveRule(transportService2, duration);
+        public void applyDisruption(MockTransportService sourceTransportService, MockTransportService targetTransportService) {
+            sourceTransportService.addUnresponsiveRule(targetTransportService, delay);
         }
 
         @Override
         public TimeValue expectedTimeToHeal() {
-            return duration;
+            return delay;
         }
 
         @Override
         public String toString() {
-            return "network delays for [" + duration + "]";
+            return "network delays for [" + delay + "]";
         }
     }
 }

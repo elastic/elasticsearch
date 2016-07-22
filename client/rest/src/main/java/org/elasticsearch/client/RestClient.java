@@ -504,7 +504,7 @@ public final class RestClient implements Closeable {
         }
     }
 
-    private static class FailureTrackingResponseListener {
+    static class FailureTrackingResponseListener {
         private final ResponseListener responseListener;
         private volatile Exception exception;
 

@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -59,6 +60,12 @@ public final class IndexId implements Writeable, ToXContent {
      * The unique ID for the index within the repository.  This is *not* the same as the
      * index's UUID, but merely a unique file/URL friendly identifier that a repository can
      * use to name blobs for the index.
+     *
+     * We could not use the index's actual UUID (See {@link Index#getUUID()}) because in the
+     * case of snapshot/restore, the index UUID in the snapshotted index will be different
+     * from the index UUID assigned to it when it is restored. Hence, the actual index UUID
+     * is not useful in the context of snapshot/restore for tying a snapshotted index to the
+     * index it was snapshot from, and so we are using a separate UUID here.
      */
     public String getId() {
         return id;

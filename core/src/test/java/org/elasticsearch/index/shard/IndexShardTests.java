@@ -103,7 +103,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
-import org.elasticsearch.repositories.RepositoryData.IndexMeta;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -1675,8 +1674,8 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         }
         @Override
         public RepositoryData getRepositoryData() {
-            Map<String, IndexMeta> map = new HashMap<>();
-            map.put(indexName, new IndexMeta(indexName, "blah", Collections.emptySet()));
+            Map<IndexId, Set<SnapshotId>> map = new HashMap<>();
+            map.put(new IndexId(indexName, "blah"), Collections.emptySet());
             return new RepositoryData(Collections.emptyList(), map);
         }
         @Override

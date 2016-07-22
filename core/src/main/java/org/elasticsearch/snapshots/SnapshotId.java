@@ -34,10 +34,6 @@ import java.util.Objects;
  */
 public final class SnapshotId implements Writeable, ToXContent {
 
-    /**
-     * This value is for older snapshots that don't have a UUID.
-     */
-    public static final String UNASSIGNED_UUID = "_na_";
     private static final String NAME = "name";
     private static final String UUID = "uuid";
 
@@ -144,10 +140,10 @@ public final class SnapshotId implements Writeable, ToXContent {
                 }
             }
             return new SnapshotId(name, uuid);
-        }
-        // the old format pre 5.0 that only contains the snapshot name, use the name as the uuid too
-        else {
-            return new SnapshotId(parser.text(), SnapshotId.UNASSIGNED_UUID);
+        } else {
+            // the old format pre 5.0 that only contains the snapshot name, use the name as the uuid too
+            final String name = parser.text();
+            return new SnapshotId(name, name);
         }
     }
 

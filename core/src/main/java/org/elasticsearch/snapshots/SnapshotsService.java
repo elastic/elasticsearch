@@ -60,7 +60,6 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
-import org.elasticsearch.repositories.RepositoryData.IndexMeta;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -221,8 +220,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         final String snapshotName = request.snapshotName;
         validate(repositoryName, snapshotName);
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID()); // new UUID for the snapshot
-        final Repository repository = repositoriesService.repository(repositoryName);
-        final Map<String, IndexMeta> indexIds = repository.getRepositoryData().getIndices();
+        final RepositoryData repositoryData = repositoriesService.repository(repositoryName).getRepositoryData();
 
         clusterService.submitStateUpdateTask(request.cause(), new ClusterStateUpdateTask() {
 
@@ -237,16 +235,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     // Store newSnapshot here to be processed in clusterStateProcessed
                     List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request.indicesOptions(), request.indices()));
                     logger.trace("[{}][{}] creating snapshot for indices [{}]", repositoryName, snapshotName, indices);
-                    List<IndexId> snapshotIndices = new ArrayList<>();
-                    for (String index : indices) {
-                        final IndexId indexId;
-                        if (indexIds.containsKey(index)) {
-                            indexId = indexIds.get(index).getIndexId();
-                        } else {
-                            indexId = new IndexId(index, UUIDs.randomBase64UUID());
-                        }
-                        snapshotIndices.add(indexId);
-                    }
+                    List<IndexId> snapshotIndices = repositoryData.resolveNewIndices(indices);
                     newSnapshot = new SnapshotsInProgress.Entry(new Snapshot(repositoryName, snapshotId),
                                                                 request.includeGlobalState(),
                                                                 request.partial(),

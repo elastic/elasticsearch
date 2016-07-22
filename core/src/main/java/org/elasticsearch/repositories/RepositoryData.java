@@ -20,9 +20,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -37,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -52,13 +51,24 @@ public final class RepositoryData implements ToXContent {
      */
     private final List<SnapshotId> snapshotIds;
     /**
-     * The indices found in the repository across all snapshots.
+     * The indices found in the repository across all snapshots, as a name to {@link IndexId} mapping
      */
-    private final Map<String, IndexMeta> indices;
+    private final Map<String, IndexId> indices;
+    /**
+     * The snapshots that each index belongs to.
+     */
+    private final Map<IndexId, Set<SnapshotId>> indexSnapshots;
 
-    public RepositoryData(List<SnapshotId> snapshotIds, Map<String, IndexMeta> indices) {
+    public RepositoryData(List<SnapshotId> snapshotIds, Map<IndexId, Set<SnapshotId>> indexSnapshots) {
         this.snapshotIds = Collections.unmodifiableList(snapshotIds);
-        this.indices = Collections.unmodifiableMap(indices);
+        this.indices = Collections.unmodifiableMap(indexSnapshots.keySet()
+                                                       .stream()
+                                                       .collect(Collectors.toMap(IndexId::getName, Function.identity())));
+        this.indexSnapshots = Collections.unmodifiableMap(indexSnapshots);
+    }
+
+    protected RepositoryData copy() {
+        return new RepositoryData(snapshotIds, indexSnapshots);
     }
 
     /**
@@ -69,9 +79,9 @@ public final class RepositoryData implements ToXContent {
     }
 
     /**
-     * Returns an unmodifiable map of the index names to index metadata in the repository.
+     * Returns an unmodifiable map of the index names to {@link IndexId} in the repository.
      */
-    public Map<String, IndexMeta> getIndices() {
+    public Map<String, IndexId> getIndices() {
         return indices;
     }
 
@@ -85,32 +95,29 @@ public final class RepositoryData implements ToXContent {
         }
         List<SnapshotId> snapshots = new ArrayList<>(snapshotIds);
         snapshots.add(snapshotId);
-        Map<String, IndexMeta> indexMetaMap = getIndices();
-        Map<String, IndexMeta> addedIndices = new HashMap<>();
-        for (IndexId indexId : snapshottedIndices) {
-            final String indexName = indexId.getName();
-            IndexMeta newIndexMeta;
-            if (indexMetaMap.containsKey(indexName)) {
-                newIndexMeta = indexMetaMap.get(indexName).addSnapshot(snapshotId);
+        Map<IndexId, Set<SnapshotId>> allIndexSnapshots = new HashMap<>(indexSnapshots);
+        for (final IndexId indexId : snapshottedIndices) {
+            if (allIndexSnapshots.containsKey(indexId)) {
+                Set<SnapshotId> ids = allIndexSnapshots.get(indexId);
+                if (ids == null) {
+                    ids = new LinkedHashSet<>();
+                    allIndexSnapshots.put(indexId, ids);
+                }
+                ids.add(snapshotId);
             } else {
                 Set<SnapshotId> ids = new LinkedHashSet<>();
                 ids.add(snapshotId);
-                newIndexMeta = new IndexMeta(indexId, ids);
+                allIndexSnapshots.put(indexId, ids);
             }
-            addedIndices.put(indexName, newIndexMeta);
         }
-        Map<String, IndexMeta> allIndices = new HashMap<>(indices);
-        allIndices.putAll(addedIndices);
-        return new RepositoryData(snapshots, allIndices);
+        return new RepositoryData(snapshots, allIndexSnapshots);
     }
 
     /**
-     * Add indices to the repository metadata; returns a new instance.
+     * Initializes the indices in the repository metadata; returns a new instance.
      */
-    public RepositoryData addIndices(final Map<String, IndexMeta> newIndices) {
-        Map<String, IndexMeta> map = new HashMap<>(indices);
-        map.putAll(newIndices);
-        return new RepositoryData(snapshotIds, map);
+    public RepositoryData initIndices(final Map<IndexId, Set<SnapshotId>> indexSnapshots) {
+        return new RepositoryData(snapshotIds, indexSnapshots);
     }
 
     /**
@@ -121,23 +128,36 @@ public final class RepositoryData implements ToXContent {
                                               .stream()
                                               .filter(id -> snapshotId.equals(id) == false)
                                               .collect(Collectors.toList());
-        Map<String, IndexMeta> newIndices = new HashMap<>();
-        for (IndexMeta indexMeta : indices.values()) {
+        Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
+        for (final IndexId indexId : indices.values()) {
             Set<SnapshotId> set;
-            if (indexMeta.getSnapshotIds().contains(snapshotId)) {
-                if (indexMeta.getSnapshotIds().size() == 1) {
+            Set<SnapshotId> snapshotIds = this.indexSnapshots.get(indexId);
+            assert snapshotIds != null;
+            if (snapshotIds.contains(snapshotId)) {
+                if (snapshotIds.size() == 1) {
                     // removing the snapshot will mean no more snapshots have this index, so just skip over it
                     continue;
                 }
-                set = new LinkedHashSet<>(indexMeta.getSnapshotIds());
+                set = new LinkedHashSet<>(snapshotIds);
                 set.remove(snapshotId);
             } else {
-                set = indexMeta.getSnapshotIds();
+                set = snapshotIds;
             }
-            newIndices.put(indexMeta.getName(), new IndexMeta(indexMeta.getIndexId(), set));
+            indexSnapshots.put(indexId, set);
         }
 
-        return new RepositoryData(newSnapshotIds, newIndices);
+        return new RepositoryData(newSnapshotIds, indexSnapshots);
+    }
+
+    /**
+     * Returns an immutable collection of the snapshot ids for the snapshots that contain the given index.
+     */
+    public Set<SnapshotId> getSnapshots(final IndexId indexId) {
+        Set<SnapshotId> snapshotIds = indexSnapshots.get(indexId);
+        if (snapshotIds == null) {
+            throw new IllegalArgumentException("unknown snapshot index " + indexId + "");
+        }
+        return snapshotIds;
     }
 
     @Override
@@ -149,12 +169,14 @@ public final class RepositoryData implements ToXContent {
             return false;
         }
         @SuppressWarnings("unchecked") RepositoryData that = (RepositoryData) obj;
-        return snapshotIds.equals(that.snapshotIds) && indices.equals(that.indices);
+        return snapshotIds.equals(that.snapshotIds)
+                   && indices.equals(that.indices)
+                   && indexSnapshots.equals(that.indexSnapshots);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshotIds, indices);
+        return Objects.hash(snapshotIds, indices, indexSnapshots);
     }
 
     /**
@@ -163,7 +185,7 @@ public final class RepositoryData implements ToXContent {
      */
     public IndexId resolveIndexId(final String indexName) {
         if (indices.containsKey(indexName)) {
-            return indices.get(indexName).getIndexId();
+            return indices.get(indexName);
         } else {
             // on repositories created before 5.0, there was no indices information in the index
             // blob, so if the repository hasn't been updated with new snapshots, no new index blob
@@ -174,8 +196,7 @@ public final class RepositoryData implements ToXContent {
     }
 
     /**
-     * Resolve the given index names to index ids, throwing an exception
-     * if any of the indices could not be resolved.
+     * Resolve the given index names to index ids.
      */
     public List<IndexId> resolveIndices(final List<String> indices) {
         List<IndexId> resolvedIndices = new ArrayList<>(indices.size());
@@ -183,6 +204,24 @@ public final class RepositoryData implements ToXContent {
             resolvedIndices.add(resolveIndexId(indexName));
         }
         return resolvedIndices;
+    }
+
+    /**
+     * Resolve the given index names to index ids, creating new index ids for
+     * new indices in the repository.
+     */
+    public List<IndexId> resolveNewIndices(final List<String> indicesToResolve) {
+        List<IndexId> snapshotIndices = new ArrayList<>();
+        for (String index : indicesToResolve) {
+            final IndexId indexId;
+            if (indices.containsKey(index)) {
+                indexId = indices.get(index);
+            } else {
+                indexId = new IndexId(index, UUIDs.randomBase64UUID());
+            }
+            snapshotIndices.add(indexId);
+        }
+        return snapshotIndices;
     }
 
     private static final String SNAPSHOTS = "snapshots";
@@ -200,11 +239,13 @@ public final class RepositoryData implements ToXContent {
         builder.endArray();
         // write the indices map
         builder.startObject(INDICES);
-        for (final IndexMeta indexMeta : getIndices().values()) {
-            builder.startObject(indexMeta.getName());
-            builder.field(INDEX_ID, indexMeta.getId());
+        for (final IndexId indexId : getIndices().values()) {
+            builder.startObject(indexId.getName());
+            builder.field(INDEX_ID, indexId.getId());
             builder.startArray(SNAPSHOTS);
-            for (final SnapshotId snapshotId : indexMeta.getSnapshotIds()) {
+            Set<SnapshotId> snapshotIds = indexSnapshots.get(indexId);
+            assert snapshotIds != null;
+            for (final SnapshotId snapshotId : snapshotIds) {
                 snapshotId.toXContent(builder, params);
             }
             builder.endArray();
@@ -217,7 +258,7 @@ public final class RepositoryData implements ToXContent {
 
     public static RepositoryData fromXContent(final XContentParser parser) throws IOException {
         List<SnapshotId> snapshots = new ArrayList<>();
-        Map<String, IndexMeta> indices = new HashMap<>();
+        Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
             while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
                 String currentFieldName = parser.currentName();
@@ -255,7 +296,7 @@ public final class RepositoryData implements ToXContent {
                             }
                         }
                         assert indexId != null;
-                        indices.put(indexName, new IndexMeta(indexName, indexId, snapshotIds));
+                        indexSnapshots.put(new IndexId(indexName, indexId), snapshotIds);
                     }
                 } else {
                     throw new ElasticsearchParseException("unknown field name  [" + currentFieldName + "]");
@@ -264,98 +305,7 @@ public final class RepositoryData implements ToXContent {
         } else {
             throw new ElasticsearchParseException("start object expected");
         }
-        return new RepositoryData(snapshots, indices);
+        return new RepositoryData(snapshots, indexSnapshots);
     }
 
-    /**
-     * Represents information about a single index snapshotted in a repository.
-     */
-    public static final class IndexMeta implements Writeable {
-        private final IndexId indexId;
-        private final Set<SnapshotId> snapshotIds;
-
-        public IndexMeta(final String name, final String id, final Set<SnapshotId> snapshotIds) {
-            this(new IndexId(name, id), snapshotIds);
-        }
-
-        public IndexMeta(final IndexId indexId, final Set<SnapshotId> snapshotIds) {
-            this.indexId = indexId;
-            this.snapshotIds = Collections.unmodifiableSet(snapshotIds);
-        }
-
-        public IndexMeta(final StreamInput in) throws IOException {
-            indexId = new IndexId(in);
-            final int size = in.readVInt();
-            Set<SnapshotId> ids = new LinkedHashSet<>();
-            for (int i = 0; i < size; i++) {
-                ids.add(new SnapshotId(in));
-            }
-            snapshotIds = Collections.unmodifiableSet(ids);
-        }
-
-        /**
-         * The name of the index.
-         */
-        public String getName() {
-            return indexId.getName();
-        }
-
-        /**
-         * The unique ID for the index within the repository.  This is *not* the same as the
-         * index's UUID, but merely a unique file/URL friendly identifier that a repository can
-         * use to name blobs for the index.
-         */
-        public String getId() {
-            return indexId.getId();
-        }
-
-        /**
-         * An unmodifiable set of snapshot ids that contain this index as part of its snapshot.
-         */
-        public Set<SnapshotId> getSnapshotIds() {
-            return snapshotIds;
-        }
-
-        /**
-         * The snapshotted index id.
-         */
-        public IndexId getIndexId() {
-            return indexId;
-        }
-
-        /**
-         * Add a snapshot id to the list of snapshots that contain this index.
-         */
-        public IndexMeta addSnapshot(final SnapshotId snapshotId) {
-            Set<SnapshotId> withAdded = new LinkedHashSet<>(snapshotIds);
-            withAdded.add(snapshotId);
-            return new IndexMeta(indexId, withAdded);
-        }
-
-        @Override
-        public void writeTo(final StreamOutput out) throws IOException {
-            indexId.writeTo(out);
-            out.writeVInt(snapshotIds.size());
-            for (SnapshotId snapshotId : snapshotIds) {
-                snapshotId.writeTo(out);
-            }
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj) {
-                return true;
-            }
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            @SuppressWarnings("unchecked") IndexMeta that = (IndexMeta) obj;
-            return indexId.equals(that.indexId) && snapshotIds.equals(that.snapshotIds);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(indexId, snapshotIds);
-        }
-    }
 }

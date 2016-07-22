@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -49,6 +50,13 @@ public final class Sets {
     public static <T> HashSet<T> newHashSet(T... elements) {
         Objects.requireNonNull(elements);
         HashSet<T> set = new HashSet<>(elements.length);
+        Collections.addAll(set, elements);
+        return set;
+    }
+
+    public static <T> LinkedHashSet<T> newLinkedHashSet(T... elements) {
+        Objects.requireNonNull(elements);
+        LinkedHashSet<T> set = new LinkedHashSet<>(elements.length);
         Collections.addAll(set, elements);
         return set;
     }

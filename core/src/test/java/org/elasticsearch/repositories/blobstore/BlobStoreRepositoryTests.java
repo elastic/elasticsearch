@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -46,7 +45,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
-import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.blobId;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -113,7 +111,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         // write to and read from a index file with no entries
         assertThat(repository.getSnapshots().size(), equalTo(0));
-        final RepositoryData emptyData = new RepositoryData(Collections.emptyList(), Collections.emptyMap());
+        final RepositoryData emptyData = RepositoryData.EMPTY;
         repository.writeIndexGen(emptyData);
         final RepositoryData readData = repository.getRepositoryData();
         assertEquals(readData, emptyData);
@@ -159,37 +157,6 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         assertEquals(repository.getRepositoryData(), repositoryData);
         assertThat(repository.latestIndexBlobId(), equalTo(2L));
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(2L));
-    }
-
-    public void testOldIndexFileFormat() throws Exception {
-        final BlobStoreRepository repository = setupRepo();
-
-        // write old index file format
-        final int numOldSnapshots = randomIntBetween(1, 30);
-        final List<SnapshotId> snapshotIds = new ArrayList<>();
-        for (int i = 0; i < numOldSnapshots; i++) {
-            snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), SnapshotId.UNASSIGNED_UUID));
-        }
-        writeOldFormat(repository, snapshotIds.stream().map(SnapshotId::getName).collect(Collectors.toList()));
-        assertThat(Sets.newHashSet(repository.getSnapshots()), equalTo(Sets.newHashSet(snapshotIds)));
-
-        // write to and read from a snapshot file with a random number of new entries added
-        final RepositoryData repositoryData = generateRandomRepoData(snapshotIds);
-        repository.writeIndexGen(repositoryData);
-        assertEquals(repository.getRepositoryData(), repositoryData);
-    }
-
-    public void testBlobId() {
-        SnapshotId snapshotId = new SnapshotId("abc123", SnapshotId.UNASSIGNED_UUID);
-        assertThat(blobId(snapshotId), equalTo("abc123")); // just the snapshot name
-        snapshotId = new SnapshotId("abc-123", SnapshotId.UNASSIGNED_UUID);
-        assertThat(blobId(snapshotId), equalTo("abc-123")); // just the snapshot name
-        String uuid = UUIDs.randomBase64UUID();
-        snapshotId = new SnapshotId("abc123", uuid);
-        assertThat(blobId(snapshotId), equalTo(uuid)); // uuid only
-        uuid = UUIDs.randomBase64UUID();
-        snapshotId = new SnapshotId("abc-123", uuid);
-        assertThat(blobId(snapshotId), equalTo(uuid)); // uuid only
     }
 
     private BlobStoreRepository setupRepo() {

@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.repositories.RepositoryData.IndexMeta;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -48,7 +47,7 @@ public class RepositoryDataTests extends ESTestCase {
 
     public void testEqualsAndHashCode() {
         RepositoryData repositoryData1 = generateRandomRepoData();
-        RepositoryData repositoryData2 = new RepositoryData(repositoryData1.getSnapshotIds(), repositoryData1.getIndices());
+        RepositoryData repositoryData2 = repositoryData1.copy();
         assertEquals(repositoryData1, repositoryData2);
         assertEquals(repositoryData1.hashCode(), repositoryData2.hashCode());
     }
@@ -65,7 +64,7 @@ public class RepositoryDataTests extends ESTestCase {
         RepositoryData repositoryData = generateRandomRepoData();
         // test that adding the same snapshot id to the repository data throws an exception
         final SnapshotId snapshotId = repositoryData.getSnapshotIds().get(0);
-        Map<String, IndexMeta> indexMetaMap = repositoryData.getIndices();
+        Map<String, IndexId> indexIdMap = repositoryData.getIndices();
         expectThrows(IllegalArgumentException.class,
             () -> repositoryData.addSnapshot(new SnapshotId(snapshotId.getName(), snapshotId.getUUID()), Collections.emptyList()));
         // test that adding a snapshot and its indices works
@@ -78,18 +77,16 @@ public class RepositoryDataTests extends ESTestCase {
             newIndices.add(indexId);
             indices.add(indexId);
         }
-        int numOld = randomIntBetween(1, indexMetaMap.size());
-        List<String> indexNames = new ArrayList<>(indexMetaMap.keySet());
+        int numOld = randomIntBetween(1, indexIdMap.size());
+        List<String> indexNames = new ArrayList<>(indexIdMap.keySet());
         for (int i = 0; i < numOld; i++) {
-            IndexId indexId = indexMetaMap.get(indexNames.get(i)).getIndexId();
-            indices.add(indexId);
+            indices.add(indexIdMap.get(indexNames.get(i)));
         }
         RepositoryData newRepoData = repositoryData.addSnapshot(newSnapshot, indices);
         // verify that the new repository data has the new snapshot and its indices
         assertTrue(newRepoData.getSnapshotIds().contains(newSnapshot));
-        indexMetaMap = newRepoData.getIndices();
         for (IndexId indexId : indices) {
-            Set<SnapshotId> snapshotIds = indexMetaMap.get(indexId.getName()).getSnapshotIds();
+            Set<SnapshotId> snapshotIds = newRepoData.getSnapshots(indexId);
             assertTrue(snapshotIds.contains(newSnapshot));
             if (newIndices.contains(indexId)) {
                 assertEquals(snapshotIds.size(), 1); // if it was a new index, only the new snapshot should be in its set
@@ -97,18 +94,20 @@ public class RepositoryDataTests extends ESTestCase {
         }
     }
 
-    public void testAddIndices() {
+    public void testInitIndices() {
         final int numSnapshots = randomIntBetween(1, 30);
         final List<SnapshotId> snapshotIds = new ArrayList<>(numSnapshots);
         for (int i = 0; i < numSnapshots; i++) {
             snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), UUIDs.randomBase64UUID()));
         }
         RepositoryData repositoryData = new RepositoryData(snapshotIds, Collections.emptyMap());
-        // test that adding indices works
-        Map<String, IndexMeta> indices = randomIndices(snapshotIds);
-        RepositoryData newRepoData = repositoryData.addIndices(indices);
+        // test that initializing indices works
+        Map<IndexId, Set<SnapshotId>> indices = randomIndices(snapshotIds);
+        RepositoryData newRepoData = repositoryData.initIndices(indices);
         assertEquals(repositoryData.getSnapshotIds(), newRepoData.getSnapshotIds());
-        assertEquals(indices, newRepoData.getIndices());
+        for (IndexId indexId : indices.keySet()) {
+            assertEquals(indices.get(indexId), newRepoData.getSnapshots(indexId));
+        }
     }
 
     public void testRemoveSnapshot() {
@@ -118,18 +117,18 @@ public class RepositoryDataTests extends ESTestCase {
         SnapshotId removedSnapshotId = snapshotIds.remove(randomIntBetween(0, snapshotIds.size() - 1));
         RepositoryData newRepositoryData = repositoryData.removeSnapshot(removedSnapshotId);
         // make sure the repository data's indices no longer contain the removed snapshot
-        for (IndexMeta indexMeta : newRepositoryData.getIndices().values()) {
-            assertFalse(indexMeta.getSnapshotIds().contains(removedSnapshotId));
+        for (final IndexId indexId : newRepositoryData.getIndices().values()) {
+            assertFalse(newRepositoryData.getSnapshots(indexId).contains(removedSnapshotId));
         }
     }
 
     public void testResolveIndexId() {
         RepositoryData repositoryData = generateRandomRepoData();
-        Map<String, IndexMeta> indices = repositoryData.getIndices();
+        Map<String, IndexId> indices = repositoryData.getIndices();
         Set<String> indexNames = indices.keySet();
         assertThat(indexNames.size(), greaterThan(0));
         String indexName = indexNames.iterator().next();
-        IndexId indexId = indices.get(indexName).getIndexId();
+        IndexId indexId = indices.get(indexName);
         assertEquals(indexId, repositoryData.resolveIndexId(indexName));
         String notInRepoData = randomAsciiOfLength(5);
         assertFalse(indexName.contains(notInRepoData));
@@ -154,18 +153,18 @@ public class RepositoryDataTests extends ESTestCase {
         return snapshotIds;
     }
 
-    private static Map<String, IndexMeta> randomIndices(final List<SnapshotId> snapshotIds) {
+    private static Map<IndexId, Set<SnapshotId>> randomIndices(final List<SnapshotId> snapshotIds) {
         final int totalSnapshots = snapshotIds.size();
         final int numIndices = randomIntBetween(1, 30);
-        final Map<String, IndexMeta> indices = new HashMap<>(numIndices);
+        final Map<IndexId, Set<SnapshotId>> indices = new HashMap<>(numIndices);
         for (int i = 0; i < numIndices; i++) {
-            final String indexName = randomAsciiOfLength(8);
+            final IndexId indexId = new IndexId(randomAsciiOfLength(8), UUIDs.randomBase64UUID());
             final Set<SnapshotId> indexSnapshots = new LinkedHashSet<>();
             final int numIndicesForSnapshot = randomIntBetween(1, numIndices);
             for (int j = 0; j < numIndicesForSnapshot; j++) {
                 indexSnapshots.add(snapshotIds.get(randomIntBetween(0, totalSnapshots - 1)));
             }
-            indices.put(indexName, new IndexMeta(indexName, UUIDs.randomBase64UUID(), indexSnapshots));
+            indices.put(indexId, indexSnapshots);
         }
         return indices;
     }

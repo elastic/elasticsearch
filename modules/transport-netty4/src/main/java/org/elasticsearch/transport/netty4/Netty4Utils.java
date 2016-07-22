@@ -63,12 +63,16 @@ public class Netty4Utils {
             return ((ByteBufBytesReference) reference).toByteBuf();
         } else {
             final BytesRefIterator iterator = reference.iterator();
-            final CompositeByteBuf composite = Unpooled.compositeBuffer(3);
+            // usually we have one, two, or three components
+            // from the header, the message, and a buffer
+            final List<ByteBuf> buffers = new ArrayList<>(3);
             try {
                 BytesRef slice;
                 while ((slice = iterator.next()) != null) {
-                    composite.addComponent(true, Unpooled.wrappedBuffer(slice.bytes, slice.offset, slice.length));
+                    buffers.add(Unpooled.wrappedBuffer(slice.bytes, slice.offset, slice.length));
                 }
+                final CompositeByteBuf composite = Unpooled.compositeBuffer(buffers.size());
+                composite.addComponents(true, buffers);
                 return composite;
             } catch (IOException ex) {
                 throw new AssertionError("no IO happens here", ex);

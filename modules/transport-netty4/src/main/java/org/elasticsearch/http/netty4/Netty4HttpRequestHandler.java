@@ -54,7 +54,6 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             request = (FullHttpRequest) msg;
         }
 
-        threadContext.copyHeaders(request.headers());
         // the netty HTTP handling always copy over the buffer to its own buffer, either in NioWorker internally
         // when reading, or using a cumulation buffer
         final Netty4HttpRequest httpRequest = new Netty4HttpRequest(request, ctx.channel());

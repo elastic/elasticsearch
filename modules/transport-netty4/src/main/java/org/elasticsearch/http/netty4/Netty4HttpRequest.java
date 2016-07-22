@@ -37,26 +37,16 @@ class Netty4HttpRequest extends RestRequest {
 
     private final FullHttpRequest request;
     private final Channel channel;
-    private final Map<String, String> params = new HashMap<>();
-    private final String rawPath;
     private final BytesReference content;
 
     Netty4HttpRequest(FullHttpRequest request, Channel channel) {
+        super(request.uri());
         this.request = request;
         this.channel = channel;
         if (request.content().isReadable()) {
             this.content = Netty4Utils.toBytesReference(request.content());
         } else {
             this.content = BytesArray.EMPTY;
-        }
-
-        String uri = request.uri();
-        int pathEndPos = uri.indexOf('?');
-        if (pathEndPos < 0) {
-            this.rawPath = uri;
-        } else {
-            this.rawPath = uri.substring(0, pathEndPos);
-            RestUtils.decodeQueryString(uri, pathEndPos + 1, params);
         }
     }
 
@@ -93,16 +83,6 @@ class Netty4HttpRequest extends RestRequest {
     @Override
     public String uri() {
         return request.uri();
-    }
-
-    @Override
-    public String rawPath() {
-        return rawPath;
-    }
-
-    @Override
-    public Map<String, String> params() {
-        return params;
     }
 
     @Override
@@ -149,25 +129,6 @@ class Netty4HttpRequest extends RestRequest {
     @Override
     public Iterable<Map.Entry<String, String>> headers() {
         return request.headers().entries();
-    }
-
-    @Override
-    public boolean hasParam(String key) {
-        return params.containsKey(key);
-    }
-
-    @Override
-    public String param(String key) {
-        return params.get(key);
-    }
-
-    @Override
-    public String param(String key, String defaultValue) {
-        String value = params.get(key);
-        if (value == null) {
-            return defaultValue;
-        }
-        return value;
     }
 
 }

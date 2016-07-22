@@ -48,6 +48,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -55,7 +56,6 @@ import static org.elasticsearch.client.RestClientTestUtil.getAllStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.elasticsearch.client.RestClientTestUtil.randomStatusCode;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
@@ -220,32 +220,55 @@ public class RestClientIntegTests extends RestClientTestCase {
     }
 
     public void testAsyncRequests() throws Exception {
-        int numRequests = randomIntBetween(2, 10);
+        int numRequests = randomIntBetween(5, 20);
         final CountDownLatch latch = new CountDownLatch(numRequests);
+        final List<TestResponse> responses = new CopyOnWriteArrayList<>();
         for (int i = 0; i < numRequests; i++) {
             final String method = RestClientTestUtil.randomHttpMethod(getRandom());
             final int statusCode = randomStatusCode(getRandom());
             restClient.performRequest(method, "/" + statusCode, new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
+                    responses.add(new TestResponse(method, statusCode, response));
                     latch.countDown();
-                    assertResponse(response);
                 }
 
                 @Override
                 public void onFailure(Exception exception) {
+                    responses.add(new TestResponse(method, statusCode, exception));
                     latch.countDown();
-                    assertThat(exception, instanceOf(ResponseException.class));
-                    ResponseException responseException = (ResponseException) exception;
-                    assertResponse(responseException.getResponse());
-                }
-
-                private void assertResponse(Response response) {
-                    assertEquals(method, response.getRequestLine().getMethod());
-                    assertEquals(statusCode, response.getStatusLine().getStatusCode());
                 }
             });
         }
         assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        assertEquals(numRequests, responses.size());
+        for (TestResponse response : responses) {
+            assertEquals(response.method, response.getResponse().getRequestLine().getMethod());
+            assertEquals(response.statusCode, response.getResponse().getStatusLine().getStatusCode());
+
+        }
+    }
+
+    private static class TestResponse {
+        private final String method;
+        private final int statusCode;
+        private final Object response;
+
+        TestResponse(String method, int statusCode, Object response) {
+            this.method = method;
+            this.statusCode = statusCode;
+            this.response = response;
+        }
+
+        Response getResponse() {
+            if (response instanceof Response) {
+                return (Response) response;
+            }
+            if (response instanceof ResponseException) {
+                return ((ResponseException) response).getResponse();
+            }
+            throw new AssertionError("unexpected response " + response.getClass());
+        }
     }
 }

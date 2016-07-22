@@ -43,7 +43,6 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         setInitialState(TestUtils.generateSignedLicense(TimeValue.timeValueHours(2)), licensee);
         licenseService.start();
         assertThat(licensee.statuses.size(), equalTo(1));
-        final LicenseState licenseState = licensee.statuses.get(0).getLicenseState();
-        assertTrue(licenseState == LicenseState.ENABLED);
+        assertTrue(licensee.statuses.get(0).isActive());
     }
 }

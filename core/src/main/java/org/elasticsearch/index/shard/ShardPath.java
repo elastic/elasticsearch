@@ -173,7 +173,7 @@ public final class ShardPath {
         } else {
             long totFreeSpace = 0;
             for (NodeEnvironment.NodePath nodePath : env.nodePaths()) {
-                totFreeSpace += nodePath.fileStore.getUsableSpace();
+                totFreeSpace += Math.max(0, nodePath.fileStore.getUsableSpace());
             }
 
             // TODO: this is a hack!!  We should instead keep track of incoming (relocated) shards since we know
@@ -189,12 +189,15 @@ public final class ShardPath {
             long maxUsableBytes = Long.MIN_VALUE;
             for (NodeEnvironment.NodePath nodePath : paths) {
                 FileStore fileStore = nodePath.fileStore;
-                long usableBytes = fileStore.getUsableSpace();
+
+                // Apparently, FileStore.getUsableSpace() can sometimes be negative, even possibly Long.MIN_VALUE, which can lead to NPE
+                // below since we would fail to set bestPath:
+                long usableBytes = Math.max(0, fileStore.getUsableSpace());
 
                 // Deduct estimated reserved bytes from usable space:
                 Integer count = dataPathToShardCount.get(nodePath.path);
                 if (count != null) {
-                    usableBytes -= estShardSizeInBytes * count;
+                    usableBytes = Math.subtractExact(usableBytes, Math.multiplyExact(estShardSizeInBytes, count));
                 }
                 if (usableBytes > maxUsableBytes) {
                     maxUsableBytes = usableBytes;

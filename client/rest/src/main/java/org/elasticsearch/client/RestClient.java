@@ -301,7 +301,7 @@ public final class RestClient implements Closeable {
                         listener.onSuccess(response);
                     } else {
                         ResponseException responseException = new ResponseException(response);
-                        if (mayRetry(statusCode)) {
+                        if (isRetryStatus(statusCode)) {
                             //mark host dead and retry against next one
                             onFailure(host);
                             retryIfPossible(responseException, hosts, request);
@@ -438,7 +438,7 @@ public final class RestClient implements Closeable {
         return statusCode < 300 || (HttpHead.METHOD_NAME.equals(method) && statusCode == 404);
     }
 
-    private static boolean mayRetry(int statusCode) {
+    private static boolean isRetryStatus(int statusCode) {
         switch(statusCode) {
             case 502:
             case 503:

@@ -29,7 +29,6 @@ import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpHeaders;
-import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
@@ -133,7 +132,6 @@ final class Netty4HttpChannel extends AbstractRestChannel {
             if (release) {
                 ((Releasable) content).close();
             }
-            nettyRequest.release();
             if (pipelinedRequest != null) {
                 pipelinedRequest.release();
             }

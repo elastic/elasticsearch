@@ -42,9 +42,10 @@ Task integTestNetty4 = tasks.create("integTestNetty4", RestIntegTestTask) {
   cluster {
     setting 'http.type', 'netty4'
     setting 'transport.type', 'netty4'
+    systemProperty 'io.netty.leakDetectionLevel', 'PARANOID'
   }
 }
+integTestNetty4.dependsOn buildZip
 
 integTest.dependsOn integTestNetty4
-integTest.dependsOn buildZip
 

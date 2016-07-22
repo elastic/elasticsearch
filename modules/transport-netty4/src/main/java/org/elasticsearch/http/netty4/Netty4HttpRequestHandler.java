@@ -19,11 +19,12 @@
 
 package org.elasticsearch.http.netty4;
 
+import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.util.ReferenceCounted;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 
@@ -54,10 +55,16 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
             request = (FullHttpRequest) msg;
         }
 
-        // the netty HTTP handling always copy over the buffer to its own buffer, either in NioWorker internally
-        // when reading, or using a cumulation buffer
-        final Netty4HttpRequest httpRequest = new Netty4HttpRequest(request, ctx.channel());
-        request.retain();
+        final FullHttpRequest copy =
+                new DefaultFullHttpRequest(
+                        request.protocolVersion(),
+                        request.method(),
+                        request.uri(),
+                        Unpooled.copiedBuffer(request.content()),
+                        request.headers(),
+                        request.trailingHeaders());
+
+        final Netty4HttpRequest httpRequest = new Netty4HttpRequest(copy, ctx.channel());
         serverTransport.dispatchRequest(
             httpRequest,
             new Netty4HttpChannel(serverTransport, httpRequest, pipelinedRequest, detailedErrorsEnabled));

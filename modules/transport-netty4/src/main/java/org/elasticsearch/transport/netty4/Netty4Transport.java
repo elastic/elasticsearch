@@ -21,7 +21,6 @@ package org.elasticsearch.transport.netty4;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.buffer.ByteBuf;
 import io.netty.channel.AdaptiveRecvByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -47,7 +46,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkService.TcpSettings;
@@ -88,7 +86,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  * longer. Med is for the typical search / single doc index. And High for things like cluster state. Ping is reserved for
  * sending out ping requests to other nodes.
  */
-public class Netty4Transport extends TcpTransport<Channel, ByteBuf> {
+public class Netty4Transport extends TcpTransport<Channel> {
 
     static {
         Netty4Utils.setup();
@@ -205,7 +203,7 @@ public class Netty4Transport extends TcpTransport<Channel, ByteBuf> {
 
             @Override
             protected void initChannel(SocketChannel ch) throws Exception {
-                ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder(Netty4Transport.this));
+                ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
                 // using a dot as a prefix means this cannot come from any settings parsed
                 ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, ".client"));
             }
@@ -298,7 +296,7 @@ public class Netty4Transport extends TcpTransport<Channel, ByteBuf> {
             @Override
             protected void initChannel(SocketChannel ch) throws Exception {
                 ch.pipeline().addLast("open_channels", Netty4Transport.this.serverOpenChannels);
-                ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder(Netty4Transport.this));
+                ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
                 ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, name));
             }
         });
@@ -503,21 +501,6 @@ public class Netty4Transport extends TcpTransport<Channel, ByteBuf> {
                 bootstrap = null;
             }
         });
-    }
-
-    @Override
-    protected int length(ByteBuf byteBuf) {
-        return byteBuf.readableBytes();
-    }
-
-    @Override
-    protected byte get(ByteBuf byteBuf, int offset) {
-        return byteBuf.getByte(byteBuf.readerIndex() + offset);
-    }
-
-    @Override
-    protected StreamInput streamInput(ByteBuf byteBuf) throws IOException {
-        return new ByteBufStreamInput(byteBuf.duplicate(), byteBuf.readableBytes());
     }
 
 }

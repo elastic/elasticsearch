@@ -29,16 +29,10 @@ import org.jboss.netty.handler.codec.frame.TooLongFrameException;
 
 final class Netty3SizeHeaderFrameDecoder extends FrameDecoder {
 
-    private final Netty3Transport transport;
-
-    Netty3SizeHeaderFrameDecoder(final Netty3Transport transport) {
-        this.transport = transport;
-    }
-
     @Override
     protected Object decode(ChannelHandlerContext ctx, Channel channel, ChannelBuffer buffer) throws Exception {
         try {
-            boolean continueProcessing = transport.validateMessageHeader(buffer);
+            boolean continueProcessing = TcpTransport.validateMessageHeader(Netty3Utils.toBytesReference(buffer));
             buffer.skipBytes(TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE);
             return continueProcessing ? buffer : null;
         } catch (IllegalArgumentException ex) {

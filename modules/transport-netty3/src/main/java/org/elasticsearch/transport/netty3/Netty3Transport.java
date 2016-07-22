@@ -86,7 +86,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  * longer. Med is for the typical search / single doc index. And High for things like cluster state. Ping is reserved for
  * sending out ping requests to other nodes.
  */
-public class Netty3Transport extends TcpTransport<Channel, ChannelBuffer> {
+public class Netty3Transport extends TcpTransport<Channel> {
 
     static {
         Netty3Utils.setup();
@@ -418,7 +418,7 @@ public class Netty3Transport extends TcpTransport<Channel, ChannelBuffer> {
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline channelPipeline = Channels.pipeline();
-            Netty3SizeHeaderFrameDecoder sizeHeader = new Netty3SizeHeaderFrameDecoder(nettyTransport);
+            Netty3SizeHeaderFrameDecoder sizeHeader = new Netty3SizeHeaderFrameDecoder();
             if (nettyTransport.maxCumulationBufferCapacity.bytes() >= 0) {
                 if (nettyTransport.maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
                     sizeHeader.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
@@ -456,7 +456,7 @@ public class Netty3Transport extends TcpTransport<Channel, ChannelBuffer> {
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline channelPipeline = Channels.pipeline();
             channelPipeline.addLast("openChannels", nettyTransport.serverOpenChannels);
-            Netty3SizeHeaderFrameDecoder sizeHeader = new Netty3SizeHeaderFrameDecoder(nettyTransport);
+            Netty3SizeHeaderFrameDecoder sizeHeader = new Netty3SizeHeaderFrameDecoder();
             if (nettyTransport.maxCumulationBufferCapacity.bytes() > 0) {
                 if (nettyTransport.maxCumulationBufferCapacity.bytes() > Integer.MAX_VALUE) {
                     sizeHeader.setMaxCumulationBufferCapacity(Integer.MAX_VALUE);
@@ -563,21 +563,6 @@ public class Netty3Transport extends TcpTransport<Channel, ChannelBuffer> {
                 clientBootstrap = null;
             }
         });
-    }
-
-    @Override
-    protected int length(ChannelBuffer channelBuffer) {
-        return channelBuffer.readableBytes();
-    }
-
-    @Override
-    protected byte get(ChannelBuffer channelBuffer, int offset) {
-        return channelBuffer.getByte(channelBuffer.readerIndex() + offset);
-    }
-
-    @Override
-    protected StreamInput streamInput(ChannelBuffer channelBuffer) throws IOException {
-        return new ChannelBufferStreamInput(channelBuffer.duplicate(), channelBuffer.readableBytes());
     }
 
 }

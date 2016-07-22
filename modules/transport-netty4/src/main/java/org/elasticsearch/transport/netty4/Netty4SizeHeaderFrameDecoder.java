@@ -30,16 +30,10 @@ import java.util.List;
 
 final class Netty4SizeHeaderFrameDecoder extends ByteToMessageDecoder {
 
-    private final Netty4Transport transport;
-
-    public Netty4SizeHeaderFrameDecoder(final Netty4Transport transport) {
-        this.transport = transport;
-    }
-
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
         try {
-            boolean continueProcessing = transport.validateMessageHeader(in);
+            boolean continueProcessing = TcpTransport.validateMessageHeader(Netty4Utils.toBytesReference(in));
             final ByteBuf message = in.skipBytes(TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE);
             if (!continueProcessing) return;
             out.add(message);

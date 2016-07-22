@@ -43,6 +43,7 @@ import java.io.BufferedOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -64,7 +65,7 @@ import java.util.function.Consumer;
  * that need real networking. This implementation is a test only implementation that implements
  * the networking layer in the worst possible way since it blocks and uses a thread per request model.
  */
-public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel, BytesReference> {
+public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel> {
 
     private final ExecutorService executor;
     private final Version mockVersion;
@@ -146,8 +147,8 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel,
             output.write(minimalHeader);
             output.writeInt(msgSize);
             output.write(buffer);
-            BytesReference bytes = output.bytes();
-            if (validateMessageHeader(bytes)) {
+            final BytesReference bytes = output.bytes();
+            if (TcpTransport.validateMessageHeader(bytes)) {
                 InetSocketAddress remoteAddress = (InetSocketAddress) socket.getRemoteSocketAddress();
                 messageReceived(bytes.slice(TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE, msgSize),
                     mockChannel, mockChannel.profile, remoteAddress, msgSize);
@@ -346,23 +347,9 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel,
     }
 
     @Override
-    protected int length(BytesReference bytesReference) {
-        return bytesReference.length();
-    }
-
-    @Override
-    protected byte get(BytesReference bytesReference, int offset) {
-        return bytesReference.get(offset);
-    }
-
-    @Override
-    protected StreamInput streamInput(BytesReference bytesReference) throws IOException {
-        return bytesReference.streamInput();
-    }
-
-    @Override
     protected Version getCurrentVersion() {
         return mockVersion;
     }
+
 }
 

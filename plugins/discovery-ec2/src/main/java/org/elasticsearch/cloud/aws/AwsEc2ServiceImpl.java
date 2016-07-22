@@ -23,11 +23,8 @@ import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSCredentialsProviderChain;
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
-import com.amazonaws.auth.InstanceProfileCredentialsProvider;
-import com.amazonaws.auth.SystemPropertiesCredentialsProvider;
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.retry.RetryPolicy;
@@ -83,16 +80,10 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent implements Aws
         String secret = CLOUD_EC2.SECRET_SETTING.get(settings);
         if (key.isEmpty() && secret.isEmpty()) {
             logger.debug("Using either environment variables, system properties or instance profile credentials");
-            credentials = new AWSCredentialsProviderChain(
-                new EnvironmentVariableCredentialsProvider(),
-                new SystemPropertiesCredentialsProvider(),
-                new InstanceProfileCredentialsProvider()
-            );
+            credentials = new DefaultAWSCredentialsProviderChain();
         } else {
             logger.debug("Using basic key/secret credentials");
-            credentials = new AWSCredentialsProviderChain(
-                new StaticCredentialsProvider(new BasicAWSCredentials(key, secret))
-            );
+            credentials = new StaticCredentialsProvider(new BasicAWSCredentials(key, secret));
         }
 
         return credentials;

@@ -48,9 +48,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistanceRangeQueryBuilder> {
-
     public static final String NAME = "geo_distance_range";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
     public static final boolean DEFAULT_INCLUDE_UPPER = true;

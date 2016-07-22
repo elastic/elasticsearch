@@ -635,6 +635,15 @@ public final class NodeEnvironment  implements Closeable {
     }
 
     /**
+     * A functional interface that people can use to reference {@link #shardLock(ShardId, long)}
+     */
+    @FunctionalInterface
+    public interface ShardLocker {
+
+        ShardLock lock(ShardId shardId, long lockTimeoutMS) throws IOException;
+    }
+
+    /**
      * Returns all currently lock shards.
      *
      * Note: the shard ids return do not contain a valid Index UUID

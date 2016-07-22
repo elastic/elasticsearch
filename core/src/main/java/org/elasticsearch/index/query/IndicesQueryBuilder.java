@@ -47,7 +47,6 @@ import java.util.Optional;
 public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilder> {
 
     public static final String NAME = "indices";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField NO_MATCH_QUERY = new ParseField("no_match_query");

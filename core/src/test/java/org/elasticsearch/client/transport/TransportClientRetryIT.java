@@ -25,20 +25,18 @@ import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ClusterScope(scope = Scope.TEST, numClientNodes = 0, supportsDedicatedMasters = false)
@@ -53,11 +51,10 @@ public class TransportClientRetryIT extends ESIntegTestCase {
 
         Settings.Builder builder = Settings.builder().put("client.transport.nodes_sampler_interval", "1s")
                 .put("node.name", "transport_client_retry_test")
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, "local")
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), internalCluster().getClusterName())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir());
 
-        try (TransportClient client = TransportClient.builder().settings(builder.build()).build()) {
+        try (TransportClient client = new MockTransportClient(builder.build())) {
             client.addTransportAddresses(addresses);
             assertEquals(client.connectedNodes().size(), internalCluster().size());
 

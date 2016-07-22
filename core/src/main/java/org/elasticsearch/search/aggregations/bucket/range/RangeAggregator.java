@@ -119,10 +119,10 @@ public class RangeAggregator extends BucketsAggregator {
             Double from = this.from;
             Double to = this.to;
             if (fromAsStr != null) {
-                from = parser.parseDouble(fromAsStr, false, context.nowCallable());
+                from = parser.parseDouble(fromAsStr, false, context::nowInMillis);
             }
             if (toAsStr != null) {
-                to = parser.parseDouble(toAsStr, false, context.nowCallable());
+                to = parser.parseDouble(toAsStr, false, context::nowInMillis);
             }
             return new Range(key, from, fromAsStr, to, toAsStr);
         }

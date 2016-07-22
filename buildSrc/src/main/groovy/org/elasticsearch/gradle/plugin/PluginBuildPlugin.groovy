@@ -32,6 +32,8 @@ import org.gradle.api.tasks.bundling.Zip
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.util.regex.Matcher
+import java.util.regex.Pattern
 
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.
@@ -71,8 +73,8 @@ public class PluginBuildPlugin extends BuildPlugin {
                 project.integTest.clusterConfig.module(project)
                 project.tasks.run.clusterConfig.module(project)
             } else {
-                project.integTest.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
-                project.tasks.run.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
+                project.integTest.clusterConfig.plugin(project.path)
+                project.tasks.run.clusterConfig.plugin(project.path)
                 addZipPomGeneration(project)
             }
 
@@ -83,6 +85,7 @@ public class PluginBuildPlugin extends BuildPlugin {
         }
         createIntegTestTask(project)
         createBundleTask(project)
+        project.configurations.getByName('default').extendsFrom(project.configurations.getByName('runtime'))
         project.tasks.create('run', RunTask) // allow running ES with this plugin in the foreground of a build
     }
 
@@ -141,13 +144,9 @@ public class PluginBuildPlugin extends BuildPlugin {
         }
         project.assemble.dependsOn(bundle)
 
-        // remove jar from the archives (things that will be published), and set it to the zip
-        project.configurations.archives.artifacts.removeAll { it.archiveTask.is project.jar }
-        project.artifacts.add('archives', bundle)
-
-        // also make the zip the default artifact (used when depending on this project)
-        project.configurations.getByName('default').extendsFrom = []
-        project.artifacts.add('default', bundle)
+        // also make the zip available as a configuration (used when depending on this project)
+        project.configurations.create('zip')
+        project.artifacts.add('zip', bundle)
     }
 
     /** Adds a task to move jar and associated files to a "-client" name. */
@@ -177,6 +176,21 @@ public class PluginBuildPlugin extends BuildPlugin {
         project.assemble.dependsOn(clientJar)
     }
 
+    static final Pattern GIT_PATTERN = Pattern.compile(/git@([^:]+):([^\.]+)\.git/)
+
+    /** Find the reponame. */
+    protected static String urlFromOrigin(String origin) {
+        if (origin.startsWith('https')) {
+            return origin
+        }
+        Matcher matcher = GIT_PATTERN.matcher(origin)
+        if (matcher.matches()) {
+            return "https://${matcher.group(1)}/${matcher.group(2)}"
+        } else {
+            return origin // best effort, the url doesnt really matter, it is just required by maven central
+        }
+    }
+
     /** Adds nebula publishing task to generate a pom file for the plugin. */
     protected static void addJarPomGeneration(Project project) {
         project.plugins.apply(MavenPublishPlugin.class)
@@ -189,6 +203,7 @@ public class PluginBuildPlugin extends BuildPlugin {
                         Node root = xml.asNode()
                         root.appendNode('name', project.pluginProperties.extension.name)
                         root.appendNode('description', project.pluginProperties.extension.description)
+                        root.appendNode('url', urlFromOrigin(project.scminfo.origin))
                         Node scmNode = root.appendNode('scm')
                         scmNode.appendNode('url', project.scminfo.origin)
                     }
@@ -210,6 +225,7 @@ public class PluginBuildPlugin extends BuildPlugin {
                         Node root = xml.asNode()
                         root.appendNode('name', project.pluginProperties.extension.name)
                         root.appendNode('description', project.pluginProperties.extension.description)
+                        root.appendNode('url', urlFromOrigin(project.scminfo.origin))
                         Node scmNode = root.appendNode('scm')
                         scmNode.appendNode('url', project.scminfo.origin)
                     }

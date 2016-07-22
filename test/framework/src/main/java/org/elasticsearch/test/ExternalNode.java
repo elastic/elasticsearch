@@ -32,7 +32,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.node.Node;
+import org.elasticsearch.transport.MockTransportClient;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -188,7 +188,7 @@ final class ExternalNode implements Closeable {
                     .put("client.transport.nodes_sampler_interval", "1s")
                     .put("node.name", "transport_client_" + nodeInfo.getNode().getName())
                     .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName).put("client.transport.sniff", false).build();
-            TransportClient client = TransportClient.builder().settings(clientSettings).build();
+            TransportClient client = new MockTransportClient(clientSettings);
             client.addTransportAddress(addr);
             this.client = client;
         }

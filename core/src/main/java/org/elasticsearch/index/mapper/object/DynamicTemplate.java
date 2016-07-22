@@ -20,15 +20,21 @@
 package org.elasticsearch.index.mapper.object;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +44,8 @@ import java.util.TreeMap;
  *
  */
 public class DynamicTemplate implements ToXContent {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(DynamicTemplate.class));
 
     public static enum MatchType {
         SIMPLE {
@@ -74,6 +82,93 @@ public class DynamicTemplate implements ToXContent {
         public abstract boolean matches(String regex, String value);
     }
 
+    /** The type of a field as detected while parsing a json document. */
+    public enum XContentFieldType {
+        OBJECT {
+            @Override
+            public String defaultMappingType() {
+                return ObjectMapper.CONTENT_TYPE;
+            }
+            @Override
+            public String toString() {
+                return "object";
+            }
+        },
+        STRING {
+            @Override
+            public String defaultMappingType() {
+                return TextFieldMapper.CONTENT_TYPE;
+            }
+            @Override
+            public String toString() {
+                return "string";
+            }
+        },
+        LONG {
+            @Override
+            public String defaultMappingType() {
+                return NumberFieldMapper.NumberType.LONG.typeName();
+            }
+            @Override
+            public String toString() {
+                return "long";
+            }
+        },
+        DOUBLE {
+            @Override
+            public String defaultMappingType() {
+                return NumberFieldMapper.NumberType.FLOAT.typeName();
+            }
+            @Override
+            public String toString() {
+                return "double";
+            }
+        },
+        BOOLEAN {
+            @Override
+            public String defaultMappingType() {
+                return BooleanFieldMapper.CONTENT_TYPE;
+            }
+            @Override
+            public String toString() {
+                return "boolean";
+            }
+        },
+        DATE {
+            @Override
+            public String defaultMappingType() {
+                return DateFieldMapper.CONTENT_TYPE;
+            }
+            @Override
+            public String toString() {
+                return "date";
+            }
+        },
+        BINARY {
+            @Override
+            public String defaultMappingType() {
+                return BinaryFieldMapper.CONTENT_TYPE;
+            }
+            @Override
+            public String toString() {
+                return "binary";
+            }
+        };
+
+        public static XContentFieldType fromString(String value) {
+            for (XContentFieldType v : values()) {
+                if (v.toString().equals(value)) {
+                    return v;
+                }
+            }
+            throw new IllegalArgumentException("No xcontent type matched on [" + value + "], possible values are "
+                    + Arrays.toString(values()));
+        }
+
+        /** The default mapping type to use for fields of this {@link XContentFieldType}. */
+        public abstract String defaultMappingType();
+    }
+
     public static DynamicTemplate parse(String name, Map<String, Object> conf,
             Version indexVersionCreated) throws MapperParsingException {
         String match = null;
@@ -107,7 +202,30 @@ public class DynamicTemplate implements ToXContent {
             }
         }
 
-        return new DynamicTemplate(name, pathMatch, pathUnmatch, match, unmatch, matchMappingType, MatchType.fromString(matchPattern), mapping);
+        if (match == null && pathMatch == null && matchMappingType == null) {
+            throw new MapperParsingException("template must have match, path_match or match_mapping_type set " + conf.toString());
+        }
+        if (mapping == null) {
+            throw new MapperParsingException("template must have mapping set");
+        }
+
+        XContentFieldType xcontentFieldType = null;
+        if (matchMappingType != null && matchMappingType.equals("*") == false) {
+            try {
+                xcontentFieldType = XContentFieldType.fromString(matchMappingType);
+            } catch (IllegalArgumentException e) {
+                // TODO: do this in 6.0
+                /*if (indexVersionCreated.onOrAfter(Version.V_6_0_0)) {
+                    throw e;
+                }*/
+
+                DEPRECATION_LOGGER.deprecated("Ignoring unrecognized match_mapping_type: [" + matchMappingType + "]");
+                // this template is on an unknown type so it will never match anything
+                // null indicates that the template should be ignored
+                return null;
+            }
+        }
+        return new DynamicTemplate(name, pathMatch, pathUnmatch, match, unmatch, xcontentFieldType, MatchType.fromString(matchPattern), mapping);
     }
 
     private final String name;
@@ -122,24 +240,19 @@ public class DynamicTemplate implements ToXContent {
 
     private final MatchType matchType;
 
-    private final String matchMappingType;
+    private final XContentFieldType xcontentFieldType;
 
     private final Map<String, Object> mapping;
 
-    public DynamicTemplate(String name, String pathMatch, String pathUnmatch, String match, String unmatch, String matchMappingType, MatchType matchType, Map<String, Object> mapping) {
-        if (match == null && pathMatch == null && matchMappingType == null) {
-            throw new MapperParsingException("template must have match, path_match or match_mapping_type set");
-        }
-        if (mapping == null) {
-            throw new MapperParsingException("template must have mapping set");
-        }
+    private DynamicTemplate(String name, String pathMatch, String pathUnmatch, String match, String unmatch,
+            XContentFieldType xcontentFieldType, MatchType matchType, Map<String, Object> mapping) {
         this.name = name;
         this.pathMatch = pathMatch;
         this.pathUnmatch = pathUnmatch;
         this.match = match;
         this.unmatch = unmatch;
         this.matchType = matchType;
-        this.matchMappingType = matchMappingType;
+        this.xcontentFieldType = xcontentFieldType;
         this.mapping = mapping;
     }
 
@@ -147,26 +260,21 @@ public class DynamicTemplate implements ToXContent {
         return this.name;
     }
 
-    public boolean match(ContentPath path, String name, String dynamicType) {
-        if (pathMatch != null && !matchType.matches(pathMatch, path.pathAsText(name))) {
+    public boolean match(String path, String name, XContentFieldType xcontentFieldType) {
+        if (pathMatch != null && !matchType.matches(pathMatch, path)) {
             return false;
         }
         if (match != null && !matchType.matches(match, name)) {
             return false;
         }
-        if (pathUnmatch != null && matchType.matches(pathUnmatch, path.pathAsText(name))) {
+        if (pathUnmatch != null && matchType.matches(pathUnmatch, path)) {
             return false;
         }
         if (unmatch != null && matchType.matches(unmatch, name)) {
             return false;
         }
-        if (matchMappingType != null) {
-            if (dynamicType == null) {
-                return false;
-            }
-            if (!matchType.matches(matchMappingType, dynamicType)) {
-                return false;
-            }
+        if (this.xcontentFieldType != null && this.xcontentFieldType != xcontentFieldType) {
+            return false;
         }
         return true;
     }
@@ -248,8 +356,10 @@ public class DynamicTemplate implements ToXContent {
         if (pathUnmatch != null) {
             builder.field("path_unmatch", pathUnmatch);
         }
-        if (matchMappingType != null) {
-            builder.field("match_mapping_type", matchMappingType);
+        if (xcontentFieldType != null) {
+            builder.field("match_mapping_type", xcontentFieldType);
+        } else if (match == null && pathMatch == null) {
+            builder.field("match_mapping_type", "*");
         }
         if (matchType != MatchType.SIMPLE) {
             builder.field("match_pattern", matchType);

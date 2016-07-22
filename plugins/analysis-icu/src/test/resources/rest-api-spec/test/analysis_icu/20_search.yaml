@@ -24,9 +24,6 @@
                             text:
                                 type:     text
                                 analyzer: my_analyzer
-    - do:
-       cluster.health:
-           wait_for_status: yellow
 
     - do:
       index:

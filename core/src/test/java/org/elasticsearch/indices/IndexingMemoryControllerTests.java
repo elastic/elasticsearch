@@ -34,6 +34,7 @@ import org.elasticsearch.index.shard.IndexShardTests;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Cancellable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +44,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -160,7 +160,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected ScheduledFuture<?> scheduleTask(ThreadPool threadPool) {
+        protected Cancellable scheduleTask(ThreadPool threadPool) {
             return null;
         }
     }
@@ -390,7 +390,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            protected ScheduledFuture<?> scheduleTask(ThreadPool threadPool) {
+            protected Cancellable scheduleTask(ThreadPool threadPool) {
                 return null;
             }
         };

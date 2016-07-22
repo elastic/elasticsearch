@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import org.elasticsearch.cloud.aws.AwsS3Service;
@@ -144,6 +145,15 @@ public class S3Repository extends BlobStoreRepository {
          * repositories.s3.base_path: Specifies the path within bucket to repository data. Defaults to root directory.
          */
         Setting<String> BASE_PATH_SETTING = Setting.simpleString("repositories.s3.base_path", Property.NodeScope);
+        /**
+         * repositories.s3.path_style_access: When set to true configures the client to use path-style access for all requests.
+         Amazon S3 supports virtual-hosted-style and path-style access in all Regions. The path-style syntax, however,
+         requires that you use the region-specific endpoint when attempting to access a bucket.
+         The default behaviour is to detect which access style to use based on the configured endpoint (an IP will result
+         in path-style access) and the bucket being accessed (some buckets are not valid DNS names). Setting this flag
+         will result in path-style access being used for all requests.
+         */
+        Setting<Boolean> PATH_STYLE_ACCESS_SETTING = Setting.boolSetting("repositories.s3.path_style_access", false, Property.NodeScope);
     }
 
     /**
@@ -155,84 +165,87 @@ public class S3Repository extends BlobStoreRepository {
          * access_key
          * @see  Repositories#KEY_SETTING
          */
-        Setting<String> KEY_SETTING = Setting.simpleString("access_key", Property.NodeScope, Property.Filtered);
+        Setting<String> KEY_SETTING = Setting.simpleString("access_key");
         /**
          * secret_key
          * @see  Repositories#SECRET_SETTING
          */
-        Setting<String> SECRET_SETTING = Setting.simpleString("secret_key", Property.NodeScope, Property.Filtered);
+        Setting<String> SECRET_SETTING = Setting.simpleString("secret_key");
         /**
          * bucket
          * @see  Repositories#BUCKET_SETTING
          */
-        Setting<String> BUCKET_SETTING = Setting.simpleString("bucket", Property.NodeScope);
+        Setting<String> BUCKET_SETTING = Setting.simpleString("bucket");
         /**
          * endpoint
          * @see  Repositories#ENDPOINT_SETTING
          */
-        Setting<String> ENDPOINT_SETTING = Setting.simpleString("endpoint", Property.NodeScope);
+        Setting<String> ENDPOINT_SETTING = Setting.simpleString("endpoint");
         /**
          * protocol
          * @see  Repositories#PROTOCOL_SETTING
          */
-        Setting<Protocol> PROTOCOL_SETTING =
-            new Setting<>("protocol", "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope);
+        Setting<Protocol> PROTOCOL_SETTING = new Setting<>("protocol", "https", s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)));
         /**
          * region
          * @see  Repositories#REGION_SETTING
          */
-        Setting<String> REGION_SETTING = new Setting<>("region", "", s -> s.toLowerCase(Locale.ROOT), Property.NodeScope);
+        Setting<String> REGION_SETTING = new Setting<>("region", "", s -> s.toLowerCase(Locale.ROOT));
         /**
          * server_side_encryption
          * @see  Repositories#SERVER_SIDE_ENCRYPTION_SETTING
          */
-        Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING =
-            Setting.boolSetting("server_side_encryption", false, Property.NodeScope);
+        Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING = Setting.boolSetting("server_side_encryption", false);
         /**
          * buffer_size
          * @see  Repositories#BUFFER_SIZE_SETTING
          */
         Setting<ByteSizeValue> BUFFER_SIZE_SETTING =
             Setting.byteSizeSetting("buffer_size", new ByteSizeValue(100, ByteSizeUnit.MB),
-                new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB), Property.NodeScope);
+                new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
         /**
          * max_retries
          * @see  Repositories#MAX_RETRIES_SETTING
          */
-        Setting<Integer> MAX_RETRIES_SETTING = Setting.intSetting("max_retries", 3, Property.NodeScope);
+        Setting<Integer> MAX_RETRIES_SETTING = Setting.intSetting("max_retries", 3);
         /**
          * use_throttle_retries
          * @see  Repositories#USE_THROTTLE_RETRIES_SETTING
          */
         Setting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.boolSetting("use_throttle_retries",
-            ClientConfiguration.DEFAULT_THROTTLE_RETRIES, Property.NodeScope);
+            ClientConfiguration.DEFAULT_THROTTLE_RETRIES);
         /**
          * chunk_size
          * @see  Repositories#CHUNK_SIZE_SETTING
          */
         Setting<ByteSizeValue> CHUNK_SIZE_SETTING =
             Setting.byteSizeSetting("chunk_size", new ByteSizeValue(1, ByteSizeUnit.GB),
-                new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB), Property.NodeScope);
+                new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
         /**
          * compress
          * @see  Repositories#COMPRESS_SETTING
          */
-        Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Property.NodeScope);
+        Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false);
         /**
          * storage_class
          * @see  Repositories#STORAGE_CLASS_SETTING
          */
-        Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("storage_class", Property.NodeScope);
+        Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("storage_class");
         /**
          * canned_acl
          * @see  Repositories#CANNED_ACL_SETTING
          */
-        Setting<String> CANNED_ACL_SETTING = Setting.simpleString("canned_acl", Property.NodeScope);
+        Setting<String> CANNED_ACL_SETTING = Setting.simpleString("canned_acl");
         /**
          * base_path
          * @see  Repositories#BASE_PATH_SETTING
          */
-        Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", Property.NodeScope);
+        Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path");
+        /**
+         * path_style_access
+         * @see  Repositories#PATH_STYLE_ACCESS_SETTING
+         */
+        Setting<Boolean> PATH_STYLE_ACCESS_SETTING = Setting.boolSetting("path_style_access", false);
     }
 
     private final S3BlobStore blobStore;
@@ -280,15 +293,24 @@ public class S3Repository extends BlobStoreRepository {
         String storageClass = getValue(metadata.settings(), settings, Repository.STORAGE_CLASS_SETTING, Repositories.STORAGE_CLASS_SETTING);
         String cannedACL = getValue(metadata.settings(), settings, Repository.CANNED_ACL_SETTING, Repositories.CANNED_ACL_SETTING);
 
+        // If the user defined a path style access setting, we rely on it otherwise we use the default
+        // value set by the SDK
+        Boolean pathStyleAccess = null;
+        if (Repository.PATH_STYLE_ACCESS_SETTING.exists(metadata.settings()) ||
+            Repositories.PATH_STYLE_ACCESS_SETTING.exists(settings)) {
+            pathStyleAccess = getValue(metadata.settings(), settings, Repository.PATH_STYLE_ACCESS_SETTING, Repositories.PATH_STYLE_ACCESS_SETTING);
+        }
+
         logger.debug("using bucket [{}], region [{}], endpoint [{}], protocol [{}], chunk_size [{}], server_side_encryption [{}], " +
-            "buffer_size [{}], max_retries [{}], use_throttle_retries [{}], cannedACL [{}], storageClass [{}]",
+            "buffer_size [{}], max_retries [{}], use_throttle_retries [{}], cannedACL [{}], storageClass [{}], path_style_access [{}]",
             bucket, region, endpoint, protocol, chunkSize, serverSideEncryption, bufferSize, maxRetries, useThrottleRetries, cannedACL,
-            storageClass);
+            storageClass, pathStyleAccess);
 
         String key = getValue(metadata.settings(), settings, Repository.KEY_SETTING, Repositories.KEY_SETTING);
         String secret = getValue(metadata.settings(), settings, Repository.SECRET_SETTING, Repositories.SECRET_SETTING);
 
-        blobStore = new S3BlobStore(settings, s3Service.client(endpoint, protocol, region, key, secret, maxRetries, useThrottleRetries),
+        blobStore = new S3BlobStore(settings,
+            s3Service.client(endpoint, protocol, region, key, secret, maxRetries, useThrottleRetries, pathStyleAccess),
                 bucket, region, serverSideEncryption, bufferSize, maxRetries, cannedACL, storageClass);
 
         String basePath = getValue(metadata.settings(), settings, Repository.BASE_PATH_SETTING, Repositories.BASE_PATH_SETTING);

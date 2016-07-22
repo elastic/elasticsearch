@@ -68,7 +68,9 @@ public final class FailProcessor extends AbstractProcessor {
         public FailProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                     Map<String, Object> config) throws Exception {
             String message = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "message");
-            return new FailProcessor(processorTag, templateService.compile(message));
+            TemplateService.Template compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
+                "message", message, templateService);
+            return new FailProcessor(processorTag, compiledTemplate);
         }
     }
 }

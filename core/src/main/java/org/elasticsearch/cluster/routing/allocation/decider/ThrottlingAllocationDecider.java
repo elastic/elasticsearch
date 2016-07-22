@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -177,7 +178,12 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         if (shardRouting.unassigned()) {
             initializingShard = shardRouting.initialize(currentNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         } else if (shardRouting.initializing()) {
-            initializingShard = shardRouting.moveToUnassigned(shardRouting.unassignedInfo())
+            UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
+            if (unassignedInfo == null) {
+                // unassigned shards must have unassignedInfo (initializing shards might not)
+                unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "fake");
+            }
+            initializingShard = shardRouting.moveToUnassigned(unassignedInfo)
                 .initialize(currentNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         } else if (shardRouting.relocating()) {
             initializingShard = shardRouting.cancelRelocation()

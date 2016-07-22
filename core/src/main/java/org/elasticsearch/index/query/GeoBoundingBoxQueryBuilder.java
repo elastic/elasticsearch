@@ -55,7 +55,6 @@ import java.util.Optional;
  * enabled.
  * */
 public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBoundingBoxQueryBuilder> {
-    /** Name of the query. */
     public static final String NAME = "geo_bounding_box";
     public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME, "geo_bbox");
 

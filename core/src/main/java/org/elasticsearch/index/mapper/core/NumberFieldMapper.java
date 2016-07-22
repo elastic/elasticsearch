@@ -69,7 +69,7 @@ import java.util.Objects;
 public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
 
     // this is private since it has a different default
-    private static final Setting<Boolean> COERCE_SETTING =
+    static final Setting<Boolean> COERCE_SETTING =
             Setting.boolSetting("index.mapping.coerce", true, Property.IndexScope);
 
     public static class Builder extends FieldMapper.Builder<Builder, NumberFieldMapper> {

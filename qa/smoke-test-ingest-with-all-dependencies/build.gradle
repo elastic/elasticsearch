@@ -29,7 +29,7 @@ dependencies {
 
 integTest {
     cluster {
-        plugin 'ingest-geoip', project(':plugins:ingest-geoip')
+        plugin ':plugins:ingest-geoip'
         setting 'script.inline', 'true'
         setting 'path.scripts', "${project.buildDir}/resources/test/scripts"
     }

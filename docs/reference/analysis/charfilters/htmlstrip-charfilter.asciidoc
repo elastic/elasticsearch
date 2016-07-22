@@ -93,8 +93,6 @@ PUT my_index
   }
 }
 
-GET _cluster/health?wait_for_status=yellow
-
 POST my_index/_analyze
 {
   "analyzer": "my_analyzer",
@@ -130,6 +128,3 @@ The above example produces the following term:
 ---------------------------
 [ \nI'm so <b>happy</b>!\n ]
 ---------------------------
-
-
-

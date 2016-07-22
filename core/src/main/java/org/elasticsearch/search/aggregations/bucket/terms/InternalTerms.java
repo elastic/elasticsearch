@@ -196,13 +196,9 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                     !terms.getClass().equals(UnmappedTerms.class)) {
                 // control gets into this loop when the same field name against which the query is executed
                 // is of different types in different indices.
-                throw new AggregationExecutionException("Merging/Reducing the aggregations failed " +
-                                                        "when computing the aggregation [ Name: " +
-                                                        referenceTerms.getName() + ", Type: " +
-                                                        referenceTerms.type() + " ]" + " because: " +
-                                                        "the field you gave in the aggregation query " +
-                                                        "existed as two different types " +
-                                                        "in two different indices");
+                throw new AggregationExecutionException("Merging/Reducing the aggregations failed when computing the aggregation ["
+                        + referenceTerms.getName() + "] because the field you gave in the aggregation query existed as two different "
+                        + "types in two different indices");
             }
             otherDocCount += terms.getSumOfOtherDocCounts();
             final long thisAggDocCountError;

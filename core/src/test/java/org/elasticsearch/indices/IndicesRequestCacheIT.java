@@ -354,4 +354,67 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
                 equalTo(0L));
     }
 
+    public void testCanCache() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("index").addMapping("type", "s", "type=date")
+                .setSettings(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true, IndexMetaData.SETTING_NUMBER_OF_SHARDS,
+                        5, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .get());
+        indexRandom(true, client().prepareIndex("index", "type", "1").setRouting("1").setSource("s", "2016-03-19"),
+                client().prepareIndex("index", "type", "2").setRouting("1").setSource("s", "2016-03-20"),
+                client().prepareIndex("index", "type", "3").setRouting("1").setSource("s", "2016-03-21"),
+                client().prepareIndex("index", "type", "4").setRouting("2").setSource("s", "2016-03-22"),
+                client().prepareIndex("index", "type", "5").setRouting("2").setSource("s", "2016-03-23"),
+                client().prepareIndex("index", "type", "6").setRouting("2").setSource("s", "2016-03-24"),
+                client().prepareIndex("index", "type", "7").setRouting("3").setSource("s", "2016-03-25"),
+                client().prepareIndex("index", "type", "8").setRouting("3").setSource("s", "2016-03-26"),
+                client().prepareIndex("index", "type", "9").setRouting("3").setSource("s", "2016-03-27"));
+        ensureSearchable("index");
+
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(0L));
+
+        // If size > 0 we should no cache by default
+        final SearchResponse r1 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(1)
+                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-19").lte("2016-03-25")).get();
+        assertSearchResponse(r1);
+        assertThat(r1.getHits().getTotalHits(), equalTo(7L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(0L));
+
+        // If search type is DFS_QUERY_THEN_FETCH we should not cache
+        final SearchResponse r2 = client().prepareSearch("index").setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setSize(0)
+                .setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26")).get();
+        assertSearchResponse(r2);
+        assertThat(r2.getHits().getTotalHits(), equalTo(7L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(0L));
+
+        // If search type is DFS_QUERY_THEN_FETCH we should not cache even if
+        // the cache flag is explicitly set on the request
+        final SearchResponse r3 = client().prepareSearch("index").setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setSize(0)
+                .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26")).get();
+        assertSearchResponse(r3);
+        assertThat(r3.getHits().getTotalHits(), equalTo(7L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(0L));
+
+        // If size > 1 and cache flag is set on the request we should cache
+        final SearchResponse r4 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(1)
+                .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-21").lte("2016-03-27")).get();
+        assertSearchResponse(r4);
+        assertThat(r4.getHits().getTotalHits(), equalTo(7L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getHitCount(),
+                equalTo(0L));
+        assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
+                equalTo(5L));
+    }
+
 }

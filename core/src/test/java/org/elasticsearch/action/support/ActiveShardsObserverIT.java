@@ -21,6 +21,7 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -35,7 +36,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 public class ActiveShardsObserverIT extends ESIntegTestCase {
 
     public void testCreateIndexNoActiveShardsTimesOut() throws Exception {
-        final String indexName = "test-idx";
         Settings.Builder settingsBuilder = Settings.builder()
                                                .put(indexSettings())
                                                .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 5))
@@ -45,16 +45,17 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
             settingsBuilder.put("index.routing.allocation.exclude._name", exclude);
         }
         Settings settings = settingsBuilder.build();
+        final String indexName = "test-idx";
         assertFalse(prepareCreate(indexName)
                        .setSettings(settings)
                        .setWaitForActiveShards(randomBoolean() ? ActiveShardCount.from(1) : ActiveShardCount.ALL)
                        .setTimeout("100ms")
                        .get()
                        .isShardsAcked());
+        waitForIndexCreationToComplete(indexName);
     }
 
     public void testCreateIndexNoActiveShardsNoWaiting() throws Exception {
-        final String indexName = "test-idx";
         Settings.Builder settingsBuilder = Settings.builder()
                                                .put(indexSettings())
                                                .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 5))
@@ -64,7 +65,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
             settingsBuilder.put("index.routing.allocation.exclude._name", exclude);
         }
         Settings settings = settingsBuilder.build();
-        CreateIndexResponse response = prepareCreate(indexName)
+        CreateIndexResponse response = prepareCreate("test-idx")
                                            .setSettings(settings)
                                            .setWaitForActiveShards(ActiveShardCount.from(0))
                                            .get();
@@ -72,27 +73,28 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
     }
 
     public void testCreateIndexNotEnoughActiveShardsTimesOut() throws Exception {
-        final String indexName = "test-idx";
         final int numDataNodes = internalCluster().numDataNodes();
         final int numReplicas = numDataNodes + randomInt(4);
         Settings settings = Settings.builder()
                                 .put(indexSettings())
-                                .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 7))
+                                .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 5))
                                 .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas)
                                 .build();
+        final String indexName = "test-idx";
         assertFalse(prepareCreate(indexName)
                        .setSettings(settings)
                        .setWaitForActiveShards(ActiveShardCount.from(randomIntBetween(numDataNodes + 1, numReplicas + 1)))
                        .setTimeout("100ms")
                        .get()
                        .isShardsAcked());
+        waitForIndexCreationToComplete(indexName);
     }
 
     public void testCreateIndexEnoughActiveShards() throws Exception {
         final String indexName = "test-idx";
         Settings settings = Settings.builder()
                                 .put(indexSettings())
-                                .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 7))
+                                .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 5))
                                 .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), internalCluster().numDataNodes() + randomIntBetween(0, 3))
                                 .build();
         ActiveShardCount waitForActiveShards = ActiveShardCount.from(randomIntBetween(0, internalCluster().numDataNodes()));
@@ -100,7 +102,6 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
     }
 
     public void testCreateIndexWaitsForAllActiveShards() throws Exception {
-        final String indexName = "test-idx";
         // not enough data nodes, index creation times out
         final int numReplicas = internalCluster().numDataNodes() + randomInt(4);
         Settings settings = Settings.builder()
@@ -108,18 +109,20 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
                                 .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 5))
                                 .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas)
                                 .build();
+        final String indexName = "test-idx";
         assertFalse(prepareCreate(indexName)
                        .setSettings(settings)
                        .setWaitForActiveShards(ActiveShardCount.ALL)
                        .setTimeout("100ms")
                        .get()
                        .isShardsAcked());
+        waitForIndexCreationToComplete(indexName);
         if (client().admin().indices().prepareExists(indexName).get().isExists()) {
-            assertAcked(client().admin().indices().prepareDelete(indexName));
+            client().admin().indices().prepareDelete(indexName).get();
         }
 
         // enough data nodes, all shards are active
-         settings = Settings.builder()
+        settings = Settings.builder()
                         .put(indexSettings())
                         .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), randomIntBetween(1, 7))
                         .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), internalCluster().numDataNodes() - 1)
@@ -150,6 +153,14 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
 
         logger.info("--> ensure the create index request completes");
         assertAcked(responseListener.get());
+    }
+
+    // Its possible that the cluster state update task that includes the create index hasn't processed before we timeout,
+    // and subsequently the test cleanup process does not delete the index in question because it does not see it, and
+    // only after the test cleanup does the index creation manifest in the cluster state.  To take care of this problem
+    // and its potential ramifications, we wait here for the index creation cluster state update task to finish
+    private void waitForIndexCreationToComplete(final String indexName) {
+        client().admin().cluster().prepareHealth(indexName).setWaitForEvents(Priority.URGENT).get();
     }
 
 }

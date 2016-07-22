@@ -46,9 +46,7 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
  * A Query that matches documents matching boolean combinations of other queries.
  */
 public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
-
     public static final String NAME = "bool";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(BoolQueryBuilder.NAME);
 
     public static final boolean ADJUST_PURE_NEGATIVE_DEFAULT = true;
     public static final boolean DISABLE_COORD_DEFAULT = false;

@@ -155,5 +155,5 @@ public interface AwsS3Service extends LifecycleComponent {
     }
 
     AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries,
-                    boolean useThrottleRetries);
+                    boolean useThrottleRetries, Boolean pathStyleAccess);
 }

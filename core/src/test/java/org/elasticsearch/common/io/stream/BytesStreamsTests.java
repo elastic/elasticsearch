@@ -266,6 +266,7 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeVInt(2);
         out.writeLong(-3);
         out.writeVLong(4);
+        out.writeOptionalLong(11234234L);
         out.writeFloat(1.1f);
         out.writeDouble(2.2);
         int[] intArray = {1, 2, 3};
@@ -299,8 +300,9 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(in.readShort(), equalTo((short)-1));
         assertThat(in.readInt(), equalTo(-1));
         assertThat(in.readVInt(), equalTo(2));
-        assertThat(in.readLong(), equalTo((long)-3));
-        assertThat(in.readVLong(), equalTo((long)4));
+        assertThat(in.readLong(), equalTo(-3L));
+        assertThat(in.readVLong(), equalTo(4L));
+        assertThat(in.readOptionalLong(), equalTo(11234234L));
         assertThat((double)in.readFloat(), closeTo(1.1, 0.0001));
         assertThat(in.readDouble(), closeTo(2.2, 0.0001));
         assertThat(in.readGenericValue(), equalTo((Object) intArray));
@@ -335,8 +337,26 @@ public class BytesStreamsTests extends ESTestCase {
         StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry);
         assertEquals(in.available(), bytes.length);
         BaseNamedWriteable namedWriteableOut = in.readNamedWriteable(BaseNamedWriteable.class);
-        assertEquals(namedWriteableOut, namedWriteableIn);
-        assertEquals(in.available(), 0);
+        assertEquals(namedWriteableIn, namedWriteableOut);
+        assertEquals(0, in.available());
+    }
+
+    public void testNamedWriteableList() throws IOException {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new);
+        int size = between(0, 100);
+        List<BaseNamedWriteable> expected = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            expected.add(new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10)));
+        }
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeNamedWriteableList(expected);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)) {
+                assertEquals(expected, in.readNamedWriteableList(BaseNamedWriteable.class));
+                assertEquals(0, in.available());
+            }
+        }
     }
 
     public void testNamedWriteableDuplicates() throws IOException {

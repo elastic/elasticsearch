@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.transport.client;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
@@ -57,4 +58,5 @@ public class PreBuiltTransportClientTests extends RandomizedTest {
             }
         }
     }
+
 }

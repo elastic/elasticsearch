@@ -242,7 +242,7 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
 
     protected Settings commonNodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder().put(requiredSettings());
-        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, "netty3"); // run same transport  / disco as external
+        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? "netty3" : "netty4"); // run same transport  / disco as external
         builder.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen");
         return builder.build();
     }

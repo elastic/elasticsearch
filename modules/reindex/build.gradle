@@ -35,7 +35,6 @@ run {
   setting 'reindex.remote.whitelist', 'myself'
 }
 
-
 dependencies {
   compile "org.elasticsearch.client:rest:${version}"
   // dependencies of the rest client
@@ -45,6 +44,7 @@ dependencies {
   compile "commons-logging:commons-logging:${versions.commonslogging}"
   // for http - testing reindex from remote
   testCompile project(path: ':modules:transport-netty3', configuration: 'runtime')
+  testCompile project(path: ':modules:transport-netty4', configuration: 'runtime')
 }
 
 dependencyLicenses {

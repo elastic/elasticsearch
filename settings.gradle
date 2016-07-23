@@ -26,6 +26,7 @@ List projects = [
   'modules:lang-mustache',
   'modules:lang-painless',
   'modules:transport-netty3',
+  'modules:transport-netty4',
   'modules:reindex',
   'modules:percolator',
   'plugins:analysis-icu',

@@ -22,16 +22,17 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.SSLSocketFactoryHttpConfigCallback;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
@@ -135,11 +136,15 @@ public class RestTestClient implements Closeable {
             String path = "/"+ Objects.requireNonNull(queryStringParams.remove("path"), "Path must be set to use raw request");
             HttpEntity entity = null;
             if (body != null && body.length() > 0) {
-                entity = new StringEntity(body, RestClient.JSON_CONTENT_TYPE);
+                entity = new StringEntity(body, ContentType.APPLICATION_JSON);
             }
             // And everything else is a url parameter!
-            Response response = restClient.performRequest(method, path, queryStringParams, entity);
-            return new RestTestResponse(response);
+            try {
+                Response response = restClient.performRequest(method, path, queryStringParams, entity);
+                return new RestTestResponse(response);
+            } catch(ResponseException e) {
+                throw new RestTestResponseException(e);
+            }
         }
 
         List<Integer> ignores = new ArrayList<>();
@@ -200,7 +205,7 @@ public class RestTestClient implements Closeable {
                 requestMethod = "GET";
             } else {
                 requestMethod = RandomizedTest.randomFrom(supportedMethods);
-                requestBody = new StringEntity(body, RestClient.JSON_CONTENT_TYPE);
+                requestBody = new StringEntity(body, ContentType.APPLICATION_JSON);
             }
         } else {
             if (restApi.isBodyRequired()) {
@@ -242,14 +247,13 @@ public class RestTestClient implements Closeable {
 
         logger.debug("calling api [{}]", apiName);
         try {
-            Response response = restClient.performRequest(requestMethod, requestPath,
-                    queryStringParams, requestBody, requestHeaders);
+            Response response = restClient.performRequest(requestMethod, requestPath, queryStringParams, requestBody, requestHeaders);
             return new RestTestResponse(response);
         } catch(ResponseException e) {
             if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
-                return new RestTestResponse(e);
+                return new RestTestResponse(e.getResponse());
             }
-            throw e;
+            throw new RestTestResponseException(e);
         }
     }
 
@@ -268,7 +272,7 @@ public class RestTestClient implements Closeable {
             URL url = urls[i];
             hosts[i] = new HttpHost(url.getHost(), url.getPort(), protocol);
         }
-        RestClient.Builder builder = RestClient.builder(hosts).setMaxRetryTimeoutMillis(30000)
+        RestClientBuilder builder = RestClient.builder(hosts).setMaxRetryTimeoutMillis(30000)
                 .setRequestConfigCallback(requestConfigBuilder -> requestConfigBuilder.setSocketTimeout(30000));
 
         String keystorePath = settings.get(TRUSTSTORE_PATH);
@@ -287,8 +291,8 @@ public class RestTestClient implements Closeable {
                     keyStore.load(is, keystorePass.toCharArray());
                 }
                 SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
-                SSLConnectionSocketFactory sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslcontext);
-                builder.setHttpClientConfigCallback(new SSLSocketFactoryHttpConfigCallback(sslConnectionSocketFactory));
+                SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslcontext);
+                builder.setHttpClientConfigCallback(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy));
             } catch (KeyStoreException|NoSuchAlgorithmException|KeyManagementException|CertificateException e) {
                 throw new RuntimeException(e);
             }

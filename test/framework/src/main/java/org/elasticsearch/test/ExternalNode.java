@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
@@ -51,7 +52,7 @@ final class ExternalNode implements Closeable {
 
     public static final Settings REQUIRED_SETTINGS = Settings.builder()
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen")
-            .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty3").build(); // we need network mode for this
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, Randomness.get().nextBoolean() ? "netty3" : "netty4").build(); // we need network mode for this
 
     private final Path path;
     private final Random random;

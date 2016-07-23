@@ -297,6 +297,10 @@ class BuildPlugin implements Plugin<Project> {
                 url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
             }
         }
+        repos.maven {
+            name 'netty-snapshots'
+            url "http://s3.amazonaws.com/download.elasticsearch.org/nettysnapshots/20160722"
+        }
     }
 
     /** Returns a closure which can be used with a MavenPom for removing transitive dependencies. */

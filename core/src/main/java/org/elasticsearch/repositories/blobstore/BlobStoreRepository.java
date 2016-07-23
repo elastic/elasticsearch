@@ -663,7 +663,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 byte[] testBytes = Strings.toUTF8Bytes(seed);
                 BlobContainer testContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
                 String blobName = "master.dat";
-                testContainer.writeBlob(blobName + "-temp", new BytesArray(testBytes));
+                BytesArray bytes = new BytesArray(testBytes);
+                try (InputStream stream = bytes.streamInput()) {
+                    testContainer.writeBlob(blobName + "-temp", stream, bytes.length());
+                }
                 // Make sure that move is supported
                 testContainer.move(blobName + "-temp", blobName);
                 return seed;
@@ -838,7 +841,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private void writeAtomic(final String blobName, final BytesReference bytesRef) throws IOException {
         final String tempBlobName = "pending-" + blobName;
-        snapshotsBlobContainer.writeBlob(tempBlobName, bytesRef);
+        try (InputStream stream = bytesRef.streamInput()) {
+            snapshotsBlobContainer.writeBlob(tempBlobName, stream, bytesRef.length());
+        }
         try {
             snapshotsBlobContainer.move(tempBlobName, blobName);
         } catch (IOException ex) {
@@ -900,7 +905,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         BlobContainer testBlobContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
         if (testBlobContainer.blobExists("master.dat")) {
             try  {
-                testBlobContainer.writeBlob("data-" + localNode.getId() + ".dat", new BytesArray(seed));
+                BytesArray bytes = new BytesArray(seed);
+                try (InputStream stream = bytes.streamInput()) {
+                    testBlobContainer.writeBlob("data-" + localNode.getId() + ".dat", stream, bytes.length());
+                }
             } catch (IOException exp) {
                 throw new RepositoryVerificationException(metadata.name(), "store location [" + blobStore() + "] is not accessible on the node [" + localNode + "]", exp);
             }

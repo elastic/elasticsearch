@@ -625,12 +625,12 @@ public class TransportService extends AbstractLifecycleComponent {
         final MeanMetric txMetric = new MeanMetric();
 
         @Override
-        public void received(long size) {
+        public void addBytesReceived(long size) {
             rxMetric.inc(size);
         }
 
         @Override
-        public void sent(long size) {
+        public void addBytesSent(long size) {
             txMetric.inc(size);
         }
 

@@ -164,7 +164,7 @@
                 (\d+                  \s+)  #always should return value since we filter out non data nodes by default
                 [-\w.]+                \s+
                 \d+(\.\d+){3}          \s+
-                \w.*
+                [-\w.]+
                 \n
               )+
             $/

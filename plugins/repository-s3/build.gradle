@@ -51,9 +51,6 @@ dependencyLicenses {
 test {
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name
-  // this is needed by AwsS3ServiceImplTests#testAWSCredentialsWithSystemProviders()
-  systemProperty 'aws.accessKeyId', 'DUMMY_ACCESS_KEY'
-  systemProperty 'aws.secretKey', 'DUMMY_SECRET_KEY'
 }
 
 thirdPartyAudit.excludes = [

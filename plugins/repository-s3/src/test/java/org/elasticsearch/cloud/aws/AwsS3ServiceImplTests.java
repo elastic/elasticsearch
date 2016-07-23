@@ -40,32 +40,14 @@ import static com.amazonaws.SDKGlobalConfiguration.ALTERNATE_SECRET_KEY_ENV_VAR;
 import static com.amazonaws.SDKGlobalConfiguration.SECRET_KEY_ENV_VAR;
 import static com.amazonaws.SDKGlobalConfiguration.SECRET_KEY_SYSTEM_PROPERTY;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class AwsS3ServiceImplTests extends ESTestCase {
 
     public void testAWSCredentialsWithSystemProviders() {
-        // Testing this is hard as it depends on the order of Credential Providers we have in the DefaultAWSCredentialsProviderChain class:
-        //     EnvironmentVariableCredentialsProvider:
-        //          Env vars: (AWS_ACCESS_KEY_ID or AWS_ACCESS_KEY) and (AWS_SECRET_KEY or AWS_SECRET_ACCESS_KEY)
-        //     SystemPropertiesCredentialsProvider:
-        //          Sys props: aws.accessKeyId and aws.secretKey
-        //     ProfileCredentialsProvider: Profile file
-        //     InstanceProfileCredentialsProvider: EC2 Metadata
-        // We don't want to test all the behavior but just that when we don't provide any KEY/SECRET they
-        // will be loaded from the default chain using DefaultAWSCredentialsProviderChain
-
-        assumeFalse("Running test from the IDE does not work as system properties are eventually undefined",
-            StringUtils.isNullOrEmpty(System.getProperty(ACCESS_KEY_SYSTEM_PROPERTY)));
-
-        DefaultAWSCredentialsProviderChain providerChain = new DefaultAWSCredentialsProviderChain();
-        AWSCredentials expectedCredentials = providerChain.getCredentials();
-
         AWSCredentialsProvider credentialsProvider = InternalAwsS3Service.buildCredentials(logger, "", "");
-
-        AWSCredentials credentials = credentialsProvider.getCredentials();
-        assertThat(credentials.getAWSAccessKeyId(), is(expectedCredentials.getAWSAccessKeyId()));
-        assertThat(credentials.getAWSSecretKey(), is(expectedCredentials.getAWSSecretKey()));
+        assertThat(credentialsProvider, instanceOf(DefaultAWSCredentialsProviderChain.class));
     }
 
     public void testAWSCredentialsWithElasticsearchAwsSettings() {

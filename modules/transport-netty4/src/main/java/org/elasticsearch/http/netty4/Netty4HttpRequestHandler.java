@@ -67,7 +67,7 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
         final Netty4HttpRequest httpRequest = new Netty4HttpRequest(copy, ctx.channel());
         serverTransport.dispatchRequest(
             httpRequest,
-            new Netty4HttpChannel(serverTransport, httpRequest, pipelinedRequest, detailedErrorsEnabled));
+            new Netty4HttpChannel(serverTransport, httpRequest, pipelinedRequest, detailedErrorsEnabled, threadContext));
     }
 
     @Override

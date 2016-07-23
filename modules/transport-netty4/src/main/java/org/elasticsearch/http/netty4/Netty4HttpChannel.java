@@ -38,6 +38,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.rest.AbstractRestChannel;
@@ -57,6 +58,7 @@ final class Netty4HttpChannel extends AbstractRestChannel {
     private final Channel channel;
     private final FullHttpRequest nettyRequest;
     private final HttpPipelinedRequest pipelinedRequest;
+    private final ThreadContext threadContext;
 
     /**
      * @param transport             The corresponding <code>NettyHttpServerTransport</code> where this channel belongs to.
@@ -64,17 +66,20 @@ final class Netty4HttpChannel extends AbstractRestChannel {
      * @param pipelinedRequest      If HTTP pipelining is enabled provide the corresponding pipelined request. May be null if
      *                              HTTP pipelining is disabled.
      * @param detailedErrorsEnabled true iff error messages should include stack traces.
+     * @param threadContext         the thread context for the channel
      */
     Netty4HttpChannel(
             final Netty4HttpServerTransport transport,
             final Netty4HttpRequest request,
             final HttpPipelinedRequest pipelinedRequest,
-            final boolean detailedErrorsEnabled) {
+            final boolean detailedErrorsEnabled,
+            final ThreadContext threadContext) {
         super(request, detailedErrorsEnabled);
         this.transport = transport;
         this.channel = request.getChannel();
         this.nettyRequest = request.request();
         this.pipelinedRequest = pipelinedRequest;
+        this.threadContext = threadContext;
     }
 
     @Override
@@ -99,7 +104,8 @@ final class Netty4HttpChannel extends AbstractRestChannel {
         }
 
         // Add all custom headers
-        addCustomHeaders(response, resp);
+        addCustomHeaders(resp, response.getHeaders());
+        addCustomHeaders(resp, threadContext.getResponseHeaders());
 
         BytesReference content = response.content();
         boolean release = content instanceof Releasable;
@@ -161,12 +167,11 @@ final class Netty4HttpChannel extends AbstractRestChannel {
         }
     }
 
-    private void addCustomHeaders(RestResponse response, HttpResponse resp) {
-        Map<String, List<String>> customHeaders = response.getHeaders();
+    private void addCustomHeaders(HttpResponse response, Map<String, List<String>> customHeaders) {
         if (customHeaders != null) {
             for (Map.Entry<String, List<String>> headerEntry : customHeaders.entrySet()) {
                 for (String headerValue : headerEntry.getValue()) {
-                    setHeaderField(resp, headerEntry.getKey(), headerValue);
+                    setHeaderField(response, headerEntry.getKey(), headerValue);
                 }
             }
         }

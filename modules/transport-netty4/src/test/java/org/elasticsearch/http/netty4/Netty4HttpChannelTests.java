@@ -192,7 +192,8 @@ public class Netty4HttpChannelTests extends ESTestCase {
             Netty4HttpRequest request = new Netty4HttpRequest(httpRequest, writeCapturingChannel);
 
             // send a response
-            Netty4HttpChannel channel = new Netty4HttpChannel(httpServerTransport, request, null, randomBoolean());
+            Netty4HttpChannel channel =
+                    new Netty4HttpChannel(httpServerTransport, request, null, randomBoolean(), threadPool.getThreadContext());
             TestResponse resp = new TestResponse();
             final String customHeader = "custom-header";
             final String customHeaderValue = "xyz";
@@ -227,7 +228,8 @@ public class Netty4HttpChannelTests extends ESTestCase {
             final WriteCapturingChannel writeCapturingChannel = new WriteCapturingChannel();
             final Netty4HttpRequest request = new Netty4HttpRequest(httpRequest, writeCapturingChannel);
 
-            Netty4HttpChannel channel = new Netty4HttpChannel(httpServerTransport, request, null, randomBoolean());
+            Netty4HttpChannel channel =
+                    new Netty4HttpChannel(httpServerTransport, request, null, randomBoolean(), threadPool.getThreadContext());
             channel.sendResponse(new TestResponse());
 
             // get the response

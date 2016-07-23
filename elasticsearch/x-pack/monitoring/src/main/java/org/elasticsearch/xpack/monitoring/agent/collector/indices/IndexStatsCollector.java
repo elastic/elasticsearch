@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.agent.collector.AbstractCollector;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
@@ -42,8 +42,8 @@ public class IndexStatsCollector extends AbstractCollector {
 
     @Inject
     public IndexStatsCollector(Settings settings, ClusterService clusterService,
-                               MonitoringSettings monitoringSettings, MonitoringLicensee licensee, InternalClient client) {
-        super(settings, NAME, clusterService, monitoringSettings, licensee);
+                               MonitoringSettings monitoringSettings, XPackLicenseState licenseState, InternalClient client) {
+        super(settings, NAME, clusterService, monitoringSettings, licenseState);
         this.client = client;
     }
 

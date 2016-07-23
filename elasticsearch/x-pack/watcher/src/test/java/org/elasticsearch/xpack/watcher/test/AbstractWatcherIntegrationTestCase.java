@@ -22,7 +22,7 @@ import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
-import org.elasticsearch.xpack.watcher.WatcherLicensee;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.support.clock.ClockMock;
 import org.elasticsearch.xpack.common.http.HttpClient;
@@ -357,20 +356,12 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         return randomBoolean() ? new XPackClient(client).watcher() : new WatcherClient(client);
     }
 
-    protected ScriptService scriptService() {
-        return internalCluster().getInstance(ScriptService.class);
-    }
-
     protected HttpClient watcherHttpClient() {
         return internalCluster().getInstance(HttpClient.class);
     }
 
     protected EmailService noopEmailService() {
         return new NoopEmailService();
-    }
-
-    protected WatcherLicensee licenseService() {
-        return getInstanceFromMaster(WatcherLicensee.class);
     }
 
     protected IndexNameExpressionResolver indexNameExpressionResolver() {
@@ -541,8 +532,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     protected void ensureLicenseEnabled() throws Exception {
         assertBusy(() -> {
-            for (WatcherLicensee service : internalCluster().getInstances(WatcherLicensee.class)) {
-                assertThat(service.isWatcherTransportActionAllowed(), is(true));
+            for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+                assertThat(licenseState.isWatcherAllowed(), is(true));
             }
         });
     }

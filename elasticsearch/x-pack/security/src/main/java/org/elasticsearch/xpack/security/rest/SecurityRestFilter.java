@@ -19,7 +19,7 @@ import org.elasticsearch.rest.RestFilterChain;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
-import org.elasticsearch.xpack.security.SecurityLicenseState;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.jboss.netty.handler.ssl.SslHandler;
@@ -35,13 +35,13 @@ public class SecurityRestFilter extends RestFilter {
 
     private final AuthenticationService service;
     private final ESLogger logger;
-    private final SecurityLicenseState licenseState;
+    private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final boolean extractClientCertificate;
 
     @Inject
     public SecurityRestFilter(AuthenticationService service, RestController controller, Settings settings,
-                              ThreadPool threadPool, SecurityLicenseState licenseState) {
+                              ThreadPool threadPool, XPackLicenseState licenseState) {
         this.service = service;
         this.licenseState = licenseState;
         this.threadContext = threadPool.getThreadContext();
@@ -59,7 +59,7 @@ public class SecurityRestFilter extends RestFilter {
     @Override
     public void process(RestRequest request, RestChannel channel, NodeClient client, RestFilterChain filterChain) throws Exception {
 
-        if (licenseState.authenticationAndAuthorizationEnabled()) {
+        if (licenseState.isAuthAllowed()) {
             // CORS - allow for preflight unauthenticated OPTIONS request
             if (request.method() != RestRequest.Method.OPTIONS) {
                 if (extractClientCertificate) {

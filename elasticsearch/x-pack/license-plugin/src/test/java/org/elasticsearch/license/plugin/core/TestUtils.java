@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.license.plugin;
+package org.elasticsearch.license.plugin.core;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
@@ -21,12 +21,10 @@ import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
-import org.elasticsearch.license.plugin.core.LicenseService;
-import org.elasticsearch.license.plugin.core.Licensee;
-import org.elasticsearch.license.plugin.core.LicensesStatus;
 import org.junit.Assert;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -171,44 +169,14 @@ public class TestUtils {
         assertThat(status.get(), equalTo(expectedStatus));
     }
 
-    public static class AssertingLicensee implements Licensee {
-        public final ESLogger logger;
-        public final String id;
-        public final List<Licensee.Status> statuses = new CopyOnWriteArrayList<>();
-        public final AtomicInteger expirationMessagesCalled = new AtomicInteger(0);
-        public final List<Tuple<License.OperationMode, License.OperationMode>> acknowledgementRequested = new CopyOnWriteArrayList<>();
-
-        private String[] acknowledgmentMessages = new String[0];
-
-        public AssertingLicensee(String id, ESLogger logger) {
-            this.logger = logger;
-            this.id = id;
-        }
-
-        public void setAcknowledgementMessages(String[] acknowledgementMessages) {
-            this.acknowledgmentMessages = acknowledgementMessages;
-        }
-        @Override
-        public String id() {
-            return id;
-        }
+    public static class AssertingLicenseState extends XPackLicenseState {
+        public final List<License.OperationMode> modeUpdates = new ArrayList<>();
+        public final List<Boolean> activeUpdates = new ArrayList<>();
 
         @Override
-        public String[] expirationMessages() {
-            expirationMessagesCalled.incrementAndGet();
-            return new String[0];
-        }
-
-        @Override
-        public String[] acknowledgmentMessages(License.OperationMode currentMode, License.OperationMode newMode) {
-            acknowledgementRequested.add(new Tuple<>(currentMode, newMode));
-            return acknowledgmentMessages;
-        }
-
-        @Override
-        public void onChange(Status status) {
-            assertNotNull(status);
-            statuses.add(status);
+        void update(License.OperationMode mode, boolean active) {
+            modeUpdates.add(mode);
+            activeUpdates.add(active);
         }
     }
 }

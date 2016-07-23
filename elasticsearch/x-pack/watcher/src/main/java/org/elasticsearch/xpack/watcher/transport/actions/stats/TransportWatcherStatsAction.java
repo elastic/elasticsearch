@@ -15,13 +15,13 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.watcher.WatcherBuild;
 import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
 import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
-import org.elasticsearch.xpack.watcher.WatcherLicensee;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 
 /**
@@ -37,10 +37,10 @@ public class TransportWatcherStatsAction extends WatcherTransportAction<WatcherS
     public TransportWatcherStatsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver, WatcherService watcherService,
-                                       ExecutionService executionService, WatcherLicensee watcherLicensee,
+                                       ExecutionService executionService, XPackLicenseState licenseState,
                                        WatcherLifeCycleService lifeCycleService) {
         super(settings, WatcherStatsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                watcherLicensee, WatcherStatsRequest::new);
+                licenseState, WatcherStatsRequest::new);
         this.watcherService = watcherService;
         this.executionService = executionService;
         this.lifeCycleService = lifeCycleService;

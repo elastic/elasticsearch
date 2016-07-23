@@ -53,7 +53,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.xpack.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
-import org.elasticsearch.xpack.security.SecurityLicenseState;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.After;
@@ -84,7 +84,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
     private MapperService mapperService;
     private SecurityIndexSearcherWrapper securityIndexSearcherWrapper;
     private ElasticsearchDirectoryReader esIn;
-    private SecurityLicenseState licenseState;
+    private XPackLicenseState licenseState;
     private IndexSettings indexSettings;
 
     @Before
@@ -98,8 +98,8 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
                 new IndicesModule(new NamedWriteableRegistry(), emptyList()).getMapperRegistry(), () -> null);
 
         ShardId shardId = new ShardId(index, 0);
-        licenseState = mock(SecurityLicenseState.class);
-        when(licenseState.documentAndFieldLevelSecurityEnabled()).thenReturn(true);
+        licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         threadContext = new ThreadContext(Settings.EMPTY);
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(shardId);
@@ -154,7 +154,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
     }
 
     public void testWrapReaderWhenFeatureDisabled() throws Exception {
-        when(licenseState.documentAndFieldLevelSecurityEnabled()).thenReturn(false);
+        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
         securityIndexSearcherWrapper =
                 new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState);
         DirectoryReader reader = securityIndexSearcherWrapper.wrap(esIn);

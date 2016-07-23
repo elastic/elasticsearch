@@ -22,7 +22,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.Licensing;
-import org.elasticsearch.license.plugin.TestUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Base64;

@@ -13,9 +13,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
@@ -155,55 +155,6 @@ public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
         assertThat(indicesStats.getIndices().keySet(), hasSize(nbIndices));
     }
 
-    public void testIndicesStatsCollectorWithLicensing() throws Exception {
-        List<String> nodesIds = internalCluster().startNodesAsync(randomIntBetween(2, 5)).get();
-        waitForNoBlocksOnNodes();
-
-        try {
-            final int nbDocs = randomIntBetween(1, 20);
-            for (int i = 0; i < nbDocs; i++) {
-                client().prepareIndex("test", "test").setSource("num", i).get();
-            }
-
-            securedFlush();
-            securedRefresh();
-            securedEnsureGreen("test");
-
-            for (String node : nodesIds) {
-                logger.debug("--> creating a new instance of the collector");
-                IndicesStatsCollector collector = newIndicesStatsCollector(node);
-                assertNotNull(collector);
-
-                logger.debug("--> enabling license and checks that the collector can collect data if node is master");
-                enableLicense();
-                if (node.equals(internalCluster().getMasterName())) {
-                    assertCanCollect(collector);
-                } else {
-                    assertCannotCollect(collector);
-                }
-
-                logger.debug("--> starting graceful period and checks that the collector can still collect data if node is master");
-                beginGracefulPeriod();
-                if (node.equals(internalCluster().getMasterName())) {
-                    assertCanCollect(collector);
-                } else {
-                    assertCannotCollect(collector);
-                }
-
-                logger.debug("--> ending graceful period and checks that the collector cannot collect data");
-                endGracefulPeriod();
-                assertCannotCollect(collector);
-
-                logger.debug("--> disabling license and checks that the collector cannot collect data");
-                disableLicense();
-                assertCannotCollect(collector);
-            }
-        } finally {
-            // Ensure license is enabled before finishing the test
-            enableLicense();
-        }
-    }
-
     private IndicesStatsCollector newIndicesStatsCollector() {
         // This collector runs on master node only
         return newIndicesStatsCollector(internalCluster().getMasterName());
@@ -216,7 +167,7 @@ public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
         return new IndicesStatsCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
                 internalCluster().getInstance(MonitoringSettings.class, nodeId),
-                internalCluster().getInstance(MonitoringLicensee.class, nodeId),
+                internalCluster().getInstance(XPackLicenseState.class, nodeId),
                 securedClient(nodeId));
     }
 }

@@ -16,10 +16,10 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.watcher.WatcherService;
-import org.elasticsearch.xpack.watcher.WatcherLicensee;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
 
@@ -34,9 +34,9 @@ public class TransportDeleteWatchAction extends WatcherTransportAction<DeleteWat
     public TransportDeleteWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver, WatcherService watcherService,
-                                      WatcherLicensee watcherLicensee) {
+                                      XPackLicenseState licenseState) {
         super(settings, DeleteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                watcherLicensee, DeleteWatchRequest::new);
+                licenseState, DeleteWatchRequest::new);
         this.watcherService = watcherService;
     }
 

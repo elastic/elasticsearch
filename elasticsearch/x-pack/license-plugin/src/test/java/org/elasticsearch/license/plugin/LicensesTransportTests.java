@@ -19,6 +19,7 @@ import org.elasticsearch.license.plugin.action.put.PutLicenseAction;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequestBuilder;
 import org.elasticsearch.license.plugin.action.put.PutLicenseResponse;
 import org.elasticsearch.license.plugin.core.LicensesStatus;
+import org.elasticsearch.license.plugin.core.TestUtils;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -30,9 +31,8 @@ import org.elasticsearch.xpack.watcher.Watcher;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.license.plugin.TestUtils.dateMath;
-import static org.elasticsearch.license.plugin.TestUtils.generateExpiredLicense;
-import static org.elasticsearch.license.plugin.TestUtils.generateSignedLicense;
+import static org.elasticsearch.license.plugin.core.TestUtils.generateExpiredLicense;
+import static org.elasticsearch.license.plugin.core.TestUtils.generateSignedLicense;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 

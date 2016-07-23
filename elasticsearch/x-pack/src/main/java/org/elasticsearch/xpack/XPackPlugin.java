@@ -30,6 +30,7 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +38,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.plugin.Licensing;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -121,6 +123,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     protected boolean transportClientMode;
     protected final XPackExtensionsService extensionsService;
 
+    protected XPackLicenseState licenseState;
     protected Licensing licensing;
     protected Security security;
     protected Monitoring monitoring;
@@ -132,9 +135,10 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         this.settings = settings;
         this.transportClientMode = transportClientMode(settings);
         this.env = transportClientMode ? null : new Environment(settings);
+        this.licenseState = new XPackLicenseState();
 
         this.licensing = new Licensing(settings);
-        this.security = new Security(settings, env);
+        this.security = new Security(settings, env, licenseState);
         this.monitoring = new Monitoring(settings);
         this.watcher = new Watcher(settings);
         this.graph = new Graph(settings);
@@ -171,6 +175,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
             modules.add(new TextTemplateModule());
             // Note: this only exists so LicenseService subclasses can be bound in mock tests
             modules.addAll(licensing.nodeModules());
+        } else {
+            modules.add(b -> b.bind(XPackLicenseState.class).toProvider(Providers.of(null)));
         }
         return modules;
     }
@@ -190,8 +196,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         final InternalClient internalClient = new InternalClient(settings, threadPool, client, security.getCryptoService());
         components.add(internalClient);
 
-        components.addAll(licensing.createComponents(clusterService, getClock(), env, resourceWatcherService,
-                                                     security.getSecurityLicenseState()));
+        components.addAll(licensing.createComponents(clusterService, getClock(), env, resourceWatcherService, licenseState));
         components.addAll(security.createComponents(internalClient, threadPool, clusterService, resourceWatcherService,
                                                     extensionsService.getExtensions()));
 

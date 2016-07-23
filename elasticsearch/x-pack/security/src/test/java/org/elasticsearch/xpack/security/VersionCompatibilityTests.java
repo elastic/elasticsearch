@@ -27,7 +27,7 @@ import static org.hamcrest.CoreMatchers.is;
 public class VersionCompatibilityTests extends ESTestCase {
     public void testCompatibility() {
         /**
-         * see https://github.com/elasticsearch/elasticsearch/issues/9372 {@link SecurityLicensee}
+         * see https://github.com/elasticsearch/elasticsearch/issues/9372 {@link org.elasticsearch.license.plugin.core.XPackLicenseState}
          * Once es core supports merging cluster level custom metadata (licenses in our case), the tribe node will see some license
          * coming from the tribe and everything will be ok.
          *

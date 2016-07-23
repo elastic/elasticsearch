@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.accesscontrol.RequestContext;
-import org.elasticsearch.xpack.security.SecurityLicenseState;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,7 +46,7 @@ public class SecurityServerTransportService extends TransportService {
     protected final AuthorizationService authzService;
     protected final SecurityActionMapper actionMapper;
     protected final ClientTransportFilter clientFilter;
-    protected final SecurityLicenseState licenseState;
+    protected final XPackLicenseState licenseState;
 
     protected final Map<String, ServerTransportFilter> profileFilters;
 
@@ -56,7 +56,7 @@ public class SecurityServerTransportService extends TransportService {
                                           AuthorizationService authzService,
                                           SecurityActionMapper actionMapper,
                                           ClientTransportFilter clientTransportFilter,
-                                          SecurityLicenseState licenseState) {
+                                          XPackLicenseState licenseState) {
         super(settings, transport, threadPool);
         this.authcService = authcService;
         this.authzService = authzService;
@@ -155,11 +155,11 @@ public class SecurityServerTransportService extends TransportService {
         protected final String action;
         protected final TransportRequestHandler<T> handler;
         private final Map<String, ServerTransportFilter> profileFilters;
-        private final SecurityLicenseState licenseState;
+        private final XPackLicenseState licenseState;
         private final ThreadContext threadContext;
 
         public ProfileSecuredRequestHandler(String action, TransportRequestHandler<T> handler,
-                                            Map<String, ServerTransportFilter> profileFilters, SecurityLicenseState licenseState,
+                                            Map<String, ServerTransportFilter> profileFilters, XPackLicenseState licenseState,
                                             ThreadContext threadContext) {
             this.action = action;
             this.handler = handler;
@@ -171,7 +171,7 @@ public class SecurityServerTransportService extends TransportService {
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             try (ThreadContext.StoredContext ctx = threadContext.newStoredContext()) {
-                if (licenseState.authenticationAndAuthorizationEnabled()) {
+                if (licenseState.isAuthAllowed()) {
                     String profile = channel.getProfileName();
                     ServerTransportFilter filter = profileFilters.get(profile);
 

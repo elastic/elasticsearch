@@ -14,10 +14,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.xpack.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.xpack.watcher.actions.throttler.Throttler;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.WatcherLicensee;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
@@ -140,7 +140,7 @@ public class ActionWrapper implements ToXContent {
 
     static ActionWrapper parse(String watchId, String actionId, XContentParser parser,
                                ActionRegistry actionRegistry, TransformRegistry transformRegistry,
-                               Clock clock, WatcherLicensee watcherLicensee) throws IOException {
+                               Clock clock, XPackLicenseState licenseState) throws IOException {
 
         assert parser.currentToken() == XContentParser.Token.START_OBJECT;
 
@@ -178,7 +178,7 @@ public class ActionWrapper implements ToXContent {
             throw new ElasticsearchParseException("could not parse watch action [{}/{}]. missing action type", watchId, actionId);
         }
 
-        ActionThrottler throttler = new ActionThrottler(clock, throttlePeriod, watcherLicensee);
+        ActionThrottler throttler = new ActionThrottler(clock, throttlePeriod, licenseState);
         return new ActionWrapper(actionId, throttler, transform, action);
     }
 

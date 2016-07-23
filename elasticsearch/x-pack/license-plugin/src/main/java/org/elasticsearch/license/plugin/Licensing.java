@@ -5,6 +5,11 @@
  */
 package org.elasticsearch.license.plugin;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -21,23 +26,14 @@ import org.elasticsearch.license.plugin.action.put.PutLicenseAction;
 import org.elasticsearch.license.plugin.action.put.TransportPutLicenseAction;
 import org.elasticsearch.license.plugin.core.LicensesMetaData;
 import org.elasticsearch.license.plugin.core.LicenseService;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.license.plugin.rest.RestDeleteLicenseAction;
 import org.elasticsearch.license.plugin.rest.RestGetLicenseAction;
 import org.elasticsearch.license.plugin.rest.RestPutLicenseAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.graph.GraphLicensee;
-import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
-import org.elasticsearch.xpack.security.SecurityLicenseState;
-import org.elasticsearch.xpack.security.SecurityLicensee;
 import org.elasticsearch.xpack.support.clock.Clock;
-import org.elasticsearch.xpack.watcher.WatcherLicensee;
-
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.XPackPlugin.isTribeNode;
@@ -87,16 +83,10 @@ public class Licensing implements ActionPlugin {
 
     public Collection<Object> createComponents(ClusterService clusterService, Clock clock, Environment environment,
                                                ResourceWatcherService resourceWatcherService,
-                                               SecurityLicenseState securityLicenseState) {
-        SecurityLicensee securityLicensee = new SecurityLicensee(settings, securityLicenseState);
-        WatcherLicensee watcherLicensee = new WatcherLicensee(settings);
-        MonitoringLicensee monitoringLicensee = new MonitoringLicensee(settings);
-        GraphLicensee graphLicensee = new GraphLicensee(settings);
+                                               XPackLicenseState licenseState) {
         LicenseService licenseService = new LicenseService(settings, clusterService, clock,
-                environment, resourceWatcherService,
-                Arrays.asList(securityLicensee, watcherLicensee, monitoringLicensee, graphLicensee));
-
-        return Arrays.asList(licenseService, securityLicenseState, securityLicensee, watcherLicensee, monitoringLicensee, graphLicensee);
+                environment, resourceWatcherService, licenseState);
+        return Arrays.asList(licenseService, licenseState);
     }
 
     public List<Setting<?>> getSettings() {

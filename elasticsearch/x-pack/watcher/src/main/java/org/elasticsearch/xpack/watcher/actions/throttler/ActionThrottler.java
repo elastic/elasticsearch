@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.watcher.actions.throttler;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.WatcherLicensee;
 import org.elasticsearch.xpack.support.clock.Clock;
 
 /**
@@ -18,18 +18,18 @@ public class ActionThrottler implements Throttler {
 
     private static final AckThrottler ACK_THROTTLER = new AckThrottler();
 
-    private final WatcherLicensee watcherLicensee;
+    private final XPackLicenseState licenseState;
     private final PeriodThrottler periodThrottler;
     private final AckThrottler ackThrottler;
 
-    public ActionThrottler(Clock clock, @Nullable TimeValue throttlePeriod, WatcherLicensee watcherLicensee) {
-        this(new PeriodThrottler(clock, throttlePeriod), ACK_THROTTLER, watcherLicensee);
+    public ActionThrottler(Clock clock, @Nullable TimeValue throttlePeriod, XPackLicenseState licenseState) {
+        this(new PeriodThrottler(clock, throttlePeriod), ACK_THROTTLER, licenseState);
     }
 
-    ActionThrottler(PeriodThrottler periodThrottler, AckThrottler ackThrottler, WatcherLicensee watcherLicensee) {
+    ActionThrottler(PeriodThrottler periodThrottler, AckThrottler ackThrottler, XPackLicenseState licenseState) {
         this.periodThrottler = periodThrottler;
         this.ackThrottler = ackThrottler;
-        this.watcherLicensee = watcherLicensee;
+        this.licenseState = licenseState;
     }
 
     public TimeValue throttlePeriod() {
@@ -38,7 +38,7 @@ public class ActionThrottler implements Throttler {
 
     @Override
     public Result throttle(String actionId, WatchExecutionContext ctx) {
-        if (!watcherLicensee.isExecutingActionsAllowed()) {
+        if (licenseState.isWatcherAllowed() == false) {
             return Result.throttle("watcher license does not allow action execution");
         }
         if (periodThrottler != null) {

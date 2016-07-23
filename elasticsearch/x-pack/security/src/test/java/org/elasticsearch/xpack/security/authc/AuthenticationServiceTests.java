@@ -16,13 +16,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
-import org.elasticsearch.xpack.security.SecurityLicenseState;
-import org.elasticsearch.xpack.security.SecurityLicenseState.EnabledRealmType;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.authc.AuthenticationService.Authenticator;
@@ -88,11 +87,11 @@ public class AuthenticationServiceTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .put("node.name", "authc_test")
                 .build();
-        SecurityLicenseState securityLicenseState = mock(SecurityLicenseState.class);
-        when(securityLicenseState.enabledRealmType()).thenReturn(EnabledRealmType.ALL);
-        when(securityLicenseState.authenticationAndAuthorizationEnabled()).thenReturn(true);
-        realms = new Realms(Settings.EMPTY, new Environment(settings), Collections.<String, Realm.Factory>emptyMap(), securityLicenseState,
-                mock(ReservedRealm.class)) {
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.allowedRealmType()).thenReturn(XPackLicenseState.AllowedRealmType.ALL);
+        when(licenseState.isAuthAllowed()).thenReturn(true);
+        realms = new Realms(Settings.EMPTY, new Environment(settings), Collections.<String, Realm.Factory>emptyMap(),
+            licenseState, mock(ReservedRealm.class)) {
 
             @Override
             protected void doStart() {

@@ -23,22 +23,40 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
+import com.amazonaws.util.StringUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import static com.amazonaws.SDKGlobalConfiguration.ACCESS_KEY_SYSTEM_PROPERTY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AwsEc2ServiceImplTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/19556")
     public void testAWSCredentialsWithSystemProviders() {
+        // Testing this is hard as it depends on the order of Credential Providers we have in the DefaultAWSCredentialsProviderChain class:
+        //     EnvironmentVariableCredentialsProvider:
+        //          Env vars: (AWS_ACCESS_KEY_ID or AWS_ACCESS_KEY) and (AWS_SECRET_KEY or AWS_SECRET_ACCESS_KEY)
+        //     SystemPropertiesCredentialsProvider:
+        //          Sys props: aws.accessKeyId and aws.secretKey
+        //     ProfileCredentialsProvider: Profile file
+        //     InstanceProfileCredentialsProvider: EC2 Metadata
+        // We don't want to test all the behavior but just that when we don't provide any KEY/SECRET they
+        // will be loaded from the default chain using DefaultAWSCredentialsProviderChain
+
+        assumeFalse("Running test from the IDE does not work as system properties are eventually undefined",
+            StringUtils.isNullOrEmpty(System.getProperty(ACCESS_KEY_SYSTEM_PROPERTY)));
+
+        DefaultAWSCredentialsProviderChain providerChain = new DefaultAWSCredentialsProviderChain();
+        AWSCredentials expectedCredentials = providerChain.getCredentials();
+
         AWSCredentialsProvider credentialsProvider = AwsEc2ServiceImpl.buildCredentials(logger, Settings.EMPTY);
 
         AWSCredentials credentials = credentialsProvider.getCredentials();
-        assertThat(credentials.getAWSAccessKeyId(), is("DUMMY_ACCESS_KEY"));
-        assertThat(credentials.getAWSSecretKey(), is("DUMMY_SECRET_KEY"));
+        assertThat(credentials.getAWSAccessKeyId(), is(expectedCredentials.getAWSAccessKeyId()));
+        assertThat(credentials.getAWSSecretKey(), is(expectedCredentials.getAWSSecretKey()));
     }
 
     public void testAWSCredentialsWithElasticsearchAwsSettings() {

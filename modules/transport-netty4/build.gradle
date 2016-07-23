@@ -45,8 +45,6 @@ dependencies {
 integTest {
     includePackaged = true
     cluster {
-        setting 'http.type', 'netty4'
-        setting 'transport.type', 'netty4'
         numNodes = 2
     }
 }

@@ -216,7 +216,7 @@ public class TribeService extends AbstractLifecycleComponent {
             }
         }
         Settings.Builder sb = Settings.builder().put(tribeSettings);
-        sb.put("node.name", globalSettings.get("node.name") + "/" + tribeName);
+        sb.put(Node.NODE_NAME_SETTING.getKey(), Node.NODE_NAME_SETTING.get(globalSettings) + "/" + tribeName);
         sb.put(Environment.PATH_HOME_SETTING.getKey(), Environment.PATH_HOME_SETTING.get(globalSettings)); // pass through ES home dir
         if (Environment.PATH_CONF_SETTING.exists(globalSettings)) {
             sb.put(Environment.PATH_CONF_SETTING.getKey(), Environment.PATH_CONF_SETTING.get(globalSettings));

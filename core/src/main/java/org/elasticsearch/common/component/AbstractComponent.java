@@ -24,6 +24,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
 
 /**
  *
@@ -50,7 +51,7 @@ public abstract class AbstractComponent {
      * Returns the nodes name from the settings or the empty string if not set.
      */
     public final String nodeName() {
-        return settings.get("node.name", "");
+        return Node.NODE_NAME_SETTING.get(settings);
     }
 
     /**

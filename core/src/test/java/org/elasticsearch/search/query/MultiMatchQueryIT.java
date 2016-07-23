@@ -221,7 +221,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertNoFailures(searchResponse);
         assertFirstHit(searchResponse, hasId("theone"));
 
-        String[] fields = {"full_name", "first_name", "last_name", "last_name_phrase", "first_name_phrase", "category_phrase", "category"};
+        String[] fields = {"full_name", "first_name", "last_name", "last_name_phrase", "first_name_phrase", "category_phrase", "category", "missing_field", "missing_fields*"};
 
         String[] query = {"marvel","hero", "captain",  "america", "15", "17", "1", "5", "ultimate", "Man",
                 "marvel", "wolferine", "ninja"};

@@ -82,6 +82,7 @@ public class PreBuiltTransportClient extends TransportClient {
             return Settings.builder()
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, Netty3Plugin.NETTY_TRANSPORT_NAME)
                     .put(NetworkModule.HTTP_TYPE_KEY, Netty3Plugin.NETTY_HTTP_TRANSPORT_NAME)
+                    .put("netty.assert.buglevel", true)
                     .build();
         }
 

@@ -7,7 +7,7 @@ List projects = [
   'docs',
   'client:rest',
   'client:sniffer',
-  'client:transport-netty',
+  'client:transport',
   'client:test',
   'benchmarks',
   'distribution:integ-test-zip',

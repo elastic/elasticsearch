@@ -99,8 +99,8 @@ public final class PBrace extends AStoreable {
     }
 
     @Override
-    int size() {
-        return sub.size();
+    int accessElementCount() {
+        return sub.accessElementCount();
     }
 
     @Override

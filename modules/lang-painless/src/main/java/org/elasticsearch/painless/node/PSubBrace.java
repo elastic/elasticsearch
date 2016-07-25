@@ -67,7 +67,7 @@ final class PSubBrace extends AStoreable {
     }
 
     @Override
-    int size() {
+    int accessElementCount() {
         return 2;
     }
 

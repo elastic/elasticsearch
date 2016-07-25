@@ -68,7 +68,7 @@ public final class EVariable extends AStoreable {
     }
 
     @Override
-    int size() {
+    int accessElementCount() {
         return 0;
     }
 

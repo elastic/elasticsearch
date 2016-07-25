@@ -88,7 +88,7 @@ final class PSubShortcut extends AStoreable {
     }
 
     @Override
-    int size() {
+    int accessElementCount() {
         return 1;
     }
 

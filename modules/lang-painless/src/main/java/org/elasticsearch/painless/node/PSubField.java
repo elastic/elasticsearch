@@ -70,7 +70,7 @@ final class PSubField extends AStoreable {
     }
 
     @Override
-    int size() {
+    int accessElementCount() {
         return 1;
     }
 

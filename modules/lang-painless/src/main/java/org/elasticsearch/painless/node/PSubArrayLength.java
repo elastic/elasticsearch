@@ -69,7 +69,7 @@ final class PSubArrayLength extends AStoreable {
     }
 
     @Override
-    int size() {
+    int accessElementCount() {
         throw new IllegalStateException("Illegal tree structure.");
     }
 

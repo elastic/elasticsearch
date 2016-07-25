@@ -56,15 +56,25 @@ abstract class AStoreable extends AExpression {
     }
 
     /**
-     * Returns a value based on this storeable's size on the stack.  This is
+     * Returns a value based on the number of elements previously placed on the
+     * stack to load/store a certain piece of a variable/method chain.  This is
      * used during the writing phase to dup stack values from this storeable as
      * necessary during certain store operations.
+     * <p>
+     * Examples:
+     * {@link EVariable} returns 0 because it requires nothing extra to perform
+     *                   a load/store
+     * {@link PSubField} returns 1 because it requires the name of the field as
+     *                   an index on the stack to perform a load/store
+     * {@link PSubBrace} returns 2 because it requires both the variable slot and
+     *                   an index into the array on the stack to perform a
+     *                   load/store
      */
-    abstract int size();
+    abstract int accessElementCount();
 
     /**
-     * Returns true if this node can be optimized with rhs actual type to
-     * avoid an unnecessary cast.
+     * Returns true if this node or a sub-node of this node can be optimized with
+     * rhs actual type to avoid an unnecessary cast.
      */
     abstract boolean isDefOptimized();
 

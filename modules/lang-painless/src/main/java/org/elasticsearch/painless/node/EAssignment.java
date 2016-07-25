@@ -255,9 +255,10 @@ public final class EAssignment extends AExpression {
             // Handle the case where we are doing a compound assignment
             // representing a String concatenation.
 
-            writer.writeDup(lhs.size(), catElementStackSize);  // dup the top element and insert it before concat helper on stack
-            lhs.load(writer, globals);                         // read the current lhs's value
-            writer.writeAppendStrings(lhs.actual);             // append the lhs's value using the StringBuilder
+            writer.writeDup(lhs.accessElementCount(), catElementStackSize); // dup the top element and insert it
+                                                                            // before concat helper on stack
+            lhs.load(writer, globals);                                      // read the current lhs's value
+            writer.writeAppendStrings(lhs.actual);                          // append the lhs's value using the StringBuilder
 
             rhs.write(writer, globals); // write the bytecode for the rhs
 
@@ -269,8 +270,8 @@ public final class EAssignment extends AExpression {
             writer.writeCast(back);  // if necessary, cast the String to the lhs actual type
 
             if (lhs.read) {
-                writer.writeDup(lhs.actual.sort.size, lhs.size()); // if this lhs is also read
-                                                                               // from dup the value onto the stack
+                writer.writeDup(lhs.actual.sort.size, lhs.accessElementCount()); // if this lhs is also read
+                                                                          // from dup the value onto the stack
             }
 
             lhs.store(writer, globals); // store the lhs's value from the stack in its respective variable/field/array
@@ -278,12 +279,13 @@ public final class EAssignment extends AExpression {
             // Handle the case where we are doing a compound assignment that
             // does not represent a String concatenation.
 
-            writer.writeDup(lhs.size(), 0); // if necessary, dup the previous lhs's value to be both loaded from and stored to
-            lhs.load(writer, globals);      // load the current lhs's value
+            writer.writeDup(lhs.accessElementCount(), 0); // if necessary, dup the previous lhs's value
+                                                          // to be both loaded from and stored to
+            lhs.load(writer, globals);                    // load the current lhs's value
 
             if (lhs.read && post) {
-                writer.writeDup(lhs.actual.sort.size, lhs.size()); // dup the value if the lhs is also
-                                                                               // read from and is a post increment
+                writer.writeDup(lhs.actual.sort.size, lhs.accessElementCount()); // dup the value if the lhs is also
+                                                                                 // read from and is a post increment
             }
 
             writer.writeCast(there);    // if necessary cast the current lhs's value
@@ -303,8 +305,8 @@ public final class EAssignment extends AExpression {
             writer.writeCast(back); // if necessary cast the promotion type value back to the lhs's type
 
             if (lhs.read && !post) {
-                writer.writeDup(lhs.actual.sort.size, lhs.size()); // dup the value if the lhs is also
-                                                                   // read from and is not a post increment
+                writer.writeDup(lhs.actual.sort.size, lhs.accessElementCount()); // dup the value if the lhs is also
+                                                                                 // read from and is not a post increment
             }
 
             lhs.store(writer, globals); // store the lhs's value from the stack in its respective variable/field/array
@@ -314,7 +316,7 @@ public final class EAssignment extends AExpression {
             rhs.write(writer, globals); // write the bytecode for the rhs rhs
 
             if (lhs.read) {
-                writer.writeDup(lhs.actual.sort.size, lhs.size()); // dup the value if the lhs is also read from
+                writer.writeDup(lhs.actual.sort.size, lhs.accessElementCount()); // dup the value if the lhs is also read from
             }
 
             lhs.store(writer, globals); // store the lhs's value from the stack in its respective variable/field/array

@@ -133,8 +133,8 @@ public final class PField extends AStoreable {
     }
 
     @Override
-    int size() {
-        return sub.size();
+    int accessElementCount() {
+        return sub.accessElementCount();
     }
 
     @Override

@@ -69,7 +69,7 @@ final class PSubDefArray extends AStoreable {
     }
 
     @Override
-    int size() {
+    int accessElementCount() {
         return 2;
     }
 

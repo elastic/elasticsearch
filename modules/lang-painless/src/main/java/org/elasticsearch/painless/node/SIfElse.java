@@ -103,8 +103,8 @@ public final class SIfElse extends AStatement {
     void write(MethodWriter writer, Globals globals) {
         writer.writeStatementOffset(location);
 
+        Label fals = new Label();
         Label end = new Label();
-        Label fals = elseblock != null ? new Label() : end;
 
         condition.fals = fals;
         condition.write(writer, globals);

@@ -47,6 +47,7 @@ public final class SIf extends AStatement {
     @Override
     void extractVariables(Set<String> variables) {
         condition.extractVariables(variables);
+
         if (ifblock != null) {
             ifblock.extractVariables(variables);
         }

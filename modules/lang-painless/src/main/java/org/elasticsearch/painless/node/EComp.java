@@ -483,8 +483,8 @@ public final class EComp extends AExpression {
             case CHAR:
                 throw createError(new IllegalStateException("Illegal tree structure."));
             case BOOL:
-                if      (eq) writer.ifZCmp(MethodWriter.EQ, jump);
-                else if (ne) writer.ifZCmp(MethodWriter.NE, jump);
+                if      (eq) writer.ifCmp(promotedType.type, MethodWriter.EQ, jump);
+                else if (ne) writer.ifCmp(promotedType.type, MethodWriter.NE, jump);
                 else {
                     throw createError(new IllegalStateException("Illegal tree structure."));
                 }

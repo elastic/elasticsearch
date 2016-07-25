@@ -75,20 +75,11 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
                 bulkRequestBody.append("\n");
             }
             StringEntity entity = new StringEntity(bulkRequestBody.toString(), ContentType.APPLICATION_JSON);
-            Response response = null;
             try {
-                response = client.performRequest("POST", "/_bulk", Collections.emptyMap(), entity);
+                Response response = client.performRequest("POST", "/_bulk", Collections.emptyMap(), entity);
                 return response.getStatusLine().getStatusCode() == HttpStatus.SC_OK;
             } catch (Exception e) {
                 throw new ElasticsearchException(e);
-            } finally {
-                if (response != null) {
-                    try {
-                        response.close();
-                    } catch (IOException e) {
-                        // ignore
-                    }
-                }
             }
         }
     }
@@ -105,20 +96,11 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
         @Override
         public boolean search(String source) {
             HttpEntity searchBody = new StringEntity(source, StandardCharsets.UTF_8);
-            Response response = null;
             try {
-                response = client.performRequest("GET", endpoint, Collections.emptyMap(), searchBody);
+                Response response = client.performRequest("GET", endpoint, Collections.emptyMap(), searchBody);
                 return response.getStatusLine().getStatusCode() == HttpStatus.SC_OK;
             } catch (IOException e) {
                 throw new ElasticsearchException(e);
-            } finally {
-                try {
-                    if (response != null) {
-                        response.close();
-                    }
-                } catch (IOException e) {
-                    // close quietly
-                }
             }
         }
     }

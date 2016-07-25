@@ -143,7 +143,7 @@ public class HttpInput implements Input {
     public static class Result extends Input.Result {
 
         @Nullable private final HttpRequest request;
-        private final int statusCode;
+        final int statusCode;
 
         public Result(HttpRequest request, int statusCode, Payload payload) {
             super(TYPE, payload);

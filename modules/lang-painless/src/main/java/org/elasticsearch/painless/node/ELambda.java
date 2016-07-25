@@ -187,7 +187,6 @@ public final class ELambda extends AExpression implements ILambda {
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
-        checkWriteBranch(null);
 
         if (ref != null) {
             writer.writeDebugInfo(location);

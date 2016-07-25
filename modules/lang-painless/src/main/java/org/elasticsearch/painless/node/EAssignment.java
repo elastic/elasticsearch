@@ -321,7 +321,5 @@ public final class EAssignment extends AExpression {
 
             lhs.store(writer, globals); // store the lhs's value from the stack in its respective variable/field/array
         }
-
-        checkWriteBranch(writer); // if this is a branch node, write the bytecode to make an appropiate jump
     }
 }

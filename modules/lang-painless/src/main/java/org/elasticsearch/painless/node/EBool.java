@@ -30,6 +30,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import org.elasticsearch.painless.MethodWriter;
+import org.objectweb.asm.Opcodes;
 
 /**
  * Represents a boolean expression.
@@ -79,76 +80,38 @@ public final class EBool extends AExpression {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        if (tru != null && fals != null) {
-            throw new IllegalStateException("Illegal tree structure.");
-        }
+        if (operation == Operation.AND) {
+            Label fals = new Label();
+            Label end = new Label();
 
-        if (tru != null || fals != null) {
-            if (operation == Operation.AND) {
-                Label localfals = fals == null ? new Label() : fals;
+            left.write(writer, globals);
+            writer.ifZCmp(Opcodes.IFEQ, fals);
+            right.write(writer, globals);
+            writer.ifZCmp(Opcodes.IFEQ, fals);
 
-                left.fals = localfals;
-                right.tru = tru;
-                right.fals = fals;
+            writer.push(true);
+            writer.goTo(end);
+            writer.mark(fals);
+            writer.push(false);
+            writer.mark(end);
+        } else if (operation == Operation.OR) {
+            Label tru = new Label();
+            Label fals = new Label();
+            Label end = new Label();
 
-                left.write(writer, globals);
-                right.write(writer, globals);
+            left.write(writer, globals);
+            writer.ifZCmp(Opcodes.IFNE, tru);
+            right.write(writer, globals);
+            writer.ifZCmp(Opcodes.IFEQ, fals);
 
-                if (fals == null) {
-                    writer.mark(localfals);
-                }
-            } else if (operation == Operation.OR) {
-                Label localtru = tru == null ? new Label() : tru;
-
-                left.tru = localtru;
-                right.tru = tru;
-                right.fals = fals;
-
-                left.write(writer, globals);
-                right.write(writer, globals);
-
-                if (tru == null) {
-                    writer.mark(localtru);
-                }
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
+            writer.mark(tru);
+            writer.push(true);
+            writer.goTo(end);
+            writer.mark(fals);
+            writer.push(false);
+            writer.mark(end);
         } else {
-            if (operation == Operation.AND) {
-                Label localfals = new Label();
-                Label end = new Label();
-
-                left.fals = localfals;
-                right.fals = localfals;
-
-                left.write(writer, globals);
-                right.write(writer, globals);
-
-                writer.push(true);
-                writer.goTo(end);
-                writer.mark(localfals);
-                writer.push(false);
-                writer.mark(end);
-            } else if (operation == Operation.OR) {
-                Label localtru = new Label();
-                Label localfals = new Label();
-                Label end = new Label();
-
-                left.tru = localtru;
-                right.fals = localfals;
-
-                left.write(writer, globals);
-                right.write(writer, globals);
-
-                writer.mark(localtru);
-                writer.push(true);
-                writer.goTo(end);
-                writer.mark(localfals);
-                writer.push(false);
-                writer.mark(end);
-            } else {
-                throw createError(new IllegalStateException("Illegal tree structure."));
-            }
+            throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 }

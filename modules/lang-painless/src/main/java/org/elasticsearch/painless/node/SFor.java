@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
+import org.objectweb.asm.Opcodes;
 
 import java.util.Set;
 
@@ -37,6 +38,8 @@ public final class SFor extends AStatement {
     private AExpression condition;
     private AExpression afterthought;
     private final SBlock block;
+
+    private boolean continuous = false;
 
     public SFor(Location location, ANode initializer, AExpression condition, AExpression afterthought, SBlock block) {
         super(location);
@@ -67,11 +70,9 @@ public final class SFor extends AStatement {
     void analyze(Locals locals) {
         locals = Locals.newLocalScope(locals);
 
-        boolean continuous = false;
-
         if (initializer != null) {
             if (initializer instanceof AStatement) {
-                ((AStatement)initializer).analyze(locals);
+                initializer.analyze(locals);
             } else if (initializer instanceof AExpression) {
                 AExpression initializer = (AExpression)this.initializer;
 
@@ -159,9 +160,9 @@ public final class SFor extends AStatement {
 
         writer.mark(start);
 
-        if (condition != null) {
-            condition.fals = end;
+        if (condition != null && !continuous) {
             condition.write(writer, globals);
+            writer.ifZCmp(Opcodes.IFEQ, end);
         }
 
         boolean allEscape = false;

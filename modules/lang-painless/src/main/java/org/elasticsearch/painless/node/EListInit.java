@@ -89,7 +89,6 @@ public final class EListInit extends AExpression {
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
-        checkWriteBranch(null);
 
         writer.newInstance(actual.type);
         writer.dup();

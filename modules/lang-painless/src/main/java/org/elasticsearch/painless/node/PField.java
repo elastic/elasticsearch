@@ -118,7 +118,6 @@ public final class PField extends AStoreable {
     void write(MethodWriter writer, Globals globals) {
         prefix.write(writer, globals);
         sub.write(writer, globals);
-        checkWriteBranch(writer);
     }
 
     @Override

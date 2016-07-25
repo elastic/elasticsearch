@@ -34,6 +34,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import org.elasticsearch.painless.MethodWriter;
+import org.objectweb.asm.Opcodes;
 
 /**
  * Represents a unary math expression.
@@ -193,23 +194,17 @@ public final class EUnary extends AExpression {
         writer.writeDebugInfo(location);
 
         if (operation == Operation.NOT) {
-            if (tru == null && fals == null) {
-                Label localfals = new Label();
-                Label end = new Label();
+            Label fals = new Label();
+            Label end = new Label();
 
-                child.fals = localfals;
-                child.write(writer, globals);
+            child.write(writer, globals);
+            writer.ifZCmp(Opcodes.IFEQ, fals);
 
-                writer.push(false);
-                writer.goTo(end);
-                writer.mark(localfals);
-                writer.push(true);
-                writer.mark(end);
-            } else {
-                child.tru = fals;
-                child.fals = tru;
-                child.write(writer, globals);
-            }
+            writer.push(false);
+            writer.goTo(end);
+            writer.mark(fals);
+            writer.push(true);
+            writer.mark(end);
         } else {
             Sort sort = promote.sort;
             child.write(writer, globals);
@@ -252,8 +247,6 @@ public final class EUnary extends AExpression {
             } else {
                 throw createError(new IllegalStateException("Illegal tree structure."));
             }
-
-            checkWriteBranch(writer);
         }
     }
 }

@@ -88,7 +88,6 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
-        checkWriteBranch(null);
         if (defPointer != null) {
             // dynamic interface: push captured parameter on stack
             // TODO: don't do this: its just to cutover :)

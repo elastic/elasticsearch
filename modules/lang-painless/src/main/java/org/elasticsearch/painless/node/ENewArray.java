@@ -83,7 +83,6 @@ public final class ENewArray extends AExpression {
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
-        checkWriteBranch(null);
 
         if (initialize) {
             writer.push(arguments.size());

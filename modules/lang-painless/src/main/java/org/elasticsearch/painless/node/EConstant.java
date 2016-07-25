@@ -75,10 +75,6 @@ final class EConstant extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         Sort sort = actual.sort;
 
-        if (sort != Sort.BOOL) {
-            checkWriteBranch(null);
-        }
-
         switch (sort) {
             case STRING: writer.push((String)constant);  break;
             case DOUBLE: writer.push((double)constant);  break;
@@ -88,16 +84,7 @@ final class EConstant extends AExpression {
             case CHAR:   writer.push((char)constant);    break;
             case SHORT:  writer.push((short)constant);   break;
             case BYTE:   writer.push((byte)constant);    break;
-            case BOOL:
-                if (tru != null && (boolean)constant) {
-                    writer.goTo(tru);
-                } else if (fals != null && !(boolean)constant) {
-                    writer.goTo(fals);
-                } else if (tru == null && fals == null) {
-                    writer.push((boolean)constant);
-                }
-
-                break;
+            case BOOL:   writer.push((boolean)constant); break;
             default:
                 throw createError(new IllegalStateException("Illegal tree structure."));
         }

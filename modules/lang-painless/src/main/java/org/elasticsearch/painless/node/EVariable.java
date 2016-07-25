@@ -64,7 +64,6 @@ public final class EVariable extends AStoreable {
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.visitVarInsn(actual.type.getOpcode(Opcodes.ILOAD), variable.getSlot());
-        checkWriteBranch(writer);
     }
 
     @Override

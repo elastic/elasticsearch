@@ -79,7 +79,7 @@ public final class ERegex extends AExpression {
     @Override
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
-        checkWriteBranch(null);
+
         writer.getStatic(WriterConstants.CLASS_TYPE, constant.name, Definition.PATTERN_TYPE.type);
         globals.addConstantInitializer(constant);
     }

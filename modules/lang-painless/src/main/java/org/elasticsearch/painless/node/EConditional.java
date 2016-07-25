@@ -31,6 +31,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import org.elasticsearch.painless.MethodWriter;
+import org.objectweb.asm.Opcodes;
 
 /**
  * Respresents a conditional expression.
@@ -93,21 +94,15 @@ public final class EConditional extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        if (tru != null && fals != null) {
-            throw new IllegalStateException("Illegal tree structure.");
-        }
-
-        Label localfals = new Label();
+        Label fals = new Label();
         Label end = new Label();
 
-        condition.fals = localfals;
-        left.tru = right.tru = tru;
-        left.fals = right.fals = fals;
-
         condition.write(writer, globals);
+        writer.ifZCmp(Opcodes.IFEQ, fals);
+
         left.write(writer, globals);
         writer.goTo(end);
-        writer.mark(localfals);
+        writer.mark(fals);
         right.write(writer, globals);
         writer.mark(end);
     }

@@ -98,20 +98,6 @@ public abstract class AExpression extends ANode {
     boolean isNull = false;
 
     /**
-     * If an expression represents a branch statement, represents the jump should
-     * the expression evaluate to a true value.  It should always be the case that only
-     * one of tru and fals are non-null or both are null.  Only used during the writing phase.
-     */
-    Label tru = null;
-
-    /**
-     * If an expression represents a branch statement, represents the jump should
-     * the expression evaluate to a false value.  It should always be the case that only
-     * one of tru and fals are non-null or both are null.  Only used during the writing phase.
-     */
-    Label fals = null;
-
-    /**
      * Standard constructor with location used for error tracking.
      */
     AExpression(Location location) {
@@ -229,29 +215,6 @@ public abstract class AExpression extends ANode {
                     return ecast;
                 }
             }
-        }
-    }
-
-    /**
-     * Checks for illegal branch conditions and then writes a branch if writer is specified.
-     */
-    void checkWriteBranch(MethodWriter writer) {
-        // Branches cannot have both a true and false jump.
-        if (tru != null && fals != null) {
-            throw new IllegalStateException("Illegal tree structure.");
-        }
-
-        // Branches can only be written with a boolean on the stack.
-        if (actual.sort != Sort.BOOL && (tru != null || fals != null)) {
-            throw new IllegalStateException("Illegal tree structure.");
-        }
-
-        // Write bytecode for the branch if writer is specified.
-        if (writer != null) {
-            writer.writeBranch(tru, fals);
-        // No branch is expected, but we found one.
-        } else if (tru != null || fals != null) {
-            throw new IllegalStateException("Illegal tree structure.");
         }
     }
 }

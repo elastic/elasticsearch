@@ -25,6 +25,7 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
+import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
 import java.util.Set;
@@ -84,8 +85,8 @@ public final class SIf extends AStatement {
 
         Label fals = new Label();
 
-        condition.fals = fals;
         condition.write(writer, globals);
+        writer.ifZCmp(Opcodes.IFEQ, fals);
 
         ifblock.continu = continu;
         ifblock.brake = brake;

@@ -59,6 +59,5 @@ final class ECast extends AExpression {
         child.write(writer, globals);
         writer.writeDebugInfo(location);
         writer.writeCast(cast);
-        checkWriteBranch(writer);
     }
 }

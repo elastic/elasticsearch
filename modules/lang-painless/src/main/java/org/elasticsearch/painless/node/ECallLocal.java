@@ -87,7 +87,5 @@ public final class ECallLocal extends AExpression {
         }
 
         writer.invokeStatic(CLASS_TYPE, method.method);
-
-        checkWriteBranch(writer);
     }
 }

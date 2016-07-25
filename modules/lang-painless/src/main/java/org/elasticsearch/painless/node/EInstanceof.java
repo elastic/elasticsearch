@@ -95,8 +95,5 @@ public final class EInstanceof extends AExpression {
             expression.write(writer, globals);
             writer.instanceOf(org.objectweb.asm.Type.getType(resolvedType));
         }
-
-        // write a branch if necessary
-        checkWriteBranch(writer);
     }
 }

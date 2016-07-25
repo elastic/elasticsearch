@@ -90,7 +90,6 @@ public final class EFunctionRef extends AExpression implements ILambda {
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        checkWriteBranch(null);
         if (ref != null) {
             writer.writeDebugInfo(location);
             // convert MethodTypes to asm Type for the constant pool.

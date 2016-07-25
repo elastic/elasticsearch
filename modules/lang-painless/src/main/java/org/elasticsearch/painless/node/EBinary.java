@@ -680,7 +680,5 @@ public final class EBinary extends AExpression {
                 writer.writeBinaryInstruction(location, actual, operation);
             }
         }
-
-        checkWriteBranch(writer);
     }
 }

@@ -109,6 +109,7 @@ public class CompoundProcessor implements Processor {
                     throw compoundProcessorException;
                 } else {
                     executeOnFailure(ingestDocument, compoundProcessorException);
+                    break;
                 }
             }
         }

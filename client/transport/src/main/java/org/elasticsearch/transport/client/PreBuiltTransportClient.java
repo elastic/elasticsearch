@@ -16,30 +16,47 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.transport.client;
 
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.percolator.PercolatorPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.transport.Netty3Plugin;
+import org.elasticsearch.transport.Netty4Plugin;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-
+import java.util.List;
 
 /**
  * A builder to create an instance of {@link TransportClient}
- * This class pre-installs the {@link Netty3Plugin}, {@link ReindexPlugin}, {@link PercolatorPlugin}, and {@link MustachePlugin}
+ * This class pre-installs the
+ * {@link Netty3Plugin},
+ * {@link Netty4Plugin},
+ * {@link ReindexPlugin},
+ * {@link PercolatorPlugin},
+ * and {@link MustachePlugin}
  * for the client. These plugins are all elasticsearch core modules required.
  */
 @SuppressWarnings({"unchecked","varargs"})
 public class PreBuiltTransportClient extends TransportClient {
-    private static final Collection<Class<? extends Plugin>> PRE_INSTALLED_PLUGINS = Collections.unmodifiableList(Arrays.asList(
-        TransportPlugin.class, ReindexPlugin.class, PercolatorPlugin.class, MustachePlugin.class));
+
+    private static final Collection<Class<? extends Plugin>> PRE_INSTALLED_PLUGINS =
+            Collections.unmodifiableList(
+                    Arrays.asList(
+                            Netty3Plugin.class,
+                            Netty4Plugin.class,
+                            TransportPlugin.class,
+                            ReindexPlugin.class,
+                            PercolatorPlugin.class,
+                            MustachePlugin.class));
 
     @SafeVarargs
     public PreBuiltTransportClient(Settings settings, Class<? extends Plugin>... plugins) {
@@ -50,14 +67,25 @@ public class PreBuiltTransportClient extends TransportClient {
         super(settings, Settings.EMPTY, addPlugins(plugins, PRE_INSTALLED_PLUGINS));
     }
 
-    /**
-     * The default transport implementation for the transport client.
-     */
-    public static final class TransportPlugin extends Netty3Plugin {
-        // disable assertions for permissions since we might not have the permissions here
-        // compared to if we are loaded as a real module to the es server
-        public TransportPlugin(Settings settings) {
-            super(Settings.builder().put("netty.assert.buglevel", false).put(settings).build());
+    public static final class TransportPlugin extends Plugin {
+
+        private static final Setting<Boolean> ASSERT_NETTY_BUGLEVEL =
+                Setting.boolSetting("netty.assert.buglevel", true, Setting.Property.NodeScope);
+
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Collections.singletonList(ASSERT_NETTY_BUGLEVEL);
         }
+
+        @Override
+        public Settings additionalSettings() {
+            return Settings.builder()
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, Netty3Plugin.NETTY_TRANSPORT_NAME)
+                    .put(NetworkModule.HTTP_TYPE_KEY, Netty3Plugin.NETTY_HTTP_TRANSPORT_NAME)
+                    .put("netty.assert.buglevel", true)
+                    .build();
+        }
+
     }
+
 }

@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.test.rest.section;
 
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.rest.RestTestExecutionContext;
 import org.elasticsearch.test.rest.client.RestTestResponse;
+import org.elasticsearch.test.rest.client.RestTestResponseException;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -102,8 +102,8 @@ public class DoSection implements ExecutableSection {
                 }
                 fail(formatStatusCodeMessage(restTestResponse, catchStatusCode));
             }
-        } catch(ResponseException e) {
-            RestTestResponse restTestResponse = new RestTestResponse(e);
+        } catch(RestTestResponseException e) {
+            RestTestResponse restTestResponse = e.getRestTestResponse();
             if (!Strings.hasLength(catchParam)) {
                 fail(formatStatusCodeMessage(restTestResponse, "2xx"));
             } else if (catches.containsKey(catchParam)) {
@@ -111,7 +111,7 @@ public class DoSection implements ExecutableSection {
             } else if (catchParam.length() > 2 && catchParam.startsWith("/") && catchParam.endsWith("/")) {
                 //the text of the error message matches regular expression
                 assertThat(formatStatusCodeMessage(restTestResponse, "4xx|5xx"),
-                        e.getResponse().getStatusLine().getStatusCode(), greaterThanOrEqualTo(400));
+                        e.getResponseException().getResponse().getStatusLine().getStatusCode(), greaterThanOrEqualTo(400));
                 Object error = executionContext.response("error");
                 assertThat("error was expected in the response", error, notNullValue());
                 //remove delimiters from regex

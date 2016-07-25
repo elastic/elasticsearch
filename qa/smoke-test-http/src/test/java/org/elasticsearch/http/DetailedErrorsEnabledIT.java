@@ -19,14 +19,12 @@
 
 package org.elasticsearch.http;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import java.io.IOException;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
@@ -37,14 +35,15 @@ import static org.hamcrest.Matchers.not;
  */
 public class DetailedErrorsEnabledIT extends HttpSmokeTestCase {
 
-    public void testThatErrorTraceWorksByDefault() throws Exception {
+    public void testThatErrorTraceWorksByDefault() throws IOException {
         try {
             getRestClient().performRequest("DELETE", "/", Collections.singletonMap("error_trace", "true"));
             fail("request should have failed");
         } catch(ResponseException e) {
             Response response = e.getResponse();
             assertThat(response.getHeader("Content-Type"), containsString("application/json"));
-            assertThat(e.getResponseBody(), containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; " +
+            assertThat(EntityUtils.toString(response.getEntity()),
+                    containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; " +
                     "nested: ActionRequestValidationException[Validation Failed: 1:"));
         }
 
@@ -54,7 +53,8 @@ public class DetailedErrorsEnabledIT extends HttpSmokeTestCase {
         } catch(ResponseException e) {
             Response response = e.getResponse();
             assertThat(response.getHeader("Content-Type"), containsString("application/json"));
-            assertThat(e.getResponseBody(), not(containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; "
+            assertThat(EntityUtils.toString(response.getEntity()),
+                    not(containsString("\"stack_trace\":\"[Validation Failed: 1: index / indices is missing;]; "
                     + "nested: ActionRequestValidationException[Validation Failed: 1:")));
         }
     }

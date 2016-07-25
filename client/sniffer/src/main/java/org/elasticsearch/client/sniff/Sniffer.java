@@ -23,6 +23,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -39,7 +40,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Must be created via {@link Builder}, which allows to set all of the different options or rely on defaults.
  * A background task fetches the nodes through the {@link HostsSniffer} and sets them to the {@link RestClient} instance.
  * It is possible to perform sniffing on failure by creating a {@link SniffOnFailureListener} and providing it as an argument to
- * {@link org.elasticsearch.client.RestClient.Builder#setFailureListener(RestClient.FailureListener)}. The Sniffer implementation
+ * {@link RestClientBuilder#setFailureListener(RestClient.FailureListener)}. The Sniffer implementation
  * needs to be lazily set to the previously created SniffOnFailureListener through {@link SniffOnFailureListener#setSniffer(Sniffer)}.
  */
 public final class Sniffer implements Closeable {

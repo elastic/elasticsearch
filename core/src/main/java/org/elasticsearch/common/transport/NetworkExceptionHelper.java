@@ -55,6 +55,9 @@ public class NetworkExceptionHelper {
             if (e.getMessage().contains("Connection timed out")) {
                 return true;
             }
+            if (e.getMessage().equals("Socket is closed")) {
+                return true;
+            }
         }
         return false;
     }

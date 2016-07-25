@@ -87,34 +87,34 @@
             index.analysis.analyzer.foobar_search.type: "standard"
 
   - do:
-    index:
-      index:  test_index
-      type:   test
-      body:   { field: "the quick brown fox" }
+      index:
+        index:  test_index
+        type:   test
+        body:   { field: "the quick brown fox" }
 
   - do:
-    indices.refresh:
-      index: test_index
+      indices.refresh:
+        index: test_index
 
   - do:
-    search:
-      index: test_index
-      type:  test
-      body:
-        query:
-          term:
-            field: "the quick brown fox"
+      search:
+        index: test_index
+        type:  test
+        body:
+          query:
+            term:
+              field: "the quick brown fox"
 
   - match: {hits.total: 1}
 
   - do:
-    search:
-      index: test_index
-      type:  test
-      body:
-        query:
-          match:
-            field: "the quick brown fox"
+      search:
+        index: test_index
+        type:  test
+        body:
+          query:
+            match:
+              field: "the quick brown fox"
 
   - match: {hits.total: 0}
 

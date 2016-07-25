@@ -34,6 +34,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.node.Node;
 
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
@@ -227,7 +228,7 @@ public final class IndexSettings {
         this.index = indexMetaData.getIndex();
         version = Version.indexCreated(settings);
         logger = Loggers.getLogger(getClass(), settings, index);
-        nodeName = settings.get("node.name", "");
+        nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
         isShadowReplicaIndex = IndexMetaData.isIndexUsingShadowReplicas(settings);

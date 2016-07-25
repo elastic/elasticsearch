@@ -73,9 +73,6 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
                     }
                 }
             }
-            if (queryBuilder == null) {
-                throw new ParsingException(parser.getTokenLocation(), "Required query is missing");
-            }
             return queryBuilder;
         } catch (ParsingException e) {
             throw e;

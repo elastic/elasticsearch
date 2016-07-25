@@ -55,12 +55,15 @@ public final class SFor extends AStatement {
         if (initializer != null) {
             initializer.extractVariables(variables);
         }
+
         if (condition != null) {
             condition.extractVariables(variables);
         }
+
         if (afterthought != null) {
             afterthought.extractVariables(variables);
         }
+
         if (block != null) {
             block.extractVariables(variables);
         }

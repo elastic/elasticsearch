@@ -50,9 +50,11 @@ public final class SIfElse extends AStatement {
     @Override
     void extractVariables(Set<String> variables) {
         condition.extractVariables(variables);
+
         if (ifblock != null) {
             ifblock.extractVariables(variables);
         }
+
         if (elseblock != null) {
             elseblock.extractVariables(variables);
         }

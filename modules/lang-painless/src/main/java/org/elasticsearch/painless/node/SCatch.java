@@ -58,6 +58,7 @@ public final class SCatch extends AStatement {
     @Override
     void extractVariables(Set<String> variables) {
         variables.add(name);
+
         if (block != null) {
             block.extractVariables(variables);
         }

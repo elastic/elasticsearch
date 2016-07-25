@@ -53,6 +53,7 @@ public final class SDeclaration extends AStatement {
     @Override
     void extractVariables(Set<String> variables) {
         variables.add(name);
+
         if (expression != null) {
             expression.extractVariables(variables);
         }

@@ -50,6 +50,7 @@ public final class SDo extends AStatement {
     @Override
     void extractVariables(Set<String> variables) {
         condition.extractVariables(variables);
+
         if (block != null) {
             block.extractVariables(variables);
         }

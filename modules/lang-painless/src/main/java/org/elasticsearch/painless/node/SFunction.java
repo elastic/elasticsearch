@@ -111,7 +111,7 @@ public final class SFunction extends AStatement {
         throw new IllegalStateException("Illegal tree structure");
     }
 
-    void generate() {
+    void generateSignature() {
         try {
             rtnType = Definition.getType(rtnTypeStr);
         } catch (IllegalArgumentException exception) {
@@ -146,7 +146,7 @@ public final class SFunction extends AStatement {
     @Override
     void analyze(Locals locals) {
         if (statements == null || statements.isEmpty()) {
-            throw createError(new IllegalArgumentException("Cannot generate an empty function [" + name + "]."));
+            throw createError(new IllegalArgumentException("Cannot generateSignature an empty function [" + name + "]."));
         }
 
         locals = Locals.newLocalScope(locals);

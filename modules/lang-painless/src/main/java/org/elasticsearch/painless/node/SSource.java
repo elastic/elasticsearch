@@ -150,7 +150,7 @@ public final class SSource extends AStatement {
         Map<MethodKey, Method> methods = new HashMap<>();
 
         for (SFunction function : functions) {
-            function.generate();
+            function.generateSignature();
 
             MethodKey key = new MethodKey(function.name, function.parameters.size());
 
@@ -171,7 +171,7 @@ public final class SSource extends AStatement {
         }
 
         if (statements == null || statements.isEmpty()) {
-            throw createError(new IllegalArgumentException("Cannot generate an empty script."));
+            throw createError(new IllegalArgumentException("Cannot generateSignature an empty script."));
         }
 
         mainMethod = Locals.newMainMethodScope(program, reserved.usesScore(), reserved.usesCtx(), reserved.getMaxLoopCounter());

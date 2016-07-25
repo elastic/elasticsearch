@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.fetch.fielddata;
+package org.elasticsearch.search.fetch.docvalues;
 
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -30,24 +30,23 @@ import java.util.ArrayList;
 import java.util.HashMap;
 
 /**
- * Query sub phase which pulls data from field data (using the cache if
- * available, building it if not).
+ * Query sub phase which pulls data from doc values
  *
- * Specifying {@code "fielddata_fields": ["field1", "field2"]}
+ * Specifying {@code "docvalue_fields": ["field1", "field2"]}
  */
-public final class FieldDataFieldsFetchSubPhase implements FetchSubPhase {
+public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
 
-    public static final String[] NAMES = {"fielddata_fields", "fielddataFields"};
-    public static final ContextFactory<FieldDataFieldsContext> CONTEXT_FACTORY = new ContextFactory<FieldDataFieldsContext>() {
+    public static final String NAME = "docvalue_fields";
+    public static final ContextFactory<DocValueFieldsContext> CONTEXT_FACTORY = new ContextFactory<DocValueFieldsContext>() {
 
         @Override
         public String getName() {
-            return NAMES[0];
+            return NAME;
         }
 
         @Override
-        public FieldDataFieldsContext newContextInstance() {
-            return new FieldDataFieldsContext();
+        public DocValueFieldsContext newContextInstance() {
+            return new DocValueFieldsContext();
         }
     };
 
@@ -56,7 +55,7 @@ public final class FieldDataFieldsFetchSubPhase implements FetchSubPhase {
         if (context.getFetchSubPhaseContext(CONTEXT_FACTORY).hitExecutionNeeded() == false) {
             return;
         }
-        for (FieldDataFieldsContext.FieldDataField field : context.getFetchSubPhaseContext(CONTEXT_FACTORY).fields()) {
+        for (DocValueFieldsContext.DocValueField field : context.getFetchSubPhaseContext(CONTEXT_FACTORY).fields()) {
             if (hitContext.hit().fieldsOrNull() == null) {
                 hitContext.hit().fields(new HashMap<>(2));
             }

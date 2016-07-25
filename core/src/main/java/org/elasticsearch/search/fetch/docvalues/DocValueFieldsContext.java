@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.fetch.fielddata;
+package org.elasticsearch.search.fetch.docvalues;
 
 import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 
@@ -24,14 +24,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * All the required context to pull a field from the field data cache.
+ * All the required context to pull a field from the doc values.
  */
-public class FieldDataFieldsContext extends FetchSubPhaseContext {
+public class DocValueFieldsContext extends FetchSubPhaseContext {
 
-    public static class FieldDataField {
+    public static class DocValueField {
         private final String name;
 
-        public FieldDataField(String name) {
+        public DocValueField(String name) {
             this.name = name;
         }
 
@@ -40,16 +40,16 @@ public class FieldDataFieldsContext extends FetchSubPhaseContext {
         }
     }
 
-    private List<FieldDataField> fields = new ArrayList<>();
+    private List<DocValueField> fields = new ArrayList<>();
 
-    public FieldDataFieldsContext() {
+    public DocValueFieldsContext() {
     }
 
-    public void add(FieldDataField field) {
+    public void add(DocValueField field) {
         this.fields.add(field);
     }
 
-    public List<FieldDataField> fields() {
+    public List<DocValueField> fields() {
         return this.fields;
     }
 }

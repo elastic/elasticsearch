@@ -39,7 +39,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -67,9 +66,9 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext.FieldDataField;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.docvalues.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.docvalues.DocValueFieldsContext.DocValueField;
+import org.elasticsearch.search.fetch.docvalues.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.DefaultSearchContext;
@@ -726,11 +725,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.fetchSourceContext(source.fetchSource());
         }
         if (source.docValueFields() != null) {
-            FieldDataFieldsContext fieldDataFieldsContext = context.getFetchSubPhaseContext(FieldDataFieldsFetchSubPhase.CONTEXT_FACTORY);
+            DocValueFieldsContext docValuesFieldsContext = context.getFetchSubPhaseContext(DocValueFieldsFetchSubPhase.CONTEXT_FACTORY);
             for (String field : source.docValueFields()) {
-                fieldDataFieldsContext.add(new FieldDataField(field));
+                docValuesFieldsContext.add(new DocValueField(field));
             }
-            fieldDataFieldsContext.setHitExecutionNeeded(true);
+            docValuesFieldsContext.setHitExecutionNeeded(true);
         }
         if (source.highlighter() != null) {
             HighlightBuilder highlightBuilder = source.highlighter();

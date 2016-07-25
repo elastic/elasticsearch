@@ -146,5 +146,10 @@ settings are automatically set based on it. Sometimes, the number of processors
 are wrongly detected, in such cases, the number of processors can be
 explicitly set using the `processors` setting.
 
+[source,js]
+--------------------------------------------------
+processors: 2
+--------------------------------------------------
+
 In order to check the number of processors detected, use the nodes info
 API with the `os` flag.

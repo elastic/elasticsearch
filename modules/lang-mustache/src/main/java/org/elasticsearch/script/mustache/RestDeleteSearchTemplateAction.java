@@ -16,29 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.script.mustache;
 
-package org.elasticsearch.action.search.template;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestDeleteStoredScriptAction;
 
-import org.elasticsearch.action.Action;
-import org.elasticsearch.client.ElasticsearchClient;
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
-public class MultiSearchTemplateAction
-        extends Action<MultiSearchTemplateRequest, MultiSearchTemplateResponse, MultiSearchTemplateRequestBuilder> {
+public class RestDeleteSearchTemplateAction extends RestDeleteStoredScriptAction {
 
-    public static final MultiSearchTemplateAction INSTANCE = new MultiSearchTemplateAction();
-    public static final String NAME = "indices:data/read/msearch/template";
-
-    private MultiSearchTemplateAction() {
-        super(NAME);
+    @Inject
+    public RestDeleteSearchTemplateAction(Settings settings, RestController controller) {
+        super(settings, controller, false);
+        controller.registerHandler(DELETE, "/_search/template/{id}", this);
     }
 
     @Override
-    public MultiSearchTemplateResponse newResponse() {
-        return new MultiSearchTemplateResponse();
-    }
-
-    @Override
-    public MultiSearchTemplateRequestBuilder newRequestBuilder(ElasticsearchClient client) {
-        return new MultiSearchTemplateRequestBuilder(client, this);
+    protected String getScriptLang(RestRequest request) {
+        return "mustache";
     }
 }

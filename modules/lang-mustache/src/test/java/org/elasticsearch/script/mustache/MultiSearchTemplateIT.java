@@ -17,14 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search.template;
+package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;

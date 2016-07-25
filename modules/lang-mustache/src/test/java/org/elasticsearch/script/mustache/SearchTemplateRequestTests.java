@@ -17,12 +17,11 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search.template;
+package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.rest.action.search.template.RestSearchTemplateAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 

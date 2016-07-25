@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search.template;
+package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;

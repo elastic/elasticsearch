@@ -19,15 +19,11 @@
 package org.elasticsearch.script.mustache;
 
 import com.github.mustachejava.MustacheFactory;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
@@ -63,7 +59,8 @@ public class MustacheScriptEngineTests extends ESTestCase {
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}" + "}}, \"negative_boost\": {{boost_val}} } }}";
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
-            BytesReference o = (BytesReference) qe.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "", "mustache", qe.compile(null, template, compileParams)), vars).run();
+            BytesReference o = (BytesReference) qe.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "", "mustache",
+                    qe.compile(null, template, compileParams)), vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.3 } }}",
                     o.utf8ToString());
@@ -74,7 +71,8 @@ public class MustacheScriptEngineTests extends ESTestCase {
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             vars.put("body_val", "\"quick brown\"");
-            BytesReference o = (BytesReference) qe.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "", "mustache", qe.compile(null, template, compileParams)), vars).run();
+            BytesReference o = (BytesReference) qe.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "", "mustache",
+                    qe.compile(null, template, compileParams)), vars).run();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"\\\"quick brown\\\"\"}}}, \"negative_boost\": 0.3 } }}",
                     o.utf8ToString());

@@ -44,7 +44,6 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.script.ScriptService.ScriptType.INLINE;
 import static org.elasticsearch.script.mustache.MustacheScriptEngineService.CONTENT_TYPE_PARAM;
-import static org.elasticsearch.script.mustache.MustacheScriptEngineService.JSON_CONTENT_TYPE;
 import static org.elasticsearch.script.mustache.MustacheScriptEngineService.PLAIN_TEXT_CONTENT_TYPE;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
@@ -147,7 +146,6 @@ public class MustacheTests extends ESTestCase {
 
     public void testEscaping() {
         // json string escaping enabled:
-        Map<String, String> params = randomBoolean() ? Collections.emptyMap() : Collections.singletonMap(CONTENT_TYPE_PARAM, JSON_CONTENT_TYPE);
         Mustache mustache = (Mustache) engine.compile(null, "{ \"field1\": \"{{value}}\"}", Collections.emptyMap());
         CompiledScript compiledScript = new CompiledScript(INLINE, "name", "mustache", mustache);
         ExecutableScript executableScript = engine.executable(compiledScript, Collections.singletonMap("value", "a \"value\""));
@@ -156,7 +154,8 @@ public class MustacheTests extends ESTestCase {
         assertThat(result, equalTo("{ \"field1\": \"a \\\"value\\\"\"}"));
 
         // json string escaping disabled:
-        mustache = (Mustache) engine.compile(null, "{ \"field1\": \"{{value}}\"}", Collections.singletonMap(CONTENT_TYPE_PARAM, PLAIN_TEXT_CONTENT_TYPE));
+        mustache = (Mustache) engine.compile(null, "{ \"field1\": \"{{value}}\"}",
+                Collections.singletonMap(CONTENT_TYPE_PARAM, PLAIN_TEXT_CONTENT_TYPE));
         compiledScript = new CompiledScript(INLINE, "name", "mustache", mustache);
         executableScript = engine.executable(compiledScript, Collections.singletonMap("value", "a \"value\""));
         rawResult = (BytesReference) executableScript.run();
@@ -236,10 +235,12 @@ public class MustacheTests extends ESTestCase {
         Map<String, Object> ctx = Collections.singletonMap("ctx", humans);
 
         assertScript("{{#toJson}}.{{/toJson}}", ctx,
-                equalTo("{\"ctx\":{\"first\":{\"name\":\"John Smith\",\"age\":42,\"height\":1.84},\"second\":{\"name\":\"Dave Smith\",\"age\":27,\"height\":1.71}}}"));
+                equalTo("{\"ctx\":{\"first\":{\"name\":\"John Smith\",\"age\":42,\"height\":1.84},\"second\":" +
+                        "{\"name\":\"Dave Smith\",\"age\":27,\"height\":1.71}}}"));
 
         assertScript("{{#toJson}}ctx{{/toJson}}", ctx,
-                equalTo("{\"first\":{\"name\":\"John Smith\",\"age\":42,\"height\":1.84},\"second\":{\"name\":\"Dave Smith\",\"age\":27,\"height\":1.71}}"));
+                equalTo("{\"first\":{\"name\":\"John Smith\",\"age\":42,\"height\":1.84},\"second\":" +
+                        "{\"name\":\"Dave Smith\",\"age\":27,\"height\":1.71}}"));
 
         assertScript("{{#toJson}}ctx.first{{/toJson}}", ctx,
                 equalTo("{\"name\":\"John Smith\",\"age\":42,\"height\":1.84}"));

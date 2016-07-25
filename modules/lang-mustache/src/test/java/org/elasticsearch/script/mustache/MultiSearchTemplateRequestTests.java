@@ -17,11 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.search.template;
+package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.search.template.RestMultiSearchTemplateAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
@@ -34,7 +33,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class MultiSearchTemplateRequestTests extends ESTestCase {
 
     public void testParseRequest() throws Exception {
-        byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/search/template/simple-msearch-template.json");
+        byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/script/mustache/simple-msearch-template.json");
         RestRequest restRequest = new FakeRestRequest.Builder().withContent(new BytesArray(data)).build();
 
         MultiSearchTemplateRequest request = RestMultiSearchTemplateAction.parseRequest(restRequest, true);

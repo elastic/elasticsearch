@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.action.search.template;
+package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -25,12 +25,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.action.search.template.RestSearchTemplateAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.mustache.MustachePlugin;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
-import org.elasticsearch.script.mustache.TemplateQueryBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 

@@ -17,13 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.rest.action.search.template;
+package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.search.template.MultiSearchTemplateAction;
-import org.elasticsearch.action.search.template.MultiSearchTemplateRequest;
-import org.elasticsearch.action.search.template.SearchTemplateRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;

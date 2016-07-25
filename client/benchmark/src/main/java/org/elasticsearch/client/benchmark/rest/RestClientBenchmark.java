@@ -23,6 +23,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -74,9 +75,9 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
                 bulkRequestBody.append(bulkItem);
                 bulkRequestBody.append("\n");
             }
-            StringEntity entity = new StringEntity(bulkRequestBody.toString(), ContentType.APPLICATION_JSON);
+            HttpEntity entity = new NStringEntity(bulkRequestBody.toString(), ContentType.APPLICATION_JSON);
             try {
-                Response response = client.performRequest("POST", "/_bulk", Collections.emptyMap(), entity);
+                Response response = client.performRequest("POST", "/geonames/type/_bulk", Collections.emptyMap(), entity);
                 return response.getStatusLine().getStatusCode() == HttpStatus.SC_OK;
             } catch (Exception e) {
                 throw new ElasticsearchException(e);
@@ -95,7 +96,7 @@ public final class RestClientBenchmark extends AbstractBenchmark<RestClient> {
 
         @Override
         public boolean search(String source) {
-            HttpEntity searchBody = new StringEntity(source, StandardCharsets.UTF_8);
+            HttpEntity searchBody = new NStringEntity(source, StandardCharsets.UTF_8);
             try {
                 Response response = client.performRequest("GET", endpoint, Collections.emptyMap(), searchBody);
                 return response.getStatusLine().getStatusCode() == HttpStatus.SC_OK;

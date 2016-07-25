@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.smoketest;
 
-import org.elasticsearch.test.rest.RestTestCandidate;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 
 /** Runs rest tests against external cluster */
 public class WatcherWithPainlessIT extends WatcherRestTestCase {
 
-    public WatcherWithPainlessIT(RestTestCandidate testCandidate) {
+    public WatcherWithPainlessIT(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

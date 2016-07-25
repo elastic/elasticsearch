@@ -10,26 +10,26 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.rest.ESClientYamlSuiteTestCase;
-import org.elasticsearch.test.rest.RestTestCandidate;
-import org.elasticsearch.test.rest.parser.RestTestParseException;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
-public class RestIT extends ESClientYamlSuiteTestCase {
+public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final String USER = "test_user";
     private static final String PASS = "changeme";
 
-    public RestIT(@Name("yaml") RestTestCandidate testCandidate) {
+    public CoreWithSecurityClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+    public static Iterable<Object[]> parameters() throws IOException, ClientYamlTestParseException {
         return ESClientYamlSuiteTestCase.createParameters(0, 1);
     }
 

@@ -8,9 +8,9 @@ package org.elasticsearch.smoketest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.test.rest.ESClientYamlSuiteTestCase;
-import org.elasticsearch.test.rest.RestTestCandidate;
-import org.elasticsearch.test.rest.parser.RestTestParseException;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
 import org.junit.After;
 import org.junit.Before;
 
@@ -19,14 +19,15 @@ import java.io.IOException;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
-public abstract class WatcherRestTestCase extends ESClientYamlSuiteTestCase {
+/** Runs rest tests against external cluster */
+public class SmokeTestWatcherClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    public WatcherRestTestCase(@Name("yaml") RestTestCandidate testCandidate) {
+    public SmokeTestWatcherClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+    public static Iterable<Object[]> parameters() throws IOException, ClientYamlTestParseException {
         return ESClientYamlSuiteTestCase.createParameters(0, 1);
     }
 

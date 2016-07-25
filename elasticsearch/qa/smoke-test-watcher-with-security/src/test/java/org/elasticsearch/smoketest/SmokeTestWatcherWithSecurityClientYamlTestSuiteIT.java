@@ -10,9 +10,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.test.rest.ESClientYamlSuiteTestCase;
-import org.elasticsearch.test.rest.RestTestCandidate;
-import org.elasticsearch.test.rest.parser.RestTestParseException;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.junit.After;
 import org.junit.Before;
@@ -24,17 +24,17 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 
-public class WatcherWithSecurityIT extends ESClientYamlSuiteTestCase {
+public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final String TEST_ADMIN_USERNAME = "test_admin";
     private static final String TEST_ADMIN_PASSWORD = "changeme";
 
-    public WatcherWithSecurityIT(@Name("yaml") RestTestCandidate testCandidate) {
+    public SmokeTestWatcherWithSecurityClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+    public static Iterable<Object[]> parameters() throws IOException, ClientYamlTestParseException {
         return ESClientYamlSuiteTestCase.createParameters(0, 1);
     }
 

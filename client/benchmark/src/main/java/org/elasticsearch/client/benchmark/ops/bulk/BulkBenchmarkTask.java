@@ -75,7 +75,7 @@ public class BulkBenchmarkTask implements BenchmarkTask {
         // when the generator is done, there are no more data -> shutdown client
         executorService.shutdown();
         //We need to wait until the queue is drained
-        final boolean finishedNormally = executorService.awaitTermination(1, TimeUnit.MINUTES);
+        final boolean finishedNormally = executorService.awaitTermination(20, TimeUnit.MINUTES);
         if (finishedNormally == false) {
             System.err.println("Background tasks are still running after timeout on enclosing pool. Forcing pool shutdown.");
             executorService.shutdownNow();

@@ -488,6 +488,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(latch.await(5, TimeUnit.SECONDS), equalTo(true));
     }
 
+    @TestLogging("transport:DEBUG")
     public void testConcurrentSendRespondAndDisconnect() throws BrokenBarrierException, InterruptedException {
         Set<Exception> sendingErrors = ConcurrentCollections.newConcurrentSet();
         Set<Exception> responseErrors = ConcurrentCollections.newConcurrentSet();
@@ -561,14 +562,15 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     for (int iter = 0; iter < 10; iter++) {
                         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
                         final String info = sender + "_" + iter;
-                        serviceA.sendRequest(nodeB, "test", new TestRequest(info),
+                        final DiscoveryNode node = nodeB; // capture now
+                        serviceA.sendRequest(node, "test", new TestRequest(info),
                             new ActionListenerResponseHandler<>(listener, TestResponse::new));
                         try {
                             listener.actionGet();
                         } catch (ConnectTransportException e) {
                             // ok!
                         } catch (Exception e) {
-                            logger.error("caught exception while sending to node {}", e, nodeB);
+                            logger.error("caught exception while sending to node {}", e, node);
                             sendingErrors.add(e);
                         }
                     }

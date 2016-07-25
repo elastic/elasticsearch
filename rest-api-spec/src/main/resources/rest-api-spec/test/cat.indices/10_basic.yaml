@@ -16,9 +16,6 @@
             number_of_shards: "1"
             number_of_replicas: "0"
   - do:
-       cluster.health:
-         wait_for_status: yellow
-  - do:
       cat.indices: {}
 
   - match:

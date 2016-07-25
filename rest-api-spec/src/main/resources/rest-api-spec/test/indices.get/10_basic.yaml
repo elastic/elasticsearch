@@ -34,10 +34,6 @@ setup:
             test_blias: {}
 
   - do:
-      cluster.health:
-        wait_for_status: yellow
-
-  - do:
       indices.close:
         index: test_index_3
 

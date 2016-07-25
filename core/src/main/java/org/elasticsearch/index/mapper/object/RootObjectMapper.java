@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.object;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +32,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.object.DynamicTemplate.XContentFieldType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -190,7 +190,9 @@ public class RootObjectMapper extends ObjectMapper {
                     String templateName = entry.getKey();
                     Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
                     DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams, indexVersionCreated);
-                    ((Builder) builder).add(template);
+                    if (template != null) {
+                        ((Builder) builder).add(template);
+                    }
                 }
                 return true;
             } else if (fieldName.equals("date_detection")) {
@@ -240,21 +242,8 @@ public class RootObjectMapper extends ObjectMapper {
         return dynamicDateTimeFormatters;
     }
 
-    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, String matchType) {
-        final String dynamicType;
-        switch (matchType) {
-        case "string":
-            // string is a corner case since a json string can either map to a
-            // text or keyword field in elasticsearch. For now we use text when
-            // unspecified. For other types, the mapping type matches the json
-            // type so we are fine
-            dynamicType = "text";
-            break;
-        default:
-            dynamicType = matchType;
-            break;
-        }
-        return findTemplateBuilder(context, name, dynamicType, matchType);
+    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, XContentFieldType matchType) {
+        return findTemplateBuilder(context, name, matchType.defaultMappingType(), matchType);
     }
 
     /**
@@ -264,7 +253,7 @@ public class RootObjectMapper extends ObjectMapper {
      * @param matchType   the type of the field in the json document or null if unknown
      * @return a mapper builder, or null if there is no template for such a field
      */
-    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, String dynamicType, String matchType) {
+    public Mapper.Builder findTemplateBuilder(ParseContext context, String name, String dynamicType, XContentFieldType matchType) {
         DynamicTemplate dynamicTemplate = findTemplate(context.path(), name, matchType);
         if (dynamicTemplate == null) {
             return null;
@@ -278,9 +267,10 @@ public class RootObjectMapper extends ObjectMapper {
         return typeParser.parse(name, dynamicTemplate.mappingForName(name, dynamicType), parserContext);
     }
 
-    private DynamicTemplate findTemplate(ContentPath path, String name, String matchType) {
+    public DynamicTemplate findTemplate(ContentPath path, String name, XContentFieldType matchType) {
+        final String pathAsString = path.pathAsText(name);
         for (DynamicTemplate dynamicTemplate : dynamicTemplates) {
-            if (dynamicTemplate.match(path, name, matchType)) {
+            if (dynamicTemplate.match(pathAsString, name, matchType)) {
                 return dynamicTemplate;
             }
         }

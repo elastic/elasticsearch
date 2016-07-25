@@ -45,9 +45,7 @@ import java.util.Set;
  * Builder for the 'has_parent' query.
  */
 public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBuilder> {
-
     public static final String NAME = "has_parent";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     /**
      * The default value for ignore_unmapped.

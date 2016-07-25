@@ -25,6 +25,7 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkService.TcpSettings;
@@ -45,6 +46,7 @@ import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.TransportSettings;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.bootstrap.ServerBootstrap;
+import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.AdaptiveReceiveBufferSizePredictorFactory;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFuture;
@@ -93,31 +95,36 @@ public class Netty3Transport extends TcpTransport<Channel> {
     public static final Setting<Integer> WORKER_COUNT =
         new Setting<>("transport.netty.worker_count",
             (s) -> Integer.toString(EsExecutors.boundedNumberOfProcessors(s) * 2),
-            (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"), Property.NodeScope);
+            (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"), Property.NodeScope, Property.Shared);
 
     public static final Setting<ByteSizeValue> NETTY_MAX_CUMULATION_BUFFER_CAPACITY =
-        Setting.byteSizeSetting("transport.netty.max_cumulation_buffer_capacity", new ByteSizeValue(-1), Property.NodeScope);
+        Setting.byteSizeSetting(
+                "transport.netty.max_cumulation_buffer_capacity",
+                new ByteSizeValue(-1),
+                Property.NodeScope,
+                Property.Shared);
     public static final Setting<Integer> NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS =
-        Setting.intSetting("transport.netty.max_composite_buffer_components", -1, -1, Property.NodeScope);
+        Setting.intSetting("transport.netty.max_composite_buffer_components", -1, -1, Property.NodeScope, Property.Shared);
 
     // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_SIZE = Setting.byteSizeSetting(
-        "transport.netty.receive_predictor_size",
-        settings -> {
-            long defaultReceiverPredictor = 512 * 1024;
-            if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes() > 0) {
-                // we can guess a better default...
-                long l = (long) ((0.3 * JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes()) / WORKER_COUNT.get(settings));
-                defaultReceiverPredictor = Math.min(defaultReceiverPredictor, Math.max(l, 64 * 1024));
-            }
-            return new ByteSizeValue(defaultReceiverPredictor).toString();
-        }, Property.NodeScope);
+            "transport.netty.receive_predictor_size",
+            settings -> {
+                long defaultReceiverPredictor = 512 * 1024;
+                if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes() > 0) {
+                    // we can guess a better default...
+                    long l = (long) ((0.3 * JvmInfo.jvmInfo().getMem().getDirectMemoryMax().bytes()) / WORKER_COUNT.get(settings));
+                    defaultReceiverPredictor = Math.min(defaultReceiverPredictor, Math.max(l, 64 * 1024));
+                }
+                return new ByteSizeValue(defaultReceiverPredictor).toString();
+            }, Property.NodeScope,
+            Property.Shared);
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MIN =
-        byteSizeSetting("transport.netty.receive_predictor_min", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
+        byteSizeSetting("transport.netty.receive_predictor_min", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope, Property.Shared);
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MAX =
-        byteSizeSetting("transport.netty.receive_predictor_max", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
+        byteSizeSetting("transport.netty.receive_predictor_max", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope, Property.Shared);
     public static final Setting<Integer> NETTY_BOSS_COUNT =
-        intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
+        intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope, Property.Shared);
 
 
     protected final ByteSizeValue maxCumulationBufferCapacity;
@@ -557,4 +564,5 @@ public class Netty3Transport extends TcpTransport<Channel> {
             }
         });
     }
+
 }

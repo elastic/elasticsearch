@@ -54,6 +54,7 @@ public class InternalMatrixStats extends InternalMetricsAggregation implements M
      * Read from a stream.
      */
     public InternalMatrixStats(StreamInput in) throws IOException {
+        super(in);
         stats = in.readOptionalWriteable(RunningStats::new);
         results = in.readOptionalWriteable(MatrixStatsResults::new);
     }

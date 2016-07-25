@@ -20,7 +20,6 @@
 package org.elasticsearch.http;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,9 +41,7 @@ import java.util.Optional;
  * This makes it easy to test multiple unique responses for a single request.
  */
 public class TestDeprecatedQueryBuilder extends AbstractQueryBuilder<TestDeprecatedQueryBuilder> {
-
     public static final String NAME = "deprecated_match_all";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(TestDeprecatedQueryBuilder.class));
 

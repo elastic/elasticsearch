@@ -92,7 +92,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         globalOrds = valuesSource.globalOrdinalsValues(ctx);
 
         if (acceptedGlobalOrdinals == null && includeExclude != null) {
-            acceptedGlobalOrdinals = includeExclude.acceptedGlobalOrdinals(globalOrds, valuesSource);
+            acceptedGlobalOrdinals = includeExclude.acceptedGlobalOrdinals(globalOrds);
         }
 
         if (acceptedGlobalOrdinals != null) {
@@ -238,11 +238,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
         @Override
         public Number getKeyAsNumber() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
             throw new UnsupportedOperationException();
         }
 

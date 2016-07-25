@@ -10,9 +10,6 @@
                 name:
                   type: text
   - do:
-      cluster.health:
-          wait_for_status: yellow
-  - do:
       index:
         index:   test
         type:    place

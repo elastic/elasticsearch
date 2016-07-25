@@ -27,6 +27,7 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.http.Consts;
 import org.apache.http.Header;
+import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
@@ -47,6 +48,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.RestClientTestUtil.getAllStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
@@ -140,10 +144,10 @@ public class RestClientIntegTests extends RestClientTestCase {
      * to set/add headers to the {@link org.apache.http.client.HttpClient}.
      * Exercises the test http server ability to send back whatever headers it received.
      */
-    public void testHeaders() throws Exception {
+    public void testHeaders() throws IOException {
         for (String method : getHttpMethods()) {
             Set<String> standardHeaders = new HashSet<>(
-                    Arrays.asList("Accept-encoding", "Connection", "Host", "User-agent", "Date"));
+                    Arrays.asList("Connection", "Host", "User-agent", "Date"));
             if (method.equals("HEAD") == false) {
                 standardHeaders.add("Content-length");
             }
@@ -162,9 +166,9 @@ public class RestClientIntegTests extends RestClientTestCase {
 
             int statusCode = randomStatusCode(getRandom());
             Response esResponse;
-            try (Response response = restClient.performRequest(method, "/" + statusCode,
-                    Collections.<String, String>emptyMap(), null, headers)) {
-                esResponse = response;
+            try {
+                esResponse = restClient.performRequest(method, "/" + statusCode, Collections.<String, String>emptyMap(),
+                        (HttpEntity)null, headers);
             } catch(ResponseException e) {
                 esResponse = e.getResponse();
             }
@@ -188,7 +192,7 @@ public class RestClientIntegTests extends RestClientTestCase {
      * out of the box by {@link org.apache.http.client.HttpClient}.
      * Exercises the test http server ability to send back whatever body it received.
      */
-    public void testDeleteWithBody() throws Exception {
+    public void testDeleteWithBody() throws IOException {
         bodyTest("DELETE");
     }
 
@@ -197,25 +201,74 @@ public class RestClientIntegTests extends RestClientTestCase {
      * out of the box by {@link org.apache.http.client.HttpClient}.
      * Exercises the test http server ability to send back whatever body it received.
      */
-    public void testGetWithBody() throws Exception {
+    public void testGetWithBody() throws IOException {
         bodyTest("GET");
     }
 
-    private void bodyTest(String method) throws Exception {
+    private void bodyTest(String method) throws IOException {
         String requestBody = "{ \"field\": \"value\" }";
         StringEntity entity = new StringEntity(requestBody);
-        Response esResponse;
-        String responseBody;
         int statusCode = randomStatusCode(getRandom());
-        try (Response response = restClient.performRequest(method, "/" + statusCode,
-                Collections.<String, String>emptyMap(), entity)) {
-            responseBody = EntityUtils.toString(response.getEntity());
-            esResponse = response;
+        Response esResponse;
+        try {
+            esResponse = restClient.performRequest(method, "/" + statusCode, Collections.<String, String>emptyMap(), entity);
         } catch(ResponseException e) {
-            responseBody = e.getResponseBody();
             esResponse = e.getResponse();
         }
         assertEquals(statusCode, esResponse.getStatusLine().getStatusCode());
-        assertEquals(requestBody, responseBody);
+        assertEquals(requestBody, EntityUtils.toString(esResponse.getEntity()));
+    }
+
+    public void testAsyncRequests() throws Exception {
+        int numRequests = randomIntBetween(5, 20);
+        final CountDownLatch latch = new CountDownLatch(numRequests);
+        final List<TestResponse> responses = new CopyOnWriteArrayList<>();
+        for (int i = 0; i < numRequests; i++) {
+            final String method = RestClientTestUtil.randomHttpMethod(getRandom());
+            final int statusCode = randomStatusCode(getRandom());
+            restClient.performRequest(method, "/" + statusCode, new ResponseListener() {
+                @Override
+                public void onSuccess(Response response) {
+                    responses.add(new TestResponse(method, statusCode, response));
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception exception) {
+                    responses.add(new TestResponse(method, statusCode, exception));
+                    latch.countDown();
+                }
+            });
+        }
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+
+        assertEquals(numRequests, responses.size());
+        for (TestResponse response : responses) {
+            assertEquals(response.method, response.getResponse().getRequestLine().getMethod());
+            assertEquals(response.statusCode, response.getResponse().getStatusLine().getStatusCode());
+
+        }
+    }
+
+    private static class TestResponse {
+        private final String method;
+        private final int statusCode;
+        private final Object response;
+
+        TestResponse(String method, int statusCode, Object response) {
+            this.method = method;
+            this.statusCode = statusCode;
+            this.response = response;
+        }
+
+        Response getResponse() {
+            if (response instanceof Response) {
+                return (Response) response;
+            }
+            if (response instanceof ResponseException) {
+                return ((ResponseException) response).getResponse();
+            }
+            throw new AssertionError("unexpected response " + response.getClass());
+        }
     }
 }

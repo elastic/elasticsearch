@@ -34,14 +34,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -202,7 +199,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 try {
                     parseQuery(testQuery);
                     fail("some parsing exception expected for query: " + testQuery);
-                } catch (ParsingException | ScriptParseException | ElasticsearchParseException e) {
+                } catch (ParsingException | ElasticsearchParseException e) {
                     // different kinds of exception wordings depending on location
                     // of mutation, so no simple asserts possible here
                 } catch (JsonParseException e) {

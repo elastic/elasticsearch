@@ -76,7 +76,7 @@
 ---
 "requests_per_second cannot be an empty string":
   - do:
-      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      catch: /\[requests_per_second\] must be a float greater than 0. Use -1 to disable throttling./
       update_by_query:
         requests_per_second: ""
         index: test
@@ -84,7 +84,7 @@
 ---
 "requests_per_second cannot be negative":
   - do:
-      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      catch: /\[requests_per_second\] must be a float greater than 0. Use -1 to disable throttling./
       update_by_query:
         requests_per_second: -12
         index: test
@@ -92,7 +92,15 @@
 ---
 "requests_per_second cannot be zero":
   - do:
-      catch: /\[requests_per_second\] must be a float greater than 0. Use "unlimited" to disable throttling./
+      catch: /\[requests_per_second\] must be a float greater than 0. Use -1 to disable throttling./
+      update_by_query:
+        requests_per_second: 0
+        index: test
+
+---
+"requests_per_second cannot be unlimited":
+  - do:
+      catch: /\[requests_per_second\] must be a float greater than 0. Use -1 to disable throttling./
       update_by_query:
         requests_per_second: 0
         index: test

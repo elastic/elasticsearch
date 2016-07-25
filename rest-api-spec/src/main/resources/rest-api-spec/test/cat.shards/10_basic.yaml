@@ -140,9 +140,6 @@
             number_of_shards: "5"
             number_of_replicas: "1"
   - do:
-       cluster.health:
-         wait_for_status: yellow
-  - do:
       cat.shards: {}
 
   - match:
@@ -158,7 +155,6 @@
             number_of_replicas: "0"
   - do:
        cluster.health:
-         wait_for_status: yellow
          wait_for_relocating_shards: 0
 
   - do:
@@ -185,7 +181,6 @@
             shared_filesystem: false
   - do:
        cluster.health:
-         wait_for_status: yellow
          wait_for_relocating_shards: 0
 
   - do:

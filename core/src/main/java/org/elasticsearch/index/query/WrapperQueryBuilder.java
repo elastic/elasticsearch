@@ -51,9 +51,7 @@ import java.util.Optional;
  * </pre>
  */
 public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilder> {
-
     public static final String NAME = "wrapper";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
 

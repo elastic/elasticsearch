@@ -66,7 +66,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
 
         BlockingTarget(RecoveryState.Stage stageToBlock, CountDownLatch recoveryBlocked, CountDownLatch releaseRecovery, IndexShard shard,
                        DiscoveryNode sourceNode, RecoveryTargetService.RecoveryListener listener, ESLogger logger) {
-            super(shard, sourceNode, listener);
+            super(shard, sourceNode, listener, version -> {});
             this.recoveryBlocked = recoveryBlocked;
             this.releaseRecovery = releaseRecovery;
             this.stageToBlock = stageToBlock;

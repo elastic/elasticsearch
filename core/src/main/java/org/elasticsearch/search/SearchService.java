@@ -39,7 +39,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -67,9 +66,9 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext.FieldDataField;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.docvalues.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.docvalues.DocValueFieldsContext.DocValueField;
+import org.elasticsearch.search.fetch.docvalues.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.DefaultSearchContext;
@@ -89,6 +88,8 @@ import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -96,7 +97,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.unmodifiableMap;
@@ -139,7 +139,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private volatile TimeValue defaultSearchTimeout;
 
-    private final ScheduledFuture<?> keepAliveReaper;
+    private final Cancellable keepAliveReaper;
 
     private final AtomicLong idGenerator = new AtomicLong();
 
@@ -171,7 +171,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         elementParsers.putAll(fetchPhase.parseElements());
         this.elementParsers = unmodifiableMap(elementParsers);
 
-        this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval);
+        this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval, Names.SAME);
 
         defaultSearchTimeout = DEFAULT_SEARCH_TIMEOUT_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
@@ -224,7 +224,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     @Override
     protected void doClose() {
         doStop();
-        FutureUtils.cancel(keepAliveReaper);
+        keepAliveReaper.cancel();
     }
 
     public DfsSearchResult executeDfsPhase(ShardSearchRequest request) throws IOException {
@@ -725,11 +725,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             context.fetchSourceContext(source.fetchSource());
         }
         if (source.docValueFields() != null) {
-            FieldDataFieldsContext fieldDataFieldsContext = context.getFetchSubPhaseContext(FieldDataFieldsFetchSubPhase.CONTEXT_FACTORY);
+            DocValueFieldsContext docValuesFieldsContext = context.getFetchSubPhaseContext(DocValueFieldsFetchSubPhase.CONTEXT_FACTORY);
             for (String field : source.docValueFields()) {
-                fieldDataFieldsContext.add(new FieldDataField(field));
+                docValuesFieldsContext.add(new DocValueField(field));
             }
-            fieldDataFieldsContext.setHitExecutionNeeded(true);
+            docValuesFieldsContext.setHitExecutionNeeded(true);
         }
         if (source.highlighter() != null) {
             HighlightBuilder highlightBuilder = source.highlighter();

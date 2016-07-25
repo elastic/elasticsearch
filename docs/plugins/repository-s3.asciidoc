@@ -242,6 +242,12 @@ The following settings are supported:
     currently supported by the plugin. For more information about the
     different classes, see http://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS Storage Classes Guide]
 
+`path_style_access`::
+
+    Activate path style access for [virtual hosting of buckets](http://docs.aws.amazon.com/AmazonS3/latest/dev/VirtualHosting.html).
+    The default behaviour is to detect which access style to use based on the configured endpoint (an IP will result
+    in path-style access) and the bucket being accessed (some buckets are not valid DNS names).
+
 Note that you can define S3 repository settings for all S3 repositories in `elasticsearch.yml` configuration file.
 They are all prefixed with `repositories.s3.`. For example, you can define compression for all S3 repositories
 by setting `repositories.s3.compress: true` in `elasticsearch.yml`.

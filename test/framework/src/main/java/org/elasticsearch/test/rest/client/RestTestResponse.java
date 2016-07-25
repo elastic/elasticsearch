@@ -20,9 +20,7 @@ package org.elasticsearch.test.rest.client;
 
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.Stash;
@@ -40,7 +38,7 @@ public class RestTestResponse {
     private final String body;
     private ObjectPath parsedResponse;
 
-    public RestTestResponse(Response response) throws IOException {
+    RestTestResponse(Response response) throws IOException {
         this.response = response;
         if (response.getEntity() != null) {
             try {
@@ -48,18 +46,10 @@ public class RestTestResponse {
             } catch (IOException e) {
                 EntityUtils.consumeQuietly(response.getEntity());
                 throw new RuntimeException(e);
-            } finally {
-                IOUtils.closeWhileHandlingException(response);
             }
         } else {
             this.body = null;
         }
-        parseResponseBody();
-    }
-
-    public RestTestResponse(ResponseException responseException) throws IOException {
-        this.response = responseException.getResponse();
-        this.body = responseException.getResponseBody();
         parseResponseBody();
     }
 

@@ -34,6 +34,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.Netty3Plugin;
 
 import java.net.InetAddress;
@@ -72,10 +73,10 @@ public class Netty3TransportMultiPortIntegrationIT extends ESNetty3IntegTestCase
     public void testThatTransportClientCanConnect() throws Exception {
         Settings settings = Settings.builder()
                 .put("cluster.name", internalCluster().getClusterName())
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty3")
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, Netty3Plugin.NETTY_TRANSPORT_NAME)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
-        try (TransportClient transportClient = TransportClient.builder().addPlugin(Netty3Plugin.class).settings(settings).build()) {
+        try (TransportClient transportClient = new MockTransportClient(settings, Netty3Plugin.class)) {
             transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("127.0.0.1"), randomPort));
             ClusterHealthResponse response = transportClient.admin().cluster().prepareHealth().get();
             assertThat(response.getStatus(), is(ClusterHealthStatus.GREEN));

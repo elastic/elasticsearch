@@ -10,10 +10,6 @@
         index: test
 
   - do:
-      cluster.health:
-        wait_for_status: yellow
-
-  - do:
       cluster.state:
         metric: [ master_node ]
 
@@ -48,10 +44,6 @@
       indices.create:
         index: test
         body: { "index.number_of_shards": 1, "index.number_of_replicas": 9 }
-
-  - do:
-      cluster.health:
-        wait_for_status: yellow
 
   - do:
       cluster.state:

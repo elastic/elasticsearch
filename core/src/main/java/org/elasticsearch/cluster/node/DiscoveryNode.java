@@ -39,7 +39,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.transport.TransportAddressSerializers.addressToStream;
 
@@ -191,7 +190,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
     }
 
     /** Creates a DiscoveryNode representing the local node. */
-    public static DiscoveryNode createLocal(Settings settings, TransportAddress publishAddress, String nodeIdSupplier) {
+    public static DiscoveryNode createLocal(Settings settings, TransportAddress publishAddress, String nodeId) {
         Map<String, String> attributes = new HashMap<>(Node.NODE_ATTRIBUTES.get(settings).getAsMap());
         Set<DiscoveryNode.Role> roles = new HashSet<>();
         if (Node.NODE_INGEST_SETTING.get(settings)) {
@@ -204,8 +203,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
             roles.add(DiscoveryNode.Role.DATA);
         }
 
-        return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeIdSupplier, publishAddress,
-                                 attributes, roles, Version.CURRENT);
+        return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress,attributes, roles, Version.CURRENT);
     }
 
     /**

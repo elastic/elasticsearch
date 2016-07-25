@@ -6,10 +6,6 @@ setup:
               aliases:
                 alias_1: {}
   - do:
-        cluster.health:
-            wait_for_status: yellow
-
-  - do:
       index:
           index:  test_1
           type:   test

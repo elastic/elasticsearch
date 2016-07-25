@@ -36,9 +36,6 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
     protected DocValueFormat format = DEFAULT_FORMAT;
 
     public abstract static class SingleValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.SingleValue {
-
-        protected SingleValue() {} // NORELEASE remove when we remove Streamable
-
         protected SingleValue(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
             super(name, pipelineAggregators, metaData);
         }
@@ -69,9 +66,6 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
     }
 
     public abstract static class MultiValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.MultiValue {
-
-        protected MultiValue() {}
-
         protected MultiValue(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
             super(name, pipelineAggregators, metaData);
         }
@@ -100,8 +94,6 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
             }
         }
     }
-
-    private InternalNumericMetricsAggregation() {} // NORELEASE remove when we remove Streamable
 
     private InternalNumericMetricsAggregation(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);

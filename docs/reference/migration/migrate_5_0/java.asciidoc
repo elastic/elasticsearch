@@ -324,4 +324,12 @@ The Render Search Template Java API including `RenderSearchTemplateAction`, `Ren
  This Search Template API is now included in the `lang-mustache` module and the `simulate` flag must be set on the
  `SearchTemplateRequest` object.
 
+==== AnalyzeRequest
 
+The `tokenFilters(String...)` and `charFilters(String...)` methods have been removed
+in favor of using `addTokenFilter(String)`/`addTokenFilter(Map)` and `addCharFilter(String)`/`addCharFilter(Map)` each filters
+
+==== AnalyzeRequestBuilder
+
+The `setTokenFilters(String...)` and `setCharFilters(String...)` methods have been removed
+in favor of using `addTokenFilter(String)`/`addTokenFilter(Map)` and `addCharFilter(String)`/`addCharFilter(Map)` each filters

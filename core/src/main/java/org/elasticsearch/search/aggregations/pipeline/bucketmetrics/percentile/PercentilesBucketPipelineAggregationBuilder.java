@@ -40,7 +40,7 @@ import java.util.Objects;
 
 public class PercentilesBucketPipelineAggregationBuilder
         extends BucketMetricsPipelineAggregationBuilder<PercentilesBucketPipelineAggregationBuilder> {
-    public static final String NAME = PercentilesBucketPipelineAggregator.TYPE.name();
+    public static final String NAME = "percentiles_bucket";
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField PERCENTS_FIELD = new ParseField("percents");
@@ -48,7 +48,7 @@ public class PercentilesBucketPipelineAggregationBuilder
     private double[] percents = new double[] { 1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0 };
 
     public PercentilesBucketPipelineAggregationBuilder(String name, String bucketsPath) {
-        super(name, PercentilesBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
+        super(name, NAME, new String[] { bucketsPath });
     }
 
     /**

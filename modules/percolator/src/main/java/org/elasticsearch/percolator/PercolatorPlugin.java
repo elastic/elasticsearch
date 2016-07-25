@@ -29,7 +29,6 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 
 import java.util.Arrays;
@@ -58,8 +57,9 @@ public class PercolatorPlugin extends Plugin implements MapperPlugin, ActionPlug
         return Arrays.asList(RestPercolateAction.class, RestMultiPercolateAction.class);
     }
 
-    public void onModule(SearchModule module) {
-        module.registerQuery(PercolateQueryBuilder::new, PercolateQueryBuilder::fromXContent, PercolateQueryBuilder.QUERY_NAME_FIELD);
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        return singletonList(new QuerySpec<>(PercolateQueryBuilder.NAME, PercolateQueryBuilder::new, PercolateQueryBuilder::fromXContent));
     }
 
     @Override

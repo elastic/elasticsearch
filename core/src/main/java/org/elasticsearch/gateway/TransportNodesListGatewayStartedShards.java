@@ -43,6 +43,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.shard.ShardStateMetaData;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -65,18 +66,19 @@ public class TransportNodesListGatewayStartedShards extends
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
     private final NodeEnvironment nodeEnv;
-
+    private final IndicesService indicesService;
 
     @Inject
     public TransportNodesListGatewayStartedShards(Settings settings, ThreadPool threadPool,
                                                   ClusterService clusterService, TransportService transportService,
                                                   ActionFilters actionFilters,
                                                   IndexNameExpressionResolver indexNameExpressionResolver,
-                                                  NodeEnvironment env) {
+                                                  NodeEnvironment env, IndicesService indicesService) {
         super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
               indexNameExpressionResolver, Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STARTED,
               NodeGatewayStartedShards.class);
         this.nodeEnv = env;
+        this.indicesService = indicesService;
     }
 
     @Override
@@ -127,21 +129,24 @@ public class TransportNodesListGatewayStartedShards extends
                     throw e;
                 }
 
-                ShardPath shardPath = null;
-                try {
-                    IndexSettings indexSettings = new IndexSettings(metaData, settings);
-                    shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
-                    if (shardPath == null) {
-                        throw new IllegalStateException(shardId + " no shard path found");
+                if (indicesService.getShardOrNull(shardId) == null) {
+                    // we don't have an open shard on the store, validate the files on disk are openable
+                    ShardPath shardPath = null;
+                    try {
+                        IndexSettings indexSettings = new IndexSettings(metaData, settings);
+                        shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
+                        if (shardPath == null) {
+                            throw new IllegalStateException(shardId + " no shard path found");
+                        }
+                        Store.tryOpenIndex(shardPath.resolveIndex(), shardId, nodeEnv::shardLock, logger);
+                    } catch (Exception exception) {
+                        logger.trace("{} can't open index for shard [{}] in path [{}]", exception, shardId,
+                            shardStateMetaData, (shardPath != null) ? shardPath.resolveIndex() : "");
+                        String allocationId = shardStateMetaData.allocationId != null ?
+                            shardStateMetaData.allocationId.getId() : null;
+                        return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.legacyVersion,
+                            allocationId, shardStateMetaData.primary, exception);
                     }
-                    Store.tryOpenIndex(shardPath.resolveIndex(), shardId, logger);
-                } catch (Exception exception) {
-                    logger.trace("{} can't open index for shard [{}] in path [{}]", exception, shardId,
-                        shardStateMetaData, (shardPath != null) ? shardPath.resolveIndex() : "");
-                    String allocationId = shardStateMetaData.allocationId != null ?
-                        shardStateMetaData.allocationId.getId() : null;
-                    return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.legacyVersion,
-                        allocationId, shardStateMetaData.primary, exception);
                 }
 
                 logger.debug("{} shard state info found: [{}]", shardId, shardStateMetaData);

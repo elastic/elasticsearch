@@ -36,11 +36,6 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 public abstract class SiblingPipelineAggregator extends PipelineAggregator {
-
-    protected SiblingPipelineAggregator() { // for Serialisation
-        super();
-    }
-
     protected SiblingPipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metaData) {
         super(name, bucketsPaths, metaData);
     }
@@ -83,7 +78,7 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
             return singleBucketAgg.create(new InternalAggregations(aggs));
         } else {
             throw new IllegalStateException("Aggregation [" + aggregation.getName() + "] must be a bucket aggregation ["
-                    + aggregation.type().name() + "]");
+                    + aggregation.getWriteableName() + "]");
         }
     }
 

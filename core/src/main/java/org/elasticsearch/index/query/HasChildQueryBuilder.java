@@ -49,12 +49,7 @@ import java.util.Optional;
  * A query builder for <tt>has_child</tt> query.
  */
 public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuilder> {
-
-    /**
-     * The queries name
-     */
     public static final String NAME = "has_child";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     /**
      * The default maximum number of children that are required to match for the parent to be considered a match.

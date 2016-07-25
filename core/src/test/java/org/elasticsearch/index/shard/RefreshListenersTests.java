@@ -56,6 +56,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.junit.After;
 import org.junit.Before;
 
@@ -222,7 +224,7 @@ public class RefreshListenersTests extends ESTestCase {
         maxListeners = between(1, threadCount * 2);
 
         // This thread just refreshes every once in a while to cause trouble.
-        ScheduledFuture<?> refresher = threadPool.scheduleWithFixedDelay(() -> engine.refresh("because test"), timeValueMillis(100));
+        Cancellable refresher = threadPool.scheduleWithFixedDelay(() -> engine.refresh("because test"), timeValueMillis(100), Names.SAME);
 
         // These threads add and block until the refresh makes the change visible and then do a non-realtime get.
         Thread[] indexers = new Thread[threadCount];
@@ -262,7 +264,7 @@ public class RefreshListenersTests extends ESTestCase {
         for (Thread indexer: indexers) {
             indexer.join();
         }
-        FutureUtils.cancel(refresher);
+        refresher.cancel();
     }
 
     private Engine.Index index(String id) {

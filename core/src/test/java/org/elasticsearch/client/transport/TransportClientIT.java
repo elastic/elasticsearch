@@ -27,10 +27,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -91,9 +91,8 @@ public class TransportClientIT extends ESIntegTestCase {
     public void testThatTransportClientSettingCannotBeChanged() {
         Settings baseSettings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put("transport.type", "local")
             .build();
-        try (TransportClient client = TransportClient.builder().settings(baseSettings).build()) {
+        try (TransportClient client = new MockTransportClient(baseSettings)) {
             Settings settings = client.injector.getInstance(Settings.class);
             assertThat(Client.CLIENT_TYPE_SETTING_S.get(settings), is("transport"));
         }

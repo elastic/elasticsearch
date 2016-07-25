@@ -60,9 +60,7 @@ import java.util.Optional;
  * </pre>
  */
 public class GeohashCellQuery {
-
     public static final String NAME = "geohash_cell";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     public static final boolean DEFAULT_NEIGHBORS = false;
 

@@ -37,6 +37,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Netty3Plugin;
+import org.elasticsearch.transport.Netty4Plugin;
 import org.junit.After;
 import org.junit.Before;
 
@@ -56,17 +57,47 @@ import static org.hamcrest.Matchers.hasSize;
  * tests won't verify that.
  */
 public class RetryTests extends ESSingleNodeTestCase {
+
     private static final int DOC_COUNT = 20;
 
     private List<CyclicBarrier> blockedExecutors = new ArrayList<>();
 
+    private boolean useNetty4;
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        useNetty4 = randomBoolean();
+        createIndex("source");
+        // Build the test data. Don't use indexRandom because that won't work consistently with such small thread pools.
+        BulkRequestBuilder bulk = client().prepareBulk();
+        for (int i = 0; i < DOC_COUNT; i++) {
+            bulk.add(client().prepareIndex("source", "test").setSource("foo", "bar " + i));
+        }
+        Retry retry = Retry.on(EsRejectedExecutionException.class).policy(BackoffPolicy.exponentialBackoff());
+        BulkResponse response = retry.withSyncBackoff(client(), bulk.request());
+        assertFalse(response.buildFailureMessage(), response.hasFailures());
+        client().admin().indices().prepareRefresh("source").get();
+    }
+
+    @After
+    public void forceUnblockAllExecutors() {
+        for (CyclicBarrier barrier: blockedExecutors) {
+            barrier.reset();
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(ReindexPlugin.class, Netty3Plugin.class, BogusPlugin.class); // we need netty here to http communication
+        return pluginList(
+                ReindexPlugin.class,
+                Netty3Plugin.class,
+                Netty4Plugin.class,
+                BogusPlugin.class);
     }
 
     public static final class BogusPlugin extends Plugin {
-        // se Netty3Plugin.... this runs without the permission from the netty3 module so it will fail since reindex can't set the property
+        // this runs without the permission from the netty module so it will fail since reindex can't set the property
         // to make it still work we disable that check but need to register the setting first
         private static final Setting<Boolean> ASSERT_NETTY_BUGLEVEL = Setting.boolSetting("netty.assert.buglevel", true,
             Setting.Property.NodeScope);
@@ -94,28 +125,11 @@ public class RetryTests extends ESSingleNodeTestCase {
         settings.put(NetworkModule.HTTP_ENABLED.getKey(), true);
         // Whitelist reindexing from the http host we're going to use
         settings.put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "myself");
+        if (useNetty4) {
+            settings.put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME);
+            settings.put(NetworkModule.TRANSPORT_TYPE_KEY, Netty4Plugin.NETTY_TRANSPORT_NAME);
+        }
         return settings.build();
-    }
-
-    @Before
-    public void setupSourceIndex() throws Exception {
-        createIndex("source");
-        // Build the test data. Don't use indexRandom because that won't work consistently with such small thread pools.
-        BulkRequestBuilder bulk = client().prepareBulk();
-        for (int i = 0; i < DOC_COUNT; i++) {
-            bulk.add(client().prepareIndex("source", "test").setSource("foo", "bar " + i));
-        }
-        Retry retry = Retry.on(EsRejectedExecutionException.class).policy(BackoffPolicy.exponentialBackoff());
-        BulkResponse response = retry.withSyncBackoff(client(), bulk.request());
-        assertFalse(response.buildFailureMessage(), response.hasFailures());
-        client().admin().indices().prepareRefresh("source").get();
-    }
-
-    @After
-    public void forceUnblockAllExecutors() {
-        for (CyclicBarrier barrier: blockedExecutors) {
-            barrier.reset();
-        }
     }
 
     public void testReindex() throws Exception {
@@ -222,4 +236,5 @@ public class RetryTests extends ESSingleNodeTestCase {
         assertThat(response.getTasks(), hasSize(1));
         return (BulkByScrollTask.Status) response.getTasks().get(0).getStatus();
     }
+
 }

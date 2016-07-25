@@ -27,15 +27,12 @@ import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
 import com.microsoft.azure.storage.blob.CloudBlockBlob;
 import com.microsoft.azure.storage.blob.ListBlobItem;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryException;
 
@@ -163,13 +160,6 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
     public void removeContainer(String account, LocationMode mode, String container) throws URISyntaxException, StorageException {
         CloudBlobClient client = this.getSelectedClient(account, mode);
         CloudBlobContainer blobContainer = client.getContainerReference(container);
-        // TODO Should we set some timeout and retry options?
-        /*
-        BlobRequestOptions options = new BlobRequestOptions();
-        options.setTimeoutIntervalInMs(1000);
-        options.setRetryPolicyFactory(new RetryNoRetry());
-        blobContainer.deleteIfExists(options, null);
-        */
         logger.trace("removing container [{}]", container);
         blobContainer.deleteIfExists();
     }

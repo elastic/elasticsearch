@@ -19,12 +19,31 @@
 
 package org.elasticsearch.plugins;
 
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.Version;
+import org.elasticsearch.bootstrap.JarHell;
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.SettingCommand;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.URL;
+import java.net.URLConnection;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
@@ -48,24 +67,6 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
-
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-import org.apache.lucene.search.spell.LevensteinDistance;
-import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.Version;
-import org.elasticsearch.bootstrap.JarHell;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.SettingCommand;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.UserError;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 
@@ -107,7 +108,7 @@ class InstallPluginCommand extends SettingCommand {
     static final Set<String> MODULES;
     static {
         try (InputStream stream = InstallPluginCommand.class.getResourceAsStream("/modules.txt");
-             BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
             Set<String> modules = new HashSet<>();
             String line = reader.readLine();
             while (line != null) {
@@ -124,7 +125,7 @@ class InstallPluginCommand extends SettingCommand {
     static final Set<String> OFFICIAL_PLUGINS;
     static {
         try (InputStream stream = InstallPluginCommand.class.getResourceAsStream("/plugins.txt");
-             BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
             Set<String> plugins = new TreeSet<>(); // use tree set to get sorting for help command
             String line = reader.readLine();
             while (line != null) {
@@ -140,6 +141,7 @@ class InstallPluginCommand extends SettingCommand {
 
     private final OptionSpec<Void> batchOption;
     private final OptionSpec<String> arguments;
+
 
     public static final Set<PosixFilePermission> DIR_AND_EXECUTABLE_PERMS;
     public static final Set<PosixFilePermission> FILE_PERMS;
@@ -183,12 +185,7 @@ class InstallPluginCommand extends SettingCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
-        // TODO: in jopt-simple 5.0 we can enforce a min/max number of positional args
-        List<String> args = arguments.values(options);
-        if (args.size() != 1) {
-            throw new UserError(ExitCodes.USAGE, "Must supply a single plugin id argument");
-        }
-        String pluginId = args.get(0);
+        String pluginId = arguments.value(options);
         boolean isBatch = options.has(batchOption) || System.console() == null;
         execute(terminal, pluginId, isBatch, settings);
     }
@@ -248,7 +245,7 @@ class InstallPluginCommand extends SettingCommand {
             if (plugins.isEmpty() == false) {
                 msg += ", did you mean " + (plugins.size() == 1 ? "[" + plugins.get(0) + "]": "any of " + plugins.toString()) + "?";
             }
-            throw new UserError(ExitCodes.USAGE, msg);
+            throw new UserException(ExitCodes.USAGE, msg);
         }
         terminal.println("-> Downloading " + URLDecoder.decode(pluginId, "UTF-8"));
         return downloadZip(terminal, pluginId, tmpDir);
@@ -273,11 +270,47 @@ class InstallPluginCommand extends SettingCommand {
         terminal.println(VERBOSE, "Retrieving zip from " + urlString);
         URL url = new URL(urlString);
         Path zip = Files.createTempFile(tmpDir, null, ".zip");
-        try (InputStream in = url.openStream()) {
+        URLConnection urlConnection = url.openConnection();
+        int contentLength = urlConnection.getContentLength();
+        try (InputStream in = new TerminalProgressInputStream(urlConnection.getInputStream(), contentLength, terminal)) {
             // must overwrite since creating the temp file above actually created the file
             Files.copy(in, zip, StandardCopyOption.REPLACE_EXISTING);
         }
         return zip;
+    }
+
+    /**
+     * content length might be -1 for unknown and progress only makes sense if the content length is greater than 0
+     */
+    private class TerminalProgressInputStream extends ProgressInputStream {
+
+        private final Terminal terminal;
+        private int width = 50;
+        private final boolean enabled;
+
+        public TerminalProgressInputStream(InputStream is, int expectedTotalSize, Terminal terminal) {
+            super(is, expectedTotalSize);
+            this.terminal = terminal;
+            this.enabled = expectedTotalSize > 0;
+        }
+
+        @Override
+        public void onProgress(int percent) {
+            if (enabled) {
+                int currentPosition = percent * width / 100;
+                StringBuilder sb = new StringBuilder("\r[");
+                sb.append(String.join("=", Collections.nCopies(currentPosition, "")));
+                if (currentPosition > 0 && percent < 100) {
+                    sb.append(">");
+                }
+                sb.append(String.join(" ", Collections.nCopies(width - currentPosition, "")));
+                sb.append("] %s   ");
+                if (percent == 100) {
+                    sb.append("\n");
+                }
+                terminal.print(Terminal.Verbosity.NORMAL, String.format(Locale.ROOT, sb.toString(), percent + "%"));
+            }
+        }
     }
 
     /** Downloads a zip from the url, as well as a SHA1 checksum, and checks the checksum. */
@@ -290,20 +323,20 @@ class InstallPluginCommand extends SettingCommand {
             BufferedReader checksumReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
             expectedChecksum = checksumReader.readLine();
             if (checksumReader.readLine() != null) {
-                throw new UserError(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);
+                throw new UserException(ExitCodes.IO_ERROR, "Invalid checksum file at " + checksumUrl);
             }
         }
 
         byte[] zipbytes = Files.readAllBytes(zip);
         String gotChecksum = MessageDigests.toHexString(MessageDigests.sha1().digest(zipbytes));
         if (expectedChecksum.equals(gotChecksum) == false) {
-            throw new UserError(ExitCodes.IO_ERROR, "SHA1 mismatch, expected " + expectedChecksum + " but got " + gotChecksum);
+            throw new UserException(ExitCodes.IO_ERROR, "SHA1 mismatch, expected " + expectedChecksum + " but got " + gotChecksum);
         }
 
         return zip;
     }
 
-    private Path unzip(Path zip, Path pluginsDir) throws IOException, UserError {
+    private Path unzip(Path zip, Path pluginsDir) throws IOException, UserException {
         // unzip plugin to a staging temp dir
 
         final Path target = stagingDirectory(pluginsDir);
@@ -348,7 +381,7 @@ class InstallPluginCommand extends SettingCommand {
         Files.delete(zip);
         if (hasEsDir == false) {
             IOUtils.rm(target);
-            throw new UserError(ExitCodes.DATA_ERROR, "`elasticsearch` directory is missing in the plugin zip");
+            throw new UserException(ExitCodes.DATA_ERROR, "`elasticsearch` directory is missing in the plugin zip");
         }
         return target;
     }
@@ -387,7 +420,8 @@ class InstallPluginCommand extends SettingCommand {
         // don't let luser install plugin as a module...
         // they might be unavoidably in maven central and are packaged up the same way)
         if (MODULES.contains(info.getName())) {
-            throw new UserError(ExitCodes.USAGE, "plugin '" + info.getName() + "' cannot be installed like this, it is a system module");
+            throw new UserException(
+                    ExitCodes.USAGE, "plugin '" + info.getName() + "' cannot be installed like this, it is a system module");
         }
 
         // check for jar hell before any copying
@@ -437,7 +471,7 @@ class InstallPluginCommand extends SettingCommand {
 
             final Path destination = env.pluginsFile().resolve(info.getName());
             if (Files.exists(destination)) {
-                throw new UserError(
+                throw new UserException(
                     ExitCodes.USAGE,
                     "plugin directory " + destination.toAbsolutePath() +
                         " already exists. To update the plugin, uninstall it first using 'remove " + info.getName() + "' command");
@@ -482,7 +516,7 @@ class InstallPluginCommand extends SettingCommand {
     /** Copies the files from {@code tmpBinDir} into {@code destBinDir}, along with permissions from dest dirs parent. */
     private void installBin(PluginInfo info, Path tmpBinDir, Path destBinDir) throws Exception {
         if (Files.isDirectory(tmpBinDir) == false) {
-            throw new UserError(ExitCodes.IO_ERROR, "bin in plugin " + info.getName() + " is not a directory");
+            throw new UserException(ExitCodes.IO_ERROR, "bin in plugin " + info.getName() + " is not a directory");
         }
         Files.createDirectory(destBinDir);
         setFileAttributes(destBinDir, DIR_AND_EXECUTABLE_PERMS);
@@ -490,7 +524,7 @@ class InstallPluginCommand extends SettingCommand {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmpBinDir)) {
             for (Path srcFile : stream) {
                 if (Files.isDirectory(srcFile)) {
-                    throw new UserError(
+                    throw new UserException(
                         ExitCodes.DATA_ERROR,
                         "Directories not allowed in bin dir for plugin " + info.getName() + ", found " + srcFile.getFileName());
                 }
@@ -509,7 +543,7 @@ class InstallPluginCommand extends SettingCommand {
      */
     private void installConfig(PluginInfo info, Path tmpConfigDir, Path destConfigDir) throws Exception {
         if (Files.isDirectory(tmpConfigDir) == false) {
-            throw new UserError(ExitCodes.IO_ERROR, "config in plugin " + info.getName() + " is not a directory");
+            throw new UserException(ExitCodes.IO_ERROR, "config in plugin " + info.getName() + " is not a directory");
         }
 
         Files.createDirectories(destConfigDir);
@@ -525,7 +559,7 @@ class InstallPluginCommand extends SettingCommand {
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmpConfigDir)) {
             for (Path srcFile : stream) {
                 if (Files.isDirectory(srcFile)) {
-                    throw new UserError(ExitCodes.DATA_ERROR, "Directories not allowed in config dir for plugin " + info.getName());
+                    throw new UserException(ExitCodes.DATA_ERROR, "Directories not allowed in config dir for plugin " + info.getName());
                 }
 
                 Path destFile = destConfigDir.resolve(tmpConfigDir.relativize(srcFile));

@@ -35,11 +35,11 @@ import java.util.List;
 import java.util.Map;
 
 public class StatsBucketPipelineAggregationBuilder extends BucketMetricsPipelineAggregationBuilder<StatsBucketPipelineAggregationBuilder> {
-    public static final String NAME = StatsBucketPipelineAggregator.TYPE.name();
+    public static final String NAME = "stats_bucket";
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public StatsBucketPipelineAggregationBuilder(String name, String bucketsPath) {
-        super(name, StatsBucketPipelineAggregator.TYPE.name(), new String[] { bucketsPath });
+        super(name, NAME, new String[] { bucketsPath });
     }
 
     /**
@@ -47,7 +47,7 @@ public class StatsBucketPipelineAggregationBuilder extends BucketMetricsPipeline
      */
     public StatsBucketPipelineAggregationBuilder(StreamInput in)
             throws IOException {
-        super(in, StatsBucketPipelineAggregator.TYPE.name());
+        super(in, NAME);
     }
 
     @Override

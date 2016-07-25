@@ -51,12 +51,17 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 /**
- *
+ * Integration test for registering a custom suggester.
  */
 @ClusterScope(scope= Scope.SUITE, numDataNodes =1)
 public class CustomSuggesterSearchIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(CustomSuggesterPlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return pluginList(CustomSuggesterPlugin.class);
     }
 
@@ -67,7 +72,6 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
                 .field("name", "arbitrary content")
                 .endObject())
                 .setRefreshPolicy(IMMEDIATE).get();
-        ensureYellow();
 
         String randomText = randomAsciiOfLength(10);
         String randomField = randomAsciiOfLength(10);

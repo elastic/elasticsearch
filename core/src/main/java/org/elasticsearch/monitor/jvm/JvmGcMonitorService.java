@@ -29,6 +29,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.monitor.jvm.JvmStats.GarbageCollector;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -40,7 +42,7 @@ import java.util.function.BiFunction;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitorService> {
+public class JvmGcMonitorService extends AbstractLifecycleComponent {
 
     private final ThreadPool threadPool;
     private final boolean enabled;
@@ -48,22 +50,22 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
     private final Map<String, GcThreshold> gcThresholds;
     private final GcOverheadThreshold gcOverheadThreshold;
 
-    private volatile ScheduledFuture scheduledFuture;
+    private volatile Cancellable scheduledFuture;
 
-    public final static Setting<Boolean> ENABLED_SETTING =
+    public static final Setting<Boolean> ENABLED_SETTING =
         Setting.boolSetting("monitor.jvm.gc.enabled", true, Property.NodeScope);
-    public final static Setting<TimeValue> REFRESH_INTERVAL_SETTING =
+    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("monitor.jvm.gc.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
             Property.NodeScope);
 
     private static String GC_COLLECTOR_PREFIX = "monitor.jvm.gc.collector.";
-    public final static Setting<Settings> GC_SETTING = Setting.groupSetting(GC_COLLECTOR_PREFIX, Property.NodeScope);
+    public static final Setting<Settings> GC_SETTING = Setting.groupSetting(GC_COLLECTOR_PREFIX, Property.NodeScope);
 
-    public final static Setting<Integer> GC_OVERHEAD_WARN_SETTING =
+    public static final Setting<Integer> GC_OVERHEAD_WARN_SETTING =
         Setting.intSetting("monitor.jvm.gc.overhead.warn", 50, 0, 100, Property.NodeScope);
-    public final static Setting<Integer> GC_OVERHEAD_INFO_SETTING =
+    public static final Setting<Integer> GC_OVERHEAD_INFO_SETTING =
         Setting.intSetting("monitor.jvm.gc.overhead.info", 25, 0, 100, Property.NodeScope);
-    public final static Setting<Integer> GC_OVERHEAD_DEBUG_SETTING =
+    public static final Setting<Integer> GC_OVERHEAD_DEBUG_SETTING =
         Setting.intSetting("monitor.jvm.gc.overhead.debug", 10, 0, 100, Property.NodeScope);
 
     static class GcOverheadThreshold {
@@ -185,8 +187,8 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
         }
         scheduledFuture = threadPool.scheduleWithFixedDelay(new JvmMonitor(gcThresholds, gcOverheadThreshold) {
             @Override
-            void onMonitorFailure(Throwable t) {
-                logger.debug("failed to monitor", t);
+            void onMonitorFailure(Exception e) {
+                logger.debug("failed to monitor", e);
             }
 
             @Override
@@ -198,7 +200,7 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
             void onGcOverhead(final Threshold threshold, final long current, final long elapsed, final long seq) {
                 logGcOverhead(logger, threshold, current, elapsed, seq);
             }
-        }, interval);
+        }, interval, Names.SAME);
     }
 
     private static final String SLOW_GC_LOG_MESSAGE =
@@ -334,14 +336,14 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
         if (!enabled) {
             return;
         }
-        FutureUtils.cancel(scheduledFuture);
+        scheduledFuture.cancel();
     }
 
     @Override
     protected void doClose() {
     }
 
-    static abstract class JvmMonitor implements Runnable {
+    abstract static class JvmMonitor implements Runnable {
 
         enum Threshold { DEBUG, INFO, WARN }
 
@@ -389,12 +391,12 @@ public class JvmGcMonitorService extends AbstractLifecycleComponent<JvmGcMonitor
         public void run() {
             try {
                 monitorGc();
-            } catch (Throwable t) {
-                onMonitorFailure(t);
+            } catch (Exception e) {
+                onMonitorFailure(e);
             }
         }
 
-        abstract void onMonitorFailure(Throwable t);
+        abstract void onMonitorFailure(Exception e);
 
         synchronized void monitorGc() {
             seq++;

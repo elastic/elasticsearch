@@ -166,7 +166,7 @@ public class ClusterRerouteRequestTests extends ESTestCase {
     private ClusterRerouteRequest roundTripThroughBytes(ClusterRerouteRequest original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 ClusterRerouteRequest copy = new ClusterRerouteRequest();
                 copy.readFrom(in);
                 return copy;

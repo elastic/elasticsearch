@@ -51,7 +51,7 @@ public class BoundTransportAddressTests extends ESTestCase {
         // serialize
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         transportAddress.writeTo(streamOutput);
-        StreamInput in = ByteBufferStreamInput.wrap(streamOutput.bytes());
+        StreamInput in = streamOutput.bytes().streamInput();
 
         BoundTransportAddress serializedAddress;
         if (randomBoolean()) {

@@ -44,7 +44,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -114,9 +113,10 @@ public class ScriptServiceTests extends ESTestCase {
     private void buildScriptService(Settings additionalSettings) throws IOException {
         Settings finalSettings = Settings.builder().put(baseSettings).put(additionalSettings).build();
         Environment environment = new Environment(finalSettings);
+        // TODO:
         scriptService = new ScriptService(finalSettings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
-            String getScriptFromClusterState(ClusterState state, String scriptLang, String id) {
+            String getScriptFromClusterState(String scriptLang, String id) {
                 //mock the script that gets retrieved from an index
                 return "100";
             }
@@ -141,7 +141,7 @@ public class ScriptServiceTests extends ESTestCase {
         resourceWatcherService.notifyNow();
 
         CompiledScript compiledScript = scriptService.compile(new Script("test_script", ScriptType.FILE, "test", null),
-                ScriptContext.Standard.SEARCH, Collections.emptyMap(), emptyClusterState());
+                ScriptContext.Standard.SEARCH, Collections.emptyMap());
         assertThat(compiledScript.compiled(), equalTo((Object) "compiled_test_file"));
 
         Files.delete(testFileNoExt);
@@ -150,7 +150,7 @@ public class ScriptServiceTests extends ESTestCase {
 
         try {
             scriptService.compile(new Script("test_script", ScriptType.FILE, "test", null), ScriptContext.Standard.SEARCH,
-                    Collections.emptyMap(), emptyClusterState());
+                    Collections.emptyMap());
             fail("the script test_script should no longer exist");
         } catch (IllegalArgumentException ex) {
             assertThat(ex.getMessage(), containsString("Unable to find on disk file script [test_script] using lang [test]"));
@@ -168,7 +168,7 @@ public class ScriptServiceTests extends ESTestCase {
         resourceWatcherService.notifyNow();
 
         CompiledScript compiledScript = scriptService.compile(new Script("file_script", ScriptType.FILE, "test", null),
-                ScriptContext.Standard.SEARCH, Collections.emptyMap(), emptyClusterState());
+                ScriptContext.Standard.SEARCH, Collections.emptyMap());
         assertThat(compiledScript.compiled(), equalTo((Object) "compiled_test_file_script"));
 
         Files.delete(testHiddenFile);
@@ -179,9 +179,9 @@ public class ScriptServiceTests extends ESTestCase {
     public void testInlineScriptCompiledOnceCache() throws IOException {
         buildScriptService(Settings.EMPTY);
         CompiledScript compiledScript1 = scriptService.compile(new Script("1+1", ScriptType.INLINE, "test", null),
-                randomFrom(scriptContexts), Collections.emptyMap(), emptyClusterState());
+                randomFrom(scriptContexts), Collections.emptyMap());
         CompiledScript compiledScript2 = scriptService.compile(new Script("1+1", ScriptType.INLINE, "test", null),
-                randomFrom(scriptContexts), Collections.emptyMap(), emptyClusterState());
+                randomFrom(scriptContexts), Collections.emptyMap());
         assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
     }
 
@@ -304,7 +304,7 @@ public class ScriptServiceTests extends ESTestCase {
         String type = scriptEngineService.getType();
         try {
             scriptService.compile(new Script("test", randomFrom(ScriptType.values()), type, null), new ScriptContext.Plugin(
-                            pluginName, unknownContext), Collections.emptyMap(), emptyClusterState());
+                            pluginName, unknownContext), Collections.emptyMap());
             fail("script compilation should have been rejected");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("script context [" + pluginName + "_" + unknownContext + "] not supported"));
@@ -314,22 +314,20 @@ public class ScriptServiceTests extends ESTestCase {
     public void testCompileCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
         scriptService.compile(new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts),
-                Collections.emptyMap(), emptyClusterState());
+                Collections.emptyMap());
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
     public void testExecutableCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
-        scriptService.executable(new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap(), state);
+        scriptService.executable(new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap());
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
     public void testSearchCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
         scriptService.search(null, new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts),
-                Collections.emptyMap(), state);
+                Collections.emptyMap());
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
@@ -339,7 +337,7 @@ public class ScriptServiceTests extends ESTestCase {
         for (int i = 0; i < numberOfCompilations; i++) {
             scriptService
                     .compile(new Script(i + " + " + i, ScriptType.INLINE, "test", null), randomFrom(scriptContexts),
-                            Collections.emptyMap(), emptyClusterState());
+                            Collections.emptyMap());
         }
         assertEquals(numberOfCompilations, scriptService.stats().getCompilations());
     }
@@ -349,9 +347,8 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), 1);
         builder.put("script.inline", "true");
         buildScriptService(builder.build());
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
-        scriptService.executable(new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap(), state);
-        scriptService.executable(new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap(), state);
+        scriptService.executable(new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap());
+        scriptService.executable(new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap());
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
@@ -359,14 +356,14 @@ public class ScriptServiceTests extends ESTestCase {
         buildScriptService(Settings.EMPTY);
         createFileScripts("test");
         scriptService.compile(new Script("file_script", ScriptType.FILE, "test", null), randomFrom(scriptContexts),
-                Collections.emptyMap(), emptyClusterState());
+                Collections.emptyMap());
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
     public void testIndexedScriptCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
         scriptService.compile(new Script("script", ScriptType.STORED, "test", null), randomFrom(scriptContexts),
-                Collections.emptyMap(), emptyClusterState());
+                Collections.emptyMap());
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
@@ -375,9 +372,8 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getKey(), 1);
         builder.put("script.inline", "true");
         buildScriptService(builder.build());
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
-        scriptService.executable(new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap(), state);
-        scriptService.executable(new Script("2+2", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap(), state);
+        scriptService.executable(new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap());
+        scriptService.executable(new Script("2+2", ScriptType.INLINE, "test", null), randomFrom(scriptContexts), Collections.emptyMap());
         assertEquals(2L, scriptService.stats().getCompilations());
         assertEquals(1L, scriptService.stats().getCacheEvictions());
     }
@@ -388,7 +384,7 @@ public class ScriptServiceTests extends ESTestCase {
         builder.put("script.inline", "true");
         buildScriptService(builder.build());
         CompiledScript script = scriptService.compile(new Script("1 + 1", ScriptType.INLINE, null, null),
-                randomFrom(scriptContexts), Collections.emptyMap(), emptyClusterState());
+                randomFrom(scriptContexts), Collections.emptyMap());
         assertEquals(script.lang(), "test");
     }
 
@@ -447,12 +443,12 @@ public class ScriptServiceTests extends ESTestCase {
         int maxSize = 0xFFFF;
         buildScriptService(Settings.EMPTY);
         // allowed
-        scriptService.validate("_id", "test", new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 13) + "\"}"));
+        scriptService.validateStoredScript("_id", "test", new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 13) + "\"}"));
 
         // disallowed
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> {
-                    scriptService.validate("_id", "test", new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 12) + "\"}"));
+                    scriptService.validateStoredScript("_id", "test", new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 12) + "\"}"));
                 });
         assertThat(e.getMessage(), equalTo(
                 "Limit of script size in bytes [" + maxSize+ "] has been exceeded for script [_id] with size [" + (maxSize + 1) + "]"));
@@ -469,7 +465,7 @@ public class ScriptServiceTests extends ESTestCase {
 
     private void assertCompileRejected(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {
         try {
-            scriptService.compile(new Script(script, scriptType, lang, null), scriptContext, Collections.emptyMap(), emptyClusterState());
+            scriptService.compile(new Script(script, scriptType, lang, null), scriptContext, Collections.emptyMap());
             fail("compile should have been rejected for lang [" + lang + "], script_type [" + scriptType + "], scripted_op [" + scriptContext + "]");
         } catch(IllegalStateException e) {
             //all good
@@ -477,9 +473,8 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     private void assertCompileAccepted(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {
-        ClusterState state = emptyClusterState();
         assertThat(
-                scriptService.compile(new Script(script, scriptType, lang, null), scriptContext, Collections.emptyMap(), state),
+                scriptService.compile(new Script(script, scriptType, lang, null), scriptContext, Collections.emptyMap()),
                 notNullValue()
         );
     }
@@ -528,8 +523,6 @@ public class ScriptServiceTests extends ESTestCase {
 
         public static final String NAME = "dtest";
 
-        public static final List<String> EXTENSIONS = Collections.unmodifiableList(Arrays.asList("dtest"));
-
         @Override
         public String getType() {
             return NAME;
@@ -559,9 +552,4 @@ public class ScriptServiceTests extends ESTestCase {
         public void close() {
         }
     }
-
-    private static ClusterState emptyClusterState() {
-        return ClusterState.builder(new ClusterName("_name")).build();
-    }
-
 }

@@ -23,78 +23,49 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationStreams;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
-import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- *
+ * Result of the running the significant terms aggregation on a String field.
  */
-public class SignificantStringTerms extends InternalSignificantTerms<SignificantStringTerms, SignificantStringTerms.Bucket> {
+public class SignificantStringTerms extends InternalMappedSignificantTerms<SignificantStringTerms, SignificantStringTerms.Bucket> {
+    public static final String NAME = "sigsterms";
 
-    public static final InternalAggregation.Type TYPE = new Type("significant_terms", "sigsterms");
-
-    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public SignificantStringTerms readResult(StreamInput in) throws IOException {
-            SignificantStringTerms buckets = new SignificantStringTerms();
-            buckets.readFrom(in);
-            return buckets;
-        }
-    };
-
-    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
-        @Override
-        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
-            Bucket buckets = new Bucket((long) context.attributes().get("subsetSize"),
-                    (long) context.attributes().get("supersetSize"), context.format());
-            buckets.readFrom(in);
-            return buckets;
-        }
-
-        @Override
-        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
-            BucketStreamContext context = new BucketStreamContext();
-            Map<String, Object> attributes = new HashMap<>();
-            attributes.put("subsetSize", bucket.subsetSize);
-            attributes.put("supersetSize", bucket.supersetSize);
-            context.attributes(attributes);
-            return context;
-        }
-    };
-
-    public static void registerStream() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
-    }
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    public static class Bucket extends InternalSignificantTerms.Bucket {
+    public static class Bucket extends InternalSignificantTerms.Bucket<Bucket> {
 
         BytesRef termBytes;
-
-        public Bucket(long subsetSize, long supersetSize, DocValueFormat format) {
-            // for serialization
-            super(subsetSize, supersetSize, format);
-        }
 
         public Bucket(BytesRef term, long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations,
                 DocValueFormat format) {
             super(subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format);
             this.termBytes = term;
+        }
+
+        /**
+         * Read from a stream.
+         */
+        public Bucket(StreamInput in, long subsetSize, long supersetSize, DocValueFormat format) throws IOException {
+            super(in, subsetSize, supersetSize, format);
+            termBytes = in.readBytesRef();
+            subsetDf = in.readVLong();
+            supersetDf = in.readVLong();
+            score = in.readDouble();
+            aggregations = InternalAggregations.readAggregations(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBytesRef(termBytes);
+            out.writeVLong(subsetDf);
+            out.writeVLong(supersetDf);
+            out.writeDouble(getSignificanceScore());
+            aggregations.writeTo(out);
         }
 
         public Bucket(BytesRef term, long subsetDf, long subsetSize, long supersetDf, long supersetSize,
@@ -130,24 +101,6 @@ public class SignificantStringTerms extends InternalSignificantTerms<Significant
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            termBytes = in.readBytesRef();
-            subsetDf = in.readVLong();
-            supersetDf = in.readVLong();
-            score = in.readDouble();
-            aggregations = InternalAggregations.readAggregations(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeBytesRef(termBytes);
-            out.writeVLong(subsetDf);
-            out.writeVLong(supersetDf);
-            out.writeDouble(getSignificanceScore());
-            aggregations.writeTo(out);
-        }
-
-        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CommonFields.KEY, getKeyAsString());
@@ -160,24 +113,29 @@ public class SignificantStringTerms extends InternalSignificantTerms<Significant
         }
     }
 
-    SignificantStringTerms() {} // for serialization
+    public SignificantStringTerms(String name, int requiredSize, long minDocCount, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData, DocValueFormat format, long subsetSize, long supersetSize,
+            SignificanceHeuristic significanceHeuristic, List<Bucket> buckets) {
+        super(name, requiredSize, minDocCount, pipelineAggregators, metaData, format, subsetSize, supersetSize, significanceHeuristic,
+                buckets);
+    }
 
-    public SignificantStringTerms(long subsetSize, long supersetSize, String name, DocValueFormat format, int requiredSize,
-            long minDocCount, SignificanceHeuristic significanceHeuristic, List<? extends InternalSignificantTerms.Bucket> buckets,
-            List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
-        super(subsetSize, supersetSize, name, format, requiredSize, minDocCount, significanceHeuristic, buckets, pipelineAggregators, metaData);
+    /**
+     * Read from a stream.
+     */
+    public SignificantStringTerms(StreamInput in) throws IOException {
+        super(in, Bucket::new);
     }
 
     @Override
-    public Type type() {
-        return TYPE;
+    public String getWriteableName() {
+        return NAME;
     }
 
     @Override
     public SignificantStringTerms create(List<SignificantStringTerms.Bucket> buckets) {
-        return new SignificantStringTerms(this.subsetSize, this.supersetSize, this.name, this.format, this.requiredSize, this.minDocCount,
-                this.significanceHeuristic, buckets, this.pipelineAggregators(), this.metaData);
+        return new SignificantStringTerms(name, requiredSize, minDocCount, pipelineAggregators(), metaData, format, subsetSize,
+                supersetSize, significanceHeuristic, buckets);
     }
 
     @Override
@@ -187,50 +145,16 @@ public class SignificantStringTerms extends InternalSignificantTerms<Significant
     }
 
     @Override
-    protected SignificantStringTerms create(long subsetSize, long supersetSize, List<InternalSignificantTerms.Bucket> buckets,
-            InternalSignificantTerms prototype) {
-        return new SignificantStringTerms(subsetSize, supersetSize, prototype.getName(), prototype.format, prototype.requiredSize,
-                prototype.minDocCount, prototype.significanceHeuristic, buckets, prototype.pipelineAggregators(), prototype.getMetaData());
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        this.format = in.readNamedWriteable(DocValueFormat.class);
-        this.requiredSize = readSize(in);
-        this.minDocCount = in.readVLong();
-        this.subsetSize = in.readVLong();
-        this.supersetSize = in.readVLong();
-        significanceHeuristic = in.readNamedWriteable(SignificanceHeuristic.class);
-        int size = in.readVInt();
-        List<InternalSignificantTerms.Bucket> buckets = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            Bucket bucket = new Bucket(subsetSize, supersetSize, format);
-            bucket.readFrom(in);
-            buckets.add(bucket);
-        }
-        this.buckets = buckets;
-        this.bucketMap = null;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(format);
-        writeSize(requiredSize, out);
-        out.writeVLong(minDocCount);
-        out.writeVLong(subsetSize);
-        out.writeVLong(supersetSize);
-        out.writeNamedWriteable(significanceHeuristic);
-        out.writeVInt(buckets.size());
-        for (InternalSignificantTerms.Bucket bucket : buckets) {
-            bucket.writeTo(out);
-        }
+    protected SignificantStringTerms create(long subsetSize, long supersetSize, List<Bucket> buckets) {
+        return new SignificantStringTerms(getName(), requiredSize, minDocCount, pipelineAggregators(), getMetaData(), format, subsetSize,
+                supersetSize, significanceHeuristic, buckets);
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("doc_count", subsetSize);
         builder.startArray(CommonFields.BUCKETS);
-        for (InternalSignificantTerms.Bucket bucket : buckets) {
+        for (Bucket bucket : buckets) {
             //There is a condition (presumably when only one shard has a bucket?) where reduce is not called
             // and I end up with buckets that contravene the user's min_doc_count criteria in my reducer
             if (bucket.subsetDf >= minDocCount) {
@@ -241,4 +165,8 @@ public class SignificantStringTerms extends InternalSignificantTerms<Significant
         return builder;
     }
 
+    @Override
+    protected Bucket[] createBucketsArray(int size) {
+        return new Bucket[size];
+    }
 }

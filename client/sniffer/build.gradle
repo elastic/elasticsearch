@@ -26,6 +26,8 @@ apply plugin: 'ru.vyarus.animalsniffer'
 targetCompatibility = JavaVersion.VERSION_1_7
 sourceCompatibility = JavaVersion.VERSION_1_7
 
+group = 'org.elasticsearch.client'
+
 dependencies {
   compile "org.elasticsearch.client:rest:${version}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -54,6 +56,11 @@ forbiddenApisTest {
   bundledSignatures += 'jdk-internal'
   //client does not depend on core, so only jdk signatures should be checked
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+}
+
+dependencyLicenses {
+  mapping from: /http.*/, to: 'httpclient'
+  mapping from: /commons-.*/, to: 'commons'
 }
 
 //JarHell is part of es core, which we don't want to pull in

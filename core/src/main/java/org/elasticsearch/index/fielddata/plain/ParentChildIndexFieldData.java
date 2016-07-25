@@ -158,7 +158,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         }
         try {
             return cache.load(indexReader, this);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
             } else {

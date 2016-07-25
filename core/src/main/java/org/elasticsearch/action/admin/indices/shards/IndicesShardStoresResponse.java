@@ -57,7 +57,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         private DiscoveryNode node;
         private long legacyVersion;
         private String allocationId;
-        private Throwable storeException;
+        private Exception storeException;
         private AllocationStatus allocationStatus;
 
         /**
@@ -116,7 +116,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         private StoreStatus() {
         }
 
-        public StoreStatus(DiscoveryNode node, long legacyVersion, String allocationId, AllocationStatus allocationStatus, Throwable storeException) {
+        public StoreStatus(DiscoveryNode node, long legacyVersion, String allocationId, AllocationStatus allocationStatus, Exception storeException) {
             this.node = node;
             this.legacyVersion = legacyVersion;
             this.allocationId = allocationId;
@@ -150,7 +150,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
          * Exception while trying to open the
          * shard index or from when the shard failed
          */
-        public Throwable getStoreException() {
+        public Exception getStoreException() {
             return storeException;
         }
 
@@ -177,7 +177,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
             allocationId = in.readOptionalString();
             allocationStatus = AllocationStatus.readFrom(in);
             if (in.readBoolean()) {
-                storeException = in.readThrowable();
+                storeException = in.readException();
             }
         }
 
@@ -189,7 +189,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
             allocationStatus.writeTo(out);
             if (storeException != null) {
                 out.writeBoolean(true);
-                out.writeThrowable(storeException);
+                out.writeException(storeException);
             } else {
                 out.writeBoolean(false);
             }

@@ -79,7 +79,7 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
             return queryBuilder;
         } catch (ParsingException e) {
             throw e;
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new ParsingException(parser == null ? null : parser.getTokenLocation(), "Failed to parse", e);
         }
     }

@@ -18,9 +18,10 @@
  */
 package org.elasticsearch.http;
 
-import org.elasticsearch.cluster.service.ClusterService;
+import java.util.Collections;
+import java.util.Map;
+
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.ByteBufferBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
-import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -42,10 +42,6 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.Map;
 
 public class HttpServerTests extends ESTestCase {
     private static final ByteSizeValue BREAKER_LIMIT = new ByteSizeValue(20);
@@ -64,19 +60,15 @@ public class HttpServerTests extends ESTestCase {
         inFlightRequestsBreaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
 
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
-        RestController restController = new RestController(settings);
+        RestController restController = new RestController(settings, Collections.emptySet());
         restController.registerHandler(RestRequest.Method.GET, "/",
-            (request, channel) -> channel.sendResponse(
+            (request, channel, client) -> channel.sendResponse(
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
-        restController.registerHandler(RestRequest.Method.GET, "/error", (request, channel) -> {
+        restController.registerHandler(RestRequest.Method.GET, "/error", (request, channel, client) -> {
                 throw new IllegalArgumentException("test error");
             });
 
-        ClusterService clusterService = new ClusterService(Settings.EMPTY,
-            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null);
-        NodeService nodeService = new NodeService(Settings.EMPTY, null, null, null, null, null, null, null, null,
-            clusterService, null);
-        httpServer = new HttpServer(settings, httpServerTransport, restController, nodeService, circuitBreakerService);
+        httpServer = new HttpServer(settings, httpServerTransport, restController, null, circuitBreakerService);
         httpServer.start();
     }
 
@@ -129,7 +121,7 @@ public class HttpServerTests extends ESTestCase {
         assertEquals(0, inFlightRequestsBreaker.getUsed());
     }
 
-    private static final class TestHttpServerTransport extends AbstractLifecycleComponent<HttpServerTransport> implements
+    private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements
         HttpServerTransport {
 
         public TestHttpServerTransport() {
@@ -197,12 +189,12 @@ public class HttpServerTests extends ESTestCase {
     }
 
     private static final class TestRestRequest extends RestRequest {
-        private final String path;
+
         private final BytesReference content;
 
         private TestRestRequest(String path, String content) {
-            this.path = path;
-            this.content = new ByteBufferBytesReference(ByteBuffer.wrap(content.getBytes(StandardCharsets.UTF_8)));
+            super(Collections.emptyMap(), path);
+            this.content = new BytesArray(content);
         }
 
         @Override
@@ -213,11 +205,6 @@ public class HttpServerTests extends ESTestCase {
         @Override
         public String uri() {
             return null;
-        }
-
-        @Override
-        public String rawPath() {
-            return path;
         }
 
         @Override
@@ -240,24 +227,5 @@ public class HttpServerTests extends ESTestCase {
             return null;
         }
 
-        @Override
-        public boolean hasParam(String key) {
-            return false;
-        }
-
-        @Override
-        public String param(String key) {
-            return null;
-        }
-
-        @Override
-        public String param(String key, String defaultValue) {
-            return null;
-        }
-
-        @Override
-        public Map<String, String> params() {
-            return null;
-        }
     }
 }

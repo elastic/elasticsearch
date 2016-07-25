@@ -87,12 +87,12 @@ the stemming is determined by the quality of the dictionary.
 [float]
 ==== Dictionary loading
 
-By default, the default Hunspell directory (`config/hunspell/`) is checked 
-for dictionaries when the node starts up, and any dictionaries are 
+By default, the default Hunspell directory (`config/hunspell/`) is checked
+for dictionaries when the node starts up, and any dictionaries are
 automatically loaded.
 
 Dictionary loading can be deferred until they are actually used by setting
-`indices.analysis.hunspell.dictionary.lazy` to `true`in the config file.
+`indices.analysis.hunspell.dictionary.lazy` to `true` in the config file.
 
 [float]
 ==== References

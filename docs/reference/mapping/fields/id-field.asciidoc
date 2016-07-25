@@ -7,8 +7,8 @@ indexed as its value can be derived automatically from the
 <<mapping-uid-field,`_uid`>> field.
 
 The value of the `_id` field is accessible in certain queries (`term`,
-`terms`, `match`, `query_string`, `simple_query_string`) and scripts, but
-_not_ in aggregations or when sorting, where the <<mapping-uid-field,`_uid`>>
+`terms`, `match`, `query_string`, `simple_query_string`), but
+_not_ in aggregations, scripts or when sorting, where the <<mapping-uid-field,`_uid`>>
 field should be used instead:
 
 [source,js]
@@ -30,18 +30,9 @@ GET my_index/_search
     "terms": {
       "_id": [ "1", "2" ] <1>
     }
-  },
-  "script_fields": {
-    "UID": {
-      "script": {
-         "lang": "painless",
-         "inline": "doc['_id']" <2>
-      }
-    }
   }
 }
 --------------------------
 // CONSOLE
 
 <1> Querying on the `_id` field (also see the <<query-dsl-ids-query,`ids` query>>)
-<2> Accessing the `_id` field in scripts

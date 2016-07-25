@@ -36,4 +36,3 @@ publishing {
 }
 
 integTest.dependsOn buildZip
-

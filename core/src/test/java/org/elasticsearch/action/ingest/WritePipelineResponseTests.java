@@ -35,7 +35,7 @@ public class WritePipelineResponseTests extends ESTestCase {
         response = new WritePipelineResponse(isAcknowledged);
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
-        StreamInput streamInput = StreamInput.wrap(out.bytes());
+        StreamInput streamInput = out.bytes().streamInput();
         WritePipelineResponse otherResponse = new WritePipelineResponse();
         otherResponse.readFrom(streamInput);
 
@@ -46,7 +46,7 @@ public class WritePipelineResponseTests extends ESTestCase {
         WritePipelineResponse response = new WritePipelineResponse();
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
-        StreamInput streamInput = StreamInput.wrap(out.bytes());
+        StreamInput streamInput = out.bytes().streamInput();
         WritePipelineResponse otherResponse = new WritePipelineResponse();
         otherResponse.readFrom(streamInput);
 

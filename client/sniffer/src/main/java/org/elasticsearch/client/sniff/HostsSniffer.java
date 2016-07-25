@@ -62,9 +62,8 @@ public class HostsSniffer {
      * Calls the elasticsearch nodes info api, parses the response and returns all the found http hosts
      */
     public List<HttpHost> sniffHosts() throws IOException {
-        try (Response response = restClient.performRequest("get", "/_nodes/http", sniffRequestParams, null)) {
-            return readHosts(response.getEntity());
-        }
+        Response response = restClient.performRequest("get", "/_nodes/http", sniffRequestParams);
+        return readHosts(response.getEntity());
     }
 
     private List<HttpHost> readHosts(HttpEntity entity) throws IOException {
@@ -156,7 +155,7 @@ public class HostsSniffer {
 
         private final RestClient restClient;
         private long sniffRequestTimeoutMillis = DEFAULT_SNIFF_REQUEST_TIMEOUT;
-        private Scheme scheme;
+        private Scheme scheme = Scheme.HTTP;
 
         private Builder(RestClient restClient) {
             Objects.requireNonNull(restClient, "restClient cannot be null");

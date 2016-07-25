@@ -43,7 +43,7 @@ public class SubSearchContext extends FilteredSearchContext {
 
     // By default return 3 hits per bucket. A higher default would make the response really large by default, since
     // the to hits are returned per bucket.
-    private final static int DEFAULT_SIZE = 3;
+    private static final int DEFAULT_SIZE = 3;
 
     private int from;
     private int size = DEFAULT_SIZE;

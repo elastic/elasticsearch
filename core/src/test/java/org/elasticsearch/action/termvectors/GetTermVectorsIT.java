@@ -39,7 +39,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,7 +54,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -70,8 +68,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .endObject()
                 .endObject().endObject();
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
-
-        ensureYellow();
 
         client().prepareIndex("test", "type1", "666").setSource("field", "foo bar").execute().actionGet();
         refresh();
@@ -97,8 +93,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .endObject().endObject();
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
 
-        ensureYellow();
-
         // when indexing a field that simply has a question mark, the term vectors will be null
         client().prepareIndex("test", "type1", "0").setSource("existingfield", "?").execute().actionGet();
         refresh();
@@ -123,8 +117,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .endObject()
                 .endObject().endObject();
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("type1", mapping));
-
-        ensureYellow();
 
         // when indexing a field that simply has a question mark, the term vectors will be null
         client().prepareIndex("test", "type1", "0").setSource("anotherexistingfield", 1).execute().actionGet();
@@ -153,8 +145,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         "field3", "type=text,index=false,term_vector=yes", // no tvs
                         "field4", "type=keyword", // yes tvs
                         "field5", "type=text,index=true")); // yes tvs
-
-        ensureYellow();
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         for (int i = 0; i < 6; i++) {
@@ -200,7 +190,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         .put(indexSettings())
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
-        ensureYellow();
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog")
@@ -286,7 +275,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                 .setSettings(Settings.builder()
                         .put("index.analysis.analyzer.tv_test.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase")));
-        ensureYellow();
         for (int i = 0; i < 10; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource(jsonBuilder().startObject().field("field", "the quick brown fox jumps over the lazy dog")
@@ -391,19 +379,15 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         TestConfig[] testConfigs = generateTestConfigs(20, testDocs, testFieldSettings);
 
         for (TestConfig test : testConfigs) {
-            try {
-                TermVectorsRequestBuilder request = getRequestForConfig(test);
-                if (test.expectedException != null) {
-                    assertThrows(request, test.expectedException);
-                    continue;
-                }
-
-                TermVectorsResponse response = request.get();
-                Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
-                validateResponse(response, luceneTermVectors, test);
-            } catch (Throwable t) {
-                throw new Exception("Test exception while running " + test.toString(), t);
+            TermVectorsRequestBuilder request = getRequestForConfig(test);
+            if (test.expectedException != null) {
+                assertThrows(request, test.expectedException);
+                continue;
             }
+
+            TermVectorsResponse response = request.get();
+            Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
+            validateResponse(response, luceneTermVectors, test);
         }
     }
 
@@ -436,7 +420,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
                         .put("index.analysis.filter.my_delimited_payload_filter.delimiter", delimiter)
                         .put("index.analysis.filter.my_delimited_payload_filter.encoding", encodingString)
                         .put("index.analysis.filter.my_delimited_payload_filter.type", "delimited_payload_filter")));
-        ensureYellow();
 
         client().prepareIndex("test", "type1", Integer.toString(1))
                 .setSource(jsonBuilder().startObject().field("field", queryString).endObject()).execute().actionGet();
@@ -963,21 +946,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         return randomBoolean() ? "test" : "alias";
     }
 
-    private Map<String, Integer> getFieldStatistics(Map<String, Object> stats, String fieldName) throws IOException {
-        return (Map<String, Integer>) ((Map<String, Object>) stats.get(fieldName)).get("field_statistics");
-    }
-
-    private Map<String, Integer> getTermStatistics(Map<String, Object> stats, String fieldName, String term) {
-        return (Map<String, Integer>) ((Map<String, Object>) ((Map<String, Object>) stats.get(fieldName)).get("terms")).get(term);
-    }
-
-    private Matcher<Integer> equalOrLessThanTo(Integer value, boolean isEqual) {
-        if (isEqual) {
-            return equalTo(value);
-        }
-        return lessThan(value);
-    }
-
     public void testTermVectorsWithVersion() {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
                 .setSettings(Settings.builder().put("index.refresh_interval", -1)));
@@ -1089,7 +1057,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
                 .addMapping("type1", "tags", "type=text"));
-        ensureYellow();
 
         int numTerms = scaledRandomIntBetween(10, 50);
         logger.info("Indexing one document with tags of increasing length ...");
@@ -1127,7 +1094,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
                 .addMapping("type1", "tags", "type=text"));
-        ensureYellow();
 
         logger.info("Indexing one document with tags of increasing frequencies ...");
         int numTerms = scaledRandomIntBetween(10, 50);
@@ -1168,7 +1134,6 @@ public class GetTermVectorsIT extends AbstractTermVectorsTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(settings)
                 .addMapping("type1", "tags", "type=text"));
-        ensureYellow();
 
         int numDocs = scaledRandomIntBetween(10, 50); // as many terms as there are docs
         logger.info("Indexing {} documents with tags of increasing dfs ...", numDocs);

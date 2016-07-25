@@ -21,6 +21,7 @@ package org.elasticsearch.test.rest.parser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.section.RestTestSuite;
+import org.elasticsearch.test.rest.section.TeardownSection;
 import org.elasticsearch.test.rest.section.TestSection;
 
 import java.io.IOException;
@@ -70,11 +71,13 @@ public class RestTestSuiteParser implements RestTestFragmentParser<RestTestSuite
         XContentParser parser = parseContext.parser();
 
         parser.nextToken();
-        assert parser.currentToken() == XContentParser.Token.START_OBJECT : "expected token to be START_OBJECT but was " + parser.currentToken();
+        assert parser.currentToken() == XContentParser.Token.START_OBJECT : "expected token to be START_OBJECT but was "
+                + parser.currentToken();
 
         RestTestSuite restTestSuite = new RestTestSuite(parseContext.getApi(), parseContext.getSuiteName());
 
         restTestSuite.setSetupSection(parseContext.parseSetupSection());
+        restTestSuite.setTeardownSection(parseContext.parseTeardownSection());
 
         while(true) {
             //the "---" section separator is not understood by the yaml parser. null is returned, same as when the parser is closed
@@ -88,7 +91,8 @@ public class RestTestSuiteParser implements RestTestFragmentParser<RestTestSuite
 
             TestSection testSection = parseContext.parseTestSection();
             if (!restTestSuite.addTestSection(testSection)) {
-                throw new RestTestParseException("duplicate test section [" + testSection.getName() + "] found in [" + restTestSuite.getPath() + "]");
+                throw new RestTestParseException("duplicate test section [" + testSection.getName() + "] found in ["
+                        + restTestSuite.getPath() + "]");
             }
         }
 

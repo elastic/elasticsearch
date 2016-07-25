@@ -33,7 +33,8 @@ public class GreaterThanEqualToParser implements RestTestFragmentParser<GreaterT
     public GreaterThanEqualToAssertion parse(RestTestSuiteParseContext parseContext) throws IOException, RestTestParseException {
         Tuple<String,Object> stringObjectTuple = parseContext.parseTuple();
         if (! (stringObjectTuple.v2() instanceof Comparable) ) {
-            throw new RestTestParseException("gte section can only be used with objects that support natural ordering, found " + stringObjectTuple.v2().getClass().getSimpleName());
+            throw new RestTestParseException("gte section can only be used with objects that support natural ordering, found "
+                    + stringObjectTuple.v2().getClass().getSimpleName());
         }
         return new GreaterThanEqualToAssertion(stringObjectTuple.v1(), stringObjectTuple.v2());
     }

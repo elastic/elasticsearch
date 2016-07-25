@@ -249,7 +249,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     /**
      * Test class for testing task operations
      */
-    static abstract class TestTasksAction extends TransportTasksAction<Task, TestTasksRequest, TestTasksResponse, TestTaskResponse> {
+    abstract static class TestTasksAction extends TransportTasksAction<Task, TestTasksRequest, TestTasksResponse, TestTaskResponse> {
 
         protected TestTasksAction(Settings settings, String actionName, ThreadPool threadPool,
                 ClusterService clusterService, TransportService transportService) {
@@ -338,7 +338,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 logger.warn("Couldn't get list of tasks", e);
                 responseLatch.countDown();
             }
@@ -526,7 +526,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 responseLatch.countDown();
             }
         });

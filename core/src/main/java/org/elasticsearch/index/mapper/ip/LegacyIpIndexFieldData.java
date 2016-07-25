@@ -52,19 +52,19 @@ final class LegacyIpIndexFieldData implements IndexFieldData<AtomicFieldData> {
         this.logger = Loggers.getLogger(getClass());
     }
 
-    public final String getFieldName() {
+    public String getFieldName() {
         return fieldName;
     }
 
-    public final void clear() {
+    public void clear() {
         // nothing to do
     }
 
-    public final void clear(IndexReader reader) {
+    public void clear(IndexReader reader) {
         // nothing to do
     }
 
-    public final Index index() {
+    public Index index() {
         return index;
     }
 

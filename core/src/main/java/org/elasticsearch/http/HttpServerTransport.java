@@ -22,10 +22,7 @@ package org.elasticsearch.http;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 
-/**
- *
- */
-public interface HttpServerTransport extends LifecycleComponent<HttpServerTransport> {
+public interface HttpServerTransport extends LifecycleComponent {
 
     BoundTransportAddress boundAddress();
 
@@ -34,4 +31,5 @@ public interface HttpServerTransport extends LifecycleComponent<HttpServerTransp
     HttpStats stats();
 
     void httpServerAdapter(HttpServerAdapter httpServerAdapter);
+
 }

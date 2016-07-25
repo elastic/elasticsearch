@@ -237,6 +237,15 @@ public abstract class StreamOutput extends OutputStream {
         writeByte((byte) (value & 0x7F));
     }
 
+    public void writeOptionalLong(@Nullable Long l) throws IOException {
+        if (l == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeLong(l);
+        }
+    }
+
     public void writeOptionalString(@Nullable String str) throws IOException {
         if (str == null) {
             writeBoolean(false);
@@ -314,7 +323,7 @@ public abstract class StreamOutput extends OutputStream {
         writeLong(Double.doubleToLongBits(v));
     }
 
-    public void writeOptionalDouble(Double v) throws IOException {
+    public void writeOptionalDouble(@Nullable Double v) throws IOException {
         if (v == null) {
             writeBoolean(false);
         } else {
@@ -403,12 +412,27 @@ public abstract class StreamOutput extends OutputStream {
         writeGenericValue(map);
     }
 
+    /**
+     * Writes a map of strings to string lists.
+     */
+    public void writeMapOfLists(Map<String, List<String>> map) throws IOException {
+        writeVInt(map.size());
+
+        for (Map.Entry<String, List<String>> entry : map.entrySet()) {
+            writeString(entry.getKey());
+            writeVInt(entry.getValue().size());
+            for (String v : entry.getValue()) {
+                writeString(v);
+            }
+        }
+    }
+
     @FunctionalInterface
     interface Writer {
         void write(StreamOutput o, Object value) throws IOException;
     }
 
-    private final static Map<Class<?>, Writer> WRITERS;
+    private static final Map<Class<?>, Writer> WRITERS;
 
     static {
         Map<Class<?>, Writer> writers = new HashMap<>();
@@ -631,7 +655,7 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeThrowable(Throwable throwable) throws IOException {
+    public void writeException(Throwable throwable) throws IOException {
         if (throwable == null) {
             writeBoolean(false);
         } else {
@@ -687,13 +711,11 @@ public abstract class StreamOutput extends OutputStream {
             } else if (throwable instanceof ArrayIndexOutOfBoundsException) {
                 writeVInt(11);
                 writeCause = false;
-            } else if (throwable instanceof AssertionError) {
-                writeVInt(12);
             } else if (throwable instanceof FileNotFoundException) {
-                writeVInt(13);
+                writeVInt(12);
                 writeCause = false;
             } else if (throwable instanceof FileSystemException) {
-                writeVInt(14);
+                writeVInt(13);
                 if (throwable instanceof NoSuchFileException) {
                     writeVInt(0);
                 } else if (throwable instanceof NotDirectoryException) {
@@ -715,18 +737,15 @@ public abstract class StreamOutput extends OutputStream {
                 writeOptionalString(((FileSystemException) throwable).getOtherFile());
                 writeOptionalString(((FileSystemException) throwable).getReason());
                 writeCause = false;
-            } else if (throwable instanceof OutOfMemoryError) {
-                writeVInt(15);
-                writeCause = false;
             } else if (throwable instanceof IllegalStateException) {
-                writeVInt(16);
+                writeVInt(14);
             } else if (throwable instanceof LockObtainFailedException) {
-                writeVInt(17);
+                writeVInt(15);
             } else if (throwable instanceof InterruptedException) {
-                writeVInt(18);
+                writeVInt(16);
                 writeCause = false;
             } else if (throwable instanceof IOException) {
-                writeVInt(19);
+                writeVInt(17);
             } else {
                 ElasticsearchException ex;
                 if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(throwable.getClass())) {
@@ -744,7 +763,7 @@ public abstract class StreamOutput extends OutputStream {
                 writeOptionalString(throwable.getMessage());
             }
             if (writeCause) {
-                writeThrowable(throwable.getCause());
+                writeException(throwable.getCause());
             }
             ElasticsearchException.writeStackTraces(throwable, this);
         }
@@ -788,7 +807,7 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Write an optional {@linkplain DateTimeZone} to the stream.
      */
-    public void writeOptionalTimeZone(DateTimeZone timeZone) throws IOException {
+    public void writeOptionalTimeZone(@Nullable DateTimeZone timeZone) throws IOException {
         if (timeZone == null) {
             writeBoolean(false);
         } else {
@@ -814,6 +833,16 @@ public abstract class StreamOutput extends OutputStream {
         writeVInt(list.size());
         for (Writeable obj: list) {
             obj.writeTo(this);
+        }
+    }
+
+    /**
+     * Writes a list of {@link NamedWriteable} objects.
+     */
+    public void writeNamedWriteableList(List<? extends NamedWriteable> list) throws IOException {
+        writeVInt(list.size());
+        for (NamedWriteable obj: list) {
+            writeNamedWriteable(obj);
         }
     }
 }

@@ -60,7 +60,7 @@ public class NestedAggregatorFactory extends AggregatorFactory<NestedAggregatorF
         return new NestedAggregator(name, factories, objectMapper, context, parent, pipelineAggregators, metaData);
     }
 
-    private final static class Unmapped extends NonCollectingAggregator {
+    private static final class Unmapped extends NonCollectingAggregator {
 
         public Unmapped(String name, AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) throws IOException {

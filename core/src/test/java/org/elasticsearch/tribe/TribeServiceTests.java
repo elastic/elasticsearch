@@ -19,6 +19,7 @@
 
 package org.elasticsearch.tribe;
 
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -27,15 +28,17 @@ public class TribeServiceTests extends ESTestCase {
         Settings globalSettings = Settings.builder()
             .put("node.name", "nodename")
             .put("path.home", "some/path").build();
-        Settings clientSettings = TribeService.buildClientSettings("tribe1", globalSettings, Settings.EMPTY);
+        Settings clientSettings = TribeService.buildClientSettings("tribe1", "parent_id", globalSettings, Settings.EMPTY);
         assertEquals("some/path", clientSettings.get("path.home"));
         assertEquals("nodename/tribe1", clientSettings.get("node.name"));
         assertEquals("tribe1", clientSettings.get("tribe.name"));
-        assertEquals("false", clientSettings.get("http.enabled"));
+        assertFalse(NetworkModule.HTTP_ENABLED.get(clientSettings));
         assertEquals("false", clientSettings.get("node.master"));
         assertEquals("false", clientSettings.get("node.data"));
         assertEquals("false", clientSettings.get("node.ingest"));
-        assertEquals(7, clientSettings.getAsMap().size());
+        assertEquals("false", clientSettings.get("node.local_storage"));
+        assertEquals("3707202549613653169", clientSettings.get("node.id.seed")); // should be fixed by the parent id and tribe name
+        assertEquals(9, clientSettings.getAsMap().size());
     }
 
     public void testEnvironmentSettings() {
@@ -45,7 +48,7 @@ public class TribeServiceTests extends ESTestCase {
             .put("path.conf", "conf/path")
             .put("path.scripts", "scripts/path")
             .put("path.logs", "logs/path").build();
-        Settings clientSettings = TribeService.buildClientSettings("tribe1", globalSettings, Settings.EMPTY);
+        Settings clientSettings = TribeService.buildClientSettings("tribe1", "parent_id", globalSettings, Settings.EMPTY);
         assertEquals("some/path", clientSettings.get("path.home"));
         assertEquals("conf/path", clientSettings.get("path.conf"));
         assertEquals("scripts/path", clientSettings.get("path.scripts"));
@@ -54,7 +57,7 @@ public class TribeServiceTests extends ESTestCase {
         Settings tribeSettings = Settings.builder()
             .put("path.home", "alternate/path").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            TribeService.buildClientSettings("tribe1", globalSettings, tribeSettings);
+            TribeService.buildClientSettings("tribe1", "parent_id", globalSettings, tribeSettings);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("Setting [path.home] not allowed in tribe client"));
     }
@@ -69,7 +72,7 @@ public class TribeServiceTests extends ESTestCase {
             .put("transport.host", "3.3.3.3")
             .put("transport.bind_host", "4.4.4.4")
             .put("transport.publish_host", "5.5.5.5").build();
-        Settings clientSettings = TribeService.buildClientSettings("tribe1", globalSettings, Settings.EMPTY);
+        Settings clientSettings = TribeService.buildClientSettings("tribe1", "parent_id", globalSettings, Settings.EMPTY);
         assertEquals("0.0.0.0", clientSettings.get("network.host"));
         assertEquals("1.1.1.1", clientSettings.get("network.bind_host"));
         assertEquals("2.2.2.2", clientSettings.get("network.publish_host"));
@@ -85,7 +88,7 @@ public class TribeServiceTests extends ESTestCase {
             .put("transport.host", "6.6.6.6")
             .put("transport.bind_host", "7.7.7.7")
             .put("transport.publish_host", "8.8.8.8").build();
-        clientSettings = TribeService.buildClientSettings("tribe1", globalSettings, tribeSettings);
+        clientSettings = TribeService.buildClientSettings("tribe1", "parent_id", globalSettings, tribeSettings);
         assertEquals("3.3.3.3", clientSettings.get("network.host"));
         assertEquals("4.4.4.4", clientSettings.get("network.bind_host"));
         assertEquals("5.5.5.5", clientSettings.get("network.publish_host"));

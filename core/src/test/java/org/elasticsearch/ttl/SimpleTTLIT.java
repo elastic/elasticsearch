@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.nullValue;
 @ClusterScope(scope= Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class SimpleTTLIT extends ESIntegTestCase {
 
-    static private final long PURGE_INTERVAL = 200;
+    private static final long PURGE_INTERVAL = 200;
 
     @Override
     protected int numberOfShards() {
@@ -96,7 +96,6 @@ public class SimpleTTLIT extends ESIntegTestCase {
                         .startObject("_ttl").field("enabled", true).field("default", "1d").endObject()
                         .endObject()
                         .endObject()));
-        ensureYellow("test");
 
         final NumShards test = getNumShards("test");
 
@@ -252,7 +251,6 @@ public class SimpleTTLIT extends ESIntegTestCase {
                         .startObject("_ttl").field("enabled", true).endObject()
                         .endObject()
                         .endObject()));
-        ensureYellow("test");
 
         long aLongTime = 10000000;
         long firstTtl = aLongTime * 3;

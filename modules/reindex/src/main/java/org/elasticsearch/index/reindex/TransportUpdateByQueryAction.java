@@ -41,7 +41,6 @@ import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -85,36 +84,36 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         public AsyncIndexBySearchAction(BulkByScrollTask task, ESLogger logger, ParentTaskAssigningClient client, ThreadPool threadPool,
                                         UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener,
                                         ScriptService scriptService, ClusterState clusterState) {
-            super(task, logger, client, threadPool, request, request.getSearchRequest(), listener, scriptService, clusterState);
+            super(task, logger, client, threadPool, request, listener, scriptService, clusterState);
         }
 
         @Override
-        protected BiFunction<RequestWrapper<?>, SearchHit, RequestWrapper<?>> buildScriptApplier() {
+        protected BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
             Script script = mainRequest.getScript();
             if (script != null) {
-                return new UpdateByQueryScriptApplier(task, scriptService, script, clusterState, script.getParams());
+                return new UpdateByQueryScriptApplier(task, scriptService, script, script.getParams());
             }
             return super.buildScriptApplier();
         }
 
         @Override
-        protected RequestWrapper<IndexRequest> buildRequest(SearchHit doc) {
+        protected RequestWrapper<IndexRequest> buildRequest(ScrollableHitSource.Hit doc) {
             IndexRequest index = new IndexRequest();
-            index.index(doc.index());
-            index.type(doc.type());
-            index.id(doc.id());
-            index.source(doc.sourceRef());
+            index.index(doc.getIndex());
+            index.type(doc.getType());
+            index.id(doc.getId());
+            index.source(doc.getSource());
             index.versionType(VersionType.INTERNAL);
-            index.version(doc.version());
+            index.version(doc.getVersion());
             index.setPipeline(mainRequest.getPipeline());
             return wrap(index);
         }
 
         class UpdateByQueryScriptApplier extends ScriptApplier {
 
-            UpdateByQueryScriptApplier(BulkByScrollTask task, ScriptService scriptService, Script script, ClusterState state,
+            UpdateByQueryScriptApplier(BulkByScrollTask task, ScriptService scriptService, Script script,
                                  Map<String, Object> params) {
-                super(task, scriptService, script, state, params);
+                super(task, scriptService, script, params);
             }
 
             @Override

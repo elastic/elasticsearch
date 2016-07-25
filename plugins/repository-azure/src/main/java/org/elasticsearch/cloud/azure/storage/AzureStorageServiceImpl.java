@@ -33,6 +33,7 @@ import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -45,15 +46,13 @@ import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 
-public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureStorageServiceImpl>
-    implements AzureStorageService {
+public class AzureStorageServiceImpl extends AbstractComponent implements AzureStorageService {
 
     final AzureStorageSettings primaryStorageSettings;
     final Map<String, AzureStorageSettings> secondariesStorageSettings;
 
     final Map<String, CloudBlobClient> clients;
 
-    @Inject
     public AzureStorageServiceImpl(Settings settings) {
         super(settings);
 
@@ -62,6 +61,20 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         this.secondariesStorageSettings = storageSettings.v2();
 
         this.clients = new HashMap<>();
+
+        logger.debug("starting azure storage client instance");
+
+        // We register the primary client if any
+        if (primaryStorageSettings != null) {
+            logger.debug("registering primary client for account [{}]", primaryStorageSettings.getAccount());
+            createClient(primaryStorageSettings);
+        }
+
+        // We register all secondary clients
+        for (Map.Entry<String, AzureStorageSettings> azureStorageSettingsEntry : secondariesStorageSettings.entrySet()) {
+            logger.debug("registering secondary client for account [{}]", azureStorageSettingsEntry.getKey());
+            createClient(azureStorageSettingsEntry.getValue());
+        }
     }
 
     void createClient(AzureStorageSettings azureStorageSettings) {
@@ -301,33 +314,5 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
             blobSource.delete();
             logger.debug("moveBlob container [{}], sourceBlob [{}], targetBlob [{}] -> done", container, sourceBlob, targetBlob);
         }
-    }
-
-    @Override
-    protected void doStart() throws ElasticsearchException {
-        logger.debug("starting azure storage client instance");
-
-        // We register the primary client if any
-        if (primaryStorageSettings != null) {
-            logger.debug("registering primary client for account [{}]", primaryStorageSettings.getAccount());
-            createClient(primaryStorageSettings);
-        }
-
-        // We register all secondary clients
-        for (Map.Entry<String, AzureStorageSettings> azureStorageSettingsEntry : secondariesStorageSettings.entrySet()) {
-            logger.debug("registering secondary client for account [{}]", azureStorageSettingsEntry.getKey());
-            createClient(azureStorageSettingsEntry.getValue());
-        }
-    }
-
-    @Override
-    protected void doStop() throws ElasticsearchException {
-        logger.debug("stopping azure storage client instance");
-        // We should stop all clients but it does sound like CloudBlobClient has
-        // any shutdown method...
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
     }
 }

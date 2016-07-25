@@ -86,7 +86,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 "type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("loc").field("type", "geo_point").endObject().endObject().endObject().endObject()));
-        ensureYellow();
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         indexBuilders.add(client().prepareIndex()
@@ -184,7 +183,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 "type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
-        ensureYellow();
 
         // add tw docs within offset
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
@@ -267,7 +265,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                             .endObject()
                         .endObject()
                     .endObject()));
-        ensureYellow();
 
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         indexBuilders.add(client().prepareIndex()
@@ -321,7 +318,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 "type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("loc").field("type", "geo_point").endObject().endObject().endObject().endObject()));
-        ensureYellow();
 
         client().prepareIndex()
                 .setType("type1")
@@ -367,7 +363,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 "type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
-        ensureYellow();
 
         client().prepareIndex().setType("type1").setId("1").setIndex("test").setRefreshPolicy(IMMEDIATE)
                 .setSource(jsonBuilder().startObject().field("test", "value value").field("num", 1.0).endObject()).get();
@@ -448,7 +443,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 "type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num1").field("type", "date").endObject().endObject().endObject().endObject()));
-        ensureYellow();
         client().index(
                 indexRequest("test").type("type1").id("1")
                         .source(jsonBuilder().startObject().field("test", "value").field("num1", "2013-05-27").endObject())).actionGet();
@@ -485,7 +479,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                         .endObject()
                     .endObject()
                 .endObject()));
-        ensureYellow();
         client().index(indexRequest("test").type("type1").id("1")
                 .source(jsonBuilder().startObject().field("test", "value").field("num1", System.currentTimeMillis()).endObject()))
                 .actionGet();
@@ -519,7 +512,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                         .endObject().endObject().endObject().endObject())
         );
 
-        ensureYellow();
 
         client().index(
                 indexRequest("test").type("type1").id("1")
@@ -567,7 +559,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 "type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num1").field("type", "date").endObject().endObject().endObject().endObject()));
-        ensureYellow();
 
         DateTime docDate = dt.minusDays(1);
         String docDateString = docDate.getYear() + "-" + String.format(Locale.ROOT, "%02d", docDate.getMonthOfYear()) + "-"
@@ -625,7 +616,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         }
         xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type", xContentBuilder.string()));
-        ensureYellow();
         int numDocs = 200;
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
 
@@ -675,7 +665,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 "type",
                 jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("geo").field("type", "geo_point").endObject().endObject().endObject().endObject()));
-        ensureYellow();
         int numDocs = 2;
         client().index(
                 indexRequest("test").type("type").source(
@@ -704,7 +693,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 "type",
                 jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num").field("type", "text").endObject().endObject().endObject().endObject()));
-        ensureYellow();
         client().index(
                 indexRequest("test").type("type").source(
                         jsonBuilder().startObject().field("test", "value").field("num", Integer.toString(1)).endObject())).actionGet();
@@ -726,7 +714,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 "type",
                 jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "text")
                         .endObject().startObject("num").field("type", "double").endObject().endObject().endObject().endObject()));
-        ensureYellow();
         client().index(
                 indexRequest("test").type("type").source(jsonBuilder().startObject().field("test", "value").field("num", 1.0).endObject()))
                 .actionGet();
@@ -752,7 +739,6 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                         .endObject()
                     .endObject()
                 .endObject()));
-        ensureYellow();
 
         // Index for testing MIN and MAX
         IndexRequestBuilder doc1 = client().prepareIndex().setType("type1").setId("1").setIndex("test")

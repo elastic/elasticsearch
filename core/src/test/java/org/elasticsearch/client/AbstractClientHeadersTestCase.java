@@ -179,7 +179,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         }
 
         @Override
-        public void onFailure(Throwable t) {
+        public void onFailure(Exception t) {
             Throwable e = unwrap(t, InternalException.class);
             assertThat("expected action [" + action + "] to throw an internal exception", e, notNullValue());
             assertThat(action, equalTo(((InternalException) e).action));

@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -509,7 +510,19 @@ public class Strings {
         else return s.split(",");
     }
 
+    /**
+     * A convenience method for splitting a delimited string into
+     * a set and trimming leading and trailing whitespace from all
+     * split strings.
+     *
+     * @param s the string to split
+     * @param c the delimiter to split on
+     * @return the set of split strings
+     */
     public static Set<String> splitStringToSet(final String s, final char c) {
+        if (s == null || s.isEmpty()) {
+            return Collections.emptySet();
+        }
         final char[] chars = s.toCharArray();
         int count = 1;
         for (final char x : chars) {
@@ -521,16 +534,25 @@ public class Strings {
         final int len = chars.length;
         int start = 0;  // starting index in chars of the current substring.
         int pos = 0;    // current index in chars.
+        int end = 0; // the position of the end of the current token
         for (; pos < len; pos++) {
             if (chars[pos] == c) {
-                int size = pos - start;
+                int size = end - start;
                 if (size > 0) { // only add non empty strings
                     result.add(new String(chars, start, size));
                 }
                 start = pos + 1;
+                end = start;
+            } else if (Character.isWhitespace(chars[pos])) {
+                if (start == pos) {
+                    // skip over preceding whitespace
+                    start++;
+                }
+            } else {
+                end = pos + 1;
             }
         }
-        int size = pos - start;
+        int size = end - start;
         if (size > 0) {
             result.add(new String(chars, start, size));
         }

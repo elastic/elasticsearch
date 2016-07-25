@@ -21,31 +21,28 @@ package org.elasticsearch.percolator;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.search.fetch.FetchSubPhase;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class PercolatorPlugin extends Plugin implements MapperPlugin, ActionPlugin {
+import static java.util.Collections.singletonList;
 
-    public static final String NAME = "percolator";
+public class PercolatorPlugin extends Plugin implements MapperPlugin, ActionPlugin, SearchPlugin {
 
-    private final boolean transportClientMode;
     private final Settings settings;
 
     public PercolatorPlugin(Settings settings) {
-        this.transportClientMode = transportClientMode(settings);
         this.settings = settings;
     }
 
@@ -55,21 +52,24 @@ public class PercolatorPlugin extends Plugin implements MapperPlugin, ActionPlug
                 new ActionHandler<>(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class));
     }
 
-    public void onModule(NetworkModule module) {
-        if (transportClientMode == false) {
-            module.registerRestHandler(RestPercolateAction.class);
-            module.registerRestHandler(RestMultiPercolateAction.class);
-        }
+    @Override
+    public List<Class<? extends RestHandler>> getRestHandlers() {
+        return Arrays.asList(RestPercolateAction.class, RestMultiPercolateAction.class);
     }
 
-    public void onModule(SearchModule module) {
-        module.registerQuery(PercolateQueryBuilder::new, PercolateQueryBuilder::fromXContent, PercolateQueryBuilder.QUERY_NAME_FIELD);
-        module.registerFetchSubPhase(new PercolatorHighlightSubFetchPhase(settings, module.getHighlighters()));
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        return singletonList(new QuerySpec<>(PercolateQueryBuilder.NAME, PercolateQueryBuilder::new, PercolateQueryBuilder::fromXContent));
+    }
+
+    @Override
+    public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
+        return singletonList(new PercolatorHighlightSubFetchPhase(settings, context.getHighlighters()));
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
+        return Collections.singletonList(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
     }
 
     @Override
@@ -77,7 +77,4 @@ public class PercolatorPlugin extends Plugin implements MapperPlugin, ActionPlug
         return Collections.singletonMap(PercolatorFieldMapper.CONTENT_TYPE, new PercolatorFieldMapper.TypeParser());
     }
 
-    static boolean transportClientMode(Settings settings) {
-        return TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
-    }
 }

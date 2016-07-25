@@ -73,6 +73,7 @@ specified as `file` unless you first adjust the default
     variables.
 
 [IMPORTANT]
+[[prefer-params]]
 .Prefer parameters
 ========================================
 

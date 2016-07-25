@@ -73,7 +73,7 @@ public class SimulatePipelineResponseTests extends ESTestCase {
         SimulatePipelineResponse response = new SimulatePipelineResponse(randomAsciiOfLengthBetween(1, 10), isVerbose, results);
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
-        StreamInput streamInput = StreamInput.wrap(out.bytes());
+        StreamInput streamInput = out.bytes().streamInput();
         SimulatePipelineResponse otherResponse = new SimulatePipelineResponse();
         otherResponse.readFrom(streamInput);
 

@@ -68,7 +68,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
             assertEquals(expected.b, parsed.b);
             assertEquals(expected.c, parsed.c);
             assertEquals(expected.d, parsed.d);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             // It is convenient to decorate the error message with the json
             throw new Exception("Error parsing: [" + builder.string() + "]", e);
         }

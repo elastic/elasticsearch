@@ -26,13 +26,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,25 +42,9 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class SerialDiffPipelineAggregator extends PipelineAggregator {
-
-    public final static Type TYPE = new Type("serial_diff");
-
-    public final static PipelineAggregatorStreams.Stream STREAM = in -> {
-        SerialDiffPipelineAggregator result = new SerialDiffPipelineAggregator();
-        result.readFrom(in);
-        return result;
-    };
-
-    public static void registerStreams() {
-        PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     private DocValueFormat formatter;
     private GapPolicy gapPolicy;
     private int lag;
-
-    public SerialDiffPipelineAggregator() {
-    }
 
     public SerialDiffPipelineAggregator(String name, String[] bucketsPaths, @Nullable DocValueFormat formatter, GapPolicy gapPolicy,
                                         int lag, Map<String, Object> metadata) {
@@ -72,9 +54,26 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
         this.lag = lag;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public SerialDiffPipelineAggregator(StreamInput in) throws IOException {
+        super(in);
+        formatter = in.readNamedWriteable(DocValueFormat.class);
+        gapPolicy = GapPolicy.readFrom(in);
+        lag = in.readVInt();
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    public void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(formatter);
+        gapPolicy.writeTo(out);
+        out.writeVInt(lag);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return SerialDiffPipelineAggregationBuilder.NAME;
     }
 
     @Override
@@ -124,19 +123,5 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
 
         }
         return factory.create(newBuckets, histo);
-    }
-
-    @Override
-    public void doReadFrom(StreamInput in) throws IOException {
-        formatter = in.readNamedWriteable(DocValueFormat.class);
-        gapPolicy = GapPolicy.readFrom(in);
-        lag = in.readVInt();
-    }
-
-    @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(formatter);
-        gapPolicy.writeTo(out);
-        out.writeVInt(lag);
     }
 }

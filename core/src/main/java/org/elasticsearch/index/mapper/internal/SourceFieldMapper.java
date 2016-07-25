@@ -23,6 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -256,10 +257,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
             source = bStream.bytes();
         }
-        if (!source.hasArray()) {
-            source = source.toBytesArray();
-        }
-        fields.add(new StoredField(fieldType().name(), source.array(), source.arrayOffset(), source.length()));
+        BytesRef ref = source.toBytesRef();
+        fields.add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
     }
 
     @Override

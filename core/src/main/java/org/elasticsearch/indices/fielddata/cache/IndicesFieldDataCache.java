@@ -48,8 +48,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.ToLongBiFunction;
 
-/**
- */
 public class IndicesFieldDataCache extends AbstractComponent implements RemovalListener<IndicesFieldDataCache.Key, Accountable>, Releasable{
 
     public static final Setting<ByteSizeValue> INDICES_FIELDDATA_CACHE_SIZE_KEY =
@@ -91,7 +89,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         for (IndexFieldDataCache.Listener listener : key.listeners) {
             try {
                 listener.onRemoval(key.shardId, indexCache.fieldName, notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED, value.ramBytesUsed());
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 // load anyway since listeners should not throw exceptions
                 logger.error("Failed to call listener on field data cache unloading", e);
             }
@@ -138,7 +136,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                 for (Listener listener : k.listeners) {
                     try {
                         listener.onCache(shardId, fieldName, fieldData);
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         // load anyway since listeners should not throw exceptions
                         logger.error("Failed to call listener on atomic field data loading", e);
                     }
@@ -162,7 +160,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                 for (Listener listener : k.listeners) {
                     try {
                         listener.onCache(shardId, fieldName, ifd);
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         // load anyway since listeners should not throw exceptions
                         logger.error("Failed to call listener on global ordinals loading", e);
                     }

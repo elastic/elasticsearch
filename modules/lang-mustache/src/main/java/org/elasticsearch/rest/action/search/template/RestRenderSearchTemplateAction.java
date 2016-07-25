@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.search.template;
 
 import org.elasticsearch.action.search.template.SearchTemplateAction;
 import org.elasticsearch.action.search.template.SearchTemplateRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -38,8 +38,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestRenderSearchTemplateAction extends BaseRestHandler {
 
     @Inject
-    public RestRenderSearchTemplateAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestRenderSearchTemplateAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_render/template", this);
         controller.registerHandler(POST, "/_render/template", this);
         controller.registerHandler(GET, "/_render/template/{id}", this);
@@ -47,7 +47,7 @@ public class RestRenderSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
-    protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
+    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         // Creates the render template request
         SearchTemplateRequest renderRequest = RestSearchTemplateAction.parse(RestActions.getRestContent(request));
         renderRequest.setSimulate(true);

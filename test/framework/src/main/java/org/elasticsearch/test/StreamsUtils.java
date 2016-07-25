@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
@@ -53,7 +54,7 @@ public class StreamsUtils {
             }
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 Streams.copy(is, out);
-                return out.bytes().toBytes();
+                return BytesReference.toBytes(out.bytes());
             }
         }
     }

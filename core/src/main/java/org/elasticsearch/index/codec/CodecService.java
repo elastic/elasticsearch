@@ -40,10 +40,10 @@ public class CodecService {
 
     private final Map<String, Codec> codecs;
 
-    public final static String DEFAULT_CODEC = "default";
-    public final static String BEST_COMPRESSION_CODEC = "best_compression";
+    public static final String DEFAULT_CODEC = "default";
+    public static final String BEST_COMPRESSION_CODEC = "best_compression";
     /** the raw unfiltered lucene default. useful for testing */
-    public final static String LUCENE_DEFAULT_CODEC = "lucene_default";
+    public static final String LUCENE_DEFAULT_CODEC = "lucene_default";
 
     public CodecService(@Nullable MapperService mapperService, ESLogger logger) {
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();

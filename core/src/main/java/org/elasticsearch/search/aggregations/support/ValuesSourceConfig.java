@@ -32,7 +32,6 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     private SearchScript script;
     private ValueType scriptValueType;
     private boolean unmapped = false;
-    private String formatPattern;
     private DocValueFormat format = DocValueFormat.RAW;
     private Object missing;
     private DateTimeZone timeZone;

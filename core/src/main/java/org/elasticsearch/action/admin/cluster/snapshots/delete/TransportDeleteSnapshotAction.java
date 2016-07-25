@@ -72,8 +72,8 @@ public class TransportDeleteSnapshotAction extends TransportMasterNodeAction<Del
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                listener.onFailure(t);
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
             }
         });
     }

@@ -113,7 +113,7 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
                 if (counter.decrementAndGet() == 0) {
                     try {
                         executeFetchPhase();
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         listener.onFailure(new SearchPhaseExecutionException("query", "Fetch failed", e, ShardSearchFailure.EMPTY_ARRAY));
                         return;
                     }
@@ -131,32 +131,33 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
                 if (counter.decrementAndGet() == 0) {
                     try {
                         executeFetchPhase();
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         onFailure(e);
                     }
                 }
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 onQueryPhaseFailure(shardIndex, counter, searchId, t);
             }
         });
     }
 
-    void onQueryPhaseFailure(final int shardIndex, final AtomicInteger counter, final long searchId, Throwable t) {
+    void onQueryPhaseFailure(final int shardIndex, final AtomicInteger counter, final long searchId, Exception failure) {
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}] Failed to execute query phase", t, searchId);
+            logger.debug("[{}] Failed to execute query phase", failure, searchId);
         }
-        addShardFailure(shardIndex, new ShardSearchFailure(t));
+        addShardFailure(shardIndex, new ShardSearchFailure(failure));
         successfulOps.decrementAndGet();
         if (counter.decrementAndGet() == 0) {
             if (successfulOps.get() == 0) {
-                listener.onFailure(new SearchPhaseExecutionException("query", "all shards failed", t, buildShardFailures()));
+                listener.onFailure(new SearchPhaseExecutionException("query", "all shards failed", failure, buildShardFailures()));
             } else {
                 try {
                     executeFetchPhase();
-                } catch (Throwable e) {
+                } catch (Exception e) {
+                    e.addSuppressed(failure);
                     listener.onFailure(new SearchPhaseExecutionException("query", "Fetch failed", e, ShardSearchFailure.EMPTY_ARRAY));
                 }
             }
@@ -193,7 +194,7 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
                 }
 
                 @Override
-                public void onFailure(Throwable t) {
+                public void onFailure(Exception t) {
                     if (logger.isDebugEnabled()) {
                         logger.debug("Failed to execute fetch phase", t);
                     }
@@ -209,8 +210,8 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
     private void finishHim() {
         try {
             innerFinishHim();
-        } catch (Throwable e) {
-            listener.onFailure(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures()));
+        } catch (Exception e) {
+            listener.onFailure(new ReduceSearchPhaseException("fetch", "inner finish failed", e, buildShardFailures()));
         }
     }
 

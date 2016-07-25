@@ -20,7 +20,7 @@ package org.elasticsearch.rest.action.admin.indices.template.head;
 
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesRequest;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -42,14 +42,14 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestHeadIndexTemplateAction extends BaseRestHandler {
 
     @Inject
-    public RestHeadIndexTemplateAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestHeadIndexTemplateAction(Settings settings, RestController controller) {
+        super(settings);
 
         controller.registerHandler(HEAD, "/_template/{name}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(request.param("name"));
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
         getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));

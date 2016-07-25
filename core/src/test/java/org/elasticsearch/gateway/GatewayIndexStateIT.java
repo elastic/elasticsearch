@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
@@ -75,9 +76,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_routing")
                     .field("required", true).endObject().endObject().endObject())
                 .execute().actionGet();
-
-        logger.info("--> waiting for yellow status");
-        ensureYellow();
 
         logger.info("--> verify meta _routing required exists");
         MappingMetaData mappingMd = client().admin().cluster().prepareState().execute().actionGet().getState().metaData()
@@ -205,7 +203,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build());
 
         logger.info("--> create an index");
-        client().admin().indices().prepareCreate("test").execute().actionGet();
+        client().admin().indices().prepareCreate("test").setWaitForActiveShards(ActiveShardCount.NONE).execute().actionGet();
 
         logger.info("--> closing master node");
         internalCluster().closeNonSharedNodes(false);
@@ -232,9 +230,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         logger.info("--> create an index");
         client().admin().indices().prepareCreate("test").execute().actionGet();
-
-        logger.info("--> waiting for test index to be created");
-        ensureYellow();
 
         client().prepareIndex("test", "type1").setSource("field1", "value1").setTimeout("100ms").execute().actionGet();
     }
@@ -346,7 +341,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             logger.info("--> created temp data path for shadow replicas [{}]", dataPath);
             logger.info("--> starting a cluster with " + numNodes + " nodes");
             final Settings nodeSettings = Settings.builder()
-                                                  .put("node.add_id_to_custom_path", false)
+                                                  .put("node.add_lock_id_to_custom_path", false)
                                                   .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath.toString())
                                                   .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
                                                   .build();
@@ -426,7 +421,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                  // this one is not validated ahead of time and breaks allocation
                 .put("index.analysis.filter.myCollator.type", "icu_collation")
             ).build();
-            IndexMetaData.FORMAT.write(brokenMeta, brokenMeta.getVersion(), services.indexPaths(brokenMeta.getIndex()));
+            IndexMetaData.FORMAT.write(brokenMeta, services.indexPaths(brokenMeta.getIndex()));
         }
         internalCluster().fullRestart();
         // ensureGreen(closedIndex) waits for the index to show up in the metadata
@@ -483,7 +478,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         for (NodeEnvironment services : internalCluster().getInstances(NodeEnvironment.class)) {
             IndexMetaData brokenMeta = IndexMetaData.builder(metaData).settings(metaData.getSettings()
                 .filter((s) -> "index.analysis.analyzer.test.tokenizer".equals(s) == false)).build();
-            IndexMetaData.FORMAT.write(brokenMeta, brokenMeta.getVersion(), services.indexPaths(brokenMeta.getIndex()));
+            IndexMetaData.FORMAT.write(brokenMeta, services.indexPaths(brokenMeta.getIndex()));
         }
         internalCluster().fullRestart();
         // ensureGreen(closedIndex) waits for the index to show up in the metadata
@@ -521,7 +516,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             MetaData brokenMeta = MetaData.builder(metaData).persistentSettings(Settings.builder()
                 .put(metaData.persistentSettings()).put("this.is.unknown", true)
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), "broken").build()).build();
-            MetaData.FORMAT.write(brokenMeta, metaData.version(), nodeEnv.nodeDataPaths());
+            MetaData.FORMAT.write(brokenMeta, nodeEnv.nodeDataPaths());
         }
         internalCluster().fullRestart();
         ensureYellow("test"); // wait for state recovery

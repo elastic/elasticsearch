@@ -22,6 +22,7 @@ package org.elasticsearch.consistencylevel;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +31,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -37,12 +39,11 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class WriteConsistencyLevelIT extends ESIntegTestCase {
     public void testWriteConsistencyLevelReplication2() throws Exception {
-        prepareCreate("test", 1, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 2)).execute().actionGet();
+        CreateIndexResponse createIndexResponse =
+            prepareCreate("test", 1, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 2))
+                .get();
 
-        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForActiveShards(1).setWaitForYellowStatus().execute().actionGet();
-        logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
+        assertAcked(createIndexResponse);
 
         // indexing, by default, will work (ONE consistency level)
         client().prepareIndex("test", "type1", "1").setSource(source("1", "test")).setConsistencyLevel(WriteConsistencyLevel.ONE).execute().actionGet();
@@ -59,7 +60,13 @@ public class WriteConsistencyLevelIT extends ESIntegTestCase {
 
         allowNodes("test", 2);
 
-        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForActiveShards(2).setWaitForYellowStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealth =
+            client().admin().cluster().prepareHealth()
+                .setWaitForEvents(Priority.LANGUID)
+                .setWaitForActiveShards(2)
+                .setWaitForYellowStatus()
+                .execute()
+                .actionGet();
         logger.info("Done Cluster Health, status {}", clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));

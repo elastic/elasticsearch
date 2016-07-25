@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
@@ -32,7 +33,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.node.Node;
+import org.elasticsearch.transport.MockTransportClient;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -51,7 +52,7 @@ final class ExternalNode implements Closeable {
 
     public static final Settings REQUIRED_SETTINGS = Settings.builder()
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen")
-            .put(Node.NODE_MODE_SETTING.getKey(), "network").build(); // we need network mode for this
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, Randomness.get().nextBoolean() ? "netty3" : "netty4").build(); // we need network mode for this
 
     private final Path path;
     private final Random random;
@@ -106,8 +107,6 @@ final class ExternalNode implements Closeable {
                 case "cluster.name":
                 case "node.name":
                 case "path.home":
-                case "node.mode":
-                case "node.local":
                 case NetworkModule.TRANSPORT_TYPE_KEY:
                 case "discovery.type":
                 case NetworkModule.TRANSPORT_SERVICE_TYPE_KEY:
@@ -190,7 +189,7 @@ final class ExternalNode implements Closeable {
                     .put("client.transport.nodes_sampler_interval", "1s")
                     .put("node.name", "transport_client_" + nodeInfo.getNode().getName())
                     .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName).put("client.transport.sniff", false).build();
-            TransportClient client = TransportClient.builder().settings(clientSettings).build();
+            TransportClient client = new MockTransportClient(clientSettings);
             client.addTransportAddress(addr);
             this.client = client;
         }

@@ -22,23 +22,17 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.config.Registry;
-import org.apache.http.config.RegistryBuilder;
-import org.apache.http.conn.socket.ConnectionSocketFactory;
-import org.apache.http.conn.socket.PlainConnectionSocketFactory;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.message.BasicHeader;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
@@ -82,11 +76,6 @@ public class RestTestClient implements Closeable {
     public static final String TRUSTSTORE_PATH = "truststore.path";
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
 
-    public static final int CONNECT_TIMEOUT_MILLIS = 1000;
-    public static final int SOCKET_TIMEOUT_MILLIS = 30000;
-    public static final int MAX_RETRY_TIMEOUT_MILLIS = SOCKET_TIMEOUT_MILLIS;
-    public static final int CONNECTION_REQUEST_TIMEOUT_MILLIS = 500;
-
     private static final ESLogger logger = Loggers.getLogger(RestTestClient.class);
     //query_string params that don't need to be declared in the spec, thay are supported by default
     private static final Set<String> ALWAYS_ACCEPTED_QUERY_STRING_PARAMS = Sets.newHashSet("pretty", "source", "filter_path");
@@ -113,7 +102,7 @@ public class RestTestClient implements Closeable {
             //we don't really use the urls here, we rely on the client doing round-robin to touch all the nodes in the cluster
             String method = restApi.getMethods().get(0);
             String endpoint = restApi.getPaths().get(0);
-            Response response = restClient.performRequest(method, endpoint, Collections.emptyMap(), null);
+            Response response = restClient.performRequest(method, endpoint);
             RestTestResponse restTestResponse = new RestTestResponse(response);
             Object latestVersion = restTestResponse.evaluate("version.number");
             if (latestVersion == null) {
@@ -147,11 +136,15 @@ public class RestTestClient implements Closeable {
             String path = "/"+ Objects.requireNonNull(queryStringParams.remove("path"), "Path must be set to use raw request");
             HttpEntity entity = null;
             if (body != null && body.length() > 0) {
-                entity = new StringEntity(body, RestClient.JSON_CONTENT_TYPE);
+                entity = new StringEntity(body, ContentType.APPLICATION_JSON);
             }
             // And everything else is a url parameter!
-            Response response = restClient.performRequest(method, path, queryStringParams, entity);
-            return new RestTestResponse(response);
+            try {
+                Response response = restClient.performRequest(method, path, queryStringParams, entity);
+                return new RestTestResponse(response);
+            } catch(ResponseException e) {
+                throw new RestTestResponseException(e);
+            }
         }
 
         List<Integer> ignores = new ArrayList<>();
@@ -212,7 +205,7 @@ public class RestTestClient implements Closeable {
                 requestMethod = "GET";
             } else {
                 requestMethod = RandomizedTest.randomFrom(supportedMethods);
-                requestBody = new StringEntity(body, RestClient.JSON_CONTENT_TYPE);
+                requestBody = new StringEntity(body, ContentType.APPLICATION_JSON);
             }
         } else {
             if (restApi.isBodyRequired()) {
@@ -254,14 +247,13 @@ public class RestTestClient implements Closeable {
 
         logger.debug("calling api [{}]", apiName);
         try {
-            Response response = restClient.performRequest(requestMethod, requestPath,
-                    queryStringParams, requestBody, requestHeaders);
+            Response response = restClient.performRequest(requestMethod, requestPath, queryStringParams, requestBody, requestHeaders);
             return new RestTestResponse(response);
         } catch(ResponseException e) {
             if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
-                return new RestTestResponse(e);
+                return new RestTestResponse(e.getResponse());
             }
-            throw e;
+            throw new RestTestResponseException(e);
         }
     }
 
@@ -274,7 +266,15 @@ public class RestTestClient implements Closeable {
     }
 
     private static RestClient createRestClient(URL[] urls, Settings settings) throws IOException {
-        SSLConnectionSocketFactory sslsf;
+        String protocol = settings.get(PROTOCOL, "http");
+        HttpHost[] hosts = new HttpHost[urls.length];
+        for (int i = 0; i < hosts.length; i++) {
+            URL url = urls[i];
+            hosts[i] = new HttpHost(url.getHost(), url.getPort(), protocol);
+        }
+        RestClientBuilder builder = RestClient.builder(hosts).setMaxRetryTimeoutMillis(30000)
+                .setRequestConfigCallback(requestConfigBuilder -> requestConfigBuilder.setSocketTimeout(30000));
+
         String keystorePath = settings.get(TRUSTSTORE_PATH);
         if (keystorePath != null) {
             final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);
@@ -291,38 +291,13 @@ public class RestTestClient implements Closeable {
                     keyStore.load(is, keystorePass.toCharArray());
                 }
                 SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
-                sslsf = new SSLConnectionSocketFactory(sslcontext);
+                SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslcontext);
+                builder.setHttpClientConfigCallback(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy));
             } catch (KeyStoreException|NoSuchAlgorithmException|KeyManagementException|CertificateException e) {
                 throw new RuntimeException(e);
             }
-        } else {
-            sslsf = SSLConnectionSocketFactory.getSocketFactory();
         }
 
-        Registry<ConnectionSocketFactory> socketFactoryRegistry = RegistryBuilder.<ConnectionSocketFactory>create()
-                .register("http", PlainConnectionSocketFactory.getSocketFactory())
-                .register("https", sslsf)
-                .build();
-        PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager(socketFactoryRegistry);
-        //default settings may be too constraining
-        connectionManager.setDefaultMaxPerRoute(10);
-        connectionManager.setMaxTotal(30);
-
-        //default timeouts are all infinite
-        RequestConfig requestConfig = RequestConfig.custom().setConnectTimeout(CONNECT_TIMEOUT_MILLIS)
-            .setSocketTimeout(SOCKET_TIMEOUT_MILLIS)
-            .setConnectionRequestTimeout(CONNECTION_REQUEST_TIMEOUT_MILLIS).build();
-        CloseableHttpClient httpClient = HttpClientBuilder.create()
-            .setConnectionManager(connectionManager).setDefaultRequestConfig(requestConfig).build();
-
-        String protocol = settings.get(PROTOCOL, "http");
-        HttpHost[] hosts = new HttpHost[urls.length];
-        for (int i = 0; i < hosts.length; i++) {
-            URL url = urls[i];
-            hosts[i] = new HttpHost(url.getHost(), url.getPort(), protocol);
-        }
-
-        RestClient.Builder builder = RestClient.builder(hosts).setHttpClient(httpClient).setMaxRetryTimeoutMillis(MAX_RETRY_TIMEOUT_MILLIS);
         try (ThreadContext threadContext = new ThreadContext(settings)) {
             Header[] defaultHeaders = new Header[threadContext.getHeaders().size()];
             int i = 0;

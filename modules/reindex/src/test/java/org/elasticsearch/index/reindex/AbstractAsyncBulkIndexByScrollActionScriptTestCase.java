@@ -22,21 +22,15 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.reindex.AbstractAsyncBulkIndexByScrollAction.OpType;
 import org.elasticsearch.index.reindex.AbstractAsyncBulkIndexByScrollAction.RequestWrapper;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchHitField;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.InternalSearchHit;
 import org.junit.Before;
 import org.mockito.Matchers;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -63,9 +57,7 @@ public abstract class AbstractAsyncBulkIndexByScrollActionScriptTestCase<
     @SuppressWarnings("unchecked")
     protected <T extends ActionRequest<?>> T applyScript(Consumer<Map<String, Object>> scriptBody) {
         IndexRequest index = new IndexRequest("index", "type", "1").source(singletonMap("foo", "bar"));
-        Map<String, SearchHitField> fields = new HashMap<>();
-        InternalSearchHit doc = new InternalSearchHit(0, "id", new Text("type"), fields);
-        doc.shardTarget(new SearchShardTarget("nodeid", new Index("index", "uuid"), 1));
+        ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "type", "id", 0);
         ExecutableScript executableScript = new SimpleExecutableScript(scriptBody);
 
         when(scriptService.executable(any(CompiledScript.class), Matchers.<Map<String, Object>>any()))

@@ -67,9 +67,8 @@ public interface GoogleCloudStorageService {
 
         private final Environment environment;
 
-        @Inject
-        public InternalGoogleCloudStorageService(Settings settings, Environment environment) {
-            super(settings);
+        public InternalGoogleCloudStorageService(Environment environment) {
+            super(environment.settings());
             this.environment = environment;
         }
 

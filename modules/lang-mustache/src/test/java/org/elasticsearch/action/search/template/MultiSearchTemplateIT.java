@@ -146,14 +146,14 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         SearchTemplateResponse searchTemplateResponse1 = response1.getResponse();
         assertThat(searchTemplateResponse1.hasResponse(), is(true));
         assertHitCount(searchTemplateResponse1.getResponse(), (numDocs / 2) + (numDocs % 2));
-        assertThat(searchTemplateResponse1.getSource().toUtf8(),
+        assertThat(searchTemplateResponse1.getSource().utf8ToString(),
                 equalTo("{\"query\":{\"match\":{\"odd\":\"true\"}}}"));
 
         MultiSearchTemplateResponse.Item response2 = response.getResponses()[1];
         assertThat(response2.isFailure(), is(false));
         SearchTemplateResponse searchTemplateResponse2 = response2.getResponse();
         assertThat(searchTemplateResponse2.hasResponse(), is(false));
-        assertThat(searchTemplateResponse2.getSource().toUtf8(),
+        assertThat(searchTemplateResponse2.getSource().utf8ToString(),
                 equalTo("{\"query\":{\"match_phrase_prefix\":{\"message\":\"quick brown f\"}}}"));
 
         MultiSearchTemplateResponse.Item response3 = response.getResponses()[2];
@@ -161,7 +161,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         SearchTemplateResponse searchTemplateResponse3 = response3.getResponse();
         assertThat(searchTemplateResponse3.hasResponse(), is(true));
         assertHitCount(searchTemplateResponse3.getResponse(), (numDocs / 2));
-        assertThat(searchTemplateResponse3.getSource().toUtf8(),
+        assertThat(searchTemplateResponse3.getSource().utf8ToString(),
                 equalTo("{\"query\":{\"term\":{\"odd\":\"false\"}}}"));
 
         MultiSearchTemplateResponse.Item response4 = response.getResponses()[3];
@@ -173,7 +173,7 @@ public class MultiSearchTemplateIT extends ESIntegTestCase {
         assertThat(response5.isFailure(), is(false));
         SearchTemplateResponse searchTemplateResponse5 = response5.getResponse();
         assertThat(searchTemplateResponse5.hasResponse(), is(false));
-        assertThat(searchTemplateResponse5.getSource().toUtf8(),
+        assertThat(searchTemplateResponse5.getSource().utf8ToString(),
                 equalTo("{\"query\":{\"terms\":{\"group\":[1,2,3,]}}}"));
     }
 }

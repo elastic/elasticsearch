@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
+import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.util.BitUtil;
 
 /**
@@ -172,8 +173,28 @@ public class GeoHashUtils {
         return BitUtil.flipFlop(((geoHashLong >>> 4) << odd) << (((12 - level) * 5) + (MORTON_OFFSET - odd)));
     }
 
-    private static final char encode(int x, int y) {
+    private static char encode(int x, int y) {
         return BASE_32[((x & 1) + ((y & 1) * 2) + ((x & 2) * 2) + ((y & 2) * 4) + ((x & 4) * 4)) % 32];
+    }
+
+    /**
+     * Computes the bounding box coordinates from a given geohash
+     *
+     * @param geohash Geohash of the defined cell
+     * @return GeoRect rectangle defining the bounding box
+     */
+    public static Rectangle bbox(final String geohash) {
+        // bottom left is the coordinate
+        GeoPoint bottomLeft = GeoPoint.fromGeohash(geohash);
+        long ghLong = longEncode(geohash);
+        // shift away the level
+        ghLong >>>= 4;
+        // deinterleave and add 1 to lat and lon to get topRight
+        long lat = BitUtil.deinterleave(ghLong >>> 1) + 1;
+        long lon = BitUtil.deinterleave(ghLong) + 1;
+        GeoPoint topRight = GeoPoint.fromGeohash(BitUtil.interleave((int)lon, (int)lat) << 4 | geohash.length());
+
+        return new Rectangle(bottomLeft.lat(), topRight.lat(), bottomLeft.lon(), topRight.lon());
     }
 
     /**
@@ -195,7 +216,7 @@ public class GeoHashUtils {
      * @param dy      delta of the second grid coordinate (must be -1, 0 or +1)
      * @return geohash of the defined cell
      */
-    public final static String neighbor(String geohash, int level, int dx, int dy) {
+    public static final String neighbor(String geohash, int level, int dx, int dy) {
         int cell = BASE_32_STRING.indexOf(geohash.charAt(level -1));
 
         // Decoding the Geohash bit pattern to determine grid coordinates

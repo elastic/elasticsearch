@@ -27,7 +27,6 @@ import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
 import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -43,14 +42,11 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
 
     private final SearchContext searchContext;
 
-    private final FetchSubPhase.HitContext hitContext;
-
-    public SourceScoreOrderFragmentsBuilder(FieldMapper mapper, SearchContext searchContext,
-                                            FetchSubPhase.HitContext hitContext, String[] preTags, String[] postTags, BoundaryScanner boundaryScanner) {
+    public SourceScoreOrderFragmentsBuilder(FieldMapper mapper, SearchContext searchContext, String[] preTags, String[] postTags,
+                                            BoundaryScanner boundaryScanner) {
         super(preTags, postTags, boundaryScanner);
         this.mapper = mapper;
         this.searchContext = searchContext;
-        this.hitContext = hitContext;
     }
 
     @Override

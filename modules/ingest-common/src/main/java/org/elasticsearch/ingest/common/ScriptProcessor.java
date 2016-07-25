@@ -19,19 +19,18 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.cluster.service.ClusterService;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.ingest.AbstractProcessor;
-import org.elasticsearch.ingest.AbstractProcessorFactory;
 import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-
-import java.util.HashMap;
-import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.Strings.hasLength;
@@ -52,14 +51,12 @@ public final class ScriptProcessor extends AbstractProcessor {
 
     private final Script script;
     private final ScriptService scriptService;
-    private final ClusterService clusterService;
     private final String field;
 
-    ScriptProcessor(String tag, Script script, ScriptService scriptService, ClusterService clusterService, String field)  {
+    ScriptProcessor(String tag, Script script, ScriptService scriptService, String field)  {
         super(tag);
         this.script = script;
         this.scriptService = scriptService;
-        this.clusterService = clusterService;
         this.field = field;
     }
 
@@ -67,7 +64,7 @@ public final class ScriptProcessor extends AbstractProcessor {
     public void execute(IngestDocument document) {
         Map<String, Object> vars = new HashMap<>();
         vars.put("ctx", document.getSourceAndMetadata());
-        CompiledScript compiledScript = scriptService.compile(script, ScriptContext.Standard.INGEST, emptyMap(), clusterService.state());
+        CompiledScript compiledScript = scriptService.compile(script, ScriptContext.Standard.INGEST, emptyMap());
         ExecutableScript executableScript = scriptService.executable(compiledScript, vars);
         Object value = executableScript.run();
         if (field != null) {
@@ -80,18 +77,17 @@ public final class ScriptProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    public static final class Factory extends AbstractProcessorFactory<ScriptProcessor> {
+    public static final class Factory implements Processor.Factory {
 
         private final ScriptService scriptService;
-        private final ClusterService clusterService;
 
-        public Factory(ScriptService scriptService, ClusterService clusterService) {
+        public Factory(ScriptService scriptService) {
             this.scriptService = scriptService;
-            this.clusterService = clusterService;
         }
 
         @Override
-        public ScriptProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+                                      Map<String, Object> config) throws Exception {
             String field = readOptionalStringProperty(TYPE, processorTag, config, "field");
             String lang = readStringProperty(TYPE, processorTag, config, "lang");
             String inline = readOptionalStringProperty(TYPE, processorTag, config, "inline");
@@ -120,7 +116,7 @@ public final class ScriptProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, processorTag, null, "Could not initialize script");
             }
 
-            return new ScriptProcessor(processorTag, script, scriptService, clusterService, field);
+            return new ScriptProcessor(processorTag, script, scriptService, field);
         }
     }
 }

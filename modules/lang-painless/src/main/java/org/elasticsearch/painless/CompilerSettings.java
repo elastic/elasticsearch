@@ -60,7 +60,7 @@ public final class CompilerSettings {
      * in a script before an exception is thrown.  This attempts to prevent infinite loops.  Note if
      * the counter is set to 0, no loop counter will be written.
      */
-    public final int getMaxLoopCounter() {
+    public int getMaxLoopCounter() {
         return maxLoopCounter;
     }
 
@@ -68,7 +68,7 @@ public final class CompilerSettings {
      * Set the cumulative total number of statements that can be made in all loops.
      * @see #getMaxLoopCounter
      */
-    public final void setMaxLoopCounter(int max) {
+    public void setMaxLoopCounter(int max) {
         this.maxLoopCounter = max;
     }
 

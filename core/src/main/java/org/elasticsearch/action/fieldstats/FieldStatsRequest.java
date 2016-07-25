@@ -39,7 +39,7 @@ import java.util.List;
  */
 public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
 
-    public final static String DEFAULT_LEVEL = "cluster";
+    public static final String DEFAULT_LEVEL = "cluster";
 
     private String[] fields = Strings.EMPTY_ARRAY;
     private String level = DEFAULT_LEVEL;

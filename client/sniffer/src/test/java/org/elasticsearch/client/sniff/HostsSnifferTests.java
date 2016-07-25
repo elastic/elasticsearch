@@ -43,7 +43,6 @@ import java.io.OutputStream;
 import java.io.StringWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -86,10 +85,14 @@ public class HostsSnifferTests extends RestClientTestCase {
         httpServer.stop(0);
     }
 
-    public void testSniffNodes() throws IOException, URISyntaxException {
+    public void testSniffNodes() throws IOException {
         HttpHost httpHost = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
         try (RestClient restClient = RestClient.builder(httpHost).build()) {
-            HostsSniffer sniffer = new HostsSniffer(restClient, sniffRequestTimeout, scheme);
+            HostsSniffer.Builder builder = HostsSniffer.builder(restClient).setSniffRequestTimeoutMillis(sniffRequestTimeout);
+            if (scheme != HostsSniffer.Scheme.HTTP || randomBoolean()) {
+                builder.setScheme(scheme);
+            }
+            HostsSniffer sniffer = builder.build();
             try {
                 List<HttpHost> sniffedHosts = sniffer.sniffHosts();
                 if (sniffResponse.isFailure) {

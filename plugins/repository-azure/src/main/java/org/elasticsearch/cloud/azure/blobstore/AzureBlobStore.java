@@ -23,17 +23,16 @@ import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.repositories.RepositoryName;
-import org.elasticsearch.repositories.RepositorySettings;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
@@ -52,16 +51,15 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
     private final String container;
     private final String repositoryName;
 
-    @Inject
-    public AzureBlobStore(RepositoryName name, Settings settings, RepositorySettings repositorySettings,
+    public AzureBlobStore(RepositoryMetaData metadata, Settings settings,
                           AzureStorageService client) throws URISyntaxException, StorageException {
         super(settings);
-        this.client = client.start();
-        this.container = getValue(repositorySettings, Repository.CONTAINER_SETTING, Storage.CONTAINER_SETTING);
-        this.repositoryName = name.getName();
-        this.accountName = getValue(repositorySettings, Repository.ACCOUNT_SETTING, Storage.ACCOUNT_SETTING);
+        this.client = client;
+        this.container = getValue(metadata.settings(), settings, Repository.CONTAINER_SETTING, Storage.CONTAINER_SETTING);
+        this.repositoryName = metadata.name();
+        this.accountName = getValue(metadata.settings(), settings, Repository.ACCOUNT_SETTING, Storage.ACCOUNT_SETTING);
 
-        String modeStr = getValue(repositorySettings, Repository.LOCATION_MODE_SETTING, Storage.LOCATION_MODE_SETTING);
+        String modeStr = getValue(metadata.settings(), settings, Repository.LOCATION_MODE_SETTING, Storage.LOCATION_MODE_SETTING);
         if (Strings.hasLength(modeStr)) {
             this.locMode = LocationMode.valueOf(modeStr.toUpperCase(Locale.ROOT));
         } else {
@@ -127,7 +125,7 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
         this.client.deleteBlob(this.accountName, this.locMode, container, blob);
     }
 
-    public InputStream getInputStream(String container, String blob) throws URISyntaxException, StorageException
+    public InputStream getInputStream(String container, String blob) throws URISyntaxException, StorageException, IOException
     {
         return this.client.getInputStream(this.accountName, this.locMode, container, blob);
     }

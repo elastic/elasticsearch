@@ -75,7 +75,7 @@ public class RestSpec {
                         }
                         restSpec.addApi(restApi);
                     }
-                } catch (Throwable ex) {
+                } catch (Exception ex) {
                     throw new IOException("Can't parse rest spec file: [" + jsonFile + "]", ex);
                 }
             }

@@ -167,7 +167,7 @@ class ClusterFormationTasks {
         }
 
         // install plugins
-        for (Map.Entry<String, Object> plugin : node.config.plugins.entrySet()) {
+        for (Map.Entry<String, Project> plugin : node.config.plugins.entrySet()) {
             String actionName = pluginTaskName('install', plugin.getKey(), 'Plugin')
             setup = configureInstallPluginTask(taskName(task, node, actionName), project, setup, node, plugin.getValue())
         }
@@ -326,38 +326,34 @@ class ClusterFormationTasks {
         Copy copyPlugins = project.tasks.create(name: name, type: Copy, dependsOn: setup)
 
         List<FileCollection> pluginFiles = []
-        for (Map.Entry<String, Object> plugin : node.config.plugins.entrySet()) {
-            FileCollection pluginZip
-            if (plugin.getValue() instanceof Project) {
-                Project pluginProject = plugin.getValue()
-                if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false) {
-                    throw new GradleException("Task ${name} cannot project ${pluginProject.path} which is not an esplugin")
-                }
-                String configurationName = "_plugin_${pluginProject.path}"
-                Configuration configuration = project.configurations.findByName(configurationName)
-                if (configuration == null) {
-                    configuration = project.configurations.create(configurationName)
-                }
-                project.dependencies.add(configurationName, pluginProject)
-                setup.dependsOn(pluginProject.tasks.bundlePlugin)
-                pluginZip = configuration
+        for (Map.Entry<String, Project> plugin : node.config.plugins.entrySet()) {
 
-                // also allow rest tests to use the rest spec from the plugin
-                Copy copyRestSpec = null
-                for (File resourceDir : pluginProject.sourceSets.test.resources.srcDirs) {
-                    File restApiDir = new File(resourceDir, 'rest-api-spec/api')
-                    if (restApiDir.exists() == false) continue
-                    if (copyRestSpec == null) {
-                        copyRestSpec = project.tasks.create(name: pluginTaskName('copy', plugin.getKey(), 'PluginRestSpec'), type: Copy)
-                        copyPlugins.dependsOn(copyRestSpec)
-                        copyRestSpec.into(project.sourceSets.test.output.resourcesDir)
-                    }
-                    copyRestSpec.from(resourceDir).include('rest-api-spec/api/**')
-                }
-            } else {
-                pluginZip = plugin.getValue()
+            Project pluginProject = plugin.getValue()
+            if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false) {
+                throw new GradleException("Task ${name} cannot project ${pluginProject.path} which is not an esplugin")
             }
-            pluginFiles.add(pluginZip)
+            String configurationName = "_plugin_${pluginProject.path}"
+            Configuration configuration = project.configurations.findByName(configurationName)
+            if (configuration == null) {
+                configuration = project.configurations.create(configurationName)
+            }
+            project.dependencies.add(configurationName, project.dependencies.project(path: pluginProject.path, configuration: 'zip'))
+            setup.dependsOn(pluginProject.tasks.bundlePlugin)
+
+            // also allow rest tests to use the rest spec from the plugin
+            String copyRestSpecTaskName = pluginTaskName('copy', plugin.getKey(), 'PluginRestSpec')
+            Copy copyRestSpec = project.tasks.findByName(copyRestSpecTaskName)
+            for (File resourceDir : pluginProject.sourceSets.test.resources.srcDirs) {
+                File restApiDir = new File(resourceDir, 'rest-api-spec/api')
+                if (restApiDir.exists() == false) continue
+                if (copyRestSpec == null) {
+                    copyRestSpec = project.tasks.create(name: copyRestSpecTaskName, type: Copy)
+                    copyPlugins.dependsOn(copyRestSpec)
+                    copyRestSpec.into(project.sourceSets.test.output.resourcesDir)
+                }
+                copyRestSpec.from(resourceDir).include('rest-api-spec/api/**')
+            }
+            pluginFiles.add(configuration)
         }
 
         copyPlugins.into(node.pluginsTmpDir)
@@ -379,15 +375,10 @@ class ClusterFormationTasks {
         return installModule
     }
 
-    static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Object plugin) {
-        FileCollection pluginZip
-        if (plugin instanceof Project) {
-            pluginZip = project.configurations.getByName("_plugin_${plugin.path}")
-        } else {
-            pluginZip = plugin
-        }
+    static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Project plugin) {
+        FileCollection pluginZip = project.configurations.getByName("_plugin_${plugin.path}")
         // delay reading the file location until execution time by wrapping in a closure within a GString
-        String file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
+        Object file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
         Object[] args = [new File(node.homeDir, 'bin/elasticsearch-plugin'), 'install', file]
         return configureExecTask(name, project, setup, node, args)
     }

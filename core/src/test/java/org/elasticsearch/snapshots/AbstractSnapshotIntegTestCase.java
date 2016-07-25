@@ -279,8 +279,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.warn("failed to execute [{}]", t, source);
+                public void onFailure(String source, Exception e) {
+                    logger.warn("failed to execute [{}]", e, source);
                 }
             });
 

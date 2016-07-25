@@ -26,7 +26,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.PidFile;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.ESLogger;
@@ -125,7 +124,7 @@ final class Bootstrap {
         // force remainder of JNA to be loaded (if available).
         try {
             JNAKernel32Library.getInstance();
-        } catch (Throwable ignored) {
+        } catch (Exception ignored) {
             // we've already logged this.
         }
 
@@ -143,7 +142,8 @@ final class Bootstrap {
         JvmInfo.jvmInfo();
     }
 
-    private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
+    private void setup(boolean addShutdownHook, Environment environment) throws Exception {
+        Settings settings = environment.settings();
         initializeNatives(
                 environment.tmpFile(),
                 BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
@@ -172,7 +172,7 @@ final class Bootstrap {
         // install SM after natives, shutdown hooks, etc.
         Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings));
 
-        node = new Node(settings) {
+        node = new Node(environment) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress) {
                 BootstrapCheck.check(settings, boundTransportAddress);
@@ -180,10 +180,10 @@ final class Bootstrap {
         };
     }
 
-    private static Environment initialSettings(boolean foreground, String pidFile, Map<String, String> esSettings) {
+    private static Environment initialEnvironment(boolean foreground, Path pidFile, Map<String, String> esSettings) {
         Terminal terminal = foreground ? Terminal.DEFAULT : null;
         Settings.Builder builder = Settings.builder();
-        if (Strings.hasLength(pidFile)) {
+        if (pidFile != null) {
             builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
         }
         return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, esSettings);
@@ -215,8 +215,8 @@ final class Bootstrap {
      */
     static void init(
             final boolean foreground,
-            final String pidFile,
-            final Map<String, String> esSettings) throws Throwable {
+            final Path pidFile,
+            final Map<String, String> esSettings) throws Exception {
         // Set the system property before anything has a chance to trigger its use
         initLoggerPrefix();
 
@@ -226,9 +226,8 @@ final class Bootstrap {
 
         INSTANCE = new Bootstrap();
 
-        Environment environment = initialSettings(foreground, pidFile, esSettings);
-        Settings settings = environment.settings();
-        LogConfigurator.configure(settings, true);
+        Environment environment = initialEnvironment(foreground, pidFile, esSettings);
+        LogConfigurator.configure(environment.settings(), true);
         checkForCustomConfFile();
 
         if (environment.pidFile() != null) {
@@ -247,21 +246,27 @@ final class Bootstrap {
             // fail if somebody replaced the lucene jars
             checkLucene();
 
-            INSTANCE.setup(true, settings, environment);
+            // install the default uncaught exception handler; must be done before security is
+            // initialized as we do not want to grant the runtime permission
+            // setDefaultUncaughtExceptionHandler
+            Thread.setDefaultUncaughtExceptionHandler(
+                new ElasticsearchUncaughtExceptionHandler(() -> Node.NODE_NAME_SETTING.get(environment.settings())));
+
+            INSTANCE.setup(true, environment);
 
             INSTANCE.start();
 
             if (!foreground) {
                 closeSysError();
             }
-        } catch (Throwable e) {
+        } catch (Exception e) {
             // disable console logging, so user does not see the exception twice (jvm will show it already)
             if (foreground) {
                 Loggers.disableConsoleLogging();
             }
             ESLogger logger = Loggers.getLogger(Bootstrap.class);
             if (INSTANCE.node != null) {
-                logger = Loggers.getLogger(Bootstrap.class, INSTANCE.node.settings().get("node.name"));
+                logger = Loggers.getLogger(Bootstrap.class, Node.NODE_NAME_SETTING.get(INSTANCE.node.settings()));
             }
             // HACK, it sucks to do this, but we will run users out of disk space otherwise
             if (e instanceof CreationException) {

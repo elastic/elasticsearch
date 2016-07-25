@@ -48,7 +48,7 @@ import static org.hamcrest.Matchers.notNullValue;
 // Can'r run as IT as the test cluster is immutable and this test adds nodes during the test
 public class PercolatorBackwardsCompatibilityTests extends ESIntegTestCase {
 
-    private final static String INDEX_NAME = "percolator_index";
+    private static final String INDEX_NAME = "percolator_index";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

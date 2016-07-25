@@ -60,7 +60,7 @@ public class FilterableTermsEnum extends TermsEnum {
     }
 
     static final String UNSUPPORTED_MESSAGE = "This TermsEnum only supports #seekExact(BytesRef) as well as #docFreq() and #totalTermFreq()";
-    protected final static int NOT_FOUND = -1;
+    protected static final int NOT_FOUND = -1;
     private final Holder[] enums;
     protected int currentDocFreq = 0;
     protected long currentTotalTermFreq = 0;

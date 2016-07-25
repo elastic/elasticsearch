@@ -52,7 +52,7 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
 
     public static final ParseField MULTIVALUE_MODE_FIELD = new ParseField("mode");
 
-    public static abstract class LeafOnly<VS extends ValuesSource, AB extends MultiValuesSourceAggregationBuilder<VS, AB>>
+    public abstract static class LeafOnly<VS extends ValuesSource, AB extends MultiValuesSourceAggregationBuilder<VS, AB>>
             extends MultiValuesSourceAggregationBuilder<VS, AB> {
 
         protected LeafOnly(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {

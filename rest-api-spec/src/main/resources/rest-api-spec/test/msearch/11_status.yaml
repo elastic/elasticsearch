@@ -3,7 +3,6 @@ setup:
   - do:
       indices.create:
         index: test_1
-
 ---
 "Check Status":
   - do:

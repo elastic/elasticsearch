@@ -82,13 +82,11 @@
               {
                 "foreach" : {
                   "field" : "friends",
-                  "processors" : [
-                    {
+                  "processor" : {
                       "remove" : {
                         "field" : "_value.id"
                       }
-                    }
-                  ]
+                  }
                 }
               },
               {
@@ -106,13 +104,11 @@
               {
                 "foreach" : {
                   "field" : "address",
-                  "processors" : [
-                    {
+                  "processor" : {
                       "trim" : {
                         "field" : "_value"
                       }
-                    }
-                  ]
+                  }
                 }
               },
               {

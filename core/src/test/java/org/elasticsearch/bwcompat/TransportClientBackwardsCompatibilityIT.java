@@ -29,6 +29,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.CompositeTestCluster;
 import org.elasticsearch.test.ESBackcompatTestCase;
+import org.elasticsearch.transport.MockTransportClient;
 
 import java.util.concurrent.ExecutionException;
 
@@ -45,11 +46,10 @@ public class TransportClientBackwardsCompatibilityIT extends ESBackcompatTestCas
         CompositeTestCluster compositeTestCluster = backwardsCluster();
         TransportAddress transportAddress = compositeTestCluster.externalTransportAddress();
 
-        try(TransportClient client = TransportClient.builder().settings(settings).build()) {
+        try(TransportClient client = new MockTransportClient(settings)) {
             client.addTransportAddress(transportAddress);
 
             assertAcked(client.admin().indices().prepareCreate("test"));
-            ensureYellow("test");
 
             int numDocs = iterations(10, 100);
             IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];

@@ -97,7 +97,7 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 try {
                     onQueryFailure(t, querySearchRequest, shardIndex, dfsResult, counter);
                 } finally {
@@ -110,12 +110,12 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
         });
     }
 
-    void onQueryFailure(Throwable t, QuerySearchRequest querySearchRequest, int shardIndex, DfsSearchResult dfsResult,
+    void onQueryFailure(Exception e, QuerySearchRequest querySearchRequest, int shardIndex, DfsSearchResult dfsResult,
                         AtomicInteger counter) {
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}] Failed to execute query phase", t, querySearchRequest.id());
+            logger.debug("[{}] Failed to execute query phase", e, querySearchRequest.id());
         }
-        this.addShardFailure(shardIndex, dfsResult.shardTarget(), t);
+        this.addShardFailure(shardIndex, dfsResult.shardTarget(), e);
         successfulOps.decrementAndGet();
         if (counter.decrementAndGet() == 0) {
             if (successfulOps.get() == 0) {
@@ -129,7 +129,7 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
     void executeFetchPhase() {
         try {
             innerExecuteFetchPhase();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             listener.onFailure(new ReduceSearchPhaseException("query", "", e, buildShardFailures()));
         }
     }
@@ -169,7 +169,7 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 // the search context might not be cleared on the node where the fetch was executed for example
                 // because the action was rejected by the thread pool. in this case we need to send a dedicated
                 // request to clear the search context. by setting docIdsToLoad to null, the context will be cleared
@@ -180,12 +180,12 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
         });
     }
 
-    void onFetchFailure(Throwable t, ShardFetchSearchRequest fetchSearchRequest, int shardIndex,
+    void onFetchFailure(Exception e, ShardFetchSearchRequest fetchSearchRequest, int shardIndex,
                         SearchShardTarget shardTarget, AtomicInteger counter) {
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}] Failed to execute fetch phase", t, fetchSearchRequest.id());
+            logger.debug("[{}] Failed to execute fetch phase", e, fetchSearchRequest.id());
         }
-        this.addShardFailure(shardIndex, shardTarget, t);
+        this.addShardFailure(shardIndex, shardTarget, e);
         successfulOps.decrementAndGet();
         if (counter.decrementAndGet() == 0) {
             finishHim();
@@ -208,9 +208,9 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception e) {
                 try {
-                    ReduceSearchPhaseException failure = new ReduceSearchPhaseException("merge", "", t, buildShardFailures());
+                    ReduceSearchPhaseException failure = new ReduceSearchPhaseException("merge", "", e, buildShardFailures());
                     if (logger.isDebugEnabled()) {
                         logger.debug("failed to reduce search", failure);
                     }

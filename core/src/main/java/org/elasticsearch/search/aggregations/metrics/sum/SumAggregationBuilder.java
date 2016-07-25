@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -36,18 +37,19 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 
 public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, SumAggregationBuilder> {
-    public static final String NAME = InternalSum.TYPE.name();
+    public static final String NAME = "sum";
+    private static final Type TYPE = new Type(NAME);
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     public SumAggregationBuilder(String name) {
-        super(name, InternalSum.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     /**
      * Read from a stream.
      */
     public SumAggregationBuilder(StreamInput in) throws IOException {
-        super(in, InternalSum.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in, TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     @Override

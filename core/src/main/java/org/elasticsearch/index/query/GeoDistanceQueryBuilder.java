@@ -50,12 +50,9 @@ import java.util.Optional;
 /**
  * Filter results of a query to include only those within a specific distance to some
  * geo point.
- * */
+ */
 public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQueryBuilder> {
-
-    /** Name of the query in the query dsl. */
     public static final String NAME = "geo_distance";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     /** Default for latitude normalization (as of this writing true).*/
     public static final boolean DEFAULT_NORMALIZE_LAT = true;
@@ -314,7 +311,10 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         // if index created V_2_3 > use prefix encoded postings format
         final GeoPointField.TermEncoding encoding = (indexVersionCreated.before(Version.V_2_3_0)) ?
             GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
-        normDistance = GeoUtils.maxRadialDistance(center, normDistance);
+        // Lucene 6.0 and earlier requires a radial restriction
+        if (indexVersionCreated.before(Version.V_5_0_0_alpha4)) {
+            normDistance = GeoUtils.maxRadialDistance(center, normDistance);
+        }
         return new GeoPointDistanceQuery(fieldType.name(), encoding, center.lat(), center.lon(), normDistance);
     }
 

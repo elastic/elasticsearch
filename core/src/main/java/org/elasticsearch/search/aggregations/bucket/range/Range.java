@@ -31,7 +31,7 @@ public interface Range extends MultiBucketsAggregation {
     /**
      * A bucket associated with a specific range
      */
-    public static interface Bucket extends MultiBucketsAggregation.Bucket {
+    interface Bucket extends MultiBucketsAggregation.Bucket {
 
         /**
          * @return  The lower bound of the range

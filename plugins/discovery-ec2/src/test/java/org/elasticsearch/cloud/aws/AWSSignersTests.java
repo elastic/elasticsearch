@@ -20,6 +20,7 @@
 package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.ClientConfiguration;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.discovery.ec2.Ec2DiscoveryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
@@ -34,7 +35,7 @@ public class AWSSignersTests extends ESTestCase {
      */
     @BeforeClass
     public static void instantiatePlugin() {
-        new Ec2DiscoveryPlugin();
+        new Ec2DiscoveryPlugin(Settings.EMPTY);
     }
 
     public void testSigners() {

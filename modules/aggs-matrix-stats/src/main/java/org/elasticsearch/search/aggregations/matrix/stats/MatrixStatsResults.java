@@ -34,9 +34,9 @@ import java.util.Map;
  */
 class MatrixStatsResults implements Writeable {
     /** object holding results - computes results in place */
-    final protected RunningStats results;
+    protected final RunningStats results;
     /** pearson product correlation coefficients */
-    final protected Map<String, HashMap<String, Double>> correlation;
+    protected final Map<String, HashMap<String, Double>> correlation;
 
     /** Base ctor */
     public MatrixStatsResults() {

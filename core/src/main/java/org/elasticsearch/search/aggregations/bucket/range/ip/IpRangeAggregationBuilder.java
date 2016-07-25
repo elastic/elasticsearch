@@ -52,7 +52,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 public final class IpRangeAggregationBuilder
         extends ValuesSourceAggregationBuilder<ValuesSource.Bytes, IpRangeAggregationBuilder> {
-    private static final String NAME = "ip_range";
+    public static final String NAME = "ip_range";
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
     private static final InternalAggregation.Type TYPE = new InternalAggregation.Type(NAME);
 

@@ -43,6 +43,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -61,9 +62,15 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestCase {
 
+    private boolean enableRandomFailures;
+
+    @Before
+    public void injectRandomFailures() {
+        enableRandomFailures = randomBoolean();
+    }
 
     protected void failRandomly() {
-        if (rarely()) {
+        if (enableRandomFailures && rarely()) {
             throw new RuntimeException("dummy test failure");
         }
     }
@@ -73,12 +80,15 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
      *
      * @param state cluster state used for matching
      */
-    public static void assertClusterStateMatchesNodeState(ClusterState state, IndicesClusterStateService indicesClusterStateService) {
+    public void assertClusterStateMatchesNodeState(ClusterState state, IndicesClusterStateService indicesClusterStateService) {
         AllocatedIndices<? extends Shard, ? extends AllocatedIndex<? extends Shard>> indicesService =
             indicesClusterStateService.indicesService;
         ConcurrentMap<ShardId, ShardRouting> failedShardsCache = indicesClusterStateService.failedShardsCache;
         RoutingNode localRoutingNode = state.getRoutingNodes().node(state.getNodes().getLocalNodeId());
         if (localRoutingNode != null) {
+            if (enableRandomFailures == false) {
+                assertTrue("failed shard cache should be empty", failedShardsCache.isEmpty());
+            }
             // check that all shards in local routing nodes have been allocated
             for (ShardRouting shardRouting : localRoutingNode) {
                 Index index = shardRouting.index();
@@ -86,11 +96,17 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
                 Shard shard = indicesService.getShardOrNull(shardRouting.shardId());
                 ShardRouting failedShard = failedShardsCache.get(shardRouting.shardId());
-                if (shard == null && failedShard == null) {
-                    fail("Shard with id " + shardRouting + " expected but missing in indicesService and failedShardsCache");
-                }
-                if (failedShard != null && failedShard.isSameAllocation(shardRouting) == false) {
-                    fail("Shard cache has not been properly cleaned for " + failedShard);
+                if (enableRandomFailures) {
+                    if (shard == null && failedShard == null) {
+                        fail("Shard with id " + shardRouting + " expected but missing in indicesService and failedShardsCache");
+                    }
+                    if (failedShard != null && failedShard.isSameAllocation(shardRouting) == false) {
+                        fail("Shard cache has not been properly cleaned for " + failedShard);
+                    }
+                } else {
+                    if (shard == null) {
+                        fail("Shard with id " + shardRouting + " expected but missing in indicesService");
+                    }
                 }
 
                 if (shard != null) {
@@ -100,9 +116,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                     // index metadata has been updated
                     assertThat(indexService.getIndexSettings().getIndexMetaData(), equalTo(indexMetaData));
                     // shard has been created
-                    if (failedShard == null) {
-                        assertTrue("Shard with id " + shardRouting + " expected but missing in indexService",
-                            shard != null);
+                    if (enableRandomFailures == false || failedShard == null) {
+                        assertTrue("Shard with id " + shardRouting + " expected but missing in indexService", shard != null);
                         // shard has latest shard routing
                         assertThat(shard.routingEntry(), equalTo(shardRouting));
                     }
@@ -118,19 +133,23 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             for (Shard shard : indexService) {
                 shardsFound = true;
                 ShardRouting persistedShardRouting = shard.routingEntry();
-                boolean found = false;
-                for (ShardRouting shardRouting : localRoutingNode) {
-                    if (persistedShardRouting.equals(shardRouting)) {
-                        found = true;
-                    }
+                ShardRouting shardRouting = localRoutingNode.getByShardId(persistedShardRouting.shardId());
+                if (shardRouting == null) {
+                    fail("Shard with id " + persistedShardRouting + " locally exists but missing in routing table");
                 }
-                assertTrue(found);
+                if (shardRouting.equals(persistedShardRouting) == false) {
+                    fail("Local shard " + persistedShardRouting + " has stale routing" + shardRouting);
+                }
             }
 
             if (shardsFound == false) {
-                // check if we have shards of that index in failedShardsCache
-                // if yes, we might not have cleaned the index as failedShardsCache can be populated by another thread
-                assertFalse(failedShardsCache.keySet().stream().noneMatch(shardId -> shardId.getIndex().equals(indexService.index())));
+                if (enableRandomFailures) {
+                    // check if we have shards of that index in failedShardsCache
+                    // if yes, we might not have cleaned the index as failedShardsCache can be populated by another thread
+                    assertFalse(failedShardsCache.keySet().stream().noneMatch(shardId -> shardId.getIndex().equals(indexService.index())));
+                } else {
+                    fail("index service for index " + indexService.index() + " has no shards");
+                }
             }
 
         }
@@ -181,7 +200,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public @Nullable MockIndexService indexService(Index index) {
+        @Nullable
+        public MockIndexService indexService(Index index) {
             return indices.get(index.getUUID());
         }
 

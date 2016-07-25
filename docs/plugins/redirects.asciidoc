@@ -24,7 +24,7 @@ The `cloud-aws` plugin has been split into two separate plugins:
 
 The `cloud-azure` plugin has been split into two separate plugins:
 
-*  <<discovery-azure>> (`discovery-azure`)
+*  <<discovery-azure-classic>> (`discovery-azure-classic`)
 *  <<repository-azure>> (`repository-azure`)
 
 

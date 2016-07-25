@@ -131,8 +131,9 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
         }
 
         private void response(Snippet response) {
-            current.println("  - response_body: |")
-            response.contents.eachLine { current.println("      $it") }
+            current.println("  - match: ")
+            current.println("      \$body: ")
+            response.contents.eachLine { current.println("        $it") }
         }
 
         void emitDo(String method, String pathAndQuery,
@@ -183,13 +184,6 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             current.println('---')
             current.println("setup:")
             body(setup, true)
-            // always wait for yellow before anything is executed
-            current.println(
-                    "  - do:\n" +
-                    "      raw:\n" +
-                    "        method: GET\n" +
-                    "        path: \"_cluster/health\"\n" +
-                    "        wait_for_status: \"yellow\"")
         }
 
         private void body(Snippet snippet, boolean inSetup) {

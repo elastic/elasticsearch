@@ -97,7 +97,7 @@ final class Seccomp {
     // Linux implementation, based on seccomp(2) or prctl(2) with bpf filtering
 
     /** Access to non-standard Linux libc methods */
-    static interface LinuxLibrary extends Library {
+    interface LinuxLibrary extends Library {
         /**
          * maps to prctl(2)
          */
@@ -107,7 +107,7 @@ final class Seccomp {
          * this is the only way, DON'T use it on some other architecture unless you know wtf you are doing
          */
         NativeLong syscall(NativeLong number, Object... args);
-    };
+    }
 
     // null if unavailable or something goes wrong.
     private static final LinuxLibrary linux_libc;
@@ -415,7 +415,7 @@ final class Seccomp {
     // OS X implementation via sandbox(7)
 
     /** Access to non-standard OS X libc methods */
-    static interface MacLibrary extends Library {
+    interface MacLibrary extends Library {
         /**
          * maps to sandbox_init(3), since Leopard
          */
@@ -489,7 +489,7 @@ final class Seccomp {
     // Solaris implementation via priv_set(3C)
 
     /** Access to non-standard Solaris libc methods */
-    static interface SolarisLibrary extends Library {
+    interface SolarisLibrary extends Library {
         /**
          * see priv_set(3C), a convenience method for setppriv(2).
          */
@@ -611,7 +611,7 @@ final class Seccomp {
      * This is best effort and OS and architecture dependent. It may throw any Throwable.
      * @return 0 if we can do this for application threads, 1 for the entire process
      */
-    static int init(Path tmpFile) throws Throwable {
+    static int init(Path tmpFile) throws Exception {
         if (Constants.LINUX) {
             return linuxImpl();
         } else if (Constants.MAC_OS_X) {

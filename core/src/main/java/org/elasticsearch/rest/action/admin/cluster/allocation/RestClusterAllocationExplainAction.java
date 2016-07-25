@@ -19,11 +19,12 @@
 
 package org.elasticsearch.rest.action.admin.cluster.allocation;
 
+import java.io.IOException;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -42,22 +43,20 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
-import java.io.IOException;
-
 /**
  * Class handling cluster allocation explanation at the REST level
  */
 public class RestClusterAllocationExplainAction extends BaseRestHandler {
 
     @Inject
-    public RestClusterAllocationExplainAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestClusterAllocationExplainAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/allocation/explain", this);
         controller.registerHandler(RestRequest.Method.POST, "/_cluster/allocation/explain", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         ClusterAllocationExplainRequest req;
         if (RestActions.hasBodyContent(request) == false) {
             // Empty request signals "explain the first unassigned shard you find"
@@ -76,6 +75,7 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
 
         try {
             req.includeYesDecisions(request.paramAsBoolean("include_yes_decisions", false));
+            req.includeDiskInfo(request.paramAsBoolean("include_disk_info", false));
             client.admin().cluster().allocationExplain(req, new RestBuilderListener<ClusterAllocationExplainResponse>(channel) {
                 @Override
                 public RestResponse buildResponse(ClusterAllocationExplainResponse response, XContentBuilder builder) throws Exception {

@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.admin.indices.recovery;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -44,14 +44,14 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestRecoveryAction extends BaseRestHandler {
 
     @Inject
-    public RestRecoveryAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestRecoveryAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_recovery", this);
         controller.registerHandler(GET, "/{index}/_recovery", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
 
         final RecoveryRequest recoveryRequest = new RecoveryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         recoveryRequest.detailed(request.paramAsBoolean("detailed", false));

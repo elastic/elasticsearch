@@ -179,9 +179,9 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
             action.new AsyncSingleAction(request, listener).start();
             listener.get();
             fail("expected ClusterBlockException");
-        } catch (Throwable t) {
-            if (ExceptionsHelper.unwrap(t, ClusterBlockException.class) == null) {
-                logger.info("expected ClusterBlockException  but got ", t);
+        } catch (Exception e) {
+            if (ExceptionsHelper.unwrap(e, ClusterBlockException.class) == null) {
+                logger.info("expected ClusterBlockException  but got ", e);
                 fail("expected ClusterBlockException");
             }
         }
@@ -317,9 +317,9 @@ public class TransportInstanceSingleOperationActionTests extends ESTestCase {
         assertThat(transport.capturedRequests().length, equalTo(0));
         try {
             listener.get();
-        } catch (Throwable t) {
-            if (ExceptionsHelper.unwrap(t, IllegalStateException.class) == null) {
-                logger.info("expected IllegalStateException  but got ", t);
+        } catch (Exception e) {
+            if (ExceptionsHelper.unwrap(e, IllegalStateException.class) == null) {
+                logger.info("expected IllegalStateException  but got ", e);
                 fail("expected and IllegalStateException");
             }
         }

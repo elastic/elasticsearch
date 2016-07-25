@@ -138,21 +138,21 @@ class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 onPhaseFailure(t, searchId, shardIndex);
             }
         });
     }
 
-    private void onPhaseFailure(Throwable t, long searchId, int shardIndex) {
+    private void onPhaseFailure(Exception e, long searchId, int shardIndex) {
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}] Failed to execute query phase", t, searchId);
+            logger.debug("[{}] Failed to execute query phase", e, searchId);
         }
-        addShardFailure(shardIndex, new ShardSearchFailure(t));
+        addShardFailure(shardIndex, new ShardSearchFailure(e));
         successfulOps.decrementAndGet();
         if (counter.decrementAndGet() == 0) {
             if (successfulOps.get() == 0) {
-                listener.onFailure(new SearchPhaseExecutionException("query_fetch", "all shards failed", t, buildShardFailures()));
+                listener.onFailure(new SearchPhaseExecutionException("query_fetch", "all shards failed", e, buildShardFailures()));
             } else {
                 finishHim();
             }
@@ -162,7 +162,7 @@ class SearchScrollQueryAndFetchAsyncAction extends AbstractAsyncAction {
     private void finishHim() {
         try {
             innerFinishHim();
-        } catch (Throwable e) {
+        } catch (Exception e) {
             listener.onFailure(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures()));
         }
     }

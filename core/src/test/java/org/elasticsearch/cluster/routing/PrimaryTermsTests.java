@@ -50,7 +50,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
     private RoutingTable testRoutingTable;
     private int numberOfShards;
     private int numberOfReplicas;
-    private final static Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+    private static final Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
     private AllocationService allocationService;
     private ClusterState clusterState;
 

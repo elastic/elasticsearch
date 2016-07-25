@@ -15,10 +15,6 @@
                     file:
                       type: attachment
     - do:
-        cluster.health:
-          wait_for_status: yellow
-
-    - do:
         catch: /(.)*mapper_parsing_exception.+No content is provided\.(.)*/
         index:
             index: test
@@ -59,9 +55,6 @@
                       type: attachment
                     file2:
                       type: attachment
-    - do:
-        cluster.health:
-          wait_for_status: yellow
 
     - do:
         index:
@@ -133,9 +126,6 @@
 #                      type: attachment
 #                    file2:
 #                      type: attachment
-#    - do:
-#        cluster.health:
-#          wait_for_status: yellow
 #
 #    - do:
 #        catch: /(.)*mapper_parsing_exception(.)*The supplied password does not match either the owner or user password in the document\.(.)*/

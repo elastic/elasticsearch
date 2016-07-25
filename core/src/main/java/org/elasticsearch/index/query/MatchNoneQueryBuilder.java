@@ -35,9 +35,7 @@ import java.util.Optional;
  * A query that matches no document.
  */
 public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBuilder> {
-
     public static final String NAME = "match_none";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     public MatchNoneQueryBuilder() {
     }

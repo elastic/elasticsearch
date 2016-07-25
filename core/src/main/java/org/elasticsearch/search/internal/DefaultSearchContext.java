@@ -192,19 +192,23 @@ public class DefaultSearchContext extends SearchContext {
         if (hasOnlySuggest() ) {
             return;
         }
-        if (scrollContext == null) {
-            long from = from() == -1 ? 0 : from();
-            long size = size() == -1 ? 10 : size();
-            long resultWindow = from + size;
-            int maxResultWindow = indexService.getIndexSettings().getMaxResultWindow();
+        long from = from() == -1 ? 0 : from();
+        long size = size() == -1 ? 10 : size();
+        long resultWindow = from + size;
+        int maxResultWindow = indexService.getIndexSettings().getMaxResultWindow();
 
-            if (resultWindow > maxResultWindow) {
+        if (resultWindow > maxResultWindow) {
+            if (scrollContext == null) {
                 throw new QueryPhaseExecutionException(this,
                         "Result window is too large, from + size must be less than or equal to: [" + maxResultWindow + "] but was ["
                                 + resultWindow + "]. See the scroll api for a more efficient way to request large data sets. "
                                 + "This limit can be set by changing the [" + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey()
                                 + "] index level setting.");
             }
+            throw new QueryPhaseExecutionException(this,
+                    "Batch size is too large, size must be less than or equal to: [" + maxResultWindow + "] but was [" + resultWindow
+                            + "]. Scroll batch sizes cost as much memory as result windows so they are controlled by the ["
+                            + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey() + "] index level setting.");
         }
         if (rescore != null) {
             int maxWindow = indexService.getIndexSettings().getMaxRescoreWindow();

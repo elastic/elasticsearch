@@ -44,7 +44,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.search.suggest.Suggesters;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -67,7 +67,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
     public static void init() {
         if (namedWriteableRegistry == null) {
             namedWriteableRegistry = new NamedWriteableRegistry();
-            new Suggesters(namedWriteableRegistry);
+            SearchModule.registerSmoothingModels(namedWriteableRegistry);
         }
     }
 
@@ -180,7 +180,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
     static SmoothingModel copyModel(SmoothingModel original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 return namedWriteableRegistry.getReader(SmoothingModel.class, original.getWriteableName()).read(in);
             }
         }

@@ -23,7 +23,7 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -45,14 +45,14 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestIndicesShardStoresAction extends BaseRestHandler {
 
     @Inject
-    public RestIndicesShardStoresAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestIndicesShardStoresAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_shard_stores", this);
         controller.registerHandler(GET, "/{index}/_shard_stores", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         IndicesShardStoresRequest indicesShardStoresRequest = new IndicesShardStoresRequest(Strings.splitStringByCommaToArray(request.param("index")));
         if (request.hasParam("status")) {
             indicesShardStoresRequest.shardStatuses(Strings.splitStringByCommaToArray(request.param("status")));

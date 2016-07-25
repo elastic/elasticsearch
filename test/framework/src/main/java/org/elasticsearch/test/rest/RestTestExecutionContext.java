@@ -19,13 +19,13 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.rest.client.RestTestClient;
 import org.elasticsearch.test.rest.client.RestTestResponse;
+import org.elasticsearch.test.rest.client.RestTestResponseException;
 import org.elasticsearch.test.rest.spec.RestSpec;
 
 import java.io.Closeable;
@@ -62,25 +62,25 @@ public class RestTestExecutionContext implements Closeable {
      * Saves the obtained response in the execution context.
      */
     public RestTestResponse callApi(String apiName, Map<String, String> params, List<Map<String, Object>> bodies,
-                                    Map<String, String> headers) throws IOException  {
+                                    Map<String, String> headers) throws IOException {
         //makes a copy of the parameters before modifying them for this specific request
         HashMap<String, String> requestParams = new HashMap<>(params);
         for (Map.Entry<String, String> entry : requestParams.entrySet()) {
-            if (stash.isStashedValue(entry.getValue())) {
-                entry.setValue(stash.unstashValue(entry.getValue()).toString());
+            if (stash.containsStashedValue(entry.getValue())) {
+                entry.setValue(stash.getValue(entry.getValue()).toString());
             }
         }
 
         String body = actualBody(bodies);
-
         try {
             response = callApiInternal(apiName, requestParams, body, headers);
-            //we always stash the last response body
-            stash.stashResponse(response);
             return response;
-        } catch(ResponseException e) {
-            response = new RestTestResponse(e);
+        } catch(RestTestResponseException e) {
+            response = e.getRestTestResponse();
             throw e;
+        } finally {
+            //we always stash the last response body
+            stash.stashValue("body", response.getBody());
         }
     }
 
@@ -90,12 +90,12 @@ public class RestTestExecutionContext implements Closeable {
         }
 
         if (bodies.size() == 1) {
-            return bodyAsString(stash.unstashMap(bodies.get(0)));
+            return bodyAsString(stash.replaceStashedValues(bodies.get(0)));
         }
 
         StringBuilder bodyBuilder = new StringBuilder();
         for (Map<String, Object> body : bodies) {
-            bodyBuilder.append(bodyAsString(stash.unstashMap(body))).append("\n");
+            bodyBuilder.append(bodyAsString(stash.replaceStashedValues(body))).append("\n");
         }
         return bodyBuilder.toString();
     }
@@ -119,7 +119,7 @@ public class RestTestExecutionContext implements Closeable {
     /**
      * Creates the embedded REST client when needed. Needs to be called before each test.
      */
-    public void initClient(URL[] urls, Settings settings) throws IOException {
+    public void initClient(URL[] urls, Settings settings) throws Exception {
         if (restTestClient == null) {
             restTestClient = new RestTestClient(restSpec, settings, urls);
         }

@@ -25,10 +25,13 @@ import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.rest.RestHandler;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
-
-import static java.util.Collections.emptyList;
+import java.util.Objects;
 
 /**
  * An additional extension point for {@link Plugin}s that extends Elasticsearch's scripting functionality. Implement it like this:
@@ -47,16 +50,29 @@ public interface ActionPlugin {
      * Actions added by this plugin.
      */
     default List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
-        return emptyList();
+        return Collections.emptyList();
     }
     /**
      * Action filters added by this plugin.
      */
     default List<Class<? extends ActionFilter>> getActionFilters() {
-        return emptyList();
+        return Collections.emptyList();
+    }
+    /**
+     * Rest handlers added by this plugin.
+     */
+    default List<Class<? extends RestHandler>> getRestHandlers() {
+        return Collections.emptyList();
     }
 
-    public static final class ActionHandler<Request extends ActionRequest<Request>, Response extends ActionResponse> {
+    /**
+     * Returns headers which should be copied through rest requests on to internal requests.
+     */
+    default Collection<String> getRestHeaders() {
+        return Collections.emptyList();
+    }
+
+    final class ActionHandler<Request extends ActionRequest<Request>, Response extends ActionResponse> {
         private final GenericAction<Request, Response> action;
         private final Class<? extends TransportAction<Request, Response>> transportAction;
         private final Class<?>[] supportTransportActions;
@@ -82,6 +98,31 @@ public interface ActionPlugin {
 
         public Class<?>[] getSupportTransportActions() {
             return supportTransportActions;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder b = new StringBuilder().append(action.name()).append(" is handled by ").append(transportAction.getName());
+            if (supportTransportActions.length > 0) {
+                b.append('[').append(Strings.arrayToCommaDelimitedString(supportTransportActions)).append(']');
+            }
+            return b.toString();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || obj.getClass() != ActionHandler.class) {
+                return false;
+            }
+            ActionHandler<?, ?> other = (ActionHandler<?, ?>) obj;
+            return Objects.equals(action, other.action)
+                    && Objects.equals(transportAction, other.transportAction)
+                    && Objects.deepEquals(supportTransportActions, other.supportTransportActions);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(action, transportAction, supportTransportActions);
         }
     }
 }

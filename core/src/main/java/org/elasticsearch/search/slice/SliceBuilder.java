@@ -55,7 +55,7 @@ public class SliceBuilder extends ToXContentToBytes implements Writeable {
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField ID_FIELD = new ParseField("id");
     public static final ParseField MAX_FIELD = new ParseField("max");
-    private final static ObjectParser<SliceBuilder, QueryParseContext> PARSER =
+    private static final ObjectParser<SliceBuilder, QueryParseContext> PARSER =
         new ObjectParser<>("slice", SliceBuilder::new);
 
     static {

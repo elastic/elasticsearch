@@ -23,3 +23,9 @@ behavior will be removed.
 If you are using a multi-cluster setup with both instances of Elasticsearch
 pointing to the same data path, you will need to add the cluster name to the
 data path so that different clusters do not overwrite data.
+
+==== Local files
+
+Prior to 5.0, nodes that were marked with both `node.data: false` and `node.master: false` (or the now removed `node.client: true`)
+didn't write any files or folder to disk. 5.x added persistent node ids, requiring nodes to store that information. As such, all
+node types will write a small state file to their data folders.

@@ -70,4 +70,51 @@
           settings:
             number_of_shards:   1
             number_of_replicas: 0
+---
+"Put template with analyzer alias":
+
+  - do:
+      indices.put_template:
+        name: test
+        create: true
+        order: 0
+        body:
+          template: test_*
+          settings:
+            index.analysis.analyzer.foobar.alias: "default"
+            index.analysis.analyzer.foobar.type: "keyword"
+            index.analysis.analyzer.foobar_search.alias: "default_search"
+            index.analysis.analyzer.foobar_search.type: "standard"
+
+  - do:
+      index:
+        index:  test_index
+        type:   test
+        body:   { field: "the quick brown fox" }
+
+  - do:
+      indices.refresh:
+        index: test_index
+
+  - do:
+      search:
+        index: test_index
+        type:  test
+        body:
+          query:
+            term:
+              field: "the quick brown fox"
+
+  - match: {hits.total: 1}
+
+  - do:
+      search:
+        index: test_index
+        type:  test
+        body:
+          query:
+            match:
+              field: "the quick brown fox"
+
+  - match: {hits.total: 0}
 

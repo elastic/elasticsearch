@@ -50,7 +50,7 @@ public class IndexActionIT extends ESIntegTestCase {
     public void testAutoGenerateIdNoDuplicates() throws Exception {
         int numberOfIterations = scaledRandomIntBetween(10, 50);
         for (int i = 0; i < numberOfIterations; i++) {
-            Throwable firstError = null;
+            Exception firstError = null;
             createIndex("test");
             int numOfDocs = randomIntBetween(10, 100);
             logger.info("indexing [{}] docs", numOfDocs);
@@ -59,26 +59,25 @@ public class IndexActionIT extends ESIntegTestCase {
                 builders.add(client().prepareIndex("test", "type").setSource("field", "value"));
             }
             indexRandom(true, builders);
-            ensureYellow("test");
             logger.info("verifying indexed content");
             int numOfChecks = randomIntBetween(8, 12);
             for (int j = 0; j < numOfChecks; j++) {
                 try {
                     logger.debug("running search with all types");
                     assertHitCount(client().prepareSearch("test").get(), numOfDocs);
-                } catch (Throwable t) {
-                    logger.error("search for all docs types failed", t);
+                } catch (Exception e) {
+                    logger.error("search for all docs types failed", e);
                     if (firstError == null) {
-                        firstError = t;
+                        firstError = e;
                     }
                 }
                 try {
                     logger.debug("running search with a specific type");
                     assertHitCount(client().prepareSearch("test").setTypes("type").get(), numOfDocs);
-                } catch (Throwable t) {
-                    logger.error("search for all docs of a specific type failed", t);
+                } catch (Exception e) {
+                    logger.error("search for all docs of a specific type failed", e);
                     if (firstError == null) {
-                        firstError = t;
+                        firstError = e;
                     }
                 }
             }

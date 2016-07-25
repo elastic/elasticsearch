@@ -647,7 +647,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             flags.writeTo(out);
             out.close();
             BytesReference bytes = out.bytes();
-            CommonStatsFlags readStats = CommonStatsFlags.readCommonStatsFlags(StreamInput.wrap(bytes));
+            CommonStatsFlags readStats = CommonStatsFlags.readCommonStatsFlags(bytes.streamInput());
             for (Flag flag : values) {
                 assertThat(flags.isSet(flag), equalTo(readStats.isSet(flag)));
             }
@@ -661,7 +661,7 @@ public class IndexStatsIT extends ESIntegTestCase {
             flags.writeTo(out);
             out.close();
             BytesReference bytes = out.bytes();
-            CommonStatsFlags readStats = CommonStatsFlags.readCommonStatsFlags(StreamInput.wrap(bytes));
+            CommonStatsFlags readStats = CommonStatsFlags.readCommonStatsFlags(bytes.streamInput());
             for (Flag flag : values) {
                 assertThat(flags.isSet(flag), equalTo(readStats.isSet(flag)));
             }

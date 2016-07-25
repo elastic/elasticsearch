@@ -60,7 +60,6 @@ import java.util.Optional;
  */
 public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScoreQueryBuilder> {
     public static final String NAME = "function_score";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     // For better readability of error message
     static final String MISPLACED_FUNCTION_MESSAGE_PREFIX = "you can either define [functions] array or a single function, not both. ";

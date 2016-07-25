@@ -30,7 +30,7 @@ import java.io.IOException;
  * when the index is at least {@link #value} old
  */
 public class MaxAgeCondition extends Condition<TimeValue> {
-    public final static String NAME = "max_age";
+    public static final String NAME = "max_age";
 
     public MaxAgeCondition(TimeValue value) {
         super(NAME);

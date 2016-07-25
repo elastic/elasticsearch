@@ -106,7 +106,7 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
         if (scriptFields != null) {
             for (ScriptField field : scriptFields) {
                 SearchScript searchScript = subSearchContext.scriptService().search(subSearchContext.lookup(), field.script(),
-                        ScriptContext.Standard.SEARCH, Collections.emptyMap(), subSearchContext.getQueryShardContext().getClusterState());
+                        ScriptContext.Standard.SEARCH, Collections.emptyMap());
                 subSearchContext.scriptFields().add(new org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField(
                         field.fieldName(), searchScript, field.ignoreFailure()));
             }

@@ -104,6 +104,13 @@ final class BootstrapCheck {
         final List<String> errors = new ArrayList<>();
         final List<String> ignoredErrors = new ArrayList<>();
 
+        if (enforceLimits) {
+            logger.info("bound or publishing to a non-loopback or non-link-local address, enforcing bootstrap checks");
+        }
+        if (enforceLimits && ignoreSystemChecks) {
+            logger.warn("enforcing bootstrap checks but ignoring system bootstrap checks, consider not ignoring system checks");
+        }
+
         for (final Check check : checks) {
             if (check.check()) {
                 if ((!enforceLimits || (check.isSystemCheck() && ignoreSystemChecks)) && !check.alwaysEnforce()) {
@@ -508,7 +515,7 @@ final class BootstrapCheck {
 
     }
 
-    static abstract class MightForkCheck implements BootstrapCheck.Check {
+    abstract static class MightForkCheck implements BootstrapCheck.Check {
 
         @Override
         public boolean check() {

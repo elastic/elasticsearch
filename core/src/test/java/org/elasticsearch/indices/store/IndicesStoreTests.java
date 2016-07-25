@@ -57,7 +57,7 @@ import static org.elasticsearch.test.VersionUtils.randomVersion;
 /**
  */
 public class IndicesStoreTests extends ESTestCase {
-    private final static ShardRoutingState[] NOT_STARTED_STATES;
+    private static final ShardRoutingState[] NOT_STARTED_STATES;
 
     static {
         Set<ShardRoutingState> set = new HashSet<>();

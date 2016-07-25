@@ -135,7 +135,7 @@ public class Task {
 
     public interface Status extends ToXContent, NamedWriteable {}
 
-    public PersistedTaskInfo result(DiscoveryNode node, Throwable error) throws IOException {
+    public PersistedTaskInfo result(DiscoveryNode node, Exception error) throws IOException {
         return new PersistedTaskInfo(taskInfo(node, true), error);
     }
 

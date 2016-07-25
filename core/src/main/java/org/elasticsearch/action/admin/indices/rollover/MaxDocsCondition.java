@@ -29,7 +29,7 @@ import java.io.IOException;
  * when the index has at least {@link #value} docs
  */
 public class MaxDocsCondition extends Condition<Long> {
-    public final static String NAME = "max_docs";
+    public static final String NAME = "max_docs";
 
     public MaxDocsCondition(Long value) {
         super(NAME);

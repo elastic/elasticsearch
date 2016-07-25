@@ -21,7 +21,7 @@ package org.elasticsearch.rest.action.admin.indices.exists.types;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
@@ -44,13 +44,13 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestTypesExistsAction extends BaseRestHandler {
 
     @Inject
-    public RestTypesExistsAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestTypesExistsAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(HEAD, "/{index}/{type}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         TypesExistsRequest typesExistsRequest = new TypesExistsRequest(
                 Strings.splitStringByCommaToArray(request.param("index")), Strings.splitStringByCommaToArray(request.param("type"))
         );

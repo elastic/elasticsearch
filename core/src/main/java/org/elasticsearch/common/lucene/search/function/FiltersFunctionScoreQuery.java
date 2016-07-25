@@ -102,7 +102,7 @@ public class FiltersFunctionScoreQuery extends Query {
     final float maxBoost;
     private final Float minScore;
 
-    final protected CombineFunction combineFunction;
+    protected final CombineFunction combineFunction;
 
     public FiltersFunctionScoreQuery(Query subQuery, ScoreMode scoreMode, FilterFunction[] filterFunctions, float maxBoost, Float minScore, CombineFunction combineFunction) {
         this.subQuery = subQuery;

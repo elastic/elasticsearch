@@ -47,9 +47,7 @@ import java.util.Optional;
  */
 @Deprecated
 public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> implements MultiTermQueryBuilder {
-
     public static final String NAME = "fuzzy";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     /** Default maximum edit distance. Defaults to AUTO. */
     public static final Fuzziness DEFAULT_FUZZINESS = Fuzziness.AUTO;

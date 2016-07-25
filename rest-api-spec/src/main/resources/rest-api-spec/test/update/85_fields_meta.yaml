@@ -14,10 +14,6 @@
                 _parent: { type: "foo" }
 
   - do:
-      cluster.health:
-          wait_for_status: yellow
-
-  - do:
       update:
           index:  test_1
           type:   test

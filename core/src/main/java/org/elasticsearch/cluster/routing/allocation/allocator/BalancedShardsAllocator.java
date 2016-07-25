@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -647,11 +648,12 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 for (int i = 0; i < primaryLength; i++) {
                     ShardRouting shard = primary[i];
                     if (!shard.primary()) {
-                        boolean drop = deciders.canAllocate(shard, allocation).type() == Type.NO;
-                        if (drop) {
-                            unassigned.ignoreShard(shard);
+                        final Decision decision = deciders.canAllocate(shard, allocation);
+                        if (decision.type() == Type.NO) {
+                            UnassignedInfo.AllocationStatus allocationStatus = UnassignedInfo.AllocationStatus.fromDecision(decision);
+                            changed |= unassigned.ignoreShard(shard, allocationStatus);
                             while(i < primaryLength-1 && comparator.compare(primary[i], primary[i+1]) == 0) {
-                                unassigned.ignoreShard(primary[++i]);
+                                changed |= unassigned.ignoreShard(primary[++i], allocationStatus);
                             }
                             continue;
                         } else {
@@ -701,9 +703,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                                                 final int minNodeHigh = minNode.highestPrimary(shard.getIndexName());
                                                 if ((((nodeHigh > repId && minNodeHigh > repId) || (nodeHigh < repId && minNodeHigh < repId)) && (nodeHigh < minNodeHigh))
                                                         || (nodeHigh > minNodeHigh && nodeHigh > repId && minNodeHigh < repId)) {
-                                                    minNode = node;
-                                                    minWeight = currentWeight;
-                                                    decision = currentDecision;
+                                                    // nothing to set here; the minNode, minWeight, and decision get set below
                                                 } else {
                                                     break NOUPDATE;
                                                 }
@@ -719,7 +719,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             }
                         }
                     }
-                    assert decision != null && minNode != null || decision == null && minNode == null;
+                    assert (decision == null) == (minNode == null);
                     if (minNode != null) {
                         final long shardSize = DiskThresholdDecider.getExpectedShardSize(shard, allocation,
                             ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
@@ -735,10 +735,12 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                         } else {
                             minNode.addShard(shard.initialize(minNode.getNodeId(), null, shardSize));
                             final RoutingNode node = minNode.getRoutingNode();
-                            if (deciders.canAllocate(node, allocation).type() != Type.YES) {
+                            final Decision.Type nodeLevelDecision = deciders.canAllocate(node, allocation).type();
+                            if (nodeLevelDecision != Type.YES) {
                                 if (logger.isTraceEnabled()) {
                                     logger.trace("Can not allocate on node [{}] remove from round decision [{}]", node, decision.type());
                                 }
+                                assert nodeLevelDecision == Type.NO;
                                 throttledNodes.add(minNode);
                             }
                         }
@@ -748,10 +750,14 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     } else if (logger.isTraceEnabled()) {
                         logger.trace("No Node found to assign shard [{}]", shard);
                     }
-                    unassigned.ignoreShard(shard);
+                    assert decision == null || decision.type() == Type.THROTTLE;
+                    UnassignedInfo.AllocationStatus allocationStatus =
+                        decision == null ? UnassignedInfo.AllocationStatus.DECIDERS_NO :
+                                           UnassignedInfo.AllocationStatus.fromDecision(decision);
+                    changed |= unassigned.ignoreShard(shard, allocationStatus);
                     if (!shard.primary()) { // we could not allocate it and we are a replica - check if we can ignore the other replicas
                         while(secondaryLength > 0 && comparator.compare(shard, secondary[secondaryLength-1]) == 0) {
-                            unassigned.ignoreShard(secondary[--secondaryLength]);
+                            changed |= unassigned.ignoreShard(secondary[--secondaryLength], allocationStatus);
                         }
                     }
                 }

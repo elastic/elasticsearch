@@ -84,7 +84,8 @@ public class FileUtilsTests extends ESTestCase {
         assertSingleFile(yamlSuites.get(dir.getFileName().toString()), dir.getFileName().toString(), file.getFileName().toString());
 
         //load from external file (optional extension)
-        yamlSuites = FileUtils.findYamlSuites(dir.getFileSystem(), "/rest-api-spec/test", dir.resolve("test_loading").toAbsolutePath().toString());
+        yamlSuites = FileUtils.findYamlSuites(dir.getFileSystem(), "/rest-api-spec/test",
+                dir.resolve("test_loading").toAbsolutePath().toString());
         assertThat(yamlSuites, notNullValue());
         assertThat(yamlSuites.size(), equalTo(1));
         assertThat(yamlSuites.containsKey(dir.getFileName().toString()), equalTo(true));

@@ -46,7 +46,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<DerivativePipelineAggregationBuilder> {
-    public static final String NAME = DerivativePipelineAggregator.TYPE.name();
+    public static final String NAME = "derivative";
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField FORMAT_FIELD = new ParseField("format");
@@ -62,14 +62,14 @@ public class DerivativePipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     private DerivativePipelineAggregationBuilder(String name, String[] bucketsPaths) {
-        super(name, DerivativePipelineAggregator.TYPE.name(), bucketsPaths);
+        super(name, NAME, bucketsPaths);
     }
 
     /**
      * Read from a stream.
      */
     public DerivativePipelineAggregationBuilder(StreamInput in) throws IOException {
-        super(in, DerivativePipelineAggregator.TYPE.name());
+        super(in, NAME);
         format = in.readOptionalString();
         if (in.readBoolean()) {
             gapPolicy = GapPolicy.readFrom(in);

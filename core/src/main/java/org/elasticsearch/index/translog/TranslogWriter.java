@@ -26,7 +26,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -36,7 +35,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -55,7 +53,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     /* the number of translog operations written to this file */
     private volatile int operationCounter;
     /* if we hit an exception that we can't recover from we assign it to this var and ship it with every AlreadyClosedException we throw */
-    private volatile Throwable tragedy;
+    private volatile Exception tragedy;
     /* A buffered outputstream what writes to the writers channel */
     private final OutputStream outputStream;
     /* the total offset of this file including the bytes written to the file as well as into the buffer */
@@ -97,11 +95,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             writeCheckpoint(channelFactory, headerLength, 0, file.getParent(), fileGeneration);
             final TranslogWriter writer = new TranslogWriter(channelFactory, shardId, fileGeneration, channel, file, bufferSize);
             return writer;
-        } catch (Throwable throwable) {
+        } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
             // file exists we remove it. We only apply this logic to the checkpoint.generation+1 any other file with a higher generation is an error condition
             IOUtils.closeWhileHandlingException(channel);
-            throw throwable;
+            throw exception;
         }
     }
 
@@ -110,18 +108,18 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      * e.g. disk full while flushing a new segment, this returns the root cause exception.
      * Otherwise (no tragic exception has occurred) it returns null.
      */
-    public Throwable getTragicException() {
+    public Exception getTragicException() {
         return tragedy;
     }
 
-    private synchronized final void closeWithTragicEvent(Throwable throwable) throws IOException {
-        assert throwable != null : "throwable must not be null in a tragic event";
+    private synchronized void closeWithTragicEvent(Exception exception) throws IOException {
+        assert exception != null;
         if (tragedy == null) {
-            tragedy = throwable;
-        } else if (tragedy != throwable) {
+            tragedy = exception;
+        } else if (tragedy != exception) {
             // it should be safe to call closeWithTragicEvents on multiple layers without
             // worrying about self suppression.
-            tragedy.addSuppressed(throwable);
+            tragedy.addSuppressed(exception);
         }
         close();
     }
@@ -134,8 +132,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final long offset = totalOffset;
         try {
             data.writeTo(outputStream);
-        } catch (Throwable ex) {
-            closeWithTragicEvent(ex);
+        } catch (Exception ex) {
+            try {
+                closeWithTragicEvent(ex);
+            } catch (Exception inner) {
+                ex.addSuppressed(inner);
+            }
             throw ex;
         }
         totalOffset += data.length();
@@ -184,7 +186,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 try {
                     sync(); // sync before we close..
                 } catch (IOException e) {
-                    closeWithTragicEvent(e);
+                    try {
+                        closeWithTragicEvent(e);
+                    } catch (Exception inner) {
+                        e.addSuppressed(inner);
+                    }
                     throw e;
                 }
                 if (closed.compareAndSet(false, true)) {
@@ -247,8 +253,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                             outputStream.flush();
                             offsetToSync = totalOffset;
                             opsCounter = operationCounter;
-                        } catch (Throwable ex) {
-                            closeWithTragicEvent(ex);
+                        } catch (Exception ex) {
+                            try {
+                                closeWithTragicEvent(ex);
+                            } catch (Exception inner) {
+                                ex.addSuppressed(inner);
+                            }
                             throw ex;
                         }
                     }
@@ -257,8 +267,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     try {
                         channel.force(false);
                         writeCheckpoint(channelFactory, offsetToSync, opsCounter, path.getParent(), generation);
-                    } catch (Throwable ex) {
-                        closeWithTragicEvent(ex);
+                    } catch (Exception ex) {
+                        try {
+                            closeWithTragicEvent(ex);
+                        } catch (Exception inner) {
+                            ex.addSuppressed(inner);
+                        }
                         throw ex;
                     }
                     assert lastSyncedOffset <= offsetToSync : "illegal state: " + lastSyncedOffset + " <= " + offsetToSync;
@@ -324,8 +338,12 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 try {
                     ensureOpen();
                     super.flush();
-                } catch (Throwable ex) {
-                    closeWithTragicEvent(ex);
+                } catch (Exception ex) {
+                    try {
+                        closeWithTragicEvent(ex);
+                    } catch (Exception inner) {
+                        ex.addSuppressed(inner);
+                    }
                     throw ex;
                 }
             }

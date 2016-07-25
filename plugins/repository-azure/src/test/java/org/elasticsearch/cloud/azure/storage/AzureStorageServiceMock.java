@@ -25,12 +25,15 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
@@ -41,14 +44,12 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * In memory storage for unit tests
  */
-public class AzureStorageServiceMock extends AbstractLifecycleComponent<AzureStorageServiceMock>
-        implements AzureStorageService {
+public class AzureStorageServiceMock extends AbstractComponent implements AzureStorageService {
 
     protected Map<String, ByteArrayOutputStream> blobs = new ConcurrentHashMap<>();
 
-    @Inject
-    public AzureStorageServiceMock(Settings settings) {
-        super(settings);
+    public AzureStorageServiceMock() {
+        super(Settings.EMPTY);
     }
 
     @Override
@@ -79,7 +80,10 @@ public class AzureStorageServiceMock extends AbstractLifecycleComponent<AzureSto
     }
 
     @Override
-    public InputStream getInputStream(String account, LocationMode mode, String container, String blob) {
+    public InputStream getInputStream(String account, LocationMode mode, String container, String blob) throws IOException {
+        if (!blobExists(account, mode, container, blob)) {
+            throw new FileNotFoundException("missing blob [" + blob + "]");
+        }
         return new ByteArrayInputStream(blobs.get(blob).toByteArray());
     }
 
@@ -117,18 +121,6 @@ public class AzureStorageServiceMock extends AbstractLifecycleComponent<AzureSto
                 blobs.remove(blobName);
             }
         }
-    }
-
-    @Override
-    protected void doStart() throws ElasticsearchException {
-    }
-
-    @Override
-    protected void doStop() throws ElasticsearchException {
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
     }
 
     /**

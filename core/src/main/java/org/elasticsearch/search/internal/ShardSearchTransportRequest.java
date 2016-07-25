@@ -157,11 +157,4 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     public void rewrite(QueryShardContext context) throws IOException {
         shardSearchLocalRequest.rewrite(context);
     }
-
-    private ShardSearchTransportRequest shallowCopy(ShardSearchLocalRequest rewritten) {
-        ShardSearchTransportRequest newRequest = new ShardSearchTransportRequest();
-        newRequest.originalIndices = originalIndices;
-        newRequest.shardSearchLocalRequest = rewritten;
-        return newRequest;
-    }
 }

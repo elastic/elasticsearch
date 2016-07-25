@@ -42,9 +42,7 @@ import java.util.Optional;
  * The span near query maps to Lucene {@link SpanNearQuery}.
  */
 public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuilder> implements SpanQueryBuilder {
-
     public static final String NAME = "span_near";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     /** Default for flag controlling whether matches are required to be in-order */
     public static boolean DEFAULT_IN_ORDER = true;

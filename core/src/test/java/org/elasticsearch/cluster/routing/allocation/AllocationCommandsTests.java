@@ -430,7 +430,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         );
         BytesStreamOutput bytes = new BytesStreamOutput();
         AllocationCommands.writeTo(commands, bytes);
-        StreamInput in = StreamInput.wrap(bytes.bytes());
+        StreamInput in = bytes.bytes().streamInput();
 
         // Since the commands are named writeable we need to register them and wrap the input stream
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();

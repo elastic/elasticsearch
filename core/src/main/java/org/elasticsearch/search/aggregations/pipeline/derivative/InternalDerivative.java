@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
@@ -32,41 +31,36 @@ import java.util.List;
 import java.util.Map;
 
 public class InternalDerivative extends InternalSimpleValue implements Derivative {
+    private final double normalizationFactor;
 
-    public final static Type TYPE = new Type("derivative");
-
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalDerivative readResult(StreamInput in) throws IOException {
-            InternalDerivative result = new InternalDerivative();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    private double normalizationFactor;
-
-    InternalDerivative() {
-    }
-
-    public InternalDerivative(String name, double value, double normalizationFactor, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
-            Map<String, Object> metaData) {
+    public InternalDerivative(String name, double value, double normalizationFactor, DocValueFormat formatter,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, value, formatter, pipelineAggregators, metaData);
         this.normalizationFactor = normalizationFactor;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public InternalDerivative(StreamInput in) throws IOException {
+        super(in);
+        normalizationFactor = in.readDouble();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        super.doWriteTo(out);
+        out.writeDouble(normalizationFactor);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return DerivativePipelineAggregationBuilder.NAME;
     }
 
     @Override
     public double normalizedValue() {
         return normalizationFactor > 0 ? (value() / normalizationFactor) : value();
-    }
-
-    @Override
-    public Type type() {
-        return TYPE;
     }
 
     @Override
@@ -80,18 +74,6 @@ public class InternalDerivative extends InternalSimpleValue implements Derivativ
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        super.doWriteTo(out);
-        out.writeDouble(normalizationFactor);
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        super.doReadFrom(in);
-        normalizationFactor = in.readDouble();
     }
 
     @Override

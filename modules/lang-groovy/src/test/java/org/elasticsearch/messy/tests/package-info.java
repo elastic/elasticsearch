@@ -36,27 +36,19 @@
  */
 /* List of renames that took place:
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/AvgIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/AvgTests.java
-  renamed:    core/src/test/java/org/elasticsearch/search/aggregations/pipeline/BucketScriptIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/BucketScriptTests.java
-  renamed:    core/src/test/java/org/elasticsearch/search/aggregations/pipeline/BucketSelectorIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/BucketSelectorTests.java
   renamed:    core/src/test/java/org/elasticsearch/document/BulkIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/BulkTests.java
-  renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/CardinalityIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/CardinalityTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/child/ChildQuerySearchIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/ChildQuerySearchTests.java
   renamed:    core/src/test/java/org/elasticsearch/transport/ContextAndHeaderTransportIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/ContextAndHeaderTransportTests.java
   ^^^^^ note: the methods from this test using mustache were moved to the mustache module under its messy tests package.
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/bucket/DateHistogramIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/DateHistogramTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/bucket/DateRangeIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/DateRangeTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/bucket/DoubleTermsIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/DoubleTermsTests.java
-  renamed:    core/src/test/java/org/elasticsearch/search/aggregations/EquivalenceIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/EquivalenceTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/ExtendedStatsIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/ExtendedStatsTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/functionscore/FunctionScoreIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/FunctionScoreTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/geo/GeoDistanceIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/GeoDistanceTests.java
-  renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/HDRPercentileRanksIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/HDRPercentileRanksTests.java
-  renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/HDRPercentilesIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/HDRPercentilesTests.java
-  renamed:    core/src/test/java/org/elasticsearch/search/aggregations/bucket/HistogramIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/HistogramTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/bucket/IPv4RangeIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/IPv4RangeTests.java
   renamed:    core/src/test/java/org/elasticsearch/script/IndexLookupIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/IndexLookupTests.java
   renamed:    core/src/test/java/org/elasticsearch/script/IndexedScriptIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/IndexedScriptTests.java
-  renamed:    core/src/test/java/org/elasticsearch/action/IndicesRequestIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/IndicesRequestTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/innerhits/InnerHitsIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/InnerHitsTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/bucket/LongTermsIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/LongTermsTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/MaxIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/MaxTests.java
@@ -76,8 +68,6 @@
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/StatsIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/StatsTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/bucket/StringTermsIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/StringTermsTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/SumIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/SumTests.java
-  renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/TDigestPercentileRanksIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/TDigestPercentileRanksTests.java
-  renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/TDigestPercentilesIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/TDigestPercentilesTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/bucket/TopHitsIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/TopHitsTests.java
   renamed:    core/src/test/java/org/elasticsearch/index/mapper/TransformOnIndexMapperIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/TransformOnIndexMapperTests.java
   renamed:    core/src/main/java/org/elasticsearch/script/groovy/GroovyScriptCompilationException.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/script/groovy/GroovyRestIT.java

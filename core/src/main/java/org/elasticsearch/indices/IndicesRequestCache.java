@@ -328,11 +328,11 @@ public final class IndicesRequestCache extends AbstractComponent implements Remo
     /**
      * Returns the current size of the cache
      */
-    final int count() {
+    int count() {
         return cache.count();
     }
 
-    final int numRegisteredCloseListeners() { // for testing
+    int numRegisteredCloseListeners() { // for testing
         return registeredClosedListeners.size();
     }
 }

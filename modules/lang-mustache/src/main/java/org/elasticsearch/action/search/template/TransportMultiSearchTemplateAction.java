@@ -61,7 +61,7 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     responses.set(index, new MultiSearchTemplateResponse.Item(null, e));
                     if (counter.decrementAndGet() == 0) {
                         finishHim();

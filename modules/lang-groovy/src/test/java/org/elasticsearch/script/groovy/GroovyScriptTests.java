@@ -99,15 +99,15 @@ public class GroovyScriptTests extends ESIntegTestCase {
 
         try {
             client().prepareSearch("test")
-                    .setQuery(constantScoreQuery(scriptQuery(new Script("assert false", ScriptType.INLINE, "groovy", null)))).get();
+                    .setQuery(constantScoreQuery(scriptQuery(new Script("null.foo", ScriptType.INLINE, "groovy", null)))).get();
             fail("should have thrown an exception");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString() + "should not contained NotSerializableTransportException",
                     e.toString().contains("NotSerializableTransportException"), equalTo(false));
             assertThat(e.toString() + "should have contained ScriptException",
                     e.toString().contains("ScriptException"), equalTo(true));
-            assertThat(e.toString()+ "should have contained an assert error",
-                    e.toString().contains("AssertionError[assert false"), equalTo(true));
+            assertThat(e.toString()+ "should have contained a NullPointerException",
+                    e.toString().contains("NullPointerException[Cannot get property 'foo' on null object]"), equalTo(true));
         }
     }
 

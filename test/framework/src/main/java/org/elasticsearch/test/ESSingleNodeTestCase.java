@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -177,14 +178,14 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put("script.inline", "true")
             .put("script.stored", "true")
             .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
-            .put("http.enabled", false)
-            .put(Node.NODE_LOCAL_SETTING.getKey(), true)
+            .put(NetworkModule.HTTP_ENABLED.getKey(), false)
+            .put("discovery.type", "local")
+            .put("transport.type", "local")
             .put(Node.NODE_DATA_SETTING.getKey(), true)
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
         Node build = new MockNode(settings, getPlugins());
         build.start();
-        assertThat(DiscoveryNode.isLocalNode(build.settings()), is(true));
         return build;
     }
 

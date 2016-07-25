@@ -155,7 +155,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
                 GroovyClassLoader groovyClassLoader = new GroovyClassLoader(loader, configuration);
                 return groovyClassLoader.parseClass(codeSource);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("Exception compiling Groovy script:", e);
                 }
@@ -293,7 +293,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 // NOTE: we truncate the stack because IndyInterface has security issue (needs getClassLoader)
                 // we don't do a security check just as a tradeoff, it cannot really escalate to anything.
                 return AccessController.doPrivileged((PrivilegedAction<Object>) script::run);
-            } catch (Throwable e) {
+            } catch (Exception e) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("failed to run {}", e, compiledScript);
                 }

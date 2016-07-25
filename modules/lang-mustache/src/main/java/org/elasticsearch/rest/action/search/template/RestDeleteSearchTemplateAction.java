@@ -18,26 +18,24 @@
  */
 package org.elasticsearch.rest.action.search.template;
 
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestDeleteStoredScriptAction;
-import org.elasticsearch.script.Template;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 public class RestDeleteSearchTemplateAction extends RestDeleteStoredScriptAction {
 
     @Inject
-    public RestDeleteSearchTemplateAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, false, client);
+    public RestDeleteSearchTemplateAction(Settings settings, RestController controller) {
+        super(settings, controller, false);
         controller.registerHandler(DELETE, "/_search/template/{id}", this);
     }
 
     @Override
     protected String getScriptLang(RestRequest request) {
-        return Template.DEFAULT_LANG;
+        return "mustache";
     }
 }

@@ -35,9 +35,9 @@ import java.util.stream.Collectors;
 
 public class ScriptSettings {
 
-    public final static String DEFAULT_LANG = "groovy";
+    public static final String DEFAULT_LANG = "groovy";
 
-    private final static Map<ScriptService.ScriptType, Setting<Boolean>> SCRIPT_TYPE_SETTING_MAP;
+    private static final Map<ScriptService.ScriptType, Setting<Boolean>> SCRIPT_TYPE_SETTING_MAP;
 
     static {
         Map<ScriptService.ScriptType, Setting<Boolean>> scriptTypeSettingMap = new HashMap<>();

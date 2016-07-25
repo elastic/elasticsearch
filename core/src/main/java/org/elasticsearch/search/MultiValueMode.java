@@ -519,7 +519,7 @@ public enum MultiValueMode implements Writeable {
     public static MultiValueMode fromString(String sortMode) {
         try {
             return valueOf(sortMode.toUpperCase(Locale.ROOT));
-        } catch (Throwable t) {
+        } catch (Exception e) {
             throw new IllegalArgumentException("Illegal sort mode: " + sortMode);
         }
     }

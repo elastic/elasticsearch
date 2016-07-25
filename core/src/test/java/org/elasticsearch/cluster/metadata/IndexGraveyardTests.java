@@ -60,8 +60,7 @@ public class IndexGraveyardTests extends ESTestCase {
         final IndexGraveyard graveyard = createRandom();
         final BytesStreamOutput out = new BytesStreamOutput();
         graveyard.writeTo(out);
-        final ByteBufferStreamInput in = new ByteBufferStreamInput(ByteBuffer.wrap(out.bytes().toBytes()));
-        assertThat(IndexGraveyard.fromStream(in), equalTo(graveyard));
+        assertThat(IndexGraveyard.fromStream(out.bytes().streamInput()), equalTo(graveyard));
     }
 
     public void testXContent() throws IOException {

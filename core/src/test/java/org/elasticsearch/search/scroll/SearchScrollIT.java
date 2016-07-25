@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
@@ -68,7 +69,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
- *
+ * Tests for scrolling.
  */
 public class SearchScrollIT extends ESIntegTestCase {
     public void testSimpleScrollQueryThenFetch() throws Exception {
@@ -419,11 +420,20 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertThrows(internalCluster().transportClient().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)), RestStatus.NOT_FOUND);
     }
 
+    /**
+     * Tests that we use an optimization shrinking the batch to the size of the shard. Thus the Integer.MAX_VALUE window doesn't OOM us.
+     */
     public void testDeepScrollingDoesNotBlowUp() throws Exception {
         client().prepareIndex("index", "type", "1")
                 .setSource("field", "value")
                 .setRefreshPolicy(IMMEDIATE)
                 .execute().get();
+        /*
+         * Disable the max result window setting for this test because it'll reject the search's unreasonable batch size. We want
+         * unreasonable batch sizes to just OOM.
+         */
+        client().admin().indices().prepareUpdateSettings("index")
+                .setSettings(Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), Integer.MAX_VALUE)).get();
 
         for (SearchType searchType : SearchType.values()) {
             SearchRequestBuilder builder = client().prepareSearch("index")

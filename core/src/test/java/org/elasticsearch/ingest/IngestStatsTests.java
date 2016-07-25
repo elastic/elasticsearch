@@ -62,7 +62,7 @@ public class IngestStatsTests extends ESTestCase {
     private IngestStats serialize(IngestStats stats) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);
-        StreamInput in = StreamInput.wrap(out.bytes());
+        StreamInput in = out.bytes().streamInput();
         return new IngestStats(in);
     }
 }

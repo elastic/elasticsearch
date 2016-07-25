@@ -2,8 +2,8 @@
 == Shrink Index
 
 The shrink index API allows you to shrink an existing index into a new index
-with fewer primary shards. The number of primary shards in the target index
-must be a factor of the shards in the source index. For example an index with
+with fewer primary shards. The requested number of primary shards in the target index
+must be a factor of the number of shards in the source index. For example an index with
 `8` primary shards can be shrunk into `4`, `2` or `1` primary shards or an index
 with `15` primary shards can be shrunk into `5`, `3` or `1`. If the number
 of shards in the index is a prime number it can only be shrunk into a single
@@ -76,8 +76,8 @@ Indices can only be shrunk if they satisfy the following requirements:
 * The index must have more primary shards than the target index.
 
 * The number of primary shards in the target index must be a factor of the
-  number of primary shards in the source index. must have more primary shards
-   than the target index.
+  number of primary shards in the source index. The source index must have
+  more primary shards than the target index.
 
 * The index must not contain more than `2,147,483,519` documents in total
   across all shards that will be shrunk into a single shard on the target index

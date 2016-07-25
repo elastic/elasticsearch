@@ -44,13 +44,13 @@ public class JvmExamplePlugin extends Plugin {
     }
 
     @Override
-    public Collection<Module> nodeModules() {
+    public Collection<Module> createGuiceModules() {
         return Collections.<Module>singletonList(new ConfiguredExampleModule());
     }
 
     @Override
     @SuppressWarnings("rawtypes") // Plugin use a rawtype
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
         Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         return services;
     }

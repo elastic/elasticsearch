@@ -37,7 +37,7 @@ public class GetStoredScriptRequestTests extends ESTestCase {
         out.setVersion(randomVersion(random()));
         request.writeTo(out);
 
-        StreamInput in = StreamInput.wrap(out.bytes());
+        StreamInput in = out.bytes().streamInput();
         in.setVersion(out.getVersion());
         GetStoredScriptRequest request2 = new GetStoredScriptRequest();
         request2.readFrom(in);

@@ -35,7 +35,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.contains;
 
 public class AzureStorageSettingsFilterTests extends ESTestCase {
-    final static Settings settings = Settings.builder()
+    static final Settings settings = Settings.builder()
             .put("cloud.azure.storage.azure1.account", "myaccount1")
             .put("cloud.azure.storage.azure1.key", "mykey1")
             .put("cloud.azure.storage.azure1.default", true)
@@ -46,7 +46,7 @@ public class AzureStorageSettingsFilterTests extends ESTestCase {
             .build();
 
     public void testSettingsFiltering() throws IOException {
-        AzureRepositoryPlugin p = new AzureRepositoryPlugin(Settings.EMPTY);
+        AzureRepositoryPlugin p = new AzureRepositoryPlugin();
         SettingsModule module = new SettingsModule(Settings.EMPTY, p.getSettings(), p.getSettingsFilter());
         SettingsFilter settingsFilter = ModuleTestCase.bindAndGetInstance(module, SettingsFilter.class);
 

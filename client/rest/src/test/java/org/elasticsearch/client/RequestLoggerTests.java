@@ -35,6 +35,8 @@ import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
+import org.apache.http.nio.entity.NByteArrayEntity;
+import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.util.EntityUtils;
 
 import java.io.ByteArrayInputStream;
@@ -50,7 +52,14 @@ public class RequestLoggerTests extends RestClientTestCase {
 
     public void testTraceRequest() throws IOException, URISyntaxException {
         HttpHost host = new HttpHost("localhost", 9200, getRandom().nextBoolean() ? "http" : "https");
-        URI uri = new URI("/index/type/_api");
+
+        String expectedEndpoint = "/index/type/_api";
+        URI uri;
+        if (randomBoolean()) {
+            uri = new URI(expectedEndpoint);
+        } else {
+            uri = new URI("index/type/_api");
+        }
 
         HttpRequestBase request;
         int requestType = RandomInts.randomIntBetween(getRandom(), 0, 7);
@@ -83,21 +92,31 @@ public class RequestLoggerTests extends RestClientTestCase {
                 throw new UnsupportedOperationException();
         }
 
-        String expected = "curl -iX " + request.getMethod() + " '" + host + uri + "'";
+        String expected = "curl -iX " + request.getMethod() + " '" + host + expectedEndpoint + "'";
         boolean hasBody = request instanceof HttpEntityEnclosingRequest && getRandom().nextBoolean();
         String requestBody = "{ \"field\": \"value\" }";
         if (hasBody) {
             expected += " -d '" + requestBody + "'";
             HttpEntityEnclosingRequest enclosingRequest = (HttpEntityEnclosingRequest) request;
             HttpEntity entity;
-            if (getRandom().nextBoolean()) {
-                entity = new StringEntity(requestBody, StandardCharsets.UTF_8);
-            } else {
-                entity = new InputStreamEntity(new ByteArrayInputStream(requestBody.getBytes(StandardCharsets.UTF_8)));
+            switch(RandomInts.randomIntBetween(getRandom(), 0, 3)) {
+                case 0:
+                    entity = new StringEntity(requestBody, StandardCharsets.UTF_8);
+                    break;
+                case 1:
+                    entity = new InputStreamEntity(new ByteArrayInputStream(requestBody.getBytes(StandardCharsets.UTF_8)));
+                    break;
+                case 2:
+                    entity = new NStringEntity(requestBody, StandardCharsets.UTF_8);
+                    break;
+                case 3:
+                    entity = new NByteArrayEntity(requestBody.getBytes(StandardCharsets.UTF_8));
+                    break;
+                default:
+                    throw new UnsupportedOperationException();
             }
             enclosingRequest.setEntity(entity);
         }
-
         String traceRequest = RequestLogger.buildTraceRequest(request, host);
         assertThat(traceRequest, equalTo(expected));
         if (hasBody) {

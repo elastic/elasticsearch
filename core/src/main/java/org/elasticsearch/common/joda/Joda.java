@@ -43,7 +43,6 @@ import org.joda.time.format.StrictISODateTimeFormat;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.Locale;
-import java.util.regex.Pattern;
 
 /**
  *
@@ -375,21 +374,30 @@ public class Joda {
             return hasMilliSecondPrecision ? 19 : 16;
         }
 
+
+        /**
+         * We adjust the instant by displayOffset to adjust for the offset that might have been added in
+         * {@link DateTimeFormatter#printTo(Appendable, long, Chronology)} when using a time zone.
+         */
         @Override
         public void printTo(StringBuffer buf, long instant, Chronology chrono, int displayOffset, DateTimeZone displayZone, Locale locale) {
             if (hasMilliSecondPrecision) {
-                buf.append(instant);
+                buf.append(instant - displayOffset);
             } else {
-                buf.append(instant / 1000);
+                buf.append((instant  - displayOffset) / 1000);
             }
         }
 
+        /**
+         * We adjust the instant by displayOffset to adjust for the offset that might have been added in
+         * {@link DateTimeFormatter#printTo(Appendable, long, Chronology)} when using a time zone.
+         */
         @Override
         public void printTo(Writer out, long instant, Chronology chrono, int displayOffset, DateTimeZone displayZone, Locale locale) throws IOException {
             if (hasMilliSecondPrecision) {
-                out.write(String.valueOf(instant));
+                out.write(String.valueOf(instant - displayOffset));
             } else {
-                out.append(String.valueOf(instant / 1000));
+                out.append(String.valueOf((instant - displayOffset) / 1000));
             }
         }
 

@@ -168,7 +168,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
      *
      * @return The profile results or an empty map
      */
-    public @Nullable Map<String, ProfileShardResult> getProfileResults() {
+    @Nullable public Map<String, ProfileShardResult> getProfileResults() {
         return internalResponse.profile();
     }
 

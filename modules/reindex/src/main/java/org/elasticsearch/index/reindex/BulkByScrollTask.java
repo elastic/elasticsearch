@@ -217,7 +217,7 @@ public class BulkByScrollTask extends CancellableTask {
             }
             builder.endObject();
             builder.timeValueField("throttled_millis", "throttled", throttled);
-            builder.field("requests_per_second", requestsPerSecond == Float.POSITIVE_INFINITY ? "unlimited" : requestsPerSecond);
+            builder.field("requests_per_second", requestsPerSecond == Float.POSITIVE_INFINITY ? -1 : requestsPerSecond);
             if (reasonCancelled != null) {
                 builder.field("canceled", reasonCancelled);
             }
@@ -324,7 +324,7 @@ public class BulkByScrollTask extends CancellableTask {
         }
 
         /**
-         * The number of requests per second to which to throttle the request. 0 means unlimited.
+         * The number of requests per second to which to throttle the request. Float.POSITIVE_INFINITY means unlimited.
          */
         public float getRequestsPerSecond() {
             return requestsPerSecond;
@@ -475,8 +475,8 @@ public class BulkByScrollTask extends CancellableTask {
                 }
 
                 @Override
-                public void onFailure(Throwable t) {
-                    command.onFailure(t);
+                public void onFailure(Exception e) {
+                    command.onFailure(e);
                 }
             });
         }
@@ -546,8 +546,8 @@ public class BulkByScrollTask extends CancellableTask {
         }
 
         @Override
-        public void onFailure(Throwable t) {
-            delegate.onFailure(t);
+        public void onFailure(Exception e) {
+            delegate.onFailure(e);
         }
     }
 }

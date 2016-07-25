@@ -45,8 +45,8 @@ public class SmileXContent implements XContent {
         return XContentBuilder.builder(smileXContent);
     }
 
-    final static SmileFactory smileFactory;
-    public final static SmileXContent smileXContent;
+    static final SmileFactory smileFactory;
+    public static final SmileXContent smileXContent;
 
     static {
         smileFactory = new SmileFactory();
@@ -97,9 +97,6 @@ public class SmileXContent implements XContent {
 
     @Override
     public XContentParser createParser(BytesReference bytes) throws IOException {
-        if (bytes.hasArray()) {
-            return createParser(bytes.array(), bytes.arrayOffset(), bytes.length());
-        }
         return createParser(bytes.streamInput());
     }
 

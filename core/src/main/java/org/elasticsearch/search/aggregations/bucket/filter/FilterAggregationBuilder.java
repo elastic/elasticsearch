@@ -29,13 +29,15 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterAggregationBuilder> {
-    public static final String NAME = InternalFilter.TYPE.name();
+    public static final String NAME = "filter";
+    private static final Type TYPE = new Type(NAME);
     public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private final QueryBuilder filter;
@@ -49,7 +51,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
      *            {@link Filter} aggregation.
      */
     public FilterAggregationBuilder(String name, QueryBuilder filter) {
-        super(name, InternalFilter.TYPE);
+        super(name, TYPE);
         if (filter == null) {
             throw new IllegalArgumentException("[filter] must not be null: [" + name + "]");
         }
@@ -60,7 +62,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
      * Read from a stream.
      */
     public FilterAggregationBuilder(StreamInput in) throws IOException {
-        super(in, InternalFilter.TYPE);
+        super(in, TYPE);
         filter = in.readNamedWriteable(QueryBuilder.class);
     }
 

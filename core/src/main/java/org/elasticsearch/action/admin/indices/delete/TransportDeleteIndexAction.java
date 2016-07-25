@@ -99,7 +99,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 logger.debug("failed to delete indices [{}]", t, concreteIndices);
                 listener.onFailure(t);
             }

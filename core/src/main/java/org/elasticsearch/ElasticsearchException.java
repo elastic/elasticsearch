@@ -30,9 +30,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -99,18 +99,9 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     public ElasticsearchException(StreamInput in) throws IOException {
-        super(in.readOptionalString(), in.readThrowable());
+        super(in.readOptionalString(), in.readException());
         readStackTrace(this, in);
-        int numKeys = in.readVInt();
-        for (int i = 0; i < numKeys; i++) {
-            final String key = in.readString();
-            final int numValues = in.readVInt();
-            final ArrayList<String> values = new ArrayList<>(numValues);
-            for (int j = 0; j < numValues; j++) {
-                values.add(in.readString());
-            }
-            headers.put(key, values);
-        }
+        headers.putAll(in.readMapOfLists());
     }
 
     /**
@@ -161,7 +152,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * Unwraps the actual cause from the exception for cases when the exception is a
      * {@link ElasticsearchWrapperException}.
      *
-     * @see org.elasticsearch.ExceptionsHelper#unwrapCause(Throwable)
+     * @see ExceptionsHelper#unwrapCause(Throwable)
      */
     public Throwable unwrapCause() {
         return ExceptionsHelper.unwrapCause(this);
@@ -203,16 +194,9 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(this.getMessage());
-        out.writeThrowable(this.getCause());
+        out.writeException(this.getCause());
         writeStackTraces(this, out);
-        out.writeVInt(headers.size());
-        for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeVInt(entry.getValue().size());
-            for (String v : entry.getValue()) {
-                out.writeString(v);
-            }
-        }
+        out.writeMapOfLists(headers);
     }
 
     public static ElasticsearchException readException(StreamInput input, int id) throws IOException {
@@ -414,7 +398,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
         int numSuppressed = in.readVInt();
         for (int i = 0; i < numSuppressed; i++) {
-            throwable.addSuppressed(in.readThrowable());
+            throwable.addSuppressed(in.readException());
         }
         return throwable;
     }
@@ -434,7 +418,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         Throwable[] suppressed = throwable.getSuppressed();
         out.writeVInt(suppressed.length);
         for (Throwable t : suppressed) {
-            out.writeThrowable(t);
+            out.writeException(t);
         }
         return throwable;
     }
@@ -496,7 +480,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.index.shard.IndexShardStartedException::new, 23),
         SEARCH_CONTEXT_MISSING_EXCEPTION(org.elasticsearch.search.SearchContextMissingException.class,
                 org.elasticsearch.search.SearchContextMissingException::new, 24),
-        GENERAL_SCRIPT_EXCEPTION(org.elasticsearch.script.GeneralScriptException.class, 
+        GENERAL_SCRIPT_EXCEPTION(org.elasticsearch.script.GeneralScriptException.class,
                 org.elasticsearch.script.GeneralScriptException::new, 25),
         BATCH_OPERATION_EXCEPTION(org.elasticsearch.index.shard.TranslogRecoveryPerformer.BatchOperationException.class,
                 org.elasticsearch.index.shard.TranslogRecoveryPerformer.BatchOperationException::new, 26),
@@ -674,10 +658,9 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.search.aggregations.InvalidAggregationPathException::new, 121),
         INDEX_ALREADY_EXISTS_EXCEPTION(org.elasticsearch.indices.IndexAlreadyExistsException.class,
                 org.elasticsearch.indices.IndexAlreadyExistsException::new, 123),
-        SCRIPT_PARSE_EXCEPTION(org.elasticsearch.script.Script.ScriptParseException.class,
-                org.elasticsearch.script.Script.ScriptParseException::new, 124),
-        HTTP_ON_TRANSPORT_EXCEPTION(org.elasticsearch.transport.netty.SizeHeaderFrameDecoder.HttpOnTransportException.class,
-                org.elasticsearch.transport.netty.SizeHeaderFrameDecoder.HttpOnTransportException::new, 125),
+        // 124 used to be Script.ScriptParseException
+        HTTP_ON_TRANSPORT_EXCEPTION(TcpTransport.HttpOnTransportException.class,
+                TcpTransport.HttpOnTransportException::new, 125),
         MAPPER_PARSING_EXCEPTION(org.elasticsearch.index.mapper.MapperParsingException.class,
                 org.elasticsearch.index.mapper.MapperParsingException::new, 126),
         SEARCH_CONTEXT_EXCEPTION(org.elasticsearch.search.SearchContextException.class,
@@ -708,7 +691,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.index.query.QueryShardException::new, 141),
         NO_LONGER_PRIMARY_SHARD_EXCEPTION(ShardStateAction.NoLongerPrimaryShardException.class,
                 ShardStateAction.NoLongerPrimaryShardException::new, 142),
-        SCRIPT_EXCEPTION(org.elasticsearch.script.ScriptException.class, org.elasticsearch.script.ScriptException::new, 143);
+        SCRIPT_EXCEPTION(org.elasticsearch.script.ScriptException.class, org.elasticsearch.script.ScriptException::new, 143),
+        NOT_MASTER_EXCEPTION(org.elasticsearch.cluster.NotMasterException.class, org.elasticsearch.cluster.NotMasterException::new, 144);
 
 
         final Class<? extends ElasticsearchException> exceptionClass;
@@ -793,9 +777,9 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         return null;
     }
 
-    public static void renderThrowable(XContentBuilder builder, Params params, Throwable t) throws IOException {
+    public static void renderException(XContentBuilder builder, Params params, Exception e) throws IOException {
         builder.startObject("error");
-        final ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(t);
+        final ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(e);
         builder.field("root_cause");
         builder.startArray();
         for (ElasticsearchException rootCause : rootCauses) {
@@ -805,7 +789,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             builder.endObject();
         }
         builder.endArray();
-        ElasticsearchException.toXContent(builder, params, t);
+        ElasticsearchException.toXContent(builder, params, e);
         builder.endObject();
     }
 

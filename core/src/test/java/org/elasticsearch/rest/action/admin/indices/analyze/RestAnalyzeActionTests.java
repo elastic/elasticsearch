@@ -25,9 +25,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.core.IsNull;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class RestAnalyzeActionTests extends ESTestCase {
@@ -46,8 +48,45 @@ public class RestAnalyzeActionTests extends ESTestCase {
 
         assertThat(analyzeRequest.text().length, equalTo(1));
         assertThat(analyzeRequest.text(), equalTo(new String[]{"THIS IS A TEST"}));
-        assertThat(analyzeRequest.tokenizer(), equalTo("keyword"));
-        assertThat(analyzeRequest.tokenFilters(), equalTo(new String[]{"lowercase"}));
+        assertThat(analyzeRequest.tokenizer().name, equalTo("keyword"));
+        assertThat(analyzeRequest.tokenFilters().size(), equalTo(1));
+        for (AnalyzeRequest.NameOrDefinition filter : analyzeRequest.tokenFilters()) {
+            assertThat(filter.name, equalTo("lowercase"));
+        }
+    }
+
+    public void testParseXContentForAnalyzeRequestWithCustomFilters() throws Exception {
+        BytesReference content =  XContentFactory.jsonBuilder()
+            .startObject()
+            .field("text", "THIS IS A TEST")
+            .field("tokenizer", "keyword")
+            .startArray("filter")
+            .value("lowercase")
+            .startObject()
+            .field("type", "stop")
+            .array("stopwords", "foo", "buzz")
+            .endObject()
+            .endArray()
+            .startArray("char_filter")
+            .startObject()
+            .field("type", "mapping")
+            .array("mappings", "ph => f", "qu => q")
+            .endObject()
+            .endArray()
+            .endObject().bytes();
+
+        AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
+
+        RestAnalyzeAction.buildFromContent(content, analyzeRequest, new ParseFieldMatcher(Settings.EMPTY));
+
+        assertThat(analyzeRequest.text().length, equalTo(1));
+        assertThat(analyzeRequest.text(), equalTo(new String[]{"THIS IS A TEST"}));
+        assertThat(analyzeRequest.tokenizer().name, equalTo("keyword"));
+        assertThat(analyzeRequest.tokenFilters().size(), equalTo(2));
+        assertThat(analyzeRequest.tokenFilters().get(0).name, equalTo("lowercase"));
+        assertThat(analyzeRequest.tokenFilters().get(1).definition, notNullValue());
+        assertThat(analyzeRequest.charFilters().size(), equalTo(1));
+        assertThat(analyzeRequest.charFilters().get(0).definition, notNullValue());
     }
 
     public void testParseXContentForAnalyzeRequestWithInvalidJsonThrowsException() throws Exception {

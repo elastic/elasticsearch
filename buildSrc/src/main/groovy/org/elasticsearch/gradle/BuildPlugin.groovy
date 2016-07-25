@@ -19,7 +19,6 @@
 package org.elasticsearch.gradle
 
 import nebula.plugin.extraconfigurations.ProvidedBasePlugin
-import nebula.plugin.publishing.maven.MavenBasePublishPlugin
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.GradleException
 import org.gradle.api.JavaVersion
@@ -35,6 +34,7 @@ import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.artifacts.maven.MavenPom
 import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
@@ -297,6 +297,10 @@ class BuildPlugin implements Plugin<Project> {
                 url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
             }
         }
+        repos.maven {
+            name 'netty-snapshots'
+            url "http://s3.amazonaws.com/download.elasticsearch.org/nettysnapshots/20160722"
+        }
     }
 
     /** Returns a closure which can be used with a MavenPom for removing transitive dependencies. */
@@ -344,7 +348,7 @@ class BuildPlugin implements Plugin<Project> {
 
     /**Configuration generation of maven poms. */
     public static void configurePomGeneration(Project project) {
-        project.plugins.withType(MavenBasePublishPlugin.class).whenPluginAdded {
+        project.plugins.withType(MavenPublishPlugin.class).whenPluginAdded {
             project.publishing {
                 publications {
                     all { MavenPublication publication -> // we only deal with maven

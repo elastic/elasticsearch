@@ -22,7 +22,7 @@ package org.elasticsearch.rest.action.update;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -33,12 +33,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptParameterParser;
-import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
-
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -47,13 +41,13 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestUpdateAction extends BaseRestHandler {
 
     @Inject
-    public RestUpdateAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestUpdateAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_update", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) throws Exception {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws Exception {
         UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("type"), request.param("id"));
         updateRequest.routing(request.param("routing"));
         updateRequest.parent(request.param("parent"));
@@ -64,18 +58,6 @@ public class RestUpdateAction extends BaseRestHandler {
             updateRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
         updateRequest.docAsUpsert(request.paramAsBoolean("doc_as_upsert", updateRequest.docAsUpsert()));
-        ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
-        scriptParameterParser.parseParams(request);
-        ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
-        if (scriptValue != null) {
-            Map<String, Object> scriptParams = new HashMap<>();
-            for (Map.Entry<String, String> entry : request.params().entrySet()) {
-                if (entry.getKey().startsWith("sp_")) {
-                    scriptParams.put(entry.getKey().substring(3), entry.getValue());
-                }
-            }
-            updateRequest.script(new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), scriptParams));
-        }
         String sField = request.param("fields");
         if (sField != null) {
             String[] sFields = Strings.splitStringByCommaToArray(sField);

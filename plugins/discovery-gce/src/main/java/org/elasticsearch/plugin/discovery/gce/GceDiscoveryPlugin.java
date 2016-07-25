@@ -70,13 +70,13 @@ public class GceDiscoveryPlugin extends Plugin {
     }
 
     @Override
-    public Collection<Module> nodeModules() {
+    public Collection<Module> createGuiceModules() {
         return Collections.singletonList(new GceModule());
     }
 
     @Override
     @SuppressWarnings("rawtypes") // Supertype uses raw type
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
         return Collections.singletonList(GceModule.getComputeServiceImpl());
     }
 

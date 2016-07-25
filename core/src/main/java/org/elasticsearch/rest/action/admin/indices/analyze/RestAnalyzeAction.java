@@ -20,12 +20,14 @@ package org.elasticsearch.rest.action.admin.indices.analyze;
 
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -39,6 +41,7 @@ import org.elasticsearch.rest.action.support.RestToXContentListener;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -60,8 +63,8 @@ public class RestAnalyzeAction extends BaseRestHandler {
     }
 
     @Inject
-    public RestAnalyzeAction(Settings settings, RestController controller, Client client) {
-        super(settings, client);
+    public RestAnalyzeAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_analyze", this);
         controller.registerHandler(GET, "/{index}/_analyze", this);
         controller.registerHandler(POST, "/_analyze", this);
@@ -69,7 +72,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
 
         String[] texts = request.paramAsStringArrayOrEmptyIfAll("text");
 
@@ -77,9 +80,15 @@ public class RestAnalyzeAction extends BaseRestHandler {
         analyzeRequest.text(texts);
         analyzeRequest.analyzer(request.param("analyzer"));
         analyzeRequest.field(request.param("field"));
-        analyzeRequest.tokenizer(request.param("tokenizer"));
-        analyzeRequest.tokenFilters(request.paramAsStringArray("filter", request.paramAsStringArray("token_filter", analyzeRequest.tokenFilters())));
-        analyzeRequest.charFilters(request.paramAsStringArray("char_filter", analyzeRequest.charFilters()));
+        if (request.hasParam("tokenizer")) {
+            analyzeRequest.tokenizer(request.param("tokenizer"));
+        }
+        for (String filter : request.paramAsStringArray("filter", request.paramAsStringArray("token_filter", Strings.EMPTY_ARRAY))) {
+            analyzeRequest.addTokenFilter(filter);
+        }
+        for (String charFilter : request.paramAsStringArray("char_filter", Strings.EMPTY_ARRAY)) {
+            analyzeRequest.addTokenFilter(charFilter);
+        }
         analyzeRequest.explain(request.paramAsBoolean("explain", false));
         analyzeRequest.attributes(request.paramAsStringArray("attributes", analyzeRequest.attributes()));
 
@@ -87,7 +96,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
             XContentType type = RestActions.guessBodyContentType(request);
             if (type == null) {
                 if (texts == null || texts.length == 0) {
-                    texts = new String[]{ RestActions.getRestContent(request).toUtf8() };
+                    texts = new String[]{ RestActions.getRestContent(request).utf8ToString() };
                     analyzeRequest.text(texts);
                 }
             } else {
@@ -96,7 +105,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
             }
         }
 
-        client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<AnalyzeResponse>(channel));
+        client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<>(channel));
     }
 
     public static void buildFromContent(BytesReference content, AnalyzeRequest analyzeRequest, ParseFieldMatcher parseFieldMatcher) {
@@ -124,33 +133,41 @@ public class RestAnalyzeAction extends BaseRestHandler {
                         analyzeRequest.analyzer(parser.text());
                     } else if (parseFieldMatcher.match(currentFieldName, Fields.FIELD) && token == XContentParser.Token.VALUE_STRING) {
                         analyzeRequest.field(parser.text());
-                    } else if (parseFieldMatcher.match(currentFieldName, Fields.TOKENIZER) && token == XContentParser.Token.VALUE_STRING) {
-                        analyzeRequest.tokenizer(parser.text());
+                    } else if (parseFieldMatcher.match(currentFieldName, Fields.TOKENIZER)) {
+                        if (token == XContentParser.Token.VALUE_STRING) {
+                            analyzeRequest.tokenizer(parser.text());
+                        } else if (token == XContentParser.Token.START_OBJECT) {
+                            analyzeRequest.tokenizer(parser.map());
+                        } else {
+                            throw new IllegalArgumentException(currentFieldName + " should be tokenizer's name or setting");
+                        }
                     } else if (parseFieldMatcher.match(currentFieldName, Fields.TOKEN_FILTERS) && token == XContentParser.Token.START_ARRAY) {
-                        List<String> filters = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (token.isValue() == false) {
-                                throw new IllegalArgumentException(currentFieldName + " array element should only contain token filter's name");
+                            if (token == XContentParser.Token.VALUE_STRING) {
+                                analyzeRequest.addTokenFilter(parser.text());
+                            } else if (token == XContentParser.Token.START_OBJECT) {
+                                analyzeRequest.addTokenFilter(parser.map());
+                            } else {
+                                throw new IllegalArgumentException(currentFieldName + " array element should contain token_filter's name or setting");
                             }
-                            filters.add(parser.text());
                         }
-                        analyzeRequest.tokenFilters(filters.toArray(new String[filters.size()]));
                     } else if (parseFieldMatcher.match(currentFieldName, Fields.CHAR_FILTERS) && token == XContentParser.Token.START_ARRAY) {
-                        List<String> charFilters = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (token.isValue() == false) {
-                                throw new IllegalArgumentException(currentFieldName + " array element should only contain char filter's name");
+                            if (token == XContentParser.Token.VALUE_STRING) {
+                                analyzeRequest.addCharFilter(parser.text());
+                            } else if (token == XContentParser.Token.START_OBJECT) {
+                                analyzeRequest.addCharFilter(parser.map());
+                            } else {
+                                throw new IllegalArgumentException(currentFieldName + " array element should contain char filter's name or setting");
                             }
-                            charFilters.add(parser.text());
                         }
-                        analyzeRequest.charFilters(charFilters.toArray(new String[charFilters.size()]));
                     } else if (parseFieldMatcher.match(currentFieldName, Fields.EXPLAIN)) {
                         if (parser.isBooleanValue()) {
                             analyzeRequest.explain(parser.booleanValue());
                         } else {
                             throw new IllegalArgumentException(currentFieldName + " must be either 'true' or 'false'");
                         }
-                    } else if (parseFieldMatcher.match(currentFieldName, Fields.ATTRIBUTES) && token == XContentParser.Token.START_ARRAY){
+                    } else if (parseFieldMatcher.match(currentFieldName, Fields.ATTRIBUTES) && token == XContentParser.Token.START_ARRAY) {
                         List<String> attributes = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token.isValue() == false) {

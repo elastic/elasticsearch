@@ -45,8 +45,8 @@ public class CborXContent implements XContent {
         return XContentBuilder.builder(cborXContent);
     }
 
-    final static CBORFactory cborFactory;
-    public final static CborXContent cborXContent;
+    static final CBORFactory cborFactory;
+    public static final CborXContent cborXContent;
 
     static {
         cborFactory = new CBORFactory();
@@ -96,9 +96,6 @@ public class CborXContent implements XContent {
 
     @Override
     public XContentParser createParser(BytesReference bytes) throws IOException {
-        if (bytes.hasArray()) {
-            return createParser(bytes.array(), bytes.arrayOffset(), bytes.length());
-        }
         return createParser(bytes.streamInput());
     }
 

@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -69,8 +71,7 @@ public class ExportersTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         // we always need to have the local exporter as it serves as the default one
-        factories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, clusterService,
-                mock(CleanerService.class)));
+        factories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, clusterService, mock(CleanerService.class)));
 
         exporters = new Exporters(Settings.EMPTY, factories, clusterService);
     }
@@ -251,6 +252,14 @@ public class ExportersTests extends ESTestCase {
         verify(exporters.getExporter("_name1"), times(1)).masterOnly();
         verify(exporters.getExporter("_name1"), times(1)).isSingleton();
         verifyNoMoreInteractions(exporters.getExporter("_name1"));
+    }
+
+    public void testEmptyPipeline() throws IOException {
+        String json = Exporter.emptyPipeline(XContentType.JSON).string();
+
+        // ensure the description starts with the API version
+        assertThat(json, containsString("\"description\":\"" + MonitoringTemplateUtils.TEMPLATE_VERSION + ":"));
+        assertThat(json, containsString("\"processors\":[]"));
     }
 
     /**

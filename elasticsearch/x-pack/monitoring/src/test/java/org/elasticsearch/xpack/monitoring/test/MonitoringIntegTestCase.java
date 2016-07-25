@@ -511,6 +511,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                 "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/state', 'cluster:monitor/health', 'cluster:monitor/stats'," +
                 " 'cluster:admin/settings/update', 'cluster:admin/repository/delete', 'cluster:monitor/nodes/liveness'," +
                 " 'indices:admin/template/get', 'indices:admin/template/put', 'indices:admin/template/delete'," +
+                " 'cluster:admin/ingest/pipeline/get', 'cluster:admin/ingest/pipeline/put', 'cluster:admin/ingest/pipeline/delete'," +
                 " 'cluster:monitor/task', 'cluster:admin/xpack/monitoring/bulk' ]\n" +
                 "  indices:\n" +
                 "    - names: '*'\n" +

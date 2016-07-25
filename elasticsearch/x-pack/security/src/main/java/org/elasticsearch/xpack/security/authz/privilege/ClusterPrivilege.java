@@ -30,6 +30,7 @@ public class ClusterPrivilege extends AbstractAutomatonPrivilege<ClusterPrivileg
     private static final Automaton MANAGE_AUTOMATON = minusAndDeterminize(ALL_CLUSTER_AUTOMATON, MANAGE_SECURITY_AUTOMATON);
     private static final Automaton TRANSPORT_CLIENT_AUTOMATON = patterns("cluster:monitor/nodes/liveness", "cluster:monitor/state");
     private static final Automaton MANAGE_IDX_TEMPLATE_AUTOMATON = patterns("indices:admin/template/*");
+    private static final Automaton MANAGE_INGEST_PIPELINE_AUTOMATON = patterns("cluster:admin/ingest/pipeline/*");
 
     public static final ClusterPrivilege NONE =                  new ClusterPrivilege(Name.NONE,                Automatons.EMPTY);
     public static final ClusterPrivilege ALL =                   new ClusterPrivilege(Name.ALL,                 ALL_CLUSTER_AUTOMATON);
@@ -37,6 +38,8 @@ public class ClusterPrivilege extends AbstractAutomatonPrivilege<ClusterPrivileg
     public static final ClusterPrivilege MANAGE =                new ClusterPrivilege("manage",                 MANAGE_AUTOMATON);
     public static final ClusterPrivilege MANAGE_IDX_TEMPLATES =
             new ClusterPrivilege("manage_index_templates", MANAGE_IDX_TEMPLATE_AUTOMATON);
+    public static final ClusterPrivilege MANAGE_INGEST_PIPELINES =
+            new ClusterPrivilege("manage_ingest_pipelines", MANAGE_INGEST_PIPELINE_AUTOMATON);
     public static final ClusterPrivilege TRANSPORT_CLIENT =      new ClusterPrivilege("transport_client",       TRANSPORT_CLIENT_AUTOMATON);
     public static final ClusterPrivilege MANAGE_SECURITY =       new ClusterPrivilege("manage_security",        MANAGE_SECURITY_AUTOMATON);
 
@@ -50,6 +53,7 @@ public class ClusterPrivilege extends AbstractAutomatonPrivilege<ClusterPrivileg
         values.add(MONITOR);
         values.add(MANAGE);
         values.add(MANAGE_IDX_TEMPLATES);
+        values.add(MANAGE_INGEST_PIPELINES);
         values.add(TRANSPORT_CLIENT);
         values.add(MANAGE_SECURITY);
     }

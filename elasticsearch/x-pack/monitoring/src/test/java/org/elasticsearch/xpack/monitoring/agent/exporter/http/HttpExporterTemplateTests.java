@@ -18,6 +18,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.monitoring.agent.exporter.AbstractExporterTemplateTestCase;
 import org.elasticsearch.xpack.monitoring.agent.exporter.Exporter;
 import org.junit.After;
@@ -73,13 +74,28 @@ public class HttpExporterTemplateTests extends AbstractExporterTemplateTestCase 
     }
 
     @Override
+    protected void deletePipeline() throws Exception {
+        dispatcher.pipelines.clear();
+    }
+
+    @Override
     protected void putTemplate(String name) throws Exception {
         dispatcher.templates.put(name, generateTemplateSource(name));
     }
 
     @Override
-    protected void assertTemplateExist(String name) throws Exception {
+    protected void putPipeline(String name) throws Exception {
+        dispatcher.pipelines.put(name, Exporter.emptyPipeline(XContentType.JSON).bytes());
+    }
+
+    @Override
+    protected void assertTemplateExists(String name) throws Exception {
         assertThat("failed to find a template matching [" + name + "]", dispatcher.templates.containsKey(name), is(true));
+    }
+
+    @Override
+    protected void assertPipelineExists(String name) throws Exception {
+        assertThat("failed to find a pipeline matching [" + name + "]", dispatcher.pipelines.containsKey(name), is(true));
     }
 
     @Override
@@ -89,6 +105,15 @@ public class HttpExporterTemplateTests extends AbstractExporterTemplateTestCase 
 
         // Checks that the current template exists
         assertThat(dispatcher.templates.containsKey(name), is(true));
+    }
+
+    @Override
+    protected void assertPipelineNotUpdated(String name) throws Exception {
+        // Checks that no PUT pipeline request has been made
+        assertThat(dispatcher.hasRequest("PUT", "/_ingest/pipeline/" + name), is(false));
+
+        // Checks that the current pipeline exists
+        assertThat(dispatcher.pipelines.containsKey(name), is(true));
     }
 
     @Override
@@ -103,6 +128,7 @@ public class HttpExporterTemplateTests extends AbstractExporterTemplateTestCase 
 
         private final Set<String> requests = new HashSet<>();
         private final Map<String, BytesReference> templates = ConcurrentCollections.newConcurrentMap();
+        private final Map<String, BytesReference> pipelines = ConcurrentCollections.newConcurrentMap();
         private final Set<String> indices = ConcurrentCollections.newConcurrentSet();
 
         @Override
@@ -110,45 +136,54 @@ public class HttpExporterTemplateTests extends AbstractExporterTemplateTestCase 
             final String requestLine = request.getRequestLine();
             requests.add(requestLine);
 
-            switch (requestLine) {
-                // Cluster version
-                case "GET / HTTP/1.1":
-                    return newResponse(200, "{\"version\": {\"number\": \"" + Version.CURRENT.toString() + "\"}}");
-                // Bulk
-                case "POST /_bulk HTTP/1.1":
-                    // Parse the bulk request and extract all index names
-                    try {
-                        BulkRequest bulk = new BulkRequest();
-                        byte[] source = request.getBody().readByteArray();
-                        bulk.add(source, 0, source.length);
-                        for (ActionRequest docRequest : bulk.requests()) {
-                            if (docRequest instanceof IndexRequest) {
-                                indices.add(((IndexRequest) docRequest).index());
-                            }
+            // Cluster version
+            if ("GET / HTTP/1.1".equals(requestLine)) {
+                return newResponse(200, "{\"version\": {\"number\": \"" + Version.CURRENT.toString() + "\"}}");
+            // Bulk
+            } else if ("POST".equals(request.getMethod()) && request.getPath().startsWith("/_bulk")) {
+                // Parse the bulk request and extract all index names
+                try {
+                    BulkRequest bulk = new BulkRequest();
+                    byte[] source = request.getBody().readByteArray();
+                    bulk.add(source, 0, source.length);
+                    for (ActionRequest docRequest : bulk.requests()) {
+                        if (docRequest instanceof IndexRequest) {
+                            indices.add(((IndexRequest) docRequest).index());
                         }
-                    } catch (Exception e) {
-                        return newResponse(500, e.getMessage());
                     }
-                    return newResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
-                default:
-                    String[] paths = request.getPath().split("/");
+                } catch (Exception e) {
+                    return newResponse(500, e.getMessage());
+                }
+                return newResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
+            // Templates and Pipelines
+            } else if ("GET".equals(request.getMethod()) || "PUT".equals(request.getMethod())) {
+                final String[] paths = request.getPath().split("/");
 
+                if (paths.length > 2) {
                     // Templates
-                    if ((paths != null) && (paths.length > 1) && ("_template".equals(paths[1]))) {
-                        String templateName = paths[2];
-                        boolean templateExist = templates.containsKey(templateName);
-
-                        if ("GET".equals(request.getMethod())) {
-                            return templateExist ? newResponse(200, templates.get(templateName).utf8ToString()) : NOT_FOUND;
-                        }
-                        if ("PUT".equals(request.getMethod())) {
-                            templates.put(templateName, new BytesArray(request.getBody().readByteArray()));
-                            return templateExist ? newResponse(200, "updated") : newResponse(201, "created");
-                        }
+                    if ("_template".equals(paths[1])) {
+                        // _template/{name}
+                        return newResponseForType(templates, request, paths[2]);
+                    } else if ("_ingest".equals(paths[1])) {
+                        // _ingest/pipeline/{name}
+                        return newResponseForType(pipelines, request, paths[3]);
                     }
-                    break;
+                }
             }
             return newResponse(500, "MockServerDispatcher does not support: " + request.getRequestLine());
+        }
+
+        private MockResponse newResponseForType(Map<String, BytesReference> type, RecordedRequest request, String name) {
+            final boolean exists = type.containsKey(name);
+
+            if ("GET".equals(request.getMethod())) {
+                return exists ? newResponse(200, type.get(name).utf8ToString()) : NOT_FOUND;
+            } else if ("PUT".equals(request.getMethod())) {
+                type.put(name, new BytesArray(request.getMethod()));
+                return exists ? newResponse(200, "updated") : newResponse(201, "created");
+            }
+
+            return newResponse(500, request.getMethod() + " " + request.getPath() + " is not supported");
         }
 
         MockResponse newResponse(int code, String body) {

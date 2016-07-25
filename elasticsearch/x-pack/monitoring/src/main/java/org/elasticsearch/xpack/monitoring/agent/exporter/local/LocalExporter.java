@@ -11,19 +11,23 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.xpack.common.init.proxy.ClientProxy;
 import org.elasticsearch.xpack.monitoring.agent.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.agent.exporter.Exporter;
@@ -37,6 +41,7 @@ import org.joda.time.DateTimeZone;
 
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -133,11 +138,17 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 }
             }
 
-            logger.debug("monitoring index templates are installed, service can start");
+            // if we don't have the ingest pipeline, then it's going to fail anyway
+            if (hasIngestPipelines(clusterState) == false) {
+                logger.debug("monitoring ingest pipeline [{}] does not exist, so service cannot start", EXPORT_PIPELINE_NAME);
+                return null;
+            }
+
+            logger.trace("monitoring index templates and pipelines are installed, service can start");
 
         } else {
 
-            // we are on master
+            // we are on the elected master
             //
             // Check that there is nothing that could block metadata updates
             if (clusterState.blocks().hasGlobalBlock(ClusterBlockLevel.METADATA_WRITE)) {
@@ -145,24 +156,82 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 return null;
             }
 
+            // whenever we install anything, we return null to force it to retry to give the cluster a chance to catch up
+            boolean installedSomething = false;
+
             // Check that each required template exist, installing it if needed
             for (Map.Entry<String, String> template : templates.entrySet()) {
                 if (hasTemplate(template.getKey(), clusterState) == false) {
                     logger.debug("template [{}] not found", template.getKey());
                     putTemplate(template.getKey(), template.getValue());
-                    return null;
+                    installedSomething = true;
                 } else {
-                    logger.debug("template [{}] found", template.getKey());
+                    logger.trace("template [{}] found", template.getKey());
                 }
             }
 
-            logger.debug("monitoring index templates are installed on master node, service can start");
+            // if we don't have the ingest pipeline, then install it
+            if (hasIngestPipelines(clusterState) == false) {
+                logger.debug("pipeline [{}] not found", EXPORT_PIPELINE_NAME);
+                putIngestPipeline();
+                installedSomething = true;
+            } else {
+                logger.trace("pipeline [{}] found", EXPORT_PIPELINE_NAME);
+            }
+
+            if (installedSomething) {
+                // let the cluster catch up (and because we do the PUTs asynchronously)
+                return null;
+            }
+
+            logger.trace("monitoring index templates and pipelines are installed on master node, service can start");
         }
 
         if (state.compareAndSet(State.INITIALIZED, State.RUNNING)) {
             logger.debug("started");
         }
-        return new LocalBulk(name(), logger, client, resolvers);
+
+        return new LocalBulk(name(), logger, client, resolvers, config.settings().getAsBoolean(USE_INGEST_PIPELINE_SETTING, true));
+    }
+
+    /**
+     * Determine if the ingest pipeline for {@link #EXPORT_PIPELINE_NAME} exists in the cluster or not.
+     *
+     * @param clusterState The current cluster state
+     * @return {@code true} if the {@code clusterState} contains a pipeline with {@link #EXPORT_PIPELINE_NAME}
+     */
+    private boolean hasIngestPipelines(ClusterState clusterState) {
+        final IngestMetadata ingestMetadata = clusterState.getMetaData().custom(IngestMetadata.TYPE);
+
+        // NOTE: this will need to become a more advanced check once we actually supply a meaningful pipeline
+        //  because we will want to _replace_ older pipelines so that they go from (e.g., monitoring-2 doing nothing to
+        //  monitoring-2 becoming monitoring-3 documents)
+        return ingestMetadata != null && ingestMetadata.getPipelines().containsKey(EXPORT_PIPELINE_NAME);
+    }
+
+    /**
+     * Create the pipeline required to handle past data as well as to future-proof ingestion for <em>current</em> documents (the pipeline
+     * is initially empty, but it can be replaced later with one that translates it as-needed).
+     * <p>
+     * This should only be invoked by the <em>elected</em> master node.
+     * <p>
+     * Whenever we eventually make a backwards incompatible change, then we need to override any pipeline that already exists that is
+     * older than this one. Currently, we prepend the API version as the first part of the description followed by a <code>:</code>.
+     * <pre><code>
+     * {
+     *   "description": "2: This is a placeholder ...",
+     *   "pipelines" : [ ... ]
+     * }
+     * </code></pre>
+     * That should be used (until something better exists) to ensure that we do not override <em>newer</em> pipelines with our own.
+     */
+    private void putIngestPipeline() {
+        logger.debug("installing ingest pipeline [{}]", EXPORT_PIPELINE_NAME);
+
+        final BytesReference emptyPipeline = emptyPipeline(XContentType.JSON).bytes();
+        final PutPipelineRequest request = new PutPipelineRequest(EXPORT_PIPELINE_NAME, emptyPipeline);
+
+        client.admin().cluster().putPipeline(request, new ResponseActionListener<>("pipeline", EXPORT_PIPELINE_NAME));
     }
 
     /**
@@ -193,28 +262,14 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         return templates.size() > 0;
     }
 
-    void putTemplate(String template, String source) {
+    private void putTemplate(String template, String source) {
         logger.debug("installing template [{}]",template);
 
         PutIndexTemplateRequest request = new PutIndexTemplateRequest(template).source(source);
         assert !Thread.currentThread().isInterrupted() : "current thread has been interrupted before putting index template!!!";
 
         // async call, so we won't block cluster event thread
-        client.admin().indices().putTemplate(request, new ActionListener<PutIndexTemplateResponse>() {
-            @Override
-            public void onResponse(PutIndexTemplateResponse response) {
-                if (response.isAcknowledged()) {
-                    logger.trace("successfully installed monitoring template [{}]", template);
-                } else {
-                    logger.error("failed to update monitoring index template [{}]", template);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("failed to update monitoring index template [{}]", e, template);
-            }
-        });
+        client.admin().indices().putTemplate(request, new ResponseActionListener<>("template", template));
     }
 
     @Override
@@ -306,5 +361,33 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         INITIALIZED,
         RUNNING,
         TERMINATED
+    }
+
+    /**
+     * Acknowledge success / failure for any given creation attempt (e.g., template or pipeline).
+     */
+    private class ResponseActionListener<Response extends AcknowledgedResponse> implements ActionListener<Response> {
+
+        private final String type;
+        private final String name;
+
+        public ResponseActionListener(String type, String name) {
+            this.type = Objects.requireNonNull(type);
+            this.name = Objects.requireNonNull(name);
+        }
+
+        @Override
+        public void onResponse(Response response) {
+            if (response.isAcknowledged()) {
+                logger.trace("successfully set monitoring {} [{}]", type, name);
+            } else {
+                logger.error("failed to set monitoring index {} [{}]", type, name);
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.error("failed to set monitoring index {} [{}]", e, type, name);
+        }
     }
 }

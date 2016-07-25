@@ -11,7 +11,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.common.init.proxy.ClientProxy;
 import org.elasticsearch.xpack.monitoring.agent.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.agent.exporter.ExportException;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
@@ -22,6 +21,8 @@ import org.elasticsearch.xpack.security.InternalClient;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static org.elasticsearch.xpack.monitoring.agent.exporter.Exporter.EXPORT_PIPELINE_NAME;
+
 /**
  * LocalBulk exports monitoring data in the local cluster using bulk requests. Its usage is not thread safe since the
  * {@link LocalBulk#add(Collection)},  {@link LocalBulk#flush()} and  {@link LocalBulk#doClose()} methods are not synchronized.
@@ -31,15 +32,17 @@ public class LocalBulk extends ExportBulk {
     private final ESLogger logger;
     private final InternalClient client;
     private final ResolversRegistry resolvers;
+    private final boolean usePipeline;
 
     private BulkRequestBuilder requestBuilder;
 
 
-    public LocalBulk(String name, ESLogger logger, InternalClient client, ResolversRegistry resolvers) {
+    public LocalBulk(String name, ESLogger logger, InternalClient client, ResolversRegistry resolvers, boolean usePipeline) {
         super(name);
         this.logger = logger;
         this.client = client;
         this.resolvers = resolvers;
+        this.usePipeline = usePipeline;
     }
 
     @Override
@@ -58,11 +61,17 @@ public class LocalBulk extends ExportBulk {
                 MonitoringIndexNameResolver<MonitoringDoc> resolver = resolvers.getResolver(doc);
                 IndexRequest request = new IndexRequest(resolver.index(doc), resolver.type(doc), resolver.id(doc));
                 request.source(resolver.source(doc, XContentType.SMILE));
+
+                // allow the use of ingest pipelines to be completely optional
+                if (usePipeline) {
+                    request.setPipeline(EXPORT_PIPELINE_NAME);
+                }
+
                 requestBuilder.add(request);
 
                 if (logger.isTraceEnabled()) {
-                    logger.trace("local exporter [{}] - added index request [index={}, type={}, id={}]",
-                            name, request.index(), request.type(), request.id());
+                    logger.trace("local exporter [{}] - added index request [index={}, type={}, id={}, pipeline={}]",
+                                 name, request.index(), request.type(), request.id(), request.getPipeline());
                 }
             } catch (Exception e) {
                 if (exception == null) {

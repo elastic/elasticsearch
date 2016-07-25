@@ -23,7 +23,7 @@ monitoring_user:
 # Monitoring remote agent role. Assign to the agent user on the remote monitoring cluster
 # to which the monitoring agent will export all its data
 remote_monitoring_agent:
-  cluster: [ "manage_index_templates", "monitor" ]
+  cluster: [ "manage_index_templates", "manage_ingest_pipelines", "monitor" ]
   indices:
     - names:
         - '.marvel-es-*'

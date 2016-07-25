@@ -12,6 +12,7 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -62,6 +63,16 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+/**
+ * With the forthcoming addition of the HTTP-based Java Client for ES, we should be able to combine this class with the
+ * {@code LocalExporter} implementation, with only a few minor differences:
+ *
+ * <ul>
+ * <li>The {@code HttpExporter} needs to support configuring the certificates and authentication parameters.</li>
+ * <li>Depending on how the REST client is implemented, it may or may not allow us to make some calls in the same way
+ * (only time will tell; unknown unknowns).</li>
+ * </ul>
+ */
 public class HttpExporter extends Exporter {
 
     public static final String TYPE = "http";
@@ -84,8 +95,14 @@ public class HttpExporter extends Exporter {
      */
     public static final Set<String> BLACKLISTED_HEADERS = Collections.unmodifiableSet(Sets.newHashSet("Content-Length", "Content-Type"));
 
-    // es level timeout used when checking and writing templates (used to speed up tests)
+    /**
+     * ES level timeout used when checking and writing templates (used to speed up tests)
+     */
     public static final String TEMPLATE_CHECK_TIMEOUT_SETTING = "index.template.master_timeout";
+    /**
+     * ES level timeout used when checking and writing pipelines (used to speed up tests)
+     */
+    public static final String PIPELINE_CHECK_TIMEOUT_SETTING = "index.pipeline.master_timeout";
 
     public static final String SSL_SETTING = "ssl";
     public static final String SSL_PROTOCOL_SETTING = "protocol";
@@ -95,9 +112,11 @@ public class HttpExporter extends Exporter {
     public static final String SSL_HOSTNAME_VERIFICATION_SETTING = SSL_SETTING + ".hostname_verification";
 
     /**
-     * Minimum supported version of the remote monitoring cluster
-     **/
-    public static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_2_0_0_beta2;
+     * Minimum supported version of the remote monitoring cluster.
+     * <p>
+     * We must have support for ingest pipelines, which requires a minimum of 5.0.
+     */
+    public static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_5_0_0_alpha5;
 
     private static final XContentType CONTENT_TYPE = XContentType.JSON;
 
@@ -117,6 +136,10 @@ public class HttpExporter extends Exporter {
 
     @Nullable
     final TimeValue templateCheckTimeout;
+
+    @Nullable
+    final TimeValue pipelineCheckTimeout;
+
     /**
      * Headers supplied by the user to send (likely to a proxy for routing).
      */
@@ -124,6 +147,7 @@ public class HttpExporter extends Exporter {
     private final Map<String, String[]> headers;
 
     volatile boolean checkedAndUploadedIndexTemplate = false;
+    volatile boolean checkedAndUploadedIndexPipeline = false;
     volatile boolean supportedClusterVersion = false;
 
     boolean keepAlive;
@@ -142,11 +166,8 @@ public class HttpExporter extends Exporter {
         this.connectionReadTimeout = config.settings().getAsTime(CONNECTION_READ_TIMEOUT_SETTING,
                 TimeValue.timeValueMillis(connectionTimeout.millis() * 10));
 
-        // HORRIBLE!!! We can't use settings.getAsTime(..) !!!
-        // WE MUST FIX THIS IN CORE...
-        // TimeValue SHOULD NOT SELECTIVELY CHOOSE WHAT FIELDS TO PARSE BASED ON THEIR NAMES!!!!
-        String templateCheckTimeoutValue = config.settings().get(TEMPLATE_CHECK_TIMEOUT_SETTING, null);
-        templateCheckTimeout = TimeValue.parseTimeValue(templateCheckTimeoutValue, null, settingFQN(TEMPLATE_CHECK_TIMEOUT_SETTING));
+        templateCheckTimeout = parseTimeValue(TEMPLATE_CHECK_TIMEOUT_SETTING);
+        pipelineCheckTimeout = parseTimeValue(PIPELINE_CHECK_TIMEOUT_SETTING);
 
         keepAlive = config.settings().getAsBoolean(CONNECTION_KEEP_ALIVE_SETTING, true);
         keepAliveWorker = new ConnectionKeepAliveWorker();
@@ -166,7 +187,7 @@ public class HttpExporter extends Exporter {
                 Strings.arrayToCommaDelimitedString(hosts), MonitoringIndexNameResolver.PREFIX);
     }
 
-    private String[] resolveHosts(Settings settings) {
+    private String[] resolveHosts(final Settings settings) {
         final String[] hosts = settings.getAsArray(HOST_SETTING);
 
         if (hosts.length == 0) {
@@ -184,7 +205,7 @@ public class HttpExporter extends Exporter {
         return hosts;
     }
 
-    private Map<String, String[]> configureHeaders(Settings settings) {
+    private Map<String, String[]> configureHeaders(final Settings settings) {
         final Settings headerSettings = settings.getAsSettings(HEADERS);
         final Set<String> names = headerSettings.names();
 
@@ -213,6 +234,15 @@ public class HttpExporter extends Exporter {
         return Collections.unmodifiableMap(headers);
     }
 
+    private TimeValue parseTimeValue(final String setting) {
+        // HORRIBLE!!! We can't use settings.getAsTime(..) !!!
+        // WE MUST FIX THIS IN CORE...
+        // TimeValue SHOULD NOT SELECTIVELY CHOOSE WHAT FIELDS TO PARSE BASED ON THEIR NAMES!!!!
+        final String checkTimeoutValue = config.settings().get(setting, null);
+
+        return TimeValue.parseTimeValue(checkTimeoutValue, null, settingFQN(setting));
+    }
+
     ResolversRegistry getResolvers() {
         return resolvers;
     }
@@ -236,12 +266,29 @@ public class HttpExporter extends Exporter {
         }
     }
 
+    private String buildQueryString() {
+        StringBuilder queryString = new StringBuilder();
+
+        if (bulkTimeout != null) {
+            queryString.append("master_timeout=").append(bulkTimeout);
+        }
+
+        // allow the use of ingest pipelines to be completely optional
+        if (config.settings().getAsBoolean(USE_INGEST_PIPELINE_SETTING, true)) {
+            if (queryString.length() != 0) {
+                queryString.append('&');
+            }
+
+            queryString.append("pipeline=").append(EXPORT_PIPELINE_NAME);
+        }
+
+        return queryString.length() != 0 ? '?' + queryString.toString() : "";
+    }
+
     private HttpURLConnection openExportingConnection() {
         logger.trace("setting up an export connection");
-        String queryString = "";
-        if (bulkTimeout != null) {
-            queryString = "?master_timeout=" + bulkTimeout;
-        }
+
+        final String queryString = buildQueryString();
         HttpURLConnection conn = openAndValidateConnection("POST", "/_bulk" + queryString, CONTENT_TYPE.mediaType());
         if (conn != null && (keepAliveThread == null || !keepAliveThread.isAlive())) {
             // start keep alive upon successful connection if not there.
@@ -333,7 +380,7 @@ public class HttpExporter extends Exporter {
      * @return a url connection to the selected host or null if no current host is available.
      */
     private HttpURLConnection openAndValidateConnection(String method, String path, String contentType) {
-        // out of for to move faulty hosts to the end
+        // allows us to move faulty hosts to the end; the HTTP Client will make this code obsolete
         int hostIndex = 0;
         try {
             for (; hostIndex < hosts.length; hostIndex++) {
@@ -357,13 +404,17 @@ public class HttpExporter extends Exporter {
                     }
                 }
 
-                if (!checkedAndUploadedIndexTemplate) {
-                    // check templates first on the host
+                // NOTE: This assumes that the user is configured properly and only sending to a single cluster
+                if (checkedAndUploadedIndexTemplate == false || checkedAndUploadedIndexPipeline == false) {
                     checkedAndUploadedIndexTemplate = checkAndUploadIndexTemplate(host);
-                    if (!checkedAndUploadedIndexTemplate) {
+                    checkedAndUploadedIndexPipeline = checkedAndUploadedIndexTemplate && checkAndUploadIndexPipeline(host);
+
+                    // did we fail?
+                    if (checkedAndUploadedIndexTemplate == false || checkedAndUploadedIndexPipeline == false) {
                         continue;
                     }
                 }
+
                 HttpURLConnection connection = openConnection(host, method, path, contentType);
                 if (connection != null) {
                     return connection;
@@ -371,6 +422,7 @@ public class HttpExporter extends Exporter {
                 // failed hosts - reset template & cluster versions check, someone may have restarted the target cluster and deleted
                 // it's data folder. be safe.
                 checkedAndUploadedIndexTemplate = false;
+                checkedAndUploadedIndexPipeline = false;
                 supportedClusterVersion = false;
             }
         } finally {
@@ -393,6 +445,7 @@ public class HttpExporter extends Exporter {
      * open a connection to the given hosts, returning null when not successful *
      */
     private HttpURLConnection openConnection(String host, String method, String path, @Nullable String contentType) {
+        // the HTTP Client will make this code obsolete
         try {
             final URL url = HttpExporterUtils.parseHostWithPath(host, path);
             final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -420,7 +473,7 @@ public class HttpExporter extends Exporter {
                     httpsConn.setSSLSocketFactory(factory);
 
                     // Requires permission javax.net.ssl.SSLPermission "setHostnameVerifier";
-                    if (!hostnameVerification) {
+                    if (hostnameVerification == false) {
                         httpsConn.setHostnameVerifier(TrustAllHostnameVerifier.INSTANCE);
                     }
                     return null;
@@ -444,15 +497,9 @@ public class HttpExporter extends Exporter {
 
             return conn;
         } catch (URISyntaxException e) {
-            logger.error("error parsing host [{}] [{}]", host, e.getMessage());
-            if (logger.isDebugEnabled()) {
-                logger.debug("error parsing host [{}]. full error details:\n[{}]", host, ExceptionsHelper.detailedMessage(e));
-            }
+            logger.error("error parsing host [{}]", e, host);
         } catch (IOException e) {
-            logger.error("error connecting to [{}] [{}]", host, e.getMessage());
-            if (logger.isDebugEnabled()) {
-                logger.debug("error connecting to [{}]. full error details:\n[{}]", host, ExceptionsHelper.detailedMessage(e));
-            }
+            logger.error("error connecting to [{}]", e, host);
         }
         return null;
     }
@@ -474,7 +521,91 @@ public class HttpExporter extends Exporter {
                 return VersionUtils.parseVersion(out.toByteArray());
             }
         } catch (IOException e) {
-            throw new ElasticsearchException("failed to verify the remote cluster version on host [" + host + "]:\n" + e.getMessage());
+            throw new ElasticsearchException("failed to verify the remote cluster version on host [" + host + "]", e);
+        } finally {
+            if (connection != null) {
+                try {
+                    connection.getInputStream().close();
+                } catch (IOException e) {
+                    // Ignore
+                }
+            }
+        }
+    }
+
+    /**
+     * Checks if the index pipeline already exists and, if not, uploads it.
+     *
+     * @return {@code true} if the pipeline exists after executing.
+     * @throws RuntimeException if any error occurs that should prevent indexing
+     */
+    private boolean checkAndUploadIndexPipeline(final String host) {
+        if (hasPipeline(host) == false) {
+            logger.debug("monitoring pipeline [{}] not found", EXPORT_PIPELINE_NAME);
+
+            return putPipeline(host);
+        } else {
+            logger.trace("monitoring pipeline [{}] found", EXPORT_PIPELINE_NAME);
+        }
+
+        return true;
+    }
+
+    private boolean hasPipeline(final String host) {
+        final String url = urlWithMasterTimeout("_ingest/pipeline/" + EXPORT_PIPELINE_NAME, pipelineCheckTimeout);
+
+        HttpURLConnection connection = null;
+        try {
+            logger.trace("checking if monitoring pipeline [{}] exists on the monitoring cluster", EXPORT_PIPELINE_NAME);
+            connection = openConnection(host, "GET", url, null);
+            if (connection == null) {
+                throw new IOException("no available connection to check for monitoring pipeline [" + EXPORT_PIPELINE_NAME + "] existence");
+            }
+
+            // 200 means that the template has been found, 404 otherwise
+            if (connection.getResponseCode() == 200) {
+                logger.debug("monitoring pipeline [{}] found", EXPORT_PIPELINE_NAME);
+                return true;
+            }
+        } catch (Exception e) {
+            logger.error("failed to verify the monitoring pipeline [{}] on [{}]", e, EXPORT_PIPELINE_NAME, host);
+            return false;
+        } finally {
+            if (connection != null) {
+                try {
+                    connection.getInputStream().close();
+                } catch (IOException e) {
+                    // Ignore
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean putPipeline(final String host) {
+        logger.trace("installing pipeline [{}]", EXPORT_PIPELINE_NAME);
+
+        HttpURLConnection connection = null;
+
+        try {
+            connection = openConnection(host, "PUT", "_ingest/pipeline/" + EXPORT_PIPELINE_NAME, XContentType.JSON.mediaType());
+            if (connection == null) {
+                logger.debug("no available connection to upload monitoring pipeline [{}]", EXPORT_PIPELINE_NAME);
+                return false;
+            }
+
+            // Uploads the template and closes the outputstream
+            Streams.copy(BytesReference.toBytes(emptyPipeline(XContentType.JSON).bytes()), connection.getOutputStream());
+            if (connection.getResponseCode() != 200 && connection.getResponseCode() != 201) {
+                logConnectionError("error adding the monitoring pipeline [" + EXPORT_PIPELINE_NAME + "] to [" + host + "]", connection);
+                return false;
+            }
+
+            logger.info("monitoring pipeline [{}] set", EXPORT_PIPELINE_NAME);
+            return true;
+        } catch (IOException e) {
+            logger.error("failed to update monitoring pipeline [{}] on host [{}]", e, EXPORT_PIPELINE_NAME, host);
+            return false;
         } finally {
             if (connection != null) {
                 try {
@@ -488,9 +619,9 @@ public class HttpExporter extends Exporter {
 
     /**
      * Checks if the index templates already exist and if not uploads it
-     * Any critical error that should prevent data exporting is communicated via an exception.
      *
-     * @return true if template exists or was uploaded successfully.
+     * @return true if template exists after executing.
+     * @throws RuntimeException if any error occurs that should prevent indexing
      */
     private boolean checkAndUploadIndexTemplate(final String host) {
         // List of distinct templates
@@ -500,7 +631,7 @@ public class HttpExporter extends Exporter {
         for (Map.Entry<String, String> template : templates.entrySet()) {
             if (hasTemplate(template.getKey(), host) == false) {
                 logger.debug("template [{}] not found", template.getKey());
-                if (!putTemplate(host, template.getKey(), template.getValue())) {
+                if (putTemplate(host, template.getKey(), template.getValue()) == false) {
                     return false;
                 }
             } else {
@@ -511,10 +642,7 @@ public class HttpExporter extends Exporter {
     }
 
     private boolean hasTemplate(String templateName, String host) {
-        String url = "_template/" + templateName;
-        if (templateCheckTimeout != null) {
-            url += "?timeout=" + templateCheckTimeout;
-        }
+        final String url = urlWithMasterTimeout("_template/" + templateName, templateCheckTimeout);
 
         HttpURLConnection connection = null;
         try {
@@ -530,7 +658,7 @@ public class HttpExporter extends Exporter {
                 return true;
             }
         } catch (Exception e) {
-            logger.error("failed to verify the monitoring template [{}] on [{}]:\n{}", templateName, host, e.getMessage());
+            logger.error("failed to verify the monitoring template [{}] on [{}]", e, templateName, host);
             return false;
         } finally {
             if (connection != null) {
@@ -564,7 +692,7 @@ public class HttpExporter extends Exporter {
             logger.info("monitoring template [{}] updated ", template);
             return true;
         } catch (IOException e) {
-            logger.error("failed to update monitoring template [{}] on host [{}]:\n{}", template, host, e.getMessage());
+            logger.error("failed to update monitoring template [{}] on host [{}]", e, template, host);
             return false;
         } finally {
             if (connection != null) {
@@ -575,6 +703,23 @@ public class HttpExporter extends Exporter {
                 }
             }
         }
+    }
+
+    /**
+     * Get the {@code url} with the optional {@code masterTimeout}.
+     * <p>
+     * This method assumes that there is no query string applied yet!
+     *
+     * @param url The URL being used
+     * @param masterTimeout The optional master_timeout
+     * @return Never {@code null}
+     */
+    private String urlWithMasterTimeout(final String url, final TimeValue masterTimeout) {
+        if (masterTimeout != null) {
+            return url + "?master_timeout=" + masterTimeout;
+        }
+
+        return url;
     }
 
     private void logConnectionError(String msg, HttpURLConnection conn) {

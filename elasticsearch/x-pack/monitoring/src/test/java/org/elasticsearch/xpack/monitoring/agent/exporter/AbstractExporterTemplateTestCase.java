@@ -45,22 +45,32 @@ public abstract class AbstractExporterTemplateTestCase extends MonitoringIntegTe
 
     protected abstract void deleteTemplates() throws Exception;
 
+    protected abstract void deletePipeline() throws Exception;
+
     protected abstract void putTemplate(String name) throws Exception;
 
-    protected abstract void assertTemplateExist(String name) throws Exception;
+    protected abstract void putPipeline(String name) throws Exception;
+
+    protected abstract void assertTemplateExists(String name) throws Exception;
+
+    protected abstract void assertPipelineExists(String name) throws Exception;
 
     protected abstract void assertTemplateNotUpdated(String name) throws Exception;
+
+    protected abstract void assertPipelineNotUpdated(String name) throws Exception;
 
     public void testCreateWhenNoExistingTemplates() throws Exception {
         internalCluster().startNode();
 
         deleteTemplates();
+        deletePipeline();
         doExporting();
 
         logger.debug("--> templates does not exist: it should have been created in the current version");
         for (String template : monitoringTemplates().keySet()) {
-            assertTemplateExist(template);
+            assertTemplateExists(template);
         }
+        assertPipelineExists(Exporter.EXPORT_PIPELINE_NAME);
 
         doExporting();
 
@@ -74,17 +84,19 @@ public abstract class AbstractExporterTemplateTestCase extends MonitoringIntegTe
 
         putTemplate(indexTemplateName());
         putTemplate(dataTemplateName());
+        putPipeline(Exporter.EXPORT_PIPELINE_NAME);
 
         doExporting();
 
         logger.debug("--> existing templates are old");
-        assertTemplateExist(dataTemplateName());
-        assertTemplateExist(indexTemplateName());
+        assertTemplateExists(dataTemplateName());
+        assertTemplateExists(indexTemplateName());
 
         logger.debug("--> existing templates are old: new templates should be created");
         for (String template : monitoringTemplates().keySet()) {
-            assertTemplateExist(template);
+            assertTemplateExists(template);
         }
+        assertPipelineExists(Exporter.EXPORT_PIPELINE_NAME);
 
         doExporting();
 
@@ -98,17 +110,20 @@ public abstract class AbstractExporterTemplateTestCase extends MonitoringIntegTe
 
         putTemplate(indexTemplateName());
         putTemplate(dataTemplateName());
+        putPipeline(Exporter.EXPORT_PIPELINE_NAME);
 
         doExporting();
 
         logger.debug("--> existing templates are up to date");
         for (String template : monitoringTemplates().keySet()) {
-            assertTemplateExist(template);
+            assertTemplateExists(template);
         }
+        assertPipelineExists(Exporter.EXPORT_PIPELINE_NAME);
 
         logger.debug("--> existing templates has the same version: they should not be changed");
         assertTemplateNotUpdated(indexTemplateName());
         assertTemplateNotUpdated(dataTemplateName());
+        assertPipelineNotUpdated(Exporter.EXPORT_PIPELINE_NAME);
 
         doExporting();
 

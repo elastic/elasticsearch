@@ -34,9 +34,6 @@ public class BasicAPITests extends ScriptTestCase {
     }
 
     public void testSetIterator() {
-        String s = Debugger.toString("Set x = new HashSet(); x.add(2); x.add(3); x.add(-2); Iterator y = x.iterator(); " +
-            "int total = 0; while (y.hasNext()) total += y.next(); return total;");
-
         assertEquals(3, exec("Set x = new HashSet(); x.add(2); x.add(3); x.add(-2); Iterator y = x.iterator(); " +
             "int total = 0; while (y.hasNext()) total += y.next(); return total;"));
         assertEquals("abc", exec("Set x = new HashSet(); x.add(\"a\"); x.add(\"b\"); x.add(\"c\"); " +

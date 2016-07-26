@@ -22,12 +22,16 @@ package org.elasticsearch.http.netty4;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.test.rest.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
 
+//TODO: This is a *temporary* workaround to ensure a timeout does not mask other problems
+@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public class Netty4RestIT extends ESClientYamlSuiteTestCase {
 
     public Netty4RestIT(@Name("yaml") RestTestCandidate testCandidate) {

@@ -55,9 +55,11 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
     private final JsonFactory jsonFactory = new JsonFactory();
 
     /**
-     * Creates a new instance of the Elasticsearch sniffer. It will use the provided {@link RestClient} to fetch the hosts
-     * through the nodes info api. Will use the default sniff request timeout value {@link #DEFAULT_SNIFF_REQUEST_TIMEOUT}
-     * and http as the scheme for all the hosts.
+     * Creates a new instance of the Elasticsearch sniffer. It will use the provided {@link RestClient} to fetch the hoss,
+     * the default sniff request timeout value {@link #DEFAULT_SNIFF_REQUEST_TIMEOUT} and http as the scheme for all the hosts.
+     * @param restClient client used to fetch the hosts from elasticsearch through nodes info api. Usually the same instance
+     *                   that is also provided to {@link Sniffer#builder(RestClient)}, so that the hosts are set to the same
+     *                   client that was used to fetch them.
      */
     public ElasticsearchHostsSniffer(RestClient restClient) {
         this(restClient, DEFAULT_SNIFF_REQUEST_TIMEOUT, ElasticsearchHostsSniffer.Scheme.HTTP);
@@ -65,7 +67,14 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
 
     /**
      * Creates a new instance of the Elasticsearch sniffer. It will use the provided {@link RestClient} to fetch the hosts
-     * through the nodes info api. Will use the provided sniff request timeout value and scheme.
+     * through the nodes info api, the provided sniff request timeout value and scheme.
+     * @param restClient client used to fetch the hosts from elasticsearch through nodes info api. Usually the same instance
+     *                   that is also provided to {@link Sniffer#builder(RestClient)}, so that the hosts are set to the same
+     *                   client that was used to sniff them.
+     * @param sniffRequestTimeoutMillis the sniff request timeout (in milliseconds) to be passed in as a query string parameter
+     *                                  to elasticsearch. Allows to halt the request without any failure, as only the nodes
+     *                                  that have responded within this timeout will be returned.
+     * @param scheme the scheme to associate sniffed nodes with (as it is not returned by elasticsearch)
      */
     public ElasticsearchHostsSniffer(RestClient restClient, long sniffRequestTimeoutMillis, Scheme scheme) {
         this.restClient = Objects.requireNonNull(restClient, "restClient cannot be null");

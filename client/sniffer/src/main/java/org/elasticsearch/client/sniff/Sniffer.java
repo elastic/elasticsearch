@@ -35,12 +35,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Class responsible for sniffing nodes from an elasticsearch cluster and setting them to a provided instance of {@link RestClient}.
- * Must be created via {@link SnifferBuilder}, which allows to set all of the different options or rely on defaults.
+ * Class responsible for sniffing nodes from some source (default is elasticsearch itself) and setting them to a provided instance of
+ * {@link RestClient}. Must be created via {@link SnifferBuilder}, which allows to set all of the different options or rely on defaults.
  * A background task fetches the nodes through the {@link HostsSniffer} and sets them to the {@link RestClient} instance.
  * It is possible to perform sniffing on failure by creating a {@link SniffOnFailureListener} and providing it as an argument to
- * {@link RestClientBuilder#setFailureListener(RestClient.FailureListener)}. The Sniffer implementation
- * needs to be lazily set to the previously created SniffOnFailureListener through {@link SniffOnFailureListener#setSniffer(Sniffer)}.
+ * {@link RestClientBuilder#setFailureListener(RestClient.FailureListener)}. The Sniffer implementation needs to be lazily set to the
+ * previously created SniffOnFailureListener through {@link SniffOnFailureListener#setSniffer(Sniffer)}.
  */
 public final class Sniffer implements Closeable {
 
@@ -144,6 +144,9 @@ public final class Sniffer implements Closeable {
 
     /**
      * Returns a new {@link SnifferBuilder} to help with {@link Sniffer} creation.
+     *
+     * @param restClient the client that gets its hosts set (via {@link RestClient#setHosts(HttpHost...)}) once they are fetched
+     * @return a new instance of {@link SnifferBuilder}
      */
     public static SnifferBuilder builder(RestClient restClient) {
         return new SnifferBuilder(restClient);

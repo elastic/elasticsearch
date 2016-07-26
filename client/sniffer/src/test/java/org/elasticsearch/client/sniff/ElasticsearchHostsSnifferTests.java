@@ -60,17 +60,17 @@ import static org.junit.Assert.fail;
 
 //animal-sniffer doesn't like our usage of com.sun.net.httpserver.* classes
 @IgnoreJRERequirement
-public class HostsSnifferTests extends RestClientTestCase {
+public class ElasticsearchHostsSnifferTests extends RestClientTestCase {
 
     private int sniffRequestTimeout;
-    private HostsSniffer.Scheme scheme;
+    private ElasticsearchHostsSniffer.Scheme scheme;
     private SniffResponse sniffResponse;
     private HttpServer httpServer;
 
     @Before
     public void startHttpServer() throws IOException {
         this.sniffRequestTimeout = RandomInts.randomIntBetween(getRandom(), 1000, 10000);
-        this.scheme = RandomPicks.randomFrom(getRandom(), HostsSniffer.Scheme.values());
+        this.scheme = RandomPicks.randomFrom(getRandom(), ElasticsearchHostsSniffer.Scheme.values());
         if (rarely()) {
             this.sniffResponse = SniffResponse.buildFailure();
         } else {
@@ -85,14 +85,35 @@ public class HostsSnifferTests extends RestClientTestCase {
         httpServer.stop(0);
     }
 
+    public void testConstructorValidation() throws IOException {
+        try {
+            new ElasticsearchHostsSniffer(null, 1, ElasticsearchHostsSniffer.Scheme.HTTP);
+            fail("should have failed");
+        } catch(NullPointerException e) {
+            assertEquals("restClient cannot be null", e.getMessage());
+        }
+        HttpHost httpHost = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
+        try (RestClient restClient = RestClient.builder(httpHost).build()) {
+            try {
+                new ElasticsearchHostsSniffer(restClient, 1, null);
+                fail("should have failed");
+            } catch (NullPointerException e) {
+                assertEquals(e.getMessage(), "scheme cannot be null");
+            }
+            try {
+                new ElasticsearchHostsSniffer(restClient, RandomInts.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0),
+                        ElasticsearchHostsSniffer.Scheme.HTTP);
+                fail("should have failed");
+            } catch (IllegalArgumentException e) {
+                assertEquals(e.getMessage(), "sniffRequestTimeoutMillis must be greater than 0");
+            }
+        }
+    }
+
     public void testSniffNodes() throws IOException {
         HttpHost httpHost = new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort());
         try (RestClient restClient = RestClient.builder(httpHost).build()) {
-            HostsSniffer.Builder builder = HostsSniffer.builder(restClient).setSniffRequestTimeoutMillis(sniffRequestTimeout);
-            if (scheme != HostsSniffer.Scheme.HTTP || randomBoolean()) {
-                builder.setScheme(scheme);
-            }
-            HostsSniffer sniffer = builder.build();
+            ElasticsearchHostsSniffer sniffer = new ElasticsearchHostsSniffer(restClient, sniffRequestTimeout, scheme);
             try {
                 List<HttpHost> sniffedHosts = sniffer.sniffHosts();
                 if (sniffResponse.isFailure) {
@@ -153,7 +174,7 @@ public class HostsSnifferTests extends RestClientTestCase {
         }
     }
 
-    private static SniffResponse buildSniffResponse(HostsSniffer.Scheme scheme) throws IOException {
+    private static SniffResponse buildSniffResponse(ElasticsearchHostsSniffer.Scheme scheme) throws IOException {
         int numNodes = RandomInts.randomIntBetween(getRandom(), 1, 5);
         List<HttpHost> hosts = new ArrayList<>(numNodes);
         JsonFactory jsonFactory = new JsonFactory();

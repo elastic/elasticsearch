@@ -13,8 +13,8 @@ import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
-import org.elasticsearch.license.plugin.core.XPackLicenseState;
-import org.elasticsearch.license.plugin.core.XPackLicenseState.AllowedRealmType;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.AllowedRealmType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 

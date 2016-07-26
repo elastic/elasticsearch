@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.actions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.license.plugin.core.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.support.validation.Validation;
 import org.elasticsearch.xpack.watcher.transform.TransformRegistry;

@@ -22,6 +22,13 @@ package org.elasticsearch.index.translog;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.Lock;
+import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.store.NativeFSLockFactory;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -139,6 +146,19 @@ public class TruncateTranslogIT extends ESIntegTestCase {
         client().admin().indices().prepareClose("test").get();
 
         for (Path translogDir : translogDirs) {
+            final Path idxLocation = translogDir.getParent().resolve("index");
+            assertBusy(() -> {
+                logger.info("--> checking that lock has been released for {}", idxLocation);
+                try (Directory dir = FSDirectory.open(idxLocation, NativeFSLockFactory.INSTANCE);
+                        Lock writeLock = dir.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
+                    // Great, do nothing, we just wanted to obtain the lock
+                }  catch (LockObtainFailedException lofe) {
+                    throw new ElasticsearchException("Still waiting for lock release at [" + idxLocation + "]");
+                } catch (IOException ioe) {
+                    fail("Got an IOException: " + ioe);
+                }
+            });
+
             OptionSet options = parser.parse("-d", translogDir.toAbsolutePath().toString(), "-b");
             logger.info("--> running truncate translog command for [{}]", translogDir.toAbsolutePath());
             ttc.execute(t, options, new HashMap<String, String>());

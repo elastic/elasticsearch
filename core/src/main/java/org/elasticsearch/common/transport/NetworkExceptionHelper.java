@@ -58,6 +58,9 @@ public class NetworkExceptionHelper {
             if (e.getMessage().equals("Socket is closed")) {
                 return true;
             }
+            if (e.getMessage().equals("Socket closed")) {
+                return true;
+            }
         }
         return false;
     }

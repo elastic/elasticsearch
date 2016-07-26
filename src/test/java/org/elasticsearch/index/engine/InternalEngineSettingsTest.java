@@ -41,11 +41,11 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
         assertThat(engine.getCurrentIndexWriterConfig().getUseCompoundFile(), is(true));
 
         // INDEX_CHECKSUM_ON_MERGE
-        assertThat(engine.getCurrentIndexWriterConfig().getCheckIntegrityAtMerge(), is(false));
-        client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_CHECKSUM_ON_MERGE, true).build()).get();
         assertThat(engine.getCurrentIndexWriterConfig().getCheckIntegrityAtMerge(), is(true));
         client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_CHECKSUM_ON_MERGE, false).build()).get();
         assertThat(engine.getCurrentIndexWriterConfig().getCheckIntegrityAtMerge(), is(false));
+        client().admin().indices().prepareUpdateSettings("foo").setSettings(ImmutableSettings.builder().put(EngineConfig.INDEX_CHECKSUM_ON_MERGE, true).build()).get();
+        assertThat(engine.getCurrentIndexWriterConfig().getCheckIntegrityAtMerge(), is(true));
 
         // VERSION MAP SIZE
         long indexBufferSize = engine.config().getIndexingBufferSize().bytes();

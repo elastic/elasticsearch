@@ -22,7 +22,7 @@ import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.license.plugin.core.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;

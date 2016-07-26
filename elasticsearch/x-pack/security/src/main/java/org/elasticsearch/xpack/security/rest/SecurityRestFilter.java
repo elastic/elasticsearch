@@ -19,7 +19,7 @@ import org.elasticsearch.rest.RestFilterChain;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
-import org.elasticsearch.license.plugin.core.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.jboss.netty.handler.ssl.SslHandler;

@@ -16,8 +16,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.xpack.security.audit.AuditTrail;
-import org.elasticsearch.license.plugin.core.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 

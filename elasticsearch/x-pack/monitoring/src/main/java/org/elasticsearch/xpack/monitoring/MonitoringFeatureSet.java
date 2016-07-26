@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.license.plugin.core.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.monitoring.agent.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.agent.exporter.Exporters;

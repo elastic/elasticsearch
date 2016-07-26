@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -80,6 +81,7 @@ public class ScriptServiceTests extends ESTestCase {
         baseSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
+                .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 10000)
                 .build();
         resourceWatcherService = new ResourceWatcherService(baseSettings, null);
         scriptEngineService = new TestEngineService();
@@ -121,6 +123,30 @@ public class ScriptServiceTests extends ESTestCase {
                 return "100";
             }
         };
+    }
+
+    public void testCompilationCircuitBreaking() throws Exception {
+        buildScriptService(Settings.EMPTY);
+        scriptService.setMaxCompilationsPerMinute(1);
+        scriptService.checkCompilationLimit(); // should pass
+        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
+        scriptService.setMaxCompilationsPerMinute(2);
+        scriptService.checkCompilationLimit(); // should pass
+        scriptService.checkCompilationLimit(); // should pass
+        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
+        int count = randomIntBetween(5, 50);
+        scriptService.setMaxCompilationsPerMinute(count);
+        for (int i = 0; i < count; i++) {
+            scriptService.checkCompilationLimit(); // should pass
+        }
+        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
+        scriptService.setMaxCompilationsPerMinute(0);
+        expectThrows(CircuitBreakingException.class, () -> scriptService.checkCompilationLimit());
+        scriptService.setMaxCompilationsPerMinute(Integer.MAX_VALUE);
+        int largeLimit = randomIntBetween(1000, 10000);
+        for (int i = 0; i < largeLimit; i++) {
+            scriptService.checkCompilationLimit();
+        }
     }
 
     public void testNotSupportedDisableDynamicSetting() throws IOException {

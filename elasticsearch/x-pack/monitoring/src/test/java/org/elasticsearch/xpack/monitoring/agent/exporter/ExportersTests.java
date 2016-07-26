@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.monitoring.agent.exporter;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -16,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.common.init.proxy.ClientProxy;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.agent.exporter.local.LocalExporter;
@@ -46,7 +44,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -170,8 +167,8 @@ public class ExportersTests extends ESTestCase {
         final AtomicReference<Settings> settingsHolder = new AtomicReference<>();
 
         Settings nodeSettings = Settings.builder()
-                .put("xpack.monitoring.collection.exporters._name0.type", "_type")
-                .put("xpack.monitoring.collection.exporters._name1.type", "_type")
+                .put("xpack.monitoring.exporters._name0.type", "_type")
+                .put("xpack.monitoring.exporters._name1.type", "_type")
                 .build();
         clusterSettings = new ClusterSettings(nodeSettings, new HashSet<>(Arrays.asList(MonitoringSettings.EXPORTERS_SETTINGS)));
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
@@ -192,8 +189,8 @@ public class ExportersTests extends ESTestCase {
         assertThat(settings, hasEntry("_name1.type", "_type"));
 
         Settings update = Settings.builder()
-                .put("xpack.monitoring.collection.exporters._name0.foo", "bar")
-                .put("xpack.monitoring.collection.exporters._name1.foo", "bar")
+                .put("xpack.monitoring.exporters._name0.foo", "bar")
+                .put("xpack.monitoring.exporters._name1.foo", "bar")
                 .build();
         clusterSettings.applySettings(update);
         assertThat(settingsHolder.get(), notNullValue());
@@ -211,8 +208,8 @@ public class ExportersTests extends ESTestCase {
         factories.put("mock", factory);
         factories.put("mock_master_only", masterOnlyFactory);
         Exporters exporters = new Exporters(Settings.builder()
-                .put("xpack.monitoring.collection.exporters._name0.type", "mock")
-                .put("xpack.monitoring.collection.exporters._name1.type", "mock_master_only")
+                .put("xpack.monitoring.exporters._name0.type", "mock")
+                .put("xpack.monitoring.exporters._name1.type", "mock_master_only")
                 .build(), factories, clusterService);
         exporters.start();
 
@@ -236,8 +233,8 @@ public class ExportersTests extends ESTestCase {
         factories.put("mock", factory);
         factories.put("mock_master_only", masterOnlyFactory);
         Exporters exporters = new Exporters(Settings.builder()
-                .put("xpack.monitoring.collection.exporters._name0.type", "mock")
-                .put("xpack.monitoring.collection.exporters._name1.type", "mock_master_only")
+                .put("xpack.monitoring.exporters._name0.type", "mock")
+                .put("xpack.monitoring.exporters._name1.type", "mock_master_only")
                 .build(), factories, clusterService);
         exporters.start();
 
@@ -266,7 +263,7 @@ public class ExportersTests extends ESTestCase {
         logger.info("--> creating {} exporters", nbExporters);
         Settings.Builder settings = Settings.builder();
         for (int i = 0; i < nbExporters; i++) {
-            settings.put("xpack.monitoring.collection.exporters._name" + String.valueOf(i) + ".type", "record");
+            settings.put("xpack.monitoring.exporters._name" + String.valueOf(i) + ".type", "record");
         }
 
         factories.put("record", CountingExporter::new);

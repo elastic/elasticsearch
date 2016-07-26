@@ -95,10 +95,10 @@ public class HttpExporterTests extends MonitoringIntegTestCase {
 
         Settings.Builder builder = Settings.builder()
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
-                .put("xpack.monitoring.collection.exporters._http.type", "http")
-                .put("xpack.monitoring.collection.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
-                .put("xpack.monitoring.collection.exporters._http.connection.keep_alive", false)
-                .put("xpack.monitoring.collection.exporters._http.update_mappings", false);
+                .put("xpack.monitoring.exporters._http.type", "http")
+                .put("xpack.monitoring.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
+                .put("xpack.monitoring.exporters._http.connection.keep_alive", false)
+                .put("xpack.monitoring.exporters._http.update_mappings", false);
 
         internalCluster().startNode(builder);
 
@@ -133,23 +133,23 @@ public class HttpExporterTests extends MonitoringIntegTestCase {
         // disable exporting to be able to use non valid hosts
         Settings.Builder builder = Settings.builder()
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
-                .put("xpack.monitoring.collection.exporters._http.type", "http")
-                .put("xpack.monitoring.collection.exporters._http.host", "test0");
+                .put("xpack.monitoring.exporters._http.type", "http")
+                .put("xpack.monitoring.exporters._http.host", "test0");
 
         String nodeName = internalCluster().startNode(builder);
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .putArray("xpack.monitoring.collection.exporters._http.host", "test1")));
+                .putArray("xpack.monitoring.exporters._http.host", "test1")));
         assertThat(getExporter(nodeName).hosts, Matchers.arrayContaining("test1"));
 
         // wipes the non array settings
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .putArray("xpack.monitoring.collection.exporters._http.host", "test2")
-                .put("xpack.monitoring.collection.exporters._http.host", "")));
+                .putArray("xpack.monitoring.exporters._http.host", "test2")
+                .put("xpack.monitoring.exporters._http.host", "")));
         assertThat(getExporter(nodeName).hosts, Matchers.arrayContaining("test2"));
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .putArray("xpack.monitoring.collection.exporters._http.host", "test3")));
+                .putArray("xpack.monitoring.exporters._http.host", "test3")));
         assertThat(getExporter(nodeName).hosts, Matchers.arrayContaining("test3"));
     }
 
@@ -157,10 +157,10 @@ public class HttpExporterTests extends MonitoringIntegTestCase {
 
         Settings.Builder builder = Settings.builder()
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
-                .put("xpack.monitoring.collection.exporters._http.type", "http")
-                .put("xpack.monitoring.collection.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
-                .put("xpack.monitoring.collection.exporters._http.connection.keep_alive", false)
-                .put("xpack.monitoring.collection.exporters._http.update_mappings", false);
+                .put("xpack.monitoring.exporters._http.type", "http")
+                .put("xpack.monitoring.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
+                .put("xpack.monitoring.exporters._http.connection.keep_alive", false)
+                .put("xpack.monitoring.exporters._http.update_mappings", false);
 
         logger.info("--> starting node");
 
@@ -221,7 +221,7 @@ public class HttpExporterTests extends MonitoringIntegTestCase {
             assertNotNull("Unable to start the second mock web server", secondWebServer);
 
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                    Settings.builder().putArray("xpack.monitoring.collection.exporters._http.host",
+                    Settings.builder().putArray("xpack.monitoring.exporters._http.host",
                             secondWebServer.getHostName() + ":" + secondWebServer.getPort())).get());
 
             // a new exporter is created on update, so we need to re-fetch it
@@ -274,9 +274,9 @@ public class HttpExporterTests extends MonitoringIntegTestCase {
     public void testUnsupportedClusterVersion() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
-                .put("xpack.monitoring.collection.exporters._http.type", "http")
-                .put("xpack.monitoring.collection.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
-                .put("xpack.monitoring.collection.exporters._http.connection.keep_alive", false);
+                .put("xpack.monitoring.exporters._http.type", "http")
+                .put("xpack.monitoring.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
+                .put("xpack.monitoring.exporters._http.connection.keep_alive", false);
 
         logger.info("--> starting node");
 
@@ -302,10 +302,10 @@ public class HttpExporterTests extends MonitoringIntegTestCase {
     public void testDynamicIndexFormatChange() throws Exception {
         Settings.Builder builder = Settings.builder()
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
-                .put("xpack.monitoring.collection.exporters._http.type", "http")
-                .put("xpack.monitoring.collection.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
-                .put("xpack.monitoring.collection.exporters._http.connection.keep_alive", false)
-                .put("xpack.monitoring.collection.exporters._http.update_mappings", false);
+                .put("xpack.monitoring.exporters._http.type", "http")
+                .put("xpack.monitoring.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
+                .put("xpack.monitoring.exporters._http.connection.keep_alive", false)
+                .put("xpack.monitoring.exporters._http.update_mappings", false);
 
         String agentNode = internalCluster().startNode(builder);
 
@@ -356,7 +356,7 @@ public class HttpExporterTests extends MonitoringIntegTestCase {
         String newTimeFormat = randomFrom("YY", "YYYY", "YYYY.MM", "YYYY-MM", "MM.YYYY", "MM");
         logger.info("--> updating index time format setting to {}", newTimeFormat);
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put("xpack.monitoring.collection.exporters._http.index.name.time_format", newTimeFormat)));
+                .put("xpack.monitoring.exporters._http.index.name.time_format", newTimeFormat)));
 
 
         logger.info("--> exporting a second event");
@@ -402,9 +402,9 @@ public class HttpExporterTests extends MonitoringIntegTestCase {
 
         Settings.Builder builder = Settings.builder()
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
-                .put("xpack.monitoring.collection.exporters._http.type", "http")
-                .put("xpack.monitoring.collection.exporters._http.host", host)
-                .put("xpack.monitoring.collection.exporters._http.connection.keep_alive", false);
+                .put("xpack.monitoring.exporters._http.type", "http")
+                .put("xpack.monitoring.exporters._http.host", host)
+                .put("xpack.monitoring.exporters._http.connection.keep_alive", false);
 
         String agentNode = internalCluster().startNode(builder);
         HttpExporter exporter = getExporter(agentNode);

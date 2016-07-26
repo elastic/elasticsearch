@@ -50,6 +50,7 @@ public class ScrollTerminationTests extends ElasticsearchIntegrationTest {
         node2.get();
         node3.get();
 
+        assertAcked(client.admin().indices().prepareCreate("test").addMapping("test", "timestamp", "type=date", "username", "type=string,index=not_analyzed").get());
         client.prepareIndex("test", "test", "3").setSource("timestamp", "2016-05-19T03:00:00Z", "username", "a").get();
         client.prepareIndex("test", "test", "5").setSource("timestamp", "2016-05-19T05:00:00Z").get();
         assertNoFailures(client.admin().indices().prepareRefresh("test").get());

@@ -32,6 +32,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -127,7 +128,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     private MockTransportService buildService(final String name, final Version version) {
         MockTransportService service = build(
             Settings.builder()
-                .put("name", name)
+                .put(Node.NODE_NAME_SETTING.getKey(), name)
                 .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
                 .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                 .build(),
@@ -488,6 +489,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(latch.await(5, TimeUnit.SECONDS), equalTo(true));
     }
 
+    @TestLogging("transport:DEBUG,transport.tracer:TRACE")
     public void testConcurrentSendRespondAndDisconnect() throws BrokenBarrierException, InterruptedException {
         Set<Exception> sendingErrors = ConcurrentCollections.newConcurrentSet();
         Set<Exception> responseErrors = ConcurrentCollections.newConcurrentSet();
@@ -505,7 +507,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 channel.sendResponse(new TestResponse());
             } catch (Exception e) {
                 // we don't really care what's going on B, we're testing through A
-                logger.trace("caught exception while res    ponding from node B", e);
+                logger.trace("caught exception while responding from node B", e);
             }
         };
         serviceB.registerRequestHandler("test", TestRequest::new, ThreadPool.Names.SAME, ignoringRequestHandler);
@@ -586,10 +588,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             if (i % 3 == 0) {
                 // simulate restart of nodeB
                 serviceB.close();
-                MockTransportService newService = buildService("TS_B", version1);
+                MockTransportService newService = buildService("TS_B_" + i, version1);
                 newService.registerRequestHandler("test", TestRequest::new, ThreadPool.Names.SAME, ignoringRequestHandler);
                 serviceB = newService;
-                nodeB = new DiscoveryNode("TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), version1);
+                nodeB = new DiscoveryNode("TS_B_" + i, "TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), version1);
                 serviceB.connectToNode(nodeA);
                 serviceA.connectToNode(nodeB);
             } else if (serviceA.nodeConnected(nodeB)) {
@@ -786,7 +788,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertTrue(inFlight.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
     }
 
-    @TestLogging(value = "test. transport.tracer:TRACE")
+    @TestLogging(value = "test.transport.tracer:TRACE")
     public void testTracerLog() throws InterruptedException {
         TransportRequestHandler handler = new TransportRequestHandler<StringMessageRequest>() {
             @Override

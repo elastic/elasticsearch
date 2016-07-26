@@ -150,7 +150,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
 
     public void testAWSDefaultConfiguration() {
         Settings repositorySettings = generateRepositorySettings(null, null, "eu-central", null, null);
-        launchAWSConfigurationTest(Settings.EMPTY, repositorySettings, Protocol.HTTPS, null, -1, null, null, null, 3, false);
+        launchAWSConfigurationTest(Settings.EMPTY, repositorySettings, Protocol.HTTPS, null, -1, null, null, null, 3, true);
     }
 
     public void testAWSConfigurationWithAwsSettings() {
@@ -164,7 +164,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(AwsS3Service.SIGNER_SETTING.getKey(), "AWS3SignerType")
             .build();
         launchAWSConfigurationTest(settings, repositorySettings, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username",
-            "aws_proxy_password", "AWS3SignerType", 3, false);
+            "aws_proxy_password", "AWS3SignerType", 3, true);
     }
 
     public void testAWSConfigurationWithAwsAndS3Settings() {
@@ -184,7 +184,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
             .put(AwsS3Service.CLOUD_S3.SIGNER_SETTING.getKey(), "NoOpSignerType")
             .build();
         launchAWSConfigurationTest(settings, repositorySettings, Protocol.HTTPS, "s3_proxy_host", 8081, "s3_proxy_username",
-            "s3_proxy_password", "NoOpSignerType", 3, false);
+            "s3_proxy_password", "NoOpSignerType", 3, true);
     }
 
     protected void launchAWSConfigurationTest(Settings settings,

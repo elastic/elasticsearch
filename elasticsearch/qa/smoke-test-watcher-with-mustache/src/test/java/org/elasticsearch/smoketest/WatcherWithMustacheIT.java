@@ -15,7 +15,7 @@ import org.elasticsearch.test.rest.parser.RestTestParseException;
 import java.io.IOException;
 
 /** Runs rest tests against external cluster */
-public class WatcherWithMustacheIT extends ESClientYamlSuiteTestCase {
+public class WatcherWithMustacheIT extends WatcherRestTestCase {
 
     public WatcherWithMustacheIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

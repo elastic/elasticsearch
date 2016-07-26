@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.monitoring.agent.exporter.ExportException;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.xpack.monitoring.agent.resolver.ResolversRegistry;
+import org.elasticsearch.xpack.security.InternalClient;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -28,13 +29,13 @@ import java.util.Collection;
 public class LocalBulk extends ExportBulk {
 
     private final ESLogger logger;
-    private final ClientProxy client;
+    private final InternalClient client;
     private final ResolversRegistry resolvers;
 
     private BulkRequestBuilder requestBuilder;
 
 
-    public LocalBulk(String name, ESLogger logger, ClientProxy client, ResolversRegistry resolvers) {
+    public LocalBulk(String name, ESLogger logger, InternalClient client, ResolversRegistry resolvers) {
         super(name);
         this.logger = logger;
         this.client = client;

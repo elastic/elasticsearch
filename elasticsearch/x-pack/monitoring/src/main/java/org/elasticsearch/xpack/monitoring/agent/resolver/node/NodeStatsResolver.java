@@ -28,8 +28,6 @@ public class NodeStatsResolver extends MonitoringIndexNameResolver.Timestamped<N
             "node_stats.node_id",
             "node_stats.node_master",
             "node_stats.mlockall",
-            "node_stats.disk_threshold_enabled",
-            "node_stats.disk_threshold_watermark_high",
             // Node Stats
             "node_stats.indices.docs.count",
             "node_stats.indices.fielddata.memory_size_in_bytes",
@@ -119,8 +117,6 @@ public class NodeStatsResolver extends MonitoringIndexNameResolver.Timestamped<N
         builder.field(Fields.NODE_ID, document.getNodeId());
         builder.field(Fields.NODE_MASTER, document.isNodeMaster());
         builder.field(Fields.MLOCKALL, document.isMlockall());
-        builder.field(Fields.DISK_THRESHOLD_ENABLED, document.isDiskThresholdDeciderEnabled());
-        builder.field(Fields.DISK_THRESHOLD_WATERMARK_HIGH, document.getDiskThresholdWaterMarkHigh());
 
         NodeStats nodeStats = document.getNodeStats();
         if (nodeStats != null) {
@@ -135,7 +131,5 @@ public class NodeStatsResolver extends MonitoringIndexNameResolver.Timestamped<N
         static final String NODE_ID = "node_id";
         static final String NODE_MASTER = "node_master";
         static final String MLOCKALL = "mlockall";
-        static final String DISK_THRESHOLD_ENABLED = "disk_threshold_enabled";
-        static final String DISK_THRESHOLD_WATERMARK_HIGH = "disk_threshold_watermark_high";
     }
 }

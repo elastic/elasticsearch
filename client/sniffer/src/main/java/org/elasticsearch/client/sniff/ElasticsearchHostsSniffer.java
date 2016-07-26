@@ -37,6 +37,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Class responsible for sniffing the http hosts from elasticsearch through the nodes info api and returning them back.
@@ -46,11 +47,26 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
 
     private static final Log logger = LogFactory.getLog(ElasticsearchHostsSniffer.class);
 
+    public static final long DEFAULT_SNIFF_REQUEST_TIMEOUT = TimeUnit.SECONDS.toMillis(1);
+
     private final RestClient restClient;
     private final Map<String, String> sniffRequestParams;
     private final Scheme scheme;
     private final JsonFactory jsonFactory = new JsonFactory();
 
+    /**
+     * Creates a new instance of the Elasticsearch sniffer. It will use the provided {@link RestClient} to fetch the hosts
+     * through the nodes info api. Will use the default sniff request timeout value (@link {@link #DEFAULT_SNIFF_REQUEST_TIMEOUT}
+     * and http as the scheme for all the hosts.
+     */
+    public ElasticsearchHostsSniffer(RestClient restClient) {
+        this(restClient, DEFAULT_SNIFF_REQUEST_TIMEOUT, ElasticsearchHostsSniffer.Scheme.HTTP);
+    }
+
+    /**
+     * Creates a new instance of the Elasticsearch sniffer. It will use the provided {@link RestClient} to fetch the hosts
+     * through the nodes info api. Will use the provided sniff request timeout value and scheme.
+     */
     public ElasticsearchHostsSniffer(RestClient restClient, long sniffRequestTimeoutMillis, Scheme scheme) {
         this.restClient = Objects.requireNonNull(restClient, "restClient cannot be null");
         if (sniffRequestTimeoutMillis < 0) {

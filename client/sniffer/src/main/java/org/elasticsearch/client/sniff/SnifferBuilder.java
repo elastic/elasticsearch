@@ -30,14 +30,11 @@ import java.util.concurrent.TimeUnit;
 public final class SnifferBuilder {
     public static final long DEFAULT_SNIFF_INTERVAL = TimeUnit.MINUTES.toMillis(5);
     public static final long DEFAULT_SNIFF_AFTER_FAILURE_DELAY = TimeUnit.MINUTES.toMillis(1);
-    public static final long DEFAULT_SNIFF_REQUEST_TIMEOUT = TimeUnit.SECONDS.toMillis(1);
 
     private final RestClient restClient;
     private long sniffIntervalMillis = DEFAULT_SNIFF_INTERVAL;
     private long sniffAfterFailureDelayMillis = DEFAULT_SNIFF_AFTER_FAILURE_DELAY;
     private HostsSniffer hostsSniffer;
-    private long sniffRequestTimeoutMillis = DEFAULT_SNIFF_REQUEST_TIMEOUT;
-    private ElasticsearchHostsSniffer.Scheme scheme = ElasticsearchHostsSniffer.Scheme.HTTP;
 
     /**
      * Creates a new builder instance by providing the {@link RestClient} that will be used to communicate with elasticsearch
@@ -87,7 +84,7 @@ public final class SnifferBuilder {
      */
     public Sniffer build() {
         if (hostsSniffer == null) {
-            this.hostsSniffer = new ElasticsearchHostsSniffer(restClient, sniffRequestTimeoutMillis, scheme);
+            this.hostsSniffer = new ElasticsearchHostsSniffer(restClient);
         }
         return new Sniffer(restClient, hostsSniffer, sniffIntervalMillis, sniffAfterFailureDelayMillis);
     }

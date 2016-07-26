@@ -73,9 +73,6 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
                     }
                 }
             }
-            if (queryBuilder == null) {
-                throw new ParsingException(parser.getTokenLocation(), "Required query is missing");
-            }
             return queryBuilder;
         } catch (ParsingException e) {
             throw e;
@@ -113,7 +110,7 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
         // move to the next START_OBJECT
         token = parser.nextToken();
         if (token != XContentParser.Token.START_OBJECT && token != XContentParser.Token.START_ARRAY) {
-            throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");
+            throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no start_object after query name");
         }
         @SuppressWarnings("unchecked")
         Optional<QueryBuilder> result = (Optional<QueryBuilder>) indicesQueriesRegistry.lookup(queryName, parseFieldMatcher,

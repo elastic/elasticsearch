@@ -53,7 +53,7 @@ public class LicenseHeadersTask extends AntTask {
      * Additional license families that may be found. The key is the license category name (5 characters),
      * followed by the family name and the value list of patterns to search for.
      */
-    protected Map<String, String> additionalLicenses = [:]
+    protected Map<String, String> additionalLicenses = new HashMap<>()
 
     LicenseHeadersTask() {
         description = "Checks sources for missing, incorrect, or unacceptable license headers"

@@ -426,6 +426,7 @@ public class DoubleTermsIT extends AbstractTermsTestCase {
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
         assertThat(terms.getBuckets().size(), equalTo(5));
+        assertThat(terms.getProperty("_bucket_count"), equalTo(5));
         Object[] propertiesKeys = (Object[]) terms.getProperty("_key");
         Object[] propertiesDocCounts = (Object[]) terms.getProperty("_count");
         Object[] propertiesCounts = (Object[]) terms.getProperty("sum.value");

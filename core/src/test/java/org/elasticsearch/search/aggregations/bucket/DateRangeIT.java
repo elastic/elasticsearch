@@ -137,7 +137,7 @@ public class DateRangeIT extends ESIntegTestCase {
         assertThat(range.getBuckets().size(), equalTo(3));
 
         // TODO: use diamond once JI-9019884 is fixed
-        List<Range.Bucket> buckets = new ArrayList<Range.Bucket>(range.getBuckets());
+        List<Range.Bucket> buckets = new ArrayList<>(range.getBuckets());
 
         Range.Bucket bucket = buckets.get(0);
         assertThat((String) bucket.getKey(), equalTo("a long time ago"));
@@ -421,6 +421,7 @@ public class DateRangeIT extends ESIntegTestCase {
         assertThat(range.getName(), equalTo("range"));
         List<? extends Bucket> buckets = range.getBuckets();
         assertThat(buckets.size(), equalTo(3));
+        assertThat(range.getProperty("_bucket_count"), equalTo(3));
         Object[] propertiesKeys = (Object[]) range.getProperty("_key");
         Object[] propertiesDocCounts = (Object[]) range.getProperty("_count");
         Object[] propertiesCounts = (Object[]) range.getProperty("sum.value");
@@ -855,7 +856,7 @@ public class DateRangeIT extends ESIntegTestCase {
 
         Range dateRange = bucket.getAggregations().get("date_range");
         // TODO: use diamond once JI-9019884 is fixed
-        List<Range.Bucket> buckets = new ArrayList<Range.Bucket>(dateRange.getBuckets());
+        List<Range.Bucket> buckets = new ArrayList<>(dateRange.getBuckets());
         assertThat(dateRange, Matchers.notNullValue());
         assertThat(dateRange.getName(), equalTo("date_range"));
         assertThat(buckets.size(), is(1));

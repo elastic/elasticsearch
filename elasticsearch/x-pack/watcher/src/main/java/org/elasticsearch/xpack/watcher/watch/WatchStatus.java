@@ -16,10 +16,10 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.throttler.AckThrottler;
-import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherXContentParser;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -156,7 +156,7 @@ public class WatchStatus implements ToXContent, Streamable {
             dirty = true;
         } else {
             for (ActionStatus status : actions.values()) {
-                status.resetAckStatus(timestamp);
+                dirty |= status.resetAckStatus(timestamp);
             }
         }
     }

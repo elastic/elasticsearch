@@ -53,10 +53,14 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
     HttpInput.Result doExecute(WatchExecutionContext ctx, HttpRequest request) throws Exception {
         HttpResponse response = client.execute(request);
         Map<String, List<String>> headers = response.headers();
+        Map<String, Object> payloadMap = new HashMap<>();
+        payloadMap.put("_status_code", response.status());
+        if (headers.isEmpty() == false) {
+            payloadMap.put("_headers", headers);
+        }
 
         if (!response.hasContent()) {
-            Payload payload = headers.size() > 0 ? new Payload.Simple("_headers", headers) : Payload.EMPTY;
-            return new HttpInput.Result(request, -1, payload);
+            return new HttpInput.Result(request, response.status(), new Payload.Simple(payloadMap));
         }
 
         final XContentType contentType;
@@ -72,7 +76,6 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
             }
         }
 
-        final Map<String, Object> payloadMap = new HashMap<>();
         if (contentType != null) {
             try (XContentParser parser = contentType.xContent().createParser(response.body())) {
                 if (input.getExtractKeys() != null) {
@@ -88,9 +91,6 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
             payloadMap.put("_value", response.body().utf8ToString());
         }
 
-        if (headers.size() > 0) {
-            payloadMap.put("_headers", headers);
-        }
         return new HttpInput.Result(request, response.status(), new Payload.Simple(payloadMap));
     }
 }

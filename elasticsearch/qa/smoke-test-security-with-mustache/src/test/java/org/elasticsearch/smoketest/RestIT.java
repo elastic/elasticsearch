@@ -19,12 +19,11 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
-public class SmokeTestPluginsIT extends ESClientYamlSuiteTestCase {
+public class RestIT extends ESClientYamlSuiteTestCase {
 
-    private static final String USER = "test_user";
-    private static final String PASS = "changeme";
+    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("test_admin", new SecuredString("changeme".toCharArray()));
 
-    public SmokeTestPluginsIT(@Name("yaml") RestTestCandidate testCandidate) {
+    public RestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);
     }
 
@@ -35,10 +34,8 @@ public class SmokeTestPluginsIT extends ESClientYamlSuiteTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue(USER, new SecuredString(PASS.toCharArray()));
         return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", token)
+                .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
                 .build();
     }
 }
-

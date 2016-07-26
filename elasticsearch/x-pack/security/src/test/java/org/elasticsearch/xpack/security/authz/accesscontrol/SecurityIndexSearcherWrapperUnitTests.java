@@ -35,33 +35,48 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
 import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.xpack.security.user.User;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
@@ -75,13 +90,18 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
     private ThreadContext threadContext;
     private MapperService mapperService;
+    private ScriptService scriptService;
     private SecurityIndexSearcherWrapper securityIndexSearcherWrapper;
     private ElasticsearchDirectoryReader esIn;
     private XPackLicenseState licenseState;
@@ -90,6 +110,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
     @Before
     public void before() throws Exception {
         Index index = new Index("_index", "testUUID");
+        scriptService = mock(ScriptService.class);
         indexSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
         AnalysisService analysisService = new AnalysisService(indexSettings, Collections.emptyMap(), Collections.emptyMap(),
                 Collections.emptyMap(), Collections.emptyMap());
@@ -125,7 +146,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         mapperService.merge("type", new CompressedXContent(mappingSource.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
 
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState) {
+                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, scriptService) {
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true,
@@ -156,14 +177,14 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
     public void testWrapReaderWhenFeatureDisabled() throws Exception {
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState);
+                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, scriptService);
         DirectoryReader reader = securityIndexSearcherWrapper.wrap(esIn);
         assertThat(reader, sameInstance(esIn));
     }
 
     public void testWrapSearcherWhenFeatureDisabled() throws Exception {
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState);
+                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, scriptService);
         IndexSearcher indexSearcher = new IndexSearcher(esIn);
         IndexSearcher result = securityIndexSearcherWrapper.wrap(indexSearcher);
         assertThat(result, sameInstance(indexSearcher));
@@ -275,7 +296,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         DirectoryReader directoryReader = DocumentSubsetReader.wrap(esIn, bitsetFilterCache, new MatchAllDocsQuery());
         IndexSearcher indexSearcher = new IndexSearcher(directoryReader);
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState);
+                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, scriptService);
         IndexSearcher result = securityIndexSearcherWrapper.wrap(indexSearcher);
         assertThat(result, not(sameInstance(indexSearcher)));
         assertThat(result.getSimilarity(true), sameInstance(indexSearcher.getSimilarity(true)));
@@ -284,7 +305,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
     public void testIntersectScorerAndRoleBits() throws Exception {
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState);
+                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, scriptService);
         final Directory directory = newDirectory();
         IndexWriter iw = new IndexWriter(
                 directory,
@@ -373,7 +394,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
     private void assertResolvedFields(String expression, String... expectedFields) {
         securityIndexSearcherWrapper =
-                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState) {
+                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, scriptService) {
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
                 IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true,
@@ -405,6 +426,60 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
     public void testIndexSearcherWrapperDenseWithDeletions() throws IOException {
         doTestIndexSearcherWrapper(false, true);
+    }
+
+    public void testTemplating() throws Exception {
+        User user = new User("_username", new String[]{"role1", "role2"}, "_full_name", "_email",
+                Collections.singletonMap("key", "value"));
+        securityIndexSearcherWrapper =
+                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, scriptService) {
+
+                    @Override
+                    protected User getUser() {
+                        return user;
+                    }
+                };
+
+        ExecutableScript executableScript = mock(ExecutableScript.class);
+        when(scriptService.executable(any(Script.class), eq(ScriptContext.Standard.SEARCH), eq(Collections.emptyMap())))
+                .thenReturn(executableScript);
+
+        XContentBuilder builder = jsonBuilder();
+        String query = new TermQueryBuilder("field", "{{_user.username}}").toXContent(builder, ToXContent.EMPTY_PARAMS).string();
+        Script script = new Script(query, ScriptService.ScriptType.INLINE, null, Collections.singletonMap("custom", "value"));
+        builder = jsonBuilder().startObject().field("template");
+        script.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        BytesReference querySource = builder.endObject().bytes();
+
+        securityIndexSearcherWrapper.evaluateTemplate(querySource);
+        ArgumentCaptor<Script> argument = ArgumentCaptor.forClass(Script.class);
+        verify(scriptService).executable(argument.capture(), eq(ScriptContext.Standard.SEARCH), eq(Collections.emptyMap()));
+        Script usedScript = argument.getValue();
+        assertThat(usedScript.getScript(), equalTo(script.getScript()));
+        assertThat(usedScript.getType(), equalTo(script.getType()));
+        assertThat(usedScript.getLang(), equalTo("mustache"));
+        assertThat(usedScript.getContentType(), equalTo(script.getContentType()));
+        assertThat(usedScript.getParams().size(), equalTo(2));
+        assertThat(usedScript.getParams().get("custom"), equalTo("value"));
+
+        Map<String, Object> userModel = new HashMap<>();
+        userModel.put("username", user.principal());
+        userModel.put("full_name", user.fullName());
+        userModel.put("email", user.email());
+        userModel.put("roles", Arrays.asList(user.roles()));
+        userModel.put("metadata", user.metadata());
+        assertThat(usedScript.getParams().get("_user"), equalTo(userModel));
+
+    }
+
+    public void testSkipTemplating() throws Exception {
+        securityIndexSearcherWrapper =
+                new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, scriptService);
+        XContentBuilder builder = jsonBuilder();
+        BytesReference querySource =  new TermQueryBuilder("field", "value").toXContent(builder, ToXContent.EMPTY_PARAMS).bytes();
+        BytesReference result = securityIndexSearcherWrapper.evaluateTemplate(querySource);
+        assertThat(result, sameInstance(querySource));
+        verifyZeroInteractions(scriptService);
     }
 
     static class CreateScorerOnceWeight extends Weight {

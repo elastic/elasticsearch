@@ -35,6 +35,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.plugin.core.XPackLicenseState;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -55,13 +56,14 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
     public void testDLS() throws Exception {
         ShardId shardId = new ShardId("_index", "_na_", 0);
         MapperService mapperService = mock(MapperService.class);
+        ScriptService  scriptService = mock(ScriptService.class);
         when(mapperService.docMappers(anyBoolean())).thenReturn(Collections.emptyList());
         when(mapperService.simpleMatchToIndexNames(anyString()))
                 .then(invocationOnMock -> Collections.singletonList((String) invocationOnMock.getArguments()[0]));
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, null,
-                singleton(new BytesArray("{}")));
+                singleton(new BytesArray("{\"match_all\" : {}}")));
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         QueryParseContext queryParseContext = mock(QueryParseContext.class);
@@ -79,7 +81,7 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         SecurityIndexSearcherWrapper wrapper = new SecurityIndexSearcherWrapper(indexSettings, queryShardContext, mapperService,
-                bitsetFilterCache, threadContext, licenseState) {
+                bitsetFilterCache, threadContext, licenseState, scriptService) {
 
             @Override
             protected QueryShardContext copyQueryShardContext(QueryShardContext context) {
@@ -140,7 +142,7 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
             ParsedQuery parsedQuery = new ParsedQuery(new TermQuery(new Term("field", values[i])));
             when(queryShardContext.newParseContext(any(XContentParser.class))).thenReturn(queryParseContext);
             when(queryParseContext.parseInnerQueryBuilder())
-                    .thenReturn(Optional.of((QueryBuilder) new TermQueryBuilder("field", values[i])));
+                    .thenReturn(Optional.of(new TermQueryBuilder("field", values[i])));
             when(queryShardContext.toQuery(any(QueryBuilder.class))).thenReturn(parsedQuery);
             DirectoryReader wrappedDirectoryReader = wrapper.wrap(directoryReader);
             IndexSearcher indexSearcher = wrapper.wrap(new IndexSearcher(wrappedDirectoryReader));

@@ -7,7 +7,7 @@ package org.elasticsearch.xpack;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.license.plugin.LicensingClient;
+import org.elasticsearch.license.LicensingClient;
 import org.elasticsearch.xpack.monitoring.client.MonitoringClient;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.client.SecurityClient;
@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.action.XPackInfoAction;
 import org.elasticsearch.xpack.action.XPackInfoRequest;
 import org.elasticsearch.xpack.action.XPackInfoRequestBuilder;
-import org.elasticsearch.xpack.action.XPackInfoResponse;
+import org.elasticsearch.license.XPackInfoResponse;
 
 import java.util.Collections;
 import java.util.Map;

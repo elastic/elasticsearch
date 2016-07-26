@@ -7,7 +7,7 @@ dependencies {
 integTest {
   cluster {
     setting 'script.inline', 'true'
-    plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
+    plugin ':x-plugins:elasticsearch:x-pack'
     extraConfigFile 'x-pack/roles.yml', 'roles.yml'
     [
       test_admin: 'superuser',

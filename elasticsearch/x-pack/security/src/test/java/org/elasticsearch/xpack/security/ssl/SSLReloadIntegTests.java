@@ -93,7 +93,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
     }
 
     public void testThatSSLConfigurationReloadsOnModification() throws Exception {
-        KeyPair keyPair = CertUtils.generateKeyPair();
+        KeyPair keyPair = CertUtils.generateKeyPair(randomFrom(1024, 2048));
         X509Certificate certificate = getCertificate(keyPair);
         KeyStore keyStore = KeyStore.getInstance("jks");
         keyStore.load(null, null);

@@ -98,7 +98,7 @@ public class WatcherUtilsTests extends ESTestCase {
     public void testSerializeSearchRequest() throws Exception {
         String[] randomIndices = generateRandomStringArray(5, 5, false);
         SearchRequest expectedRequest = new SearchRequest(randomIndices);
-        Script expectedTemplate = null;
+        WatcherScript expectedTemplate = null;
 
         if (randomBoolean()) {
             String[] randomTypes = generateRandomStringArray(2, 5, false);
@@ -121,7 +121,8 @@ public class WatcherUtilsTests extends ESTestCase {
                 }
             }
             String text = randomAsciiOfLengthBetween(1, 5);
-            expectedTemplate = randomFrom(Script.inline(text), Script.file(text), Script.indexed(text)).params(params).build();
+            expectedTemplate = randomFrom(WatcherScript.inline(text), WatcherScript.file(text),
+                WatcherScript.indexed(text)).params(params).build();
         }
 
         WatcherSearchTemplateRequest request = new WatcherSearchTemplateRequest(expectedRequest, expectedTemplate);
@@ -132,7 +133,7 @@ public class WatcherUtilsTests extends ESTestCase {
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
         QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
-        registry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
+        registry.register(queryParser, MatchAllQueryBuilder.NAME);
         QueryParseContext context = new QueryParseContext(registry, parser, ParseFieldMatcher.STRICT);
         WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, DEFAULT_SEARCH_TYPE, context, null, null);
 
@@ -199,7 +200,7 @@ public class WatcherUtilsTests extends ESTestCase {
             source = searchSourceBuilder.buildAsBytes(XContentType.JSON);
             builder.rawField("body", source);
         }
-        Script template = null;
+        WatcherScript template = null;
         if (randomBoolean()) {
             Map<String, Object> params = new HashMap<>();
             if (randomBoolean()) {
@@ -209,7 +210,8 @@ public class WatcherUtilsTests extends ESTestCase {
                 }
             }
             String text = randomAsciiOfLengthBetween(1, 5);
-            template = randomFrom(Script.inline(text), Script.file(text), Script.indexed(text)) .params(params).build();
+            template = randomFrom(WatcherScript.inline(text), WatcherScript.file(text), WatcherScript.indexed(text))
+                .params(params).build();
             builder.field("template", template);
         }
         builder.endObject();
@@ -218,7 +220,7 @@ public class WatcherUtilsTests extends ESTestCase {
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
         QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
-        registry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
+        registry.register(queryParser, MatchAllQueryBuilder.NAME);
         QueryParseContext context = new QueryParseContext(registry, parser, ParseFieldMatcher.STRICT);
         WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, DEFAULT_SEARCH_TYPE, context, null, null);
 

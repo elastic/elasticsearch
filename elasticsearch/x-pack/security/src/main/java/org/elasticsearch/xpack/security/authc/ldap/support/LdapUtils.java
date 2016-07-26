@@ -46,7 +46,7 @@ public final class LdapUtils {
 
     /**
      * This method performs a LDAPConnection.search(...) operation while handling referral exceptions. This is necessary
-     * to maintain backwards compatibility
+     * to maintain backwards compatibility with the original JNDI implementation
      */
     public static SearchResult search(LDAPInterface ldap, SearchRequest searchRequest, ESLogger logger) throws LDAPException {
         SearchResult results;
@@ -68,7 +68,7 @@ public final class LdapUtils {
 
     /**
      * This method performs a LDAPConnection.searchForEntry(...) operation while handling referral exceptions. This is necessary
-     * to maintain backwards compatibility
+     * to maintain backwards compatibility with the original JNDI implementation
      */
     public static SearchResultEntry searchForEntry(LDAPInterface ldap, SearchRequest searchRequest, ESLogger logger) throws LDAPException {
         SearchResultEntry entry;
@@ -91,6 +91,10 @@ public final class LdapUtils {
     public static Filter createFilter(String filterTemplate, String... arguments) throws LDAPException {
         return Filter.create(new MessageFormat(filterTemplate, Locale.ROOT).format((Object[]) encodeFilterValues(arguments),
                 new StringBuffer(), null).toString());
+    }
+
+    public static String[] attributesToSearchFor(String[] attributes) {
+        return attributes == null ? new String[] { SearchRequest.NO_ATTRIBUTES } : attributes;
     }
 
     static String[] encodeFilterValues(String... arguments) {

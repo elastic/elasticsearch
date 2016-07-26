@@ -59,15 +59,17 @@ if [ -z "$ES_CLASSPATH" ]; then
     exit 1
 fi
 
-# Try to read package config files
-if [ -f "/etc/sysconfig/elasticsearch" ]; then
-    CONF_DIR=/etc/elasticsearch
+if [ -z "$CONF_DIR" ]; then
+    # Try to read package config files
+    if [ -f "/etc/sysconfig/elasticsearch" ]; then
+        CONF_DIR=/etc/elasticsearch
 
-    . "/etc/sysconfig/elasticsearch"
-elif [ -f "/etc/default/elasticsearch" ]; then
-    CONF_DIR=/etc/elasticsearch
+        . "/etc/sysconfig/elasticsearch"
+    elif [ -f "/etc/default/elasticsearch" ]; then
+        CONF_DIR=/etc/elasticsearch
 
-   . "/etc/default/elasticsearch"
+       . "/etc/default/elasticsearch"
+    fi
 fi
 
 export HOSTNAME=`hostname -s`

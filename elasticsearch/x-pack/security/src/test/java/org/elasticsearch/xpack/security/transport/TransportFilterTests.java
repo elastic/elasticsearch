@@ -15,10 +15,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
-import org.elasticsearch.xpack.security.SecurityLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,13 +54,8 @@ import static org.mockito.Mockito.when;
  *
  */
 @ClusterScope(scope = SUITE, numDataNodes = 0)
+@ESIntegTestCase.SuppressLocalMode
 public class TransportFilterTests extends ESIntegTestCase {
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put("node.mode", "network")
-                .build();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
@@ -68,7 +64,7 @@ public class TransportFilterTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(InternalPlugin.class, InternalPluginServerTransportService.TestPlugin.class);
+        return Arrays.asList(InternalPlugin.class, InternalPluginServerTransportService.TestPlugin.class, MockTcpTransportPlugin.class);
     }
 
     @Override
@@ -292,8 +288,8 @@ public class TransportFilterTests extends ESIntegTestCase {
                                                     AuthenticationService authcService, AuthorizationService authzService,
                                                     SecurityActionMapper actionMapper, ClientTransportFilter clientTransportFilter) {
             super(settings, transport, threadPool, authcService, authzService, actionMapper, clientTransportFilter,
-                    mock(SecurityLicenseState.class));
-            when(licenseState.authenticationAndAuthorizationEnabled()).thenReturn(true);
+                    mock(XPackLicenseState.class));
+            when(licenseState.isAuthAllowed()).thenReturn(true);
         }
 
         @Override

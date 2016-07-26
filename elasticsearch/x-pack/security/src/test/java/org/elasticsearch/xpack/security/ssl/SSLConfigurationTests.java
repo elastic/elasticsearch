@@ -421,7 +421,7 @@ public class SSLConfigurationTests extends ESTestCase {
                 }
             });
             Path updatedKeyPath = tempDir.resolve("updated.pem");
-            KeyPair keyPair = CertUtils.generateKeyPair();
+            KeyPair keyPair = CertUtils.generateKeyPair(randomFrom(1024, 2048));
             try (OutputStream os = Files.newOutputStream(updatedKeyPath);
                  OutputStreamWriter osWriter = new OutputStreamWriter(os, StandardCharsets.UTF_8);
                  JcaPEMWriter writer = new JcaPEMWriter(osWriter)) {

@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.xpack.security.authc.pki;
 
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.message.BasicHeader;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.SSLSocketFactoryHttpConfigCallback;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -18,13 +17,13 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackTransportClient;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerTransport;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.junit.BeforeClass;
 
 import javax.net.ssl.SSLContext;
@@ -57,8 +56,8 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put(SecurityNettyHttpServerTransport.SSL_SETTING.getKey(), true)
-                .put(SecurityNettyHttpServerTransport.CLIENT_AUTH_SETTING.getKey(), SSLClientAuth.OPTIONAL)
+                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true)
+                .put(SecurityNetty3HttpServerTransport.CLIENT_AUTH_SETTING.getKey(), SSLClientAuth.OPTIONAL)
                 .put("xpack.security.authc.realms.file.type", "file")
                 .put("xpack.security.authc.realms.file.order", "0")
                 .put("xpack.security.authc.realms.pki1.type", "pki")
@@ -79,8 +78,8 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
     }
 
     public void testRestClientWithoutClientCertificate() throws Exception {
-        SSLConnectionSocketFactory sslConnectionSocketFactory = new SSLConnectionSocketFactory(getSSLContext());
-        try (RestClient restClient = createRestClient(new SSLSocketFactoryHttpConfigCallback(sslConnectionSocketFactory), "https")) {
+        SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(getSSLContext());
+        try (RestClient restClient = createRestClient(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy), "https")) {
             try {
                 restClient.performRequest("GET", "_nodes");
                 fail("request should have failed");
@@ -88,12 +87,11 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
                 assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
             }
 
-            try (Response response = restClient.performRequest("GET", "_nodes",
+            Response response = restClient.performRequest("GET", "_nodes",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                                    new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
-                assertThat(response.getStatusLine().getStatusCode(), is(200));
-            }
+                                    new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))));
+            assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
     }
 
@@ -108,11 +106,11 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
                 .put(sslSettingsForStore)
                 .put(Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
-                .put(SecurityNettyTransport.SSL_SETTING.getKey(), true)
+                .put(SecurityNetty3Transport.SSL_SETTING.getKey(), true)
                 .build();
 
 
-        try (TransportClient client = TransportClient.builder().settings(settings).addPlugin(XPackPlugin.class).build()) {
+        try (TransportClient client = new XPackTransportClient(settings)) {
             client.addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), port));
             assertGreenClusterState(client);
         }

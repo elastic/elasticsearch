@@ -46,6 +46,6 @@ public class ClientProxy  {
 
     public static InternalClient fromClient(Client client) {
         return client instanceof InternalClient ? (InternalClient) client :
-                new InternalClient.Insecure(client.settings(), client.threadPool(), client);
+                new InternalClient(client.settings(), client.threadPool(), client, null);
     }
 }

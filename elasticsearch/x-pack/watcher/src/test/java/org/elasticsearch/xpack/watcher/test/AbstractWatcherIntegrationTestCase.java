@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
@@ -47,11 +48,9 @@ import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
-import org.elasticsearch.xpack.watcher.WatcherLicensee;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.support.clock.ClockMock;
 import org.elasticsearch.xpack.common.http.HttpClient;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
@@ -312,7 +311,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     protected long watchRecordCount(QueryBuilder query) {
         refresh();
-        return docCount(HistoryStore.INDEX_PREFIX + "*", HistoryStore.DOC_TYPE, SearchSourceBuilder.searchSource().query(query));
+        return docCount(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*",
+                HistoryStore.DOC_TYPE, SearchSourceBuilder.searchSource().query(query));
     }
 
     protected long docCount(String index, String type, SearchSourceBuilder source) {
@@ -324,7 +324,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected SearchResponse searchHistory(SearchSourceBuilder builder) {
-        return client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").setSource(builder).get();
+        return client().prepareSearch(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*").setSource(builder).get();
     }
 
     protected <T> T getInstanceFromMaster(Class<T> type) {
@@ -356,20 +356,12 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         return randomBoolean() ? new XPackClient(client).watcher() : new WatcherClient(client);
     }
 
-    protected ScriptServiceProxy scriptService() {
-        return internalCluster().getInstance(ScriptServiceProxy.class);
-    }
-
     protected HttpClient watcherHttpClient() {
         return internalCluster().getInstance(HttpClient.class);
     }
 
     protected EmailService noopEmailService() {
         return new NoopEmailService();
-    }
-
-    protected WatcherLicensee licenseService() {
-        return getInstanceFromMaster(WatcherLicensee.class);
     }
 
     protected IndexNameExpressionResolver indexNameExpressionResolver() {
@@ -398,7 +390,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             assertBusy(() -> {
                 ClusterState state = client().admin().cluster().prepareState().get().getState();
                 String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndexNames(state,
-                        IndicesOptions.lenientExpandOpen(), HistoryStore.INDEX_PREFIX + "*");
+                        IndicesOptions.lenientExpandOpen(), HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*");
                 assertThat(watchHistoryIndices, not(emptyArray()));
                 for (String index : watchHistoryIndices) {
                     IndexRoutingTable routingTable = state.getRoutingTable().index(index);
@@ -407,7 +399,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 }
 
                 refresh();
-                SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
+                SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                         .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state",
                                 ExecutionState.EXECUTED.id())))
@@ -432,14 +424,15 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected SearchResponse searchWatchRecords(Callback<SearchRequestBuilder> requestBuilderCallback) {
-        SearchRequestBuilder builder = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").setTypes(HistoryStore.DOC_TYPE);
+        SearchRequestBuilder builder =
+                client().prepareSearch(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*").setTypes(HistoryStore.DOC_TYPE);
         requestBuilderCallback.handle(builder);
         return builder.get();
     }
 
     protected long historyRecordsCount(String watchName) {
         refresh();
-        SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
+        SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setSize(0)
                 .setQuery(matchQuery("watch_id", watchName))
@@ -449,7 +442,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     protected long findNumberOfPerformedActions(String watchName) {
         refresh();
-        SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
+        SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", ExecutionState.EXECUTED.id())))
                 .get();
@@ -465,7 +458,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 // so we to check first is this index is created and shards are started
                 ClusterState state = client().admin().cluster().prepareState().get().getState();
                 String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndexNames(state,
-                        IndicesOptions.lenientExpandOpen(), HistoryStore.INDEX_PREFIX + "*");
+                        IndicesOptions.lenientExpandOpen(), HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*");
                 assertThat(watchHistoryIndices, not(emptyArray()));
                 for (String index : watchHistoryIndices) {
                     IndexRoutingTable routingTable = state.getRoutingTable().index(index);
@@ -473,7 +466,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                     assertThat(routingTable.allPrimaryShardsActive(), is(true));
                 }
                 refresh();
-                SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
+                SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                         .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state",
                                 ExecutionState.EXECUTION_NOT_NEEDED.id())))
@@ -497,7 +490,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
             String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndexNames(state, IndicesOptions.lenientExpandOpen(),
-                    HistoryStore.INDEX_PREFIX + "*");
+                    HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*");
             assertThat(watchHistoryIndices, not(emptyArray()));
             for (String index : watchHistoryIndices) {
                 IndexRoutingTable routingTable = state.getRoutingTable().index(index);
@@ -506,7 +499,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             }
 
             refresh();
-            SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
+            SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*")
                     .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                     .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", recordState.id())))
                     .get();
@@ -539,8 +532,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     protected void ensureLicenseEnabled() throws Exception {
         assertBusy(() -> {
-            for (WatcherLicensee service : internalCluster().getInstances(WatcherLicensee.class)) {
-                assertThat(service.isWatcherTransportActionAllowed(), is(true));
+            for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
+                assertThat(licenseState.isWatcherAllowed(), is(true));
             }
         });
     }

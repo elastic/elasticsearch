@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,7 +31,9 @@ public class RestDeleteWatchAction extends WatcherRestHandler {
     @Inject
     public RestDeleteWatchAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(DELETE, URI_BASE + "/watch/{id}", this);
+        // @deprecated Remove deprecations in 6.0
+        controller.registerWithDeprecatedHandler(DELETE, URI_BASE + "/watch/{id}", this,
+                                                 DELETE, "/_watcher/watch/{id}", deprecationLogger);
     }
 
     @Override

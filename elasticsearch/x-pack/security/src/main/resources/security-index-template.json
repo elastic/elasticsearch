@@ -86,6 +86,10 @@
         },
         "run_as" : {
           "type" : "keyword"
+        },
+        "metadata" : {
+          "type" : "object",
+          "dynamic" : true
         }
       }
     },

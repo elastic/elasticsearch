@@ -10,6 +10,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackFeatureSet;
 
 import java.io.IOException;
@@ -20,12 +21,12 @@ import java.io.IOException;
 public class GraphFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
-    private final GraphLicensee licensee;
+    private final XPackLicenseState licenseState;
 
     @Inject
-    public GraphFeatureSet(Settings settings, @Nullable GraphLicensee licensee, NamedWriteableRegistry namedWriteableRegistry) {
+    public GraphFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, NamedWriteableRegistry namedWriteableRegistry) {
         this.enabled = Graph.enabled(settings);
-        this.licensee = licensee;
+        this.licenseState = licenseState;
         namedWriteableRegistry.register(Usage.class, Usage.writeableName(Graph.NAME), Usage::new);
     }
 
@@ -41,7 +42,7 @@ public class GraphFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licensee != null && licensee.isAvailable();
+        return licenseState != null && licenseState.isGraphAllowed();
     }
 
     @Override

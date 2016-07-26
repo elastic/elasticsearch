@@ -38,11 +38,10 @@ public class IndexAuditIT extends ESIntegTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/2354")
     public void testShieldIndexAuditTrailWorking() throws Exception {
-        try (Response response = getRestClient().performRequest("GET", "/",
+        Response response = getRestClient().performRequest("GET", "/",
                 new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                        UsernamePasswordToken.basicAuthHeaderValue(USER, new SecuredString(PASS.toCharArray()))))) {
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
-        }
+                        UsernamePasswordToken.basicAuthHeaderValue(USER, new SecuredString(PASS.toCharArray()))));
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
         final AtomicReference<ClusterState> lastClusterState = new AtomicReference<>();
         final AtomicBoolean indexExists = new AtomicBoolean(false);
         boolean found = awaitBusy(() -> {

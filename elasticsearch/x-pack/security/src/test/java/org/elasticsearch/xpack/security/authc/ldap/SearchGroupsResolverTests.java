@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
@@ -31,7 +30,7 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
                 .build();
 
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
-        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
+        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE, null);
         assertThat(groups, containsInAnyOrder(
                 containsString("Avengers"),
                 containsString("SHIELD"),
@@ -46,7 +45,7 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
                 .build();
 
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
-        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
+        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE, null);
         assertThat(groups, containsInAnyOrder(
                 containsString("Avengers"),
                 containsString("SHIELD"),
@@ -61,7 +60,7 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
                 .build();
 
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
-        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
+        List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE, null);
         assertThat(groups, hasItem(containsString("Avengers")));
     }
 
@@ -74,7 +73,19 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
         List<String> groups = resolver.resolve(ldapConnection, "uid=selvig,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com",
-                TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE);
+                TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE, null);
+        assertThat(groups, hasItem(containsString("Geniuses")));
+    }
+
+    public void testFilterIncludesPosixGroups() throws Exception {
+        Settings settings = Settings.builder()
+                .put("base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")
+                .put("user_attribute", "uid")
+                .build();
+
+        SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
+        List<String> groups = resolver.resolve(ldapConnection, "uid=selvig,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com",
+                TimeValue.timeValueSeconds(10), NoOpLogger.INSTANCE, null);
         assertThat(groups, hasItem(containsString("Geniuses")));
     }
 
@@ -116,12 +127,7 @@ public class SearchGroupsResolverTests extends GroupsResolverTestCase {
                 .put("user_attribute", "doesntExists")
                 .build();
         SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
-        try {
-            resolver.readUserAttribute(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE);
-            fail("searching for a non-existing attribute should throw an LdapException");
-        } catch (ElasticsearchSecurityException e) {
-            assertThat(e.getMessage(), containsString("no results returned"));
-        }
+        assertNull(resolver.readUserAttribute(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(5), NoOpLogger.INSTANCE));
     }
 
     public void testReadBinaryUserAttribute() throws Exception {

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -31,8 +30,12 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
     @Inject
     public RestWatcherStatsAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(GET, URI_BASE + "/stats", this);
-        controller.registerHandler(GET, URI_BASE + "/stats/{metric}", this);
+
+        // @deprecated Remove deprecations in 6.0
+        controller.registerWithDeprecatedHandler(GET, URI_BASE + "/stats", this,
+                                                 GET, "/_watcher/stats", deprecationLogger);
+        controller.registerWithDeprecatedHandler(GET, URI_BASE + "/stats/{metric}", this,
+                                                 GET, "/_watcher/stats/{metric}", deprecationLogger);
     }
 
     @Override

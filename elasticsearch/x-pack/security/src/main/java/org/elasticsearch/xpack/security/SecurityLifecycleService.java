@@ -6,19 +6,17 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.xpack.security.audit.AuditTrailModule;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
-import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  * This class is used to provide a lifecycle for services that is based on the cluster's state
@@ -39,10 +37,9 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
     private final NativeUsersStore nativeUserStore;
     private final NativeRolesStore nativeRolesStore;
 
-    @Inject
     public SecurityLifecycleService(Settings settings, ClusterService clusterService, ThreadPool threadPool,
-                                    IndexAuditTrail indexAuditTrail, NativeUsersStore nativeUserStore,
-                                    NativeRolesStore nativeRolesStore, Provider<InternalClient> clientProvider) {
+                                    @Nullable IndexAuditTrail indexAuditTrail, NativeUsersStore nativeUserStore,
+                                    NativeRolesStore nativeRolesStore, InternalClient client) {
         super(settings);
         this.settings = settings;
         this.threadPool = threadPool;
@@ -54,7 +51,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         clusterService.add(this);
         clusterService.add(nativeUserStore);
         clusterService.add(nativeRolesStore);
-        clusterService.add(new SecurityTemplateService(settings, clusterService, clientProvider, threadPool));
+        clusterService.add(new SecurityTemplateService(settings, clusterService, client, threadPool));
         clusterService.addLifecycleListener(new LifecycleListener() {
 
             @Override
@@ -111,7 +108,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         }
 
         try {
-            if (AuditTrailModule.indexAuditLoggingEnabled(settings) &&
+            if (Security.indexAuditLoggingEnabled(settings) &&
                     indexAuditTrail.state() == IndexAuditTrail.State.INITIALIZED) {
                 if (indexAuditTrail.canStart(event, master)) {
                     threadPool.generic().execute(new AbstractRunnable() {
@@ -146,19 +143,23 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         } catch (Exception e) {
             logger.error("failed to stop native roles module", e);
         }
-        try {
-            indexAuditTrail.stop();
-        } catch (Exception e) {
-            logger.error("failed to stop audit trail module", e);
+        if (indexAuditTrail != null) {
+            try {
+                indexAuditTrail.stop();
+            } catch (Exception e) {
+                logger.error("failed to stop audit trail module", e);
+            }
         }
     }
 
     public void close() {
         // There is no .close() method for the roles module
-        try {
-            indexAuditTrail.close();
-        } catch (Exception e) {
-            logger.error("failed to close audit trail module", e);
+        if (indexAuditTrail != null) {
+            try {
+                indexAuditTrail.close();
+            } catch (Exception e) {
+                logger.error("failed to close audit trail module", e);
+            }
         }
     }
 }

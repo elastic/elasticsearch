@@ -35,8 +35,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -58,11 +56,11 @@ import org.elasticsearch.xpack.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.client.SecurityClient;
-import org.elasticsearch.xpack.security.support.SelfReschedulingRunnable;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.User.Fields;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.util.ArrayList;
@@ -114,20 +112,18 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     private final Hasher hasher = Hasher.BCRYPT;
     private final List<ChangeListener> listeners = new CopyOnWriteArrayList<>();
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
-    private final Provider<InternalClient> clientProvider;
+    private final InternalClient client;
     private final ThreadPool threadPool;
 
-    private SelfReschedulingRunnable userPoller;
-    private Client client;
+    private Cancellable pollerCancellable;
     private int scrollSize;
     private TimeValue scrollKeepAlive;
 
     private volatile boolean securityIndexExists = false;
 
-    @Inject
-    public NativeUsersStore(Settings settings, Provider<InternalClient> clientProvider, ThreadPool threadPool) {
+    public NativeUsersStore(Settings settings, InternalClient client, ThreadPool threadPool) {
         super(settings);
-        this.clientProvider = clientProvider;
+        this.client = client;
         this.threadPool = threadPool;
     }
 
@@ -526,7 +522,6 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     public void start() {
         try {
             if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
-                this.client = clientProvider.get();
                 this.scrollSize = SCROLL_SIZE_SETTING.get(settings);
                 this.scrollKeepAlive = SCROLL_KEEP_ALIVE_SETTING.get(settings);
 
@@ -536,8 +531,8 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                 } catch (Exception e) {
                     logger.warn("failed to do initial poll of users", e);
                 }
-                userPoller = new SelfReschedulingRunnable(poller, threadPool, POLL_INTERVAL_SETTING.get(settings), Names.GENERIC, logger);
-                userPoller.start();
+                TimeValue interval = settings.getAsTime("shield.authc.native.reload.interval", TimeValue.timeValueSeconds(30L));
+                pollerCancellable = threadPool.scheduleWithFixedDelay(poller, interval, Names.GENERIC);
                 state.set(State.STARTED);
             }
         } catch (Exception e) {
@@ -549,7 +544,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     public void stop() {
         if (state.compareAndSet(State.STARTED, State.STOPPING)) {
             try {
-                userPoller.stop();
+                pollerCancellable.cancel();
             } catch (Exception e) {
                 state.set(State.FAILED);
                 throw e;
@@ -703,7 +698,6 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             throw new IllegalStateException("can only reset if stopped!!!");
         }
         this.listeners.clear();
-        this.client = null;
         this.securityIndexExists = false;
         this.state.set(State.INITIALIZED);
     }

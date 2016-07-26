@@ -5,19 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.security.SecurityLicenseState.EnabledRealmType;
-import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
-import org.elasticsearch.xpack.security.authc.file.FileRealm;
-import org.elasticsearch.xpack.security.SecurityLicenseState;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -27,6 +14,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState.AllowedRealmType;
+import org.elasticsearch.xpack.security.authc.activedirectory.ActiveDirectoryRealm;
+import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.file.FileRealm;
+import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
+import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
+
 import static org.elasticsearch.xpack.security.Security.setting;
 
 /**
@@ -34,11 +36,14 @@ import static org.elasticsearch.xpack.security.Security.setting;
  */
 public class Realms extends AbstractLifecycleComponent implements Iterable<Realm> {
 
+    static final List<String> INTERNAL_REALM_TYPES =
+        Arrays.asList(ReservedRealm.TYPE, NativeRealm.TYPE, FileRealm.TYPE, ActiveDirectoryRealm.TYPE, LdapRealm.TYPE, PkiRealm.TYPE);
+
     public static final Setting<Settings> REALMS_GROUPS_SETTINGS = Setting.groupSetting(setting("authc.realms."), Property.NodeScope);
 
     private final Environment env;
     private final Map<String, Realm.Factory> factories;
-    private final SecurityLicenseState securityLicenseState;
+    private final XPackLicenseState licenseState;
     private final ReservedRealm reservedRealm;
 
     protected List<Realm> realms = Collections.emptyList();
@@ -47,13 +52,12 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
     // a list of realms that are considered native, that is they only interact with x-pack and no 3rd party auth sources
     protected List<Realm> nativeRealmsOnly = Collections.emptyList();
 
-    @Inject
-    public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories, SecurityLicenseState securityLicenseState,
+    public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories, XPackLicenseState licenseState,
                   ReservedRealm reservedRealm) {
         super(settings);
         this.env = env;
         this.factories = factories;
-        this.securityLicenseState = securityLicenseState;
+        this.licenseState = licenseState;
         this.reservedRealm = reservedRealm;
     }
 
@@ -67,7 +71,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
         List<Realm> nativeRealms = new ArrayList<>();
         for (Realm realm : realms) {
             // don't add the reserved realm here otherwise we end up with only this realm...
-            if (AuthenticationModule.INTERNAL_REALM_TYPES.contains(realm.type()) && ReservedRealm.TYPE.equals(realm.type()) == false) {
+            if (INTERNAL_REALM_TYPES.contains(realm.type()) && ReservedRealm.TYPE.equals(realm.type()) == false) {
                 internalRealms.add(realm);
             }
 
@@ -100,12 +104,12 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
 
     @Override
     public Iterator<Realm> iterator() {
-        if (securityLicenseState.authenticationAndAuthorizationEnabled() == false) {
+        if (licenseState.isAuthAllowed() == false) {
             return Collections.emptyIterator();
         }
 
-        EnabledRealmType enabledRealmType = securityLicenseState.enabledRealmType();
-        switch (enabledRealmType) {
+        AllowedRealmType allowedRealmType = licenseState.allowedRealmType();
+        switch (allowedRealmType) {
             case ALL:
                 return realms.iterator();
             case DEFAULT:
@@ -151,7 +155,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
                 }
                 continue;
             }
-            if (factory.internal()) {
+            if (FileRealm.TYPE.equals(type) || NativeRealm.TYPE.equals(type)) {
                 // this is an internal realm factory, let's make sure we didn't already registered one
                 // (there can only be one instance of an internal realm)
                 if (internalTypes.contains(type)) {
@@ -202,11 +206,12 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
     private void addNativeRealms(List<Realm> realms) {
         Realm.Factory fileRealm = factories.get(FileRealm.TYPE);
         if (fileRealm != null) {
-            realms.add(fileRealm.createDefault("default_" + FileRealm.TYPE));
+
+            realms.add(fileRealm.create(new RealmConfig("default_" + FileRealm.TYPE, Settings.EMPTY, settings, env)));
         }
         Realm.Factory indexRealmFactory = factories.get(NativeRealm.TYPE);
         if (indexRealmFactory != null) {
-            realms.add(indexRealmFactory.createDefault("default_" + NativeRealm.TYPE));
+            realms.add(indexRealmFactory.create(new RealmConfig("default_" + NativeRealm.TYPE, Settings.EMPTY, settings, env)));
         }
     }
 

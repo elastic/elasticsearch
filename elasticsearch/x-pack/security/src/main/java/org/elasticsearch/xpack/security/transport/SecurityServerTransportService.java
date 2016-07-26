@@ -14,8 +14,8 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.accesscontrol.RequestContext;
-import org.elasticsearch.xpack.security.SecurityLicenseState;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -34,9 +34,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport.CLIENT_AUTH_SETTING;
-import static org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport.PROFILE_CLIENT_AUTH_SETTING;
-import static org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport.SSL_SETTING;
+import static org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport.CLIENT_AUTH_SETTING;
+import static org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport.PROFILE_CLIENT_AUTH_SETTING;
+import static org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport.SSL_SETTING;
 
 public class SecurityServerTransportService extends TransportService {
 
@@ -46,7 +46,7 @@ public class SecurityServerTransportService extends TransportService {
     protected final AuthorizationService authzService;
     protected final SecurityActionMapper actionMapper;
     protected final ClientTransportFilter clientFilter;
-    protected final SecurityLicenseState licenseState;
+    protected final XPackLicenseState licenseState;
 
     protected final Map<String, ServerTransportFilter> profileFilters;
 
@@ -56,7 +56,7 @@ public class SecurityServerTransportService extends TransportService {
                                           AuthorizationService authzService,
                                           SecurityActionMapper actionMapper,
                                           ClientTransportFilter clientTransportFilter,
-                                          SecurityLicenseState licenseState) {
+                                          XPackLicenseState licenseState) {
         super(settings, transport, threadPool);
         this.authcService = authcService;
         this.authzService = authzService;
@@ -110,7 +110,7 @@ public class SecurityServerTransportService extends TransportService {
     }
 
     protected Map<String, ServerTransportFilter> initializeProfileFilters() {
-        if (!(transport instanceof SecurityNettyTransport)) {
+        if (!(transport instanceof SecurityNetty3Transport)) {
             return Collections.<String, ServerTransportFilter>singletonMap(TransportSettings.DEFAULT_PROFILE,
                     new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, threadPool.getThreadContext(), false));
         }
@@ -120,7 +120,7 @@ public class SecurityServerTransportService extends TransportService {
 
         for (Map.Entry<String, Settings> entry : profileSettingsMap.entrySet()) {
             Settings profileSettings = entry.getValue();
-            final boolean profileSsl = SecurityNettyTransport.profileSsl(profileSettings, settings);
+            final boolean profileSsl = SecurityNetty3Transport.profileSsl(profileSettings, settings);
             final boolean clientAuth = PROFILE_CLIENT_AUTH_SETTING.get(profileSettings, settings).enabled();
             final boolean extractClientCert = profileSsl && clientAuth;
             String type = entry.getValue().get(SETTING_NAME, "node");
@@ -155,11 +155,11 @@ public class SecurityServerTransportService extends TransportService {
         protected final String action;
         protected final TransportRequestHandler<T> handler;
         private final Map<String, ServerTransportFilter> profileFilters;
-        private final SecurityLicenseState licenseState;
+        private final XPackLicenseState licenseState;
         private final ThreadContext threadContext;
 
         public ProfileSecuredRequestHandler(String action, TransportRequestHandler<T> handler,
-                                            Map<String, ServerTransportFilter> profileFilters, SecurityLicenseState licenseState,
+                                            Map<String, ServerTransportFilter> profileFilters, XPackLicenseState licenseState,
                                             ThreadContext threadContext) {
             this.action = action;
             this.handler = handler;
@@ -171,7 +171,7 @@ public class SecurityServerTransportService extends TransportService {
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             try (ThreadContext.StoredContext ctx = threadContext.newStoredContext()) {
-                if (licenseState.authenticationAndAuthorizationEnabled()) {
+                if (licenseState.isAuthAllowed()) {
                     String profile = channel.getProfileName();
                     ServerTransportFilter filter = profileFilters.get(profile);
 

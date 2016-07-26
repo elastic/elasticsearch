@@ -13,8 +13,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractLifecycleRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
@@ -28,7 +28,7 @@ import java.util.concurrent.ScheduledFuture;
  */
 public class CleanerService extends AbstractLifecycleComponent {
 
-    private final MonitoringLicensee licensee;
+    private final XPackLicenseState licenseState;
     private final ThreadPool threadPool;
     private final ExecutionScheduler executionScheduler;
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
@@ -36,10 +36,10 @@ public class CleanerService extends AbstractLifecycleComponent {
 
     private volatile TimeValue globalRetention;
 
-    CleanerService(Settings settings, ClusterSettings clusterSettings, MonitoringLicensee licensee, ThreadPool threadPool,
+    CleanerService(Settings settings, ClusterSettings clusterSettings, XPackLicenseState licenseState, ThreadPool threadPool,
                    ExecutionScheduler executionScheduler) {
         super(settings);
-        this.licensee = licensee;
+        this.licenseState = licenseState;
         this.threadPool = threadPool;
         this.executionScheduler = executionScheduler;
         this.globalRetention = MonitoringSettings.HISTORY_DURATION.get(settings);
@@ -50,8 +50,8 @@ public class CleanerService extends AbstractLifecycleComponent {
     }
 
     @Inject
-    public CleanerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, MonitoringLicensee licensee) {
-        this(settings, clusterSettings, licensee,threadPool, new DefaultExecutionScheduler());
+    public CleanerService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, XPackLicenseState licenseState) {
+        this(settings, clusterSettings, licenseState, threadPool, new DefaultExecutionScheduler());
     }
 
     @Override
@@ -85,11 +85,11 @@ public class CleanerService extends AbstractLifecycleComponent {
      * This will ignore the global retention if the license does not allow retention updates.
      *
      * @return Never {@code null}
-     * @see MonitoringLicensee#allowUpdateRetention()
+     * @see XPackLicenseState#isUpdateRetentionAllowed()
      */
     public TimeValue getRetention() {
         // we only care about their value if they are allowed to set it
-        if (licensee.allowUpdateRetention() && globalRetention != null) {
+        if (licenseState.isUpdateRetentionAllowed() && globalRetention != null) {
             return globalRetention;
         }
         else {
@@ -107,7 +107,7 @@ public class CleanerService extends AbstractLifecycleComponent {
      */
     public void setGlobalRetention(TimeValue globalRetention) {
         // notify the user that their setting will be ignored until they get the right license
-        if (licensee.allowUpdateRetention() == false) {
+        if (licenseState.isUpdateRetentionAllowed() == false) {
             logger.warn("[{}] setting will be ignored until an appropriate license is applied",
                     MonitoringSettings.HISTORY_DURATION.getKey());
         }
@@ -165,7 +165,7 @@ public class CleanerService extends AbstractLifecycleComponent {
 
         @Override
         protected void doRunInLifecycle() throws Exception {
-            if (licensee.cleaningEnabled() == false) {
+            if (licenseState.isMonitoringAllowed() == false) {
                 logger.debug("cleaning service is disabled due to invalid license");
                 return;
             }

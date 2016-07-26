@@ -11,14 +11,14 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.input.ExecutableInput;
-import org.elasticsearch.xpack.watcher.support.Variables;
-import org.elasticsearch.xpack.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.watcher.input.ExecutableInput;
+import org.elasticsearch.xpack.watcher.support.Variables;
+import org.elasticsearch.xpack.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.util.HashMap;
@@ -53,51 +53,44 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
     HttpInput.Result doExecute(WatchExecutionContext ctx, HttpRequest request) throws Exception {
         HttpResponse response = client.execute(request);
         Map<String, List<String>> headers = response.headers();
+        Map<String, Object> payloadMap = new HashMap<>();
+        payloadMap.put("_status_code", response.status());
+        if (headers.isEmpty() == false) {
+            payloadMap.put("_headers", headers);
+        }
 
         if (!response.hasContent()) {
-            Payload payload = headers.size() > 0 ? new Payload.Simple("_headers", headers) : Payload.EMPTY;
-            return new HttpInput.Result(request, -1, payload);
+            return new HttpInput.Result(request, response.status(), new Payload.Simple(payloadMap));
         }
 
-        XContentType contentType = response.xContentType();
-        if (input.getExpectedResponseXContentType() != null) {
-            if (contentType != input.getExpectedResponseXContentType().contentType()) {
-                logger.warn("[{}] [{}] input expected content type [{}] but read [{}] from headers", type(), ctx.id(),
-                        input.getExpectedResponseXContentType(), contentType);
-            }
-            if (contentType == null) {
-                contentType = input.getExpectedResponseXContentType().contentType();
-            }
+        final XContentType contentType;
+        XContentType responseContentType = response.xContentType();
+        if (input.getExpectedResponseXContentType() == null) {
+            //Attempt to auto detect content type, if not set in response
+            contentType = responseContentType != null ? responseContentType : XContentFactory.xContentType(response.body());
         } else {
-            //Attempt to auto detect content type
-            if (contentType == null) {
-                contentType = XContentFactory.xContentType(response.body());
+            contentType = input.getExpectedResponseXContentType().contentType();
+            if (responseContentType != contentType) {
+                logger.warn("[{}] [{}] input expected content type [{}] but read [{}] from headers, using expected one", type(), ctx.id(),
+                        input.getExpectedResponseXContentType(), responseContentType);
             }
         }
 
-        XContentParser parser = null;
         if (contentType != null) {
-            try {
-                parser = contentType.xContent().createParser(response.body());
+            try (XContentParser parser = contentType.xContent().createParser(response.body())) {
+                if (input.getExtractKeys() != null) {
+                    payloadMap.putAll(XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser));
+                } else {
+                    payloadMap.putAll(parser.mapOrdered());
+                }
             } catch (Exception e) {
                 throw new ElasticsearchParseException("could not parse response body [{}] it does not appear to be [{}]", type(), ctx.id(),
                         response.body().utf8ToString(), contentType.shortName());
             }
+        } else {
+            payloadMap.put("_value", response.body().utf8ToString());
         }
 
-        final Map<String, Object> payloadMap = new HashMap<>();
-        if (input.getExtractKeys() != null) {
-            payloadMap.putAll(XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser));
-        } else {
-            if (parser != null) {
-                payloadMap.putAll(parser.mapOrdered());
-            } else {
-                payloadMap.put("_value", response.body().utf8ToString());
-            }
-        }
-        if (headers.size() > 0) {
-            payloadMap.put("_headers", headers);
-        }
         return new HttpInput.Result(request, response.status(), new Payload.Simple(payloadMap));
     }
 }

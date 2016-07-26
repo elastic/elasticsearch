@@ -21,14 +21,20 @@ ext.compactProfile = 'full'
 
 dependencyLicenses.enabled = false
 
+licenseHeaders {
+  approvedLicenses << 'BCrypt (BSD-like)'
+  additionalLicense 'BCRYP', 'BCrypt (BSD-like)', 'Copyright (c) 2006 Damien Miller <djm@mindrot.org>'
+}
+
 dependencies {
   // license deps
   compile project(':x-plugins:elasticsearch:license:base')
   testCompile project(':x-plugins:elasticsearch:license:licensor')
 
   // security deps
+  compile project(path: ':modules:transport-netty3', configuration: 'runtime')
   compile 'dk.brics.automaton:automaton:1.11-8'
-  compile 'com.unboundid:unboundid-ldapsdk:2.3.8'
+  compile 'com.unboundid:unboundid-ldapsdk:3.1.1'
   compile 'org.bouncycastle:bcprov-jdk15on:1.54'
   compile 'org.bouncycastle:bcpkix-jdk15on:1.54'
   testCompile 'com.google.jimfs:jimfs:1.1'
@@ -230,13 +236,6 @@ thirdPartyAudit.excludes = [
     'javax.activation.URLDataSource',
     'javax.activation.UnsupportedDataTypeException'    
 ]
-
-// someone figure out what the x-plugins logic should be
-licenseHeaders.enabled = false
-
-forbiddenApisMain {
-  signaturesURLs += [file('signatures.txt').toURI().toURL()]
-}
 
 modifyPom { MavenPom pom ->
   pom.withXml { XmlProvider xml ->

@@ -11,9 +11,9 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
@@ -63,41 +63,11 @@ public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
         }
     }
 
-    public void testNodeStatsCollectorWithLicensing() {
-        try {
-            String[] nodes = internalCluster().getNodeNames();
-            for (String node : nodes) {
-                logger.debug("--> creating a new instance of the collector");
-                NodeStatsCollector collector = newNodeStatsCollector(node);
-                assertNotNull(collector);
-
-                logger.debug("--> enabling license and checks that the collector can collect data");
-                enableLicense();
-                assertCanCollect(collector);
-
-                logger.debug("--> starting graceful period and checks that the collector can still collect data");
-                beginGracefulPeriod();
-                assertCanCollect(collector);
-
-                logger.debug("--> ending graceful period and checks that the collector cannot collect data");
-                endGracefulPeriod();
-                assertCannotCollect(collector);
-
-                logger.debug("--> disabling license and checks that the collector cannot collect data");
-                disableLicense();
-                assertCannotCollect(collector);
-            }
-        } finally {
-            // Ensure license is enabled before finishing the test
-            enableLicense();
-        }
-    }
-
     private NodeStatsCollector newNodeStatsCollector(final String nodeId) {
         return new NodeStatsCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
                 internalCluster().getInstance(MonitoringSettings.class, nodeId),
-                internalCluster().getInstance(MonitoringLicensee.class, nodeId),
+                internalCluster().getInstance(XPackLicenseState.class, nodeId),
                 internalCluster().getInstance(InternalClient.class, nodeId),
                 internalCluster().getInstance(NodeEnvironment.class, nodeId),
                 internalCluster().getInstance(DiskThresholdDecider.class, nodeId));

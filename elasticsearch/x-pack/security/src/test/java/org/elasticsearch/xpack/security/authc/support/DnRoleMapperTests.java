@@ -190,7 +190,8 @@ public class DnRoleMapperTests extends ESTestCase {
     }
 
     public void testParseFile_Empty() throws Exception {
-        Path file = createTempFile();
+        Path file = createTempDir().resolve("foo.yaml");
+        Files.createFile(file);
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
         Map<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security;
 
+import java.io.IOException;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -13,60 +15,57 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.user.XPackUser;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.io.IOException;
+import org.elasticsearch.xpack.security.authc.Authentication;
+import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
+import org.elasticsearch.xpack.security.user.XPackUser;
 
 /**
+ * A special filter client for internal node communication which adds the internal xpack user to the headers.
+ * An optionally secured client for internal node communication.
  *
+ * When secured, the XPack user is added to the execution context before each action is executed.
  */
-public interface InternalClient extends Client {
+public class InternalClient extends FilterClient {
 
+    private final CryptoService cryptoService;
+    private final boolean signUserHeader;
+    private final String nodeName;
 
     /**
-     * An insecured internal client, baseically simply delegates to the normal ES client
-     * without doing anything extra.
+     * Constructs an InternalClient.
+     * If {@code cryptoService} is non-null, the client is secure. Otherwise this client is a passthrough.
      */
-    class Insecure extends FilterClient implements InternalClient {
-
-        @Inject
-        public Insecure(Settings settings, ThreadPool threadPool, Client in) {
-            super(settings, threadPool, in);
-        }
+    public InternalClient(Settings settings, ThreadPool threadPool, Client in, CryptoService cryptoService) {
+        super(settings, threadPool, in);
+        this.cryptoService = cryptoService;
+        this.signUserHeader = AuthenticationService.SIGN_USER_HEADER.get(settings);
+        this.nodeName = Node.NODE_NAME_SETTING.get(settings);
     }
 
-    /**
-     * A secured internal client that binds the internal XPack user to the current
-     * execution context, before the action is executed.
-     */
-    class Secure extends FilterClient implements InternalClient {
+    @Override
+    protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends
+        ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
+        Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
 
-        private final AuthenticationService authcService;
-
-        @Inject
-        public Secure(Settings settings, ThreadPool threadPool, Client in, AuthenticationService authcService) {
-            super(settings, threadPool, in);
-            this.authcService = authcService;
+        if (cryptoService == null) {
+            super.doExecute(action, request, listener);
+            return;
         }
 
-        @Override
-        protected <Request extends ActionRequest<Request>, Response extends ActionResponse, RequestBuilder extends
-                ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(
-                Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
-
-            try (ThreadContext.StoredContext ctx = threadPool().getThreadContext().stashContext()) {
-                try {
-                    authcService.attachUserIfMissing(XPackUser.INSTANCE);
-                } catch (IOException ioe) {
-                    throw new ElasticsearchException("failed to attach internal user to request", ioe);
-                }
-                super.doExecute(action, request, listener);
+        try (ThreadContext.StoredContext ctx = threadPool().getThreadContext().stashContext()) {
+            try {
+                Authentication authentication = new Authentication(XPackUser.INSTANCE,
+                    new Authentication.RealmRef("__attach", "__attach", nodeName), null);
+                authentication.writeToContextIfMissing(threadPool().getThreadContext(), cryptoService, signUserHeader);
+            } catch (IOException ioe) {
+                throw new ElasticsearchException("failed to attach internal user to request", ioe);
             }
+            super.doExecute(action, request, listener);
         }
     }
 }

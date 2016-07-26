@@ -1,0 +1,238 @@
+---
+"Test simple input to index action":
+  - do:
+    xpack.watcher.put_watch:
+      id: my_watch
+      body: >
+        {
+          "trigger" : { "schedule" : { "cron" : "0/1 * * * * ? 2020" } },
+          "input" : { "simple" : { "foo": "bar" } },
+          "actions" : {
+            "index_action" : {
+              "index" : {
+                "index" : "idx",
+                "doc_type" : "type",
+                "execution_time_field" : "@timestamp"
+              }
+            }
+          }
+        }
+
+  - match: { _id: "my_watch" }
+
+
+  - do:
+    xpack.watcher.execute_watch:
+      id: "my_watch"
+      body: >
+        {
+          "trigger_data" : {
+            "triggered_time" : "2016-07-07T09:00:00Z",
+            "scheduled_time" : "2016-07-07T09:00:00Z"
+          }
+        }
+
+  - match: { "watch_record.state": "executed" }
+
+  - do:
+    indices.refresh: {}
+
+  - do:
+    search:
+      index: idx
+      type: type
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.foo: bar }
+  - gte: { hits.hits.0._source.@timestamp: '2016-07-08' }
+
+---
+"Test simple input with document field":
+
+  - do:
+    xpack.watcher.put_watch:
+      id: my_watch
+      body: >
+        {
+          "trigger" : { "schedule" : { "cron" : "0/1 * * * * ? 2020" } },
+          "input" : { "simple" : { "foo": "bar" } },
+          "actions" : {
+            "index_action" : {
+              "transform" : { "script" : { "inline": "return [ '_doc' : ctx.payload ]" } },
+              "index" : {
+                "index" : "idx",
+                "doc_type" : "type",
+                "execution_time_field" : "@timestamp"
+              }
+            }
+          }
+        }
+
+  - match: { _id: "my_watch" }
+
+
+  - do:
+    xpack.watcher.execute_watch:
+      id: "my_watch"
+      body: >
+        {
+          "trigger_data" : {
+            "triggered_time" : "2016-07-07T09:00:00Z",
+            "scheduled_time" : "2016-07-07T09:00:00Z"
+          }
+        }
+
+  - match: { "watch_record.state": "executed" }
+
+  - do:
+    indices.refresh: {}
+
+  - do:
+    search:
+      index: idx
+      type: type
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._source.foo: bar }
+  - gte: { hits.hits.0._source.@timestamp: '2016-07-08"' }
+
+
+---
+"Test simple input with wrong document results in error":
+
+  - do:
+    xpack.watcher.put_watch:
+      id: my_watch
+      body: >
+        {
+          "trigger" : { "schedule" : { "cron" : "0/1 * * * * ? 2020" } },
+          "input" : { "simple" : { "foo": "bar" } },
+          "actions" : {
+            "index_action" : {
+              "transform" : { "script" : { "inline": "return [ '_doc' : 1 ]" } },
+              "index" : {
+                "index" : "idx",
+                "doc_type" : "type",
+                "execution_time_field" : "@timestamp"
+              }
+            }
+          }
+        }
+
+  - match: { _id: "my_watch" }
+
+
+  - do:
+    xpack.watcher.execute_watch:
+      id: "my_watch"
+      body: >
+        {
+          "record_execution" : true,
+          "trigger_data" : {
+            "triggered_time" : "2016-07-07T09:00:00Z",
+            "scheduled_time" : "2016-07-07T09:00:00Z"
+          }
+        }
+
+  - match: { "watch_record.state": "executed" }
+
+  - do:
+    indices.refresh: {}
+
+  - do:
+    indices.exists:
+      index: idx
+
+  - is_false: ''
+
+  - do:
+    search:
+      index: .watcher-history-*
+      type: watch_record
+    body: >
+      {
+        "query" : {
+          "match" : {
+            "result.actions.status": "failure"
+          }
+        }
+      }
+
+  - match: { hits.total: 1 }
+
+---
+"Test search input to index action with aggs":
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "idx", "_type": "type", "_id": "1"}}'
+          - '{"@timestamp": "2016-07-07" }'
+          - '{"index": {"_index": "idx", "_type": "type", "_id": "2"}}'
+          - '{"@timestamp": "2016-07-08" }'
+          - '{"index": {"_index": "idx", "_type": "type", "_id": "3"}}'
+          - '{"@timestamp": "2016-07-09" }'
+
+  - do:
+    xpack.watcher.put_watch:
+      id: my_watch
+      body: >
+        {
+          "trigger" : { "schedule" : { "cron" : "0/1 * * * * ? 2020" } },
+          "input" : {
+            "search" : {
+              "request": {
+                "indices" : [ "idx" ],
+                "types" : [ "type" ],
+                "body" : {
+                  "aggs" : {
+                    "trend" : {
+                      "date_histogram" : {
+                        "field" : "@timestamp",
+                        "interval" : "day"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "actions" : {
+            "index_action" : {
+              "transform" : { "script" : { "inline": "return [ '_doc' : ctx.payload.aggregations.trend.buckets]" } },
+              "index" : {
+                "index" : "idx",
+                "doc_type" : "bucket",
+                "execution_time_field" : "@timestamp"
+              }
+            }
+          }
+        }
+
+  - match: { _id: "my_watch" }
+
+
+  - do:
+    xpack.watcher.execute_watch:
+      id: "my_watch"
+      body: >
+        {
+          "trigger_data" : {
+            "triggered_time" : "2016-07-07T09:00:00Z",
+            "scheduled_time" : "2016-07-07T09:00:00Z"
+          }
+        }
+
+  - match: { "watch_record.state": "executed" }
+
+  - do:
+    indices.refresh: {}
+
+  - do:
+    search:
+      index: idx
+      type: bucket
+
+  - match: { hits.total: 3 }
+

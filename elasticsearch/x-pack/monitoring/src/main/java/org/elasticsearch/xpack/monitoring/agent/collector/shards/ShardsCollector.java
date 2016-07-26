@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.agent.collector.AbstractCollector;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
@@ -36,8 +36,8 @@ public class ShardsCollector extends AbstractCollector {
 
     @Inject
     public ShardsCollector(Settings settings, ClusterService clusterService,
-                           MonitoringSettings monitoringSettings, MonitoringLicensee licensee) {
-        super(settings, NAME, clusterService, monitoringSettings, licensee);
+                           MonitoringSettings monitoringSettings, XPackLicenseState licenseState) {
+        super(settings, NAME, clusterService, monitoringSettings, licenseState);
     }
 
     @Override

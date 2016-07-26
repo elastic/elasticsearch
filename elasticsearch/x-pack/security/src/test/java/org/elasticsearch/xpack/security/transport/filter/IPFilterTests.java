@@ -14,12 +14,12 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.xpack.security.audit.AuditTrail;
-import org.elasticsearch.xpack.security.SecurityLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -44,17 +44,17 @@ import static org.mockito.Mockito.when;
  */
 public class IPFilterTests extends ESTestCase {
     private IPFilter ipFilter;
-    private SecurityLicenseState licenseState;
-    private AuditTrail auditTrail;
+    private XPackLicenseState licenseState;
+    private AuditTrailService auditTrail;
     private Transport transport;
     private HttpServerTransport httpTransport;
     private ClusterSettings clusterSettings;
 
     @Before
     public void init() {
-        licenseState = mock(SecurityLicenseState.class);
-        when(licenseState.ipFilteringEnabled()).thenReturn(true);
-        auditTrail = mock(AuditTrail.class);
+        licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isIpFilteringAllowed()).thenReturn(true);
+        auditTrail = mock(AuditTrailService.class);
         clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(
                 IPFilter.HTTP_FILTER_ALLOW_SETTING,
                 IPFilter.HTTP_FILTER_DENY_SETTING,
@@ -217,7 +217,7 @@ public class IPFilterTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("xpack.security.transport.filter.deny", "_all")
                 .build();
-        when(licenseState.ipFilteringEnabled()).thenReturn(false);
+        when(licenseState.isIpFilteringAllowed()).thenReturn(false);
         ipFilter = new IPFilter(settings, auditTrail, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
 
@@ -228,7 +228,7 @@ public class IPFilterTests extends ESTestCase {
         verifyZeroInteractions(auditTrail);
 
         // for sanity enable license and check that it is denied
-        when(licenseState.ipFilteringEnabled()).thenReturn(true);
+        when(licenseState.isIpFilteringAllowed()).thenReturn(true);
         ipFilter = new IPFilter(settings, auditTrail, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
 

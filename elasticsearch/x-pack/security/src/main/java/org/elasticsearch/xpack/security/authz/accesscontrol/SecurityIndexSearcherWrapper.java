@@ -22,7 +22,9 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -43,16 +45,24 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.xpack.security.authz.InternalAuthorizationService;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.xpack.security.authc.Authentication;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
-import org.elasticsearch.xpack.security.SecurityLicenseState;
 import org.elasticsearch.xpack.security.support.Exceptions;
+import org.elasticsearch.xpack.security.user.User;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -75,19 +85,22 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
     private final Set<String> allowedMetaFields;
     private final QueryShardContext queryShardContext;
     private final BitsetFilterCache bitsetFilterCache;
-    private final SecurityLicenseState securityLicenseState;
+    private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final ESLogger logger;
+    private final ScriptService scriptService;
 
     public SecurityIndexSearcherWrapper(IndexSettings indexSettings, QueryShardContext queryShardContext,
                                         MapperService mapperService, BitsetFilterCache bitsetFilterCache,
-                                        ThreadContext threadContext, SecurityLicenseState securityLicenseState) {
+                                        ThreadContext threadContext, XPackLicenseState licenseState,
+                                        ScriptService scriptService) {
+        this.scriptService = scriptService;
         this.logger = Loggers.getLogger(getClass(), indexSettings.getSettings());
         this.mapperService = mapperService;
         this.queryShardContext = queryShardContext;
         this.bitsetFilterCache = bitsetFilterCache;
         this.threadContext = threadContext;
-        this.securityLicenseState = securityLicenseState;
+        this.licenseState = licenseState;
 
         Set<String> allowedMetaFields = new HashSet<>();
         allowedMetaFields.addAll(Arrays.asList(MapperService.getAllMetaFields()));
@@ -101,7 +114,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
 
     @Override
     protected DirectoryReader wrap(DirectoryReader reader) {
-        if (securityLicenseState.documentAndFieldLevelSecurityEnabled() == false) {
+        if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
             return reader;
         }
 
@@ -124,6 +137,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                 BooleanQuery.Builder filter = new BooleanQuery.Builder();
                 for (BytesReference bytesReference : permissions.getQueries()) {
                     QueryShardContext queryShardContext = copyQueryShardContext(this.queryShardContext);
+                    bytesReference = evaluateTemplate(bytesReference);
                     try (XContentParser parser = XContentFactory.xContent(bytesReference).createParser(bytesReference)) {
                         Optional<QueryBuilder> queryBuilder = queryShardContext.newParseContext(parser).parseInnerQueryBuilder();
                         if (queryBuilder.isPresent()) {
@@ -157,7 +171,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
 
     @Override
     protected IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
-        if (securityLicenseState.documentAndFieldLevelSecurityEnabled() == false) {
+        if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
             return searcher;
         }
 
@@ -262,11 +276,55 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
         }
     }
 
+    BytesReference evaluateTemplate(BytesReference querySource) throws IOException {
+        try (XContentParser parser = XContentFactory.xContent(querySource).createParser(querySource)) {
+            XContentParser.Token token = parser.nextToken();
+            if (token != XContentParser.Token.START_OBJECT) {
+                throw new ElasticsearchParseException("Unexpected token [" + token + "]");
+            }
+            token = parser.nextToken();
+            if (token != XContentParser.Token.FIELD_NAME) {
+                throw new ElasticsearchParseException("Unexpected token [" + token + "]");
+            }
+            if ("template".equals(parser.currentName())) {
+                token = parser.nextToken();
+                if (token != XContentParser.Token.START_OBJECT) {
+                    throw new ElasticsearchParseException("Unexpected token [" + token + "]");
+                }
+                Script script = Script.parse(parser, ParseFieldMatcher.EMPTY);
+                // Add the user details to the params
+                Map<String, Object> params = new HashMap<>();
+                if (script.getParams() != null) {
+                    params.putAll(script.getParams());
+                }
+                User user = getUser();
+                Map<String, Object> userModel = new HashMap<>();
+                userModel.put("username", user.principal());
+                userModel.put("full_name", user.fullName());
+                userModel.put("email", user.email());
+                userModel.put("roles", Arrays.asList(user.roles()));
+                userModel.put("metadata", Collections.unmodifiableMap(user.metadata()));
+                params.put("_user", userModel);
+                // Always enforce mustache script lang:
+                script = new Script(script.getScript(), script.getType(), "mustache", params, script.getContentType());
+                ExecutableScript executable = scriptService.executable(script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                return (BytesReference) executable.run();
+            } else {
+                return querySource;
+            }
+        }
+    }
+
     protected IndicesAccessControl getIndicesAccessControl() {
-        IndicesAccessControl indicesAccessControl = threadContext.getTransient(InternalAuthorizationService.INDICES_PERMISSIONS_KEY);
+        IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationService.INDICES_PERMISSIONS_KEY);
         if (indicesAccessControl == null) {
             throw Exceptions.authorizationError("no indices permissions found");
         }
         return indicesAccessControl;
+    }
+
+    protected User getUser(){
+        Authentication authentication = Authentication.getAuthentication(threadContext);
+        return authentication.getUser();
     }
 }

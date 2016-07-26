@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.common.text;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
 
 /**
  *
@@ -15,7 +14,6 @@ public class TextTemplateModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(ScriptServiceProxy.class).asEagerSingleton();
         bind(DefaultTextTemplateEngine.class).asEagerSingleton();
         bind(TextTemplateEngine.class).to(DefaultTextTemplateEngine.class);
     }

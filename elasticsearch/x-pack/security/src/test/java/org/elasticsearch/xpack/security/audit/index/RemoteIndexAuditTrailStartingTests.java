@@ -14,6 +14,8 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.xpack.security.audit.AuditTrail;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -22,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -105,7 +108,7 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
                 return builder.build();
             }
         };
-        remoteCluster = new InternalTestCluster("network", randomLong(), createTempDir(), false,
+        remoteCluster = new InternalTestCluster(randomLong(), createTempDir(), false,
                 numNodes, numNodes,
                 cluster2Name, cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(), getClientWrapper());
         remoteCluster.beforeTest(random(), 0.5);
@@ -114,10 +117,10 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
     @After
     public void stopRemoteCluster() throws Exception {
         if (remoteCluster != null) {
-            Iterable<IndexAuditTrail> auditTrails = internalCluster().getInstances(IndexAuditTrail.class);
+            /*Iterable<IndexAuditTrail> auditTrails = internalCluster().getInstances(IndexAuditTrail.class);
             for (IndexAuditTrail auditTrail : auditTrails) {
                 auditTrail.close();
-            }
+            }*/
 
             try {
                 remoteCluster.wipe(Collections.<String>emptySet());
@@ -128,19 +131,22 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
         }
 
         // stop the index audit trail so that the shards aren't locked causing the test to fail
-        if (outputs.contains("index")) {
+        /*if (outputs.contains("index")) {
             Iterable<IndexAuditTrail> auditTrails = internalCluster().getInstances(IndexAuditTrail.class);
             for (IndexAuditTrail auditTrail : auditTrails) {
                 auditTrail.close();
             }
-        }
+        }*/
     }
 
     public void testThatRemoteAuditInstancesAreStarted() throws Exception {
-        Iterable<IndexAuditTrail> auditTrails = remoteCluster.getInstances(IndexAuditTrail.class);
-        for (final IndexAuditTrail auditTrail : auditTrails) {
-            awaitBusy(() -> auditTrail.state() == IndexAuditTrail.State.STARTED, 2L, TimeUnit.SECONDS);
-            assertThat(auditTrail.state(), is(IndexAuditTrail.State.STARTED));
-        }
+        AuditTrailService auditTrailService = remoteCluster.getInstance(AuditTrailService.class);
+        Optional<AuditTrail> auditTrail = auditTrailService.getAuditTrails().stream()
+            .filter(t -> t.name().equals(IndexAuditTrail.NAME)).findFirst();
+        assertTrue(auditTrail.isPresent());
+        IndexAuditTrail indexAuditTrail = (IndexAuditTrail)auditTrail.get();
+
+        awaitBusy(() -> indexAuditTrail.state() == IndexAuditTrail.State.STARTED, 2L, TimeUnit.SECONDS);
+        assertThat(indexAuditTrail.state(), is(IndexAuditTrail.State.STARTED));
     }
 }

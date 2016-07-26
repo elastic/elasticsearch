@@ -118,6 +118,13 @@ public class MigrateToolIT extends MigrateToolTestCase {
         String token = basicAuthHeaderValue("bob", new SecuredString("changeme".toCharArray()));
         // Create "index1" index and try to search from it as "bob"
         client.filterWithHeader(Collections.singletonMap("Authorization", token)).admin().indices().prepareCreate("index1").get();
+        // Wait for the index to be ready so it doesn't fail if no shards are initialized
+        client.admin().cluster().health(Requests.clusterHealthRequest("index1")
+                .timeout(TimeValue.timeValueSeconds(30))
+                .waitForYellowStatus()
+                .waitForEvents(Priority.LANGUID)
+                .waitForRelocatingShards(0))
+                .actionGet();
         SearchResponse searchResp = client.filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("index1").get();
     }
 }

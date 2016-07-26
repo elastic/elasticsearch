@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.action.filter;
 
+import java.util.HashSet;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -12,23 +14,21 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xpack.security.SecurityContext;
-import org.elasticsearch.xpack.security.action.SecurityActionMapper;
-import org.elasticsearch.xpack.security.authc.Authentication;
-import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
-import org.elasticsearch.xpack.security.user.SystemUser;
-import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.security.audit.AuditTrail;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authz.AuthorizationService;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
-import org.elasticsearch.xpack.security.SecurityLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.security.SecurityContext;
+import org.elasticsearch.xpack.security.action.SecurityActionMapper;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.authc.Authentication;
+import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.elasticsearch.xpack.security.user.SystemUser;
+import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
+import org.elasticsearch.license.XPackLicenseState;
 import org.junit.Before;
-
-import java.util.HashSet;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.eq;
@@ -49,8 +49,8 @@ public class SecurityActionFilterTests extends ESTestCase {
     private AuthenticationService authcService;
     private AuthorizationService authzService;
     private CryptoService cryptoService;
-    private AuditTrail auditTrail;
-    private SecurityLicenseState securityLicenseState;
+    private AuditTrailService auditTrail;
+    private XPackLicenseState licenseState;
     private SecurityActionFilter filter;
 
     @Before
@@ -58,13 +58,13 @@ public class SecurityActionFilterTests extends ESTestCase {
         authcService = mock(AuthenticationService.class);
         authzService = mock(AuthorizationService.class);
         cryptoService = mock(CryptoService.class);
-        auditTrail = mock(AuditTrail.class);
-        securityLicenseState = mock(SecurityLicenseState.class);
-        when(securityLicenseState.authenticationAndAuthorizationEnabled()).thenReturn(true);
-        when(securityLicenseState.statsAndHealthEnabled()).thenReturn(true);
+        auditTrail = mock(AuditTrailService.class);
+        licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isAuthAllowed()).thenReturn(true);
+        when(licenseState.isStatsAndHealthAllowed()).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        filter = new SecurityActionFilter(Settings.EMPTY, authcService, authzService, cryptoService, auditTrail, securityLicenseState,
+        filter = new SecurityActionFilter(Settings.EMPTY, authcService, authzService, cryptoService, auditTrail, licenseState,
                 new SecurityActionMapper(), new HashSet<>(), threadPool, mock(SecurityContext.class));
     }
 
@@ -135,7 +135,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         ActionListener listener = mock(ActionListener.class);
         ActionFilterChain chain = mock(ActionFilterChain.class);
         Task task = mock(Task.class);
-        when(securityLicenseState.authenticationAndAuthorizationEnabled()).thenReturn(false);
+        when(licenseState.isAuthAllowed()).thenReturn(false);
         filter.apply(task, "_action", request, listener, chain);
         verifyZeroInteractions(authcService);
         verifyZeroInteractions(authzService);

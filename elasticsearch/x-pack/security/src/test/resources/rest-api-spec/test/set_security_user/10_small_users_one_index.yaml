@@ -1,0 +1,143 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "set_security_user" : {
+                  "field" : "user",
+                  "properties" : ["username", "roles"]
+                }
+              }
+            ]
+          }
+  - do:
+      xpack.security.put_user:
+        username: "joe"
+        body:  >
+            {
+              "password": "changeme",
+              "roles" : [ "company_x_logs_role" ]
+            }
+  - do:
+      xpack.security.put_user:
+        username: "john"
+        body:  >
+            {
+              "password": "changeme",
+              "roles" : [ "company_y_logs_role" ]
+            }
+
+  - do:
+      xpack.security.put_role:
+        name: "company_x_logs_role"
+        body:  >
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": "shared_logs",
+                  "privileges": ["all"],
+                  "query" : {
+                    "term" : { "user.roles" : "company_x_logs_role" }
+                  }
+                }
+              ]
+            }
+
+  - do:
+      xpack.security.put_role:
+        name: "company_y_logs_role"
+        body:  >
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": "shared_logs",
+                  "privileges": ["all"],
+                  "query" : {
+                    "term" : { "user.roles" : "company_y_logs_role" }
+                  }
+                }
+              ]
+            }
+
+---
+teardown:
+  - do:
+      xpack.security.delete_user:
+        username: "joe"
+        ignore: 404
+  - do:
+      xpack.security.delete_user:
+        username: "john"
+        ignore: 404
+  - do:
+      xpack.security.delete_role:
+        name: "company_x_logs_role"
+        ignore: 404
+  - do:
+      xpack.security.delete_role:
+        name: "company_y_logs_role"
+        ignore: 404
+
+---
+"Test shared index seperating user by using DLS":
+  - do:
+      headers:
+        Authorization: "Basic am9lOmNoYW5nZW1l"
+      index:
+        index: shared_logs
+        type: type
+        id: 1
+        pipeline: "my_pipeline"
+        body:  >
+          {
+            "log": "Joe's first log entry"
+          }
+  - do:
+      headers:
+        Authorization: "Basic am9objpjaGFuZ2VtZQ=="
+      index:
+        index: shared_logs
+        type: type
+        id: 2
+        pipeline: "my_pipeline"
+        body:  >
+          {
+            "log": "John's first log entry"
+          }
+
+  - do:
+      indices.refresh: {}
+
+  # Joe searches:
+  - do:
+      headers:
+        Authorization: "Basic am9lOmNoYW5nZW1l"
+      search:
+        index: shared_logs
+        body: { "query" : { "match_all" : {} } }
+  - match: { hits.total: 1}
+  - match: { hits.hits.0._source.user.username: joe}
+  - match: { hits.hits.0._source.user.roles.0: company_x_logs_role}
+
+  # John searches:
+  - do:
+      headers:
+        Authorization: "Basic am9objpjaGFuZ2VtZQ=="
+      search:
+        index: shared_logs
+        body: { "query" : { "match_all" : {} } }
+  - match: { hits.total: 1}
+  - match: { hits.hits.0._source.user.username: john}
+  - match: { hits.hits.0._source.user.roles.0: company_y_logs_role}

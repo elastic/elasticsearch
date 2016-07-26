@@ -43,7 +43,7 @@ task buildZip(type:Zip, dependsOn: [jar]) {
 
 task integTest(type: org.elasticsearch.gradle.test.RestIntegTestTask, dependsOn: buildZip) {
   cluster {
-    plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
+    plugin ':x-plugins:elasticsearch:x-pack'
     setting 'xpack.security.authc.realms.custom.order', '0'
     setting 'xpack.security.authc.realms.custom.type', 'custom'
     setting 'xpack.security.authc.realms.esusers.order', '1'

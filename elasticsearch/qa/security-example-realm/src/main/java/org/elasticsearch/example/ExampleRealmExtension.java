@@ -7,14 +7,27 @@ package org.elasticsearch.example;
 
 import org.elasticsearch.example.realm.CustomAuthenticationFailureHandler;
 import org.elasticsearch.example.realm.CustomRealm;
-import org.elasticsearch.example.realm.CustomRealmFactory;
-import org.elasticsearch.xpack.security.authc.AuthenticationModule;
+import org.elasticsearch.xpack.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.extensions.XPackExtension;
+import org.elasticsearch.xpack.security.authc.Realm;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 
 public class ExampleRealmExtension extends XPackExtension {
+
+    static {
+        // check that the extension's policy works.
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            System.getSecurityManager().checkPrintJobAccess();
+            return null;
+        });
+    }
+
     @Override
     public String name() {
         return "custom realm example";
@@ -25,13 +38,18 @@ public class ExampleRealmExtension extends XPackExtension {
         return "a very basic implementation of a custom realm to validate it works";
     }
 
-    public void onModule(AuthenticationModule authenticationModule) {
-        authenticationModule.addCustomRealm(CustomRealm.TYPE, CustomRealmFactory.class);
-        authenticationModule.setAuthenticationFailureHandler(CustomAuthenticationFailureHandler.class);
-        // check that the extension's policy works.
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            System.getSecurityManager().checkPrintJobAccess();
-            return null;
-        });
+    @Override
+    public Map<String, Realm.Factory> getRealms() {
+        return Collections.singletonMap(CustomRealm.TYPE, CustomRealm::new);
+    }
+
+    @Override
+    public AuthenticationFailureHandler getAuthenticationFailureHandler() {
+        return new CustomAuthenticationFailureHandler();
+    }
+
+    @Override
+    public Collection<String> getRestHeaders() {
+        return Arrays.asList(CustomRealm.USER_HEADER, CustomRealm.PW_HEADER);
     }
 }

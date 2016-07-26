@@ -26,12 +26,9 @@ public class MonitoringModule extends AbstractModule {
         XPackPlugin.bindFeatureSet(binder(), MonitoringFeatureSet.class);
 
         if (enabled && transportClientMode == false) {
-            bind(MonitoringLicensee.class).asEagerSingleton();
             bind(MonitoringSettings.class).asEagerSingleton();
             bind(AgentService.class).asEagerSingleton();
             bind(CleanerService.class).asEagerSingleton();
-        } else {
-            bind(MonitoringLicensee.class).toProvider(Providers.of(null));
         }
     }
 }

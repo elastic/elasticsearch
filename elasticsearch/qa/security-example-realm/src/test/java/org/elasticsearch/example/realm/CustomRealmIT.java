@@ -20,7 +20,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackTransportClient;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -58,11 +60,10 @@ public class CustomRealmIT extends ESIntegTestCase {
     }
 
     public void testHttpAuthentication() throws Exception {
-        try (Response response = getRestClient().performRequest("GET", "/",
+        Response response = getRestClient().performRequest("GET", "/",
                 new BasicHeader(CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER),
-                new BasicHeader(CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW))) {
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
-        }
+                new BasicHeader(CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW));
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 
     public void testTransportClient() throws Exception {
@@ -78,7 +79,7 @@ public class CustomRealmIT extends ESIntegTestCase {
                 .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER)
                 .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW)
                 .build();
-        try (TransportClient client = TransportClient.builder().settings(settings).addPlugin(XPackPlugin.class).build()) {
+        try (TransportClient client = new XPackTransportClient(settings)) {
             client.addTransportAddress(publishAddress);
             ClusterHealthResponse response = client.admin().cluster().prepareHealth().execute().actionGet();
             assertThat(response.isTimedOut(), is(false));
@@ -98,7 +99,7 @@ public class CustomRealmIT extends ESIntegTestCase {
                 .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER + randomAsciiOfLength(1))
                 .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW)
                 .build();
-        try (TransportClient client = TransportClient.builder().addPlugin(XPackPlugin.class).settings(settings).build()) {
+        try (TransportClient client = new XPackTransportClient(settings)) {
             client.addTransportAddress(publishAddress);
             client.admin().cluster().prepareHealth().execute().actionGet();
             fail("authentication failure should have resulted in a NoNodesAvailableException");

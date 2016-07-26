@@ -13,16 +13,18 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.XPackFeatureSet;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RolesStore;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyHttpServerTransport;
-import org.elasticsearch.xpack.security.transport.netty.SecurityNettyTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
+import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,11 +41,11 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     private final Settings settings;
     private final boolean enabled;
-    private final SecurityLicenseState licenseState;
+    private final XPackLicenseState licenseState;
     @Nullable
     private final Realms realms;
     @Nullable
-    private final RolesStore rolesStore;
+    private final CompositeRolesStore rolesStore;
     @Nullable
     private final IPFilter ipFilter;
     @Nullable
@@ -52,8 +54,8 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     private final CryptoService cryptoService;
 
     @Inject
-    public SecurityFeatureSet(Settings settings, @Nullable SecurityLicenseState licenseState,
-                              @Nullable Realms realms, NamedWriteableRegistry namedWriteableRegistry, @Nullable RolesStore rolesStore,
+    public SecurityFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, @Nullable Realms realms,
+                              NamedWriteableRegistry namedWriteableRegistry, @Nullable CompositeRolesStore rolesStore,
                               @Nullable IPFilter ipFilter, @Nullable AuditTrailService auditTrailService,
                               @Nullable CryptoService cryptoService) {
         this.enabled = Security.enabled(settings);
@@ -79,7 +81,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.authenticationAndAuthorizationEnabled();
+        return licenseState != null && licenseState.isAuthAllowed();
     }
 
     @Override
@@ -122,8 +124,8 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     static Map<String, Object> sslUsage(Settings settings) {
         Map<String, Object> map = new HashMap<>(2);
-        map.put("http", Collections.singletonMap("enabled", SecurityNettyHttpServerTransport.SSL_SETTING.get(settings)));
-        map.put("transport", Collections.singletonMap("enabled", SecurityNettyTransport.SSL_SETTING.get(settings)));
+        map.put("http", Collections.singletonMap("enabled", SecurityNetty3HttpServerTransport.SSL_SETTING.get(settings)));
+        map.put("transport", Collections.singletonMap("enabled", SecurityNetty3Transport.SSL_SETTING.get(settings)));
         return map;
     }
 

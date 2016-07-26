@@ -15,10 +15,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.xpack.security.InternalClient;
-import org.elasticsearch.xpack.common.ScriptServiceProxy;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.transform.TransformFactory;
@@ -38,11 +38,11 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
 
     @Inject
     public SearchTransformFactory(Settings settings, InternalClient client, IndicesQueriesRegistry queryRegistry,
-                                  AggregatorParsers aggParsers, Suggesters suggesters, ScriptServiceProxy scriptService) {
+                                  AggregatorParsers aggParsers, Suggesters suggesters, ScriptService scriptService) {
         this(settings, new WatcherClientProxy(settings, client), queryRegistry, aggParsers, suggesters, scriptService);
     }
     public SearchTransformFactory(Settings settings, WatcherClientProxy client, IndicesQueriesRegistry queryRegistry,
-                                  AggregatorParsers aggParsers, Suggesters suggesters, ScriptServiceProxy scriptService) {
+                                  AggregatorParsers aggParsers, Suggesters suggesters, ScriptService scriptService) {
         super(Loggers.getLogger(ExecutableSearchTransform.class, settings));
         this.client = client;
         this.parseFieldMatcher = new ParseFieldMatcher(settings);

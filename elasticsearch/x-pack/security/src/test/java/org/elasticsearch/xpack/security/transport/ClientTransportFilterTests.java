@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
-import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.junit.Before;

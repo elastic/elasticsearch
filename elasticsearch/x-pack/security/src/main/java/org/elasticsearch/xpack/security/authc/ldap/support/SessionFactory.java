@@ -48,18 +48,16 @@ public abstract class SessionFactory {
     private static final Pattern STARTS_WITH_LDAP = Pattern.compile("^ldap:.*", Pattern.CASE_INSENSITIVE);
 
     protected final ESLogger logger;
-    protected final ESLogger connectionLogger;
     protected final RealmConfig config;
     protected final TimeValue timeout;
     protected final ClientSSLService sslService;
 
-    protected ServerSet serverSet;
-    protected boolean sslUsed;
+    protected final ServerSet serverSet;
+    protected final boolean sslUsed;
 
     protected SessionFactory(RealmConfig config, ClientSSLService sslService) {
         this.config = config;
         this.logger = config.logger(getClass());
-        this.connectionLogger = config.logger(getClass());
         TimeValue searchTimeout = config.settings().getAsTime(TIMEOUT_LDAP_SETTING, TIMEOUT_DEFAULT);
         if (searchTimeout.millis() < 1000L) {
             logger.warn("ldap_search timeout [{}] is less than the minimum supported search timeout of 1s. using 1s",
@@ -68,6 +66,9 @@ public abstract class SessionFactory {
         }
         this.timeout = searchTimeout;
         this.sslService = sslService;
+        LDAPServers ldapServers = ldapServers(config.settings());
+        this.serverSet = serverSet(config.settings(), sslService, ldapServers);
+        this.sslUsed = ldapServers.ssl;
     }
 
     /**
@@ -80,9 +81,6 @@ public abstract class SessionFactory {
      * @throws Exception if an error occurred when creating the session
      */
     public final LdapSession session(String user, SecuredString password) throws Exception {
-        if (serverSet == null) {
-            throw new IllegalStateException("session factory is not initialized");
-        }
         return getSession(user, password);
     }
 
@@ -119,19 +117,11 @@ public abstract class SessionFactory {
         throw new UnsupportedOperationException("unauthenticated sessions are not supported");
     }
 
-    public <T extends SessionFactory> T init() {
-        LDAPServers ldapServers = ldapServers(config.settings());
-        this.serverSet = serverSet(config.settings(), sslService, ldapServers);
-        this.sslUsed = ldapServers.ssl;
-        return (T) this;
-    }
-
     protected static LDAPConnectionOptions connectionOptions(Settings settings) {
         LDAPConnectionOptions options = new LDAPConnectionOptions();
         options.setConnectTimeoutMillis(Math.toIntExact(settings.getAsTime(TIMEOUT_TCP_CONNECTION_SETTING, TIMEOUT_DEFAULT).millis()));
         options.setFollowReferrals(settings.getAsBoolean(FOLLOW_REFERRALS_SETTING, true));
         options.setResponseTimeoutMillis(settings.getAsTime(TIMEOUT_TCP_READ_SETTING, TIMEOUT_DEFAULT).millis());
-        options.setAutoReconnect(true);
         options.setAllowConcurrentSocketFactoryUse(true);
         if (settings.getAsBoolean(HOSTNAME_VERIFICATION_SETTING, true)) {
             options.setSSLSocketVerifier(new HostNameSSLSocketVerifier(true));
@@ -139,13 +129,17 @@ public abstract class SessionFactory {
         return options;
     }
 
-    protected LDAPServers ldapServers(Settings settings) {
+    protected final LDAPServers ldapServers(Settings settings) {
         // Parse LDAP urls
-        String[] ldapUrls = settings.getAsArray(URLS_SETTING);
+        String[] ldapUrls = settings.getAsArray(URLS_SETTING, getDefaultLdapUrls(settings));
         if (ldapUrls == null || ldapUrls.length == 0) {
             throw new IllegalArgumentException("missing required LDAP setting [" + URLS_SETTING + "]");
         }
         return new LDAPServers(ldapUrls);
+    }
+
+    protected String[] getDefaultLdapUrls(Settings settings) {
+        return null;
     }
 
     protected ServerSet serverSet(Settings settings, ClientSSLService clientSSLService, LDAPServers ldapServers) {

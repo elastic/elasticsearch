@@ -9,19 +9,21 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackInfoResponse;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.core.LicensesService;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackFeatureSet;
-import org.elasticsearch.xpack.action.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
+import org.elasticsearch.license.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -56,7 +58,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
 
     public void testDoExecute() throws Exception {
 
-        LicensesService licensesService = mock(LicensesService.class);
+        LicenseService licenseService = mock(LicenseService.class);
 
         final Set<XPackFeatureSet> featureSets = new HashSet<>();
         int featureSetCount = randomIntBetween(0, 5);
@@ -71,7 +73,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
 
         TransportXPackInfoAction action = new TransportXPackInfoAction(Settings.EMPTY, mock(ThreadPool.class),
                 mock(TransportService.class), mock(ActionFilters.class), mock(IndexNameExpressionResolver.class),
-                licensesService, featureSets);
+            licenseService, featureSets);
 
         License license = mock(License.class);
         long expiryDate = randomLong();
@@ -80,9 +82,11 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         when(license.status()).thenReturn(status);
         String type = randomAsciiOfLength(10);
         when(license.type()).thenReturn(type);
+        License.OperationMode mode = randomFrom(License.OperationMode.values());
+        when(license.operationMode()).thenReturn(mode);
         String uid = randomAsciiOfLength(30);
         when(license.uid()).thenReturn(uid);
-        when(licensesService.getLicense()).thenReturn(license);
+        when(licenseService.getLicense()).thenReturn(license);
 
         XPackInfoRequest request = new XPackInfoRequest();
         request.setVerbose(randomBoolean());
@@ -129,6 +133,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
             assertThat(response.get().getLicenseInfo().getExpiryDate(), is(expiryDate));
             assertThat(response.get().getLicenseInfo().getStatus(), is(status));
             assertThat(response.get().getLicenseInfo().getType(), is(type));
+            assertThat(response.get().getLicenseInfo().getMode(), is(mode.name().toLowerCase(Locale.ROOT)));
             assertThat(response.get().getLicenseInfo().getUid(), is(uid));
         } else {
             assertThat(response.get().getLicenseInfo(), nullValue());

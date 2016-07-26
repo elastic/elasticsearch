@@ -14,13 +14,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
-import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
-import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.input.InputBuilders;
-import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
-import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpContentType;
 import org.elasticsearch.xpack.common.http.HttpMethod;
@@ -34,6 +27,13 @@ import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
+import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
+import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.watcher.input.InputBuilders;
+import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
+import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -58,6 +58,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
@@ -268,6 +269,39 @@ public class HttpInputTests extends ESTestCase {
                 .map();
         assertThat(result.payload().data(), hasKey("_headers"));
         assertThat(result.payload().data().get("_headers"), equalTo(expectedHeaderMap));
+    }
+
+    public void testThatExpectedContentTypeOverridesReturnedContentType() throws Exception {
+        HttpRequestTemplate template = HttpRequestTemplate.builder("localhost", 9200).fromUrl("http:://127.0.0.1:12345").build();
+        HttpInput httpInput = new HttpInput(template, HttpContentType.TEXT, null);
+        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
+
+        Map<String, String[]> headers = new HashMap<>(1);
+        String contentType = randomFrom("application/json", "application/json; charset=UTF-8", "text/html", "application/yaml",
+                "application/smile", "application/cbor");
+        headers.put("Content-Type", new String[] { contentType });
+        String body = "{\"foo\":\"bar\"}";
+        HttpResponse httpResponse = new HttpResponse(200, body, headers);
+        when(httpClient.execute(any())).thenReturn(httpResponse);
+
+        HttpInput.Result result = input.execute(createWatchExecutionContext(), Payload.EMPTY);
+        assertThat(result.payload().data(), hasEntry("_value", body));
+        assertThat(result.payload().data(), not(hasKey("foo")));
+    }
+
+    public void testThatStatusCodeIsSetInResultAndPayload() throws Exception {
+        HttpResponse response = new HttpResponse(200);
+        when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
+
+        HttpRequestTemplate.Builder request = HttpRequestTemplate.builder("localhost", 8080);
+        HttpInput httpInput = InputBuilders.httpInput(request.build()).build();
+        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
+
+        WatchExecutionContext ctx = createWatchExecutionContext();
+        HttpInput.Result result = input.execute(ctx, new Payload.Simple());
+        assertThat(result.statusCode, is(200));
+        assertThat(result.payload().data(), hasKey("_status_code"));
+        assertThat(result.payload().data().get("_status_code"), is(200));
     }
 
     private WatchExecutionContext createWatchExecutionContext() {

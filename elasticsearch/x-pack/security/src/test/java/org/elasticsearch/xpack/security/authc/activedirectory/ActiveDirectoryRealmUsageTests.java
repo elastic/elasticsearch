@@ -29,7 +29,7 @@ public class ActiveDirectoryRealmUsageTests extends AbstractActiveDirectoryInteg
                 .put("load_balance.type", loadBalanceType)
                 .build();
         RealmConfig config = new RealmConfig("ad-test", settings, globalSettings);
-        ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService).init();
+        ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
         ActiveDirectoryRealm realm = new ActiveDirectoryRealm(config, sessionFactory, mock(DnRoleMapper.class));
 
         Map<String, Object> stats = realm.usageStats();

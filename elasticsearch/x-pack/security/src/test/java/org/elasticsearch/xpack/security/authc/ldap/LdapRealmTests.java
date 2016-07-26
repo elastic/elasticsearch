@@ -66,7 +66,7 @@ public class LdapRealmTests extends LdapTestCase {
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE);
         RealmConfig config = new RealmConfig("test-ldap-realm", settings, globalSettings);
-        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null).init();
+        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService));
 
         User user = ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
@@ -82,7 +82,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .build();
         RealmConfig config = new RealmConfig("test-ldap-realm", settings, globalSettings);
 
-        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null).init();
+        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService));
 
         User user = ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
@@ -98,7 +98,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .build();
         RealmConfig config = new RealmConfig("test-ldap-realm", settings, globalSettings);
 
-        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null).init();
+        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService));
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
@@ -116,7 +116,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .build();
         RealmConfig config = new RealmConfig("test-ldap-realm", settings, globalSettings);
 
-        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null).init();
+        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
         DnRoleMapper roleMapper = buildGroupAsRoleMapper(resourceWatcherService);
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, roleMapper);
@@ -143,7 +143,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .build();
         RealmConfig config = new RealmConfig("test-ldap-realm", settings, globalSettings);
 
-        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null).init();
+        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService));
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
@@ -164,7 +164,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .put(HOSTNAME_VERIFICATION_SETTING, false)
                 .build();
         RealmConfig config = new RealmConfig("test-ldap-realm", settings, globalSettings);
-        SessionFactory sessionFactory = LdapRealm.Factory.sessionFactory(config, null);
+        SessionFactory sessionFactory = LdapRealm.sessionFactory(config, null);
         assertThat(sessionFactory, is(instanceOf(LdapSessionFactory.class)));
     }
 
@@ -180,7 +180,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .put(HOSTNAME_VERIFICATION_SETTING, false)
                 .build();
         RealmConfig config = new RealmConfig("test-ldap-realm-user-search", settings, globalSettings);
-        SessionFactory sessionFactory = LdapRealm.Factory.sessionFactory(config, null);
+        SessionFactory sessionFactory = LdapRealm.sessionFactory(config, null);
         try {
             assertThat(sessionFactory, is(instanceOf(LdapUserSearchSessionFactory.class)));
         } finally {
@@ -199,7 +199,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .build();
         RealmConfig config = new RealmConfig("test-ldap-realm-user-search", settings, globalSettings);
         try {
-            LdapRealm.Factory.sessionFactory(config, null);
+            LdapRealm.sessionFactory(config, null);
             fail("an exception should have been thrown because both user template and user search settings were specified");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("settings were found for both user search and user template"));
@@ -216,7 +216,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .build();
         RealmConfig config = new RealmConfig("test-ldap-realm-userdn", settings, globalSettings);
 
-        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null).init();
+        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, new DnRoleMapper(LdapRealm.TYPE, config, resourceWatcherService, null));
 
         User user = ldap.authenticate(new UsernamePasswordToken("Horatio Hornblower", SecuredStringTests.build(PASSWORD)));
@@ -244,7 +244,7 @@ public class LdapRealmTests extends LdapTestCase {
 
         RealmConfig config = new RealmConfig("ldap-realm", settings.build(), globalSettings);
 
-        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null).init();
+        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
         LdapRealm realm = new LdapRealm(config, ldapFactory, new DnRoleMapper(LdapRealm.TYPE, config, resourceWatcherService, null));
 
         Map<String, Object> stats = realm.usageStats();

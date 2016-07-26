@@ -23,6 +23,7 @@ import org.apache.rat.anttasks.SubstringLicenseMatcher
 import org.apache.rat.license.SimpleLicenseFamily
 import org.elasticsearch.gradle.AntTask
 import org.gradle.api.file.FileCollection
+import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.SourceSet
 
@@ -44,6 +45,16 @@ public class LicenseHeadersTask extends AntTask {
      */
     protected List<FileCollection> javaFiles
 
+    /** Allowed license families for this project. */
+    @Input
+    List<String> approvedLicenses = ['Apache', 'Generated']
+
+    /**
+     * Additional license families that may be found. The key is the license category name (5 characters),
+     * followed by the family name and the value list of patterns to search for.
+     */
+    protected Map<String, String> additionalLicenses = new HashMap<>()
+
     LicenseHeadersTask() {
         description = "Checks sources for missing, incorrect, or unacceptable license headers"
         // Delay resolving the dependencies until after evaluation so we pick up generated sources
@@ -51,6 +62,22 @@ public class LicenseHeadersTask extends AntTask {
             javaFiles = project.sourceSets.collect({it.allJava})
             inputs.files(javaFiles)
         }
+    }
+
+    /**
+     * Add a new license type.
+     *
+     * The license may be added to the {@link #approvedLicenses} using the {@code familyName}.
+     *
+     * @param categoryName A 5-character string identifier for the license
+     * @param familyName An expanded string name for the license
+     * @param pattern A pattern to search for, which if found, indicates a file contains the license
+     */
+    public void additionalLicense(String categoryName, String familyName, String pattern) {
+        if (categoryName.length() != 5) {
+            throw new IllegalArgumentException("License category name must be exactly 5 characters, got ${categoryName}");
+        }
+        additionalLicenses.put(categoryName + familyName, pattern);
     }
 
     @Override
@@ -64,43 +91,54 @@ public class LicenseHeadersTask extends AntTask {
         // run rat, going to the file
         List<FileCollection> input = javaFiles
         ant.ratReport(reportFile: reportFile.absolutePath, addDefaultLicenseMatchers: true) {
-               for (FileCollection dirSet : input) {
-                   for (File dir: dirSet.srcDirs) {
-                       // sometimes these dirs don't exist, e.g. site-plugin has no actual java src/main...
-                       if (dir.exists()) {
-                           ant.fileset(dir: dir)
-                       }
+            for (FileCollection dirSet : input) {
+               for (File dir: dirSet.srcDirs) {
+                   // sometimes these dirs don't exist, e.g. site-plugin has no actual java src/main...
+                   if (dir.exists()) {
+                       ant.fileset(dir: dir)
                    }
                }
+            }
 
-               // BSD 4-clause stuff (is disallowed below)
-               // we keep this here, in case someone adds BSD code for some reason, it should never be allowed.
-               substringMatcher(licenseFamilyCategory: "BSD4 ",
-                                licenseFamilyName:     "Original BSD License (with advertising clause)") {
-                   pattern(substring: "All advertising materials")
-               }
+            // BSD 4-clause stuff (is disallowed below)
+            // we keep this here, in case someone adds BSD code for some reason, it should never be allowed.
+            substringMatcher(licenseFamilyCategory: "BSD4 ",
+                             licenseFamilyName:     "Original BSD License (with advertising clause)") {
+               pattern(substring: "All advertising materials")
+            }
 
-               // Apache
-               substringMatcher(licenseFamilyCategory: "AL   ",
-                                licenseFamilyName:     "Apache") {
-                   // Apache license (ES)
-                   pattern(substring: "Licensed to Elasticsearch under one or more contributor")
-                   // Apache license (ASF)
-                   pattern(substring: "Licensed to the Apache Software Foundation (ASF) under")
-                   // this is the old-school one under some files
-                   pattern(substring: "Licensed under the Apache License, Version 2.0 (the \"License\")")
-               }
+            // Apache
+            substringMatcher(licenseFamilyCategory: "AL   ",
+                             licenseFamilyName:     "Apache") {
+               // Apache license (ES)
+               pattern(substring: "Licensed to Elasticsearch under one or more contributor")
+               // Apache license (ASF)
+               pattern(substring: "Licensed to the Apache Software Foundation (ASF) under")
+               // this is the old-school one under some files
+               pattern(substring: "Licensed under the Apache License, Version 2.0 (the \"License\")")
+            }
 
-               // Generated resources
-               substringMatcher(licenseFamilyCategory: "GEN  ",
-                                licenseFamilyName:     "Generated") {
-                   // parsers generated by antlr
-                   pattern(substring: "ANTLR GENERATED CODE")
-               }
+            // Generated resources
+            substringMatcher(licenseFamilyCategory: "GEN  ",
+                             licenseFamilyName:     "Generated") {
+               // parsers generated by antlr
+               pattern(substring: "ANTLR GENERATED CODE")
+            }
 
-               // approved categories
-               approvedLicense(familyName: "Apache")
-               approvedLicense(familyName: "Generated")
+            // license types added by the project
+            for (Map.Entry<String, String[]> additional : additionalLicenses.entrySet()) {
+                String category = additional.getKey().substring(0, 5)
+                String family = additional.getKey().substring(5)
+                substringMatcher(licenseFamilyCategory: category,
+                                 licenseFamilyName: family) {
+                    pattern(substring: additional.getValue())
+                }
+            }
+
+            // approved categories
+            for (String licenseFamily : approvedLicenses) {
+                approvedLicense(familyName: licenseFamily)
+            }
         }
 
         // check the license file for any errors, this should be fast.

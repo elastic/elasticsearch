@@ -229,6 +229,10 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
         return type.name();
     }
 
+    public AggregatorFactory<?> getParent() {
+        return parent;
+    }
+
     /**
      * Utility method. Given an {@link AggregatorFactory} that creates
      * {@link Aggregator}s that only know how to collect bucket <tt>0</tt>, this

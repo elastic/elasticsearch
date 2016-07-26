@@ -168,12 +168,6 @@ The following are a list of settings (prefixed with `discovery.ec2`) that can fu
     If set to `false`, will require all security groups to be present for the
     instance to be used for the discovery. Defaults to `true`.
 
-`ping_timeout`::
-
-    How long to wait for existing EC2 nodes to reply during discovery.
-    Defaults to `3s`. If no unit like `ms`, `s` or `m` is specified,
-    milliseconds are used.
-
 `node_cache_time`::
 
     How long the list of hosts is cached to prevent further requests to the AWS API.
@@ -243,9 +237,9 @@ filter instances with a tag key set to `stage`, and a value of `dev`. Several ta
 to be set for the instance to be included.
 
 One practical use for tag filtering is when an ec2 cluster contains many nodes that are not running elasticsearch. In
-this case (particularly with high `ping_timeout` values) there is a risk that a new node's discovery phase will end
-before it has found the cluster (which will result in it declaring itself master of a new cluster with the same name
-- highly undesirable). Tagging elasticsearch ec2 nodes and then filtering by that tag will resolve this issue.
+this case (particularly with high `discovery.zen.ping_timeout` values) there is a risk that a new node's discovery phase
+will end before it has found the cluster (which will result in it declaring itself master of a new cluster with the same
+name - highly undesirable). Tagging elasticsearch ec2 nodes and then filtering by that tag will resolve this issue.
 
 [[discovery-ec2-attributes]]
 ===== Automatic Node Attributes

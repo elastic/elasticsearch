@@ -23,14 +23,30 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
+
+import java.util.function.Function;
 
 /**
- *
+ * Content listener that extracts that {@link RestStatus} from the response.
  */
 public class RestStatusToXContentListener<Response extends StatusToXContent> extends RestResponseListener<Response> {
+    private final Function<Response, String> extractLocation;
 
+    /**
+     * Build an instance that doesn't support responses with the status {@code 201 CREATED}.
+     */
     public RestStatusToXContentListener(RestChannel channel) {
+        // TODO switch this to throwing an exception?
+        this(channel, r -> null);
+    }
+
+    /**
+     * Build an instance that does support responses with the status {@code 201 CREATED}.
+     */
+    public RestStatusToXContentListener(RestChannel channel, Function<Response, String> extractLocation) {
         super(channel);
+        this.extractLocation = extractLocation;
     }
 
     @Override
@@ -42,7 +58,13 @@ public class RestStatusToXContentListener<Response extends StatusToXContent> ext
         builder.startObject();
         response.toXContent(builder, channel.request());
         builder.endObject();
-        return new BytesRestResponse(response.status(), builder);
+        BytesRestResponse restResponse = new BytesRestResponse(response.status(), builder);
+        if (RestStatus.CREATED == restResponse.status()) {
+            String location = extractLocation.apply(response);
+            if (location != null) {
+                restResponse.addHeader("Location", location);
+            }
+        }
+        return restResponse;
     }
-
 }

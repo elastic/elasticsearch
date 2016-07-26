@@ -48,7 +48,6 @@ import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.index.reindex.remote.RemoteScrollableHitSource;
-import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
@@ -185,12 +184,10 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                     // NORELEASE support auth
                     throw new UnsupportedOperationException("Auth is unsupported");
                 }
-                RestClient restClient = RestClient.builder(new HttpHost(remoteInfo.getHost(), remoteInfo.getPort(), remoteInfo.getScheme()))
-                        .build();
-                RemoteScrollableHitSource.AsyncClient client = new RemoteScrollableHitSource.AsynchronizingRestClient(threadPool,
-                        restClient);
-                return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, task::countSearchRetry, this::finishHim, client,
-                        remoteInfo.getQuery(), mainRequest.getSearchRequest());
+                RestClient restClient = RestClient.builder(
+                        new HttpHost(remoteInfo.getHost(), remoteInfo.getPort(), remoteInfo.getScheme())).build();
+                return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, task::countSearchRetry,
+                        this::finishHim, restClient, remoteInfo.getQuery(), mainRequest.getSearchRequest());
             }
             return super.buildScrollableResultSource(backoffPolicy);
         }

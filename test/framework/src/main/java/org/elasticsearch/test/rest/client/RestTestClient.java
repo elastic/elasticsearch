@@ -19,43 +19,27 @@
 package org.elasticsearch.test.rest.client;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
-import org.apache.http.ssl.SSLContexts;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.SSLSocketFactoryHttpConfigCallback;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.rest.spec.RestApi;
 import org.elasticsearch.test.rest.spec.RestSpec;
 
-import javax.net.ssl.SSLContext;
-import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.KeyManagementException;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -69,35 +53,29 @@ import java.util.Set;
  * Wraps a {@link RestClient} instance used to send the REST requests.
  * Holds the {@link RestSpec} used to translate api calls into REST calls
  */
-public class RestTestClient implements Closeable {
-
-    public static final String PROTOCOL = "protocol";
-    public static final String TRUSTSTORE_PATH = "truststore.path";
-    public static final String TRUSTSTORE_PASSWORD = "truststore.password";
-
+public class RestTestClient {
     private static final ESLogger logger = Loggers.getLogger(RestTestClient.class);
-    //query_string params that don't need to be declared in the spec, thay are supported by default
+    //query_string params that don't need to be declared in the spec, they are supported by default
     private static final Set<String> ALWAYS_ACCEPTED_QUERY_STRING_PARAMS = Sets.newHashSet("pretty", "source", "filter_path");
 
     private final RestSpec restSpec;
     private final RestClient restClient;
     private final Version esVersion;
 
-    public RestTestClient(RestSpec restSpec, Settings settings, URL[] urls) throws IOException {
-        assert urls.length > 0;
+    public RestTestClient(RestSpec restSpec, RestClient restClient, List<HttpHost> hosts) throws IOException {
+        assert hosts.size() > 0;
         this.restSpec = restSpec;
-        this.restClient = createRestClient(urls, settings);
-        this.esVersion = readAndCheckVersion(urls);
-        logger.info("REST client initialized {}, elasticsearch version: [{}]", urls, esVersion);
+        this.restClient = restClient;
+        this.esVersion = readAndCheckVersion(hosts);
     }
 
-    private Version readAndCheckVersion(URL[] urls) throws IOException {
+    private Version readAndCheckVersion(List<HttpHost> hosts) throws IOException {
         RestApi restApi = restApi("info");
         assert restApi.getPaths().size() == 1;
         assert restApi.getMethods().size() == 1;
 
         String version = null;
-        for (URL ignored : urls) {
+        for (HttpHost ignored : hosts) {
             //we don't really use the urls here, we rely on the client doing round-robin to touch all the nodes in the cluster
             String method = restApi.getMethods().get(0);
             String endpoint = restApi.getPaths().get(0);
@@ -135,11 +113,15 @@ public class RestTestClient implements Closeable {
             String path = "/"+ Objects.requireNonNull(queryStringParams.remove("path"), "Path must be set to use raw request");
             HttpEntity entity = null;
             if (body != null && body.length() > 0) {
-                entity = new StringEntity(body, RestClient.JSON_CONTENT_TYPE);
+                entity = new StringEntity(body, ContentType.APPLICATION_JSON);
             }
             // And everything else is a url parameter!
-            Response response = restClient.performRequest(method, path, queryStringParams, entity);
-            return new RestTestResponse(response);
+            try {
+                Response response = restClient.performRequest(method, path, queryStringParams, entity);
+                return new RestTestResponse(response);
+            } catch(ResponseException e) {
+                throw new RestTestResponseException(e);
+            }
         }
 
         List<Integer> ignores = new ArrayList<>();
@@ -200,7 +182,7 @@ public class RestTestClient implements Closeable {
                 requestMethod = "GET";
             } else {
                 requestMethod = RandomizedTest.randomFrom(supportedMethods);
-                requestBody = new StringEntity(body, RestClient.JSON_CONTENT_TYPE);
+                requestBody = new StringEntity(body, ContentType.APPLICATION_JSON);
             }
         } else {
             if (restApi.isBodyRequired()) {
@@ -242,14 +224,13 @@ public class RestTestClient implements Closeable {
 
         logger.debug("calling api [{}]", apiName);
         try {
-            Response response = restClient.performRequest(requestMethod, requestPath,
-                    queryStringParams, requestBody, requestHeaders);
+            Response response = restClient.performRequest(requestMethod, requestPath, queryStringParams, requestBody, requestHeaders);
             return new RestTestResponse(response);
         } catch(ResponseException e) {
             if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
-                return new RestTestResponse(e);
+                return new RestTestResponse(e.getResponse());
             }
-            throw e;
+            throw new RestTestResponseException(e);
         }
     }
 
@@ -259,57 +240,5 @@ public class RestTestClient implements Closeable {
             throw new IllegalArgumentException("rest api [" + apiName + "] doesn't exist in the rest spec");
         }
         return restApi;
-    }
-
-    private static RestClient createRestClient(URL[] urls, Settings settings) throws IOException {
-        String protocol = settings.get(PROTOCOL, "http");
-        HttpHost[] hosts = new HttpHost[urls.length];
-        for (int i = 0; i < hosts.length; i++) {
-            URL url = urls[i];
-            hosts[i] = new HttpHost(url.getHost(), url.getPort(), protocol);
-        }
-        RestClient.Builder builder = RestClient.builder(hosts).setMaxRetryTimeoutMillis(30000)
-                .setRequestConfigCallback(requestConfigBuilder -> requestConfigBuilder.setSocketTimeout(30000));
-
-        String keystorePath = settings.get(TRUSTSTORE_PATH);
-        if (keystorePath != null) {
-            final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);
-            if (keystorePass == null) {
-                throw new IllegalStateException(TRUSTSTORE_PATH + " is provided but not " + TRUSTSTORE_PASSWORD);
-            }
-            Path path = PathUtils.get(keystorePath);
-            if (!Files.exists(path)) {
-                throw new IllegalStateException(TRUSTSTORE_PATH + " is set but points to a non-existing file");
-            }
-            try {
-                KeyStore keyStore = KeyStore.getInstance("jks");
-                try (InputStream is = Files.newInputStream(path)) {
-                    keyStore.load(is, keystorePass.toCharArray());
-                }
-                SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
-                SSLConnectionSocketFactory sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslcontext);
-                builder.setHttpClientConfigCallback(new SSLSocketFactoryHttpConfigCallback(sslConnectionSocketFactory));
-            } catch (KeyStoreException|NoSuchAlgorithmException|KeyManagementException|CertificateException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        try (ThreadContext threadContext = new ThreadContext(settings)) {
-            Header[] defaultHeaders = new Header[threadContext.getHeaders().size()];
-            int i = 0;
-            for (Map.Entry<String, String> entry : threadContext.getHeaders().entrySet()) {
-                defaultHeaders[i++] = new BasicHeader(entry.getKey(), entry.getValue());
-            }
-            builder.setDefaultHeaders(defaultHeaders);
-        }
-        return builder.build();
-    }
-
-    /**
-     * Closes the REST client and the underlying http client
-     */
-    @Override
-    public void close() {
-        IOUtils.closeWhileHandlingException(restClient);
     }
 }

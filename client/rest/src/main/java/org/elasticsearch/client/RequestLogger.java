@@ -81,7 +81,7 @@ final class RequestLogger {
     /**
      * Logs a request that failed
      */
-    static void logFailedRequest(Log logger, HttpUriRequest request, HttpHost host, IOException e) {
+    static void logFailedRequest(Log logger, HttpUriRequest request, HttpHost host, Exception e) {
         if (logger.isDebugEnabled()) {
             logger.debug("request [" + request.getMethod() + " " + host + getUri(request.getRequestLine()) + "] failed", e);
         }

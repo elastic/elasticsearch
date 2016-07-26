@@ -24,6 +24,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.Arrays;
 import java.util.List;
 
+import static java.util.Collections.unmodifiableList;
+
 /**
  * Allows to register additional features supported by the tests runner.
  * This way any runner can add extra features and use proper skip sections to avoid
@@ -34,8 +36,12 @@ import java.util.List;
  */
 public final class Features {
 
-    private static final List<String> SUPPORTED =
-            Arrays.asList("stash_in_path", "groovy_scripting", "headers", "embedded_stash_key", "yaml");
+    private static final List<String> SUPPORTED = unmodifiableList(Arrays.asList(
+            "embedded_stash_key",
+            "groovy_scripting",
+            "headers",
+            "stash_in_path",
+            "yaml"));
 
     private Features() {
 

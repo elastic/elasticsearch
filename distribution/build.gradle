@@ -72,7 +72,8 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each
   // See https://discuss.gradle.org/t/cross-project-task-dependencies-ordering-screws-up-finalizers/13190
   project.configure(project.subprojects.findAll { it.name != 'integ-test-zip' }) { Project distribution ->
     distribution.afterEvaluate({
-      distribution.integTest.mustRunAfter("${module.path}:integTest#stop")
+      // some integTest tasks will have multiple finalizers
+      distribution.integTest.mustRunAfter module.tasks.find { t -> t.name.matches(".*integTest\$") }.getFinalizedBy()
     })
   }
   // also want to make sure the module's integration tests run after the integ-test-zip (ie rest tests)

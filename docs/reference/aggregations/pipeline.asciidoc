@@ -107,8 +107,7 @@ a metric embedded inside a sibling aggregation:
 === Special Paths
 
 Instead of pathing to a metric, `buckets_path` can use a special `"_count"` path.  This instructs
-the pipeline aggregation to use the document count as it's input.  For example, a moving average can be calculated on the document
-count of each bucket, instead of a specific metric:
+the pipeline aggregation to use the document count as it's input.  For example, a moving average can be calculated on the document count of each bucket, instead of a specific metric:
 
 [source,js]
 --------------------------------------------------
@@ -127,6 +126,44 @@ count of each bucket, instead of a specific metric:
 }
 --------------------------------------------------
 <1> By using `_count` instead of a metric name, we can calculate the moving average of document counts in the histogram
+
+The `buckets_path` can also use `"_bucket_count"` and path to a multi-bucket aggregation to use the number of buckets
+returned by that aggregation in the pipeline aggregation instead of a metric. for example a `bucket_selector` can be
+used here to filter out buckets which contain no buckets for an inner terms aggregation:
+
+[source,js]
+--------------------------------------------------
+{
+  "size": 0,
+  "aggs": {
+    "histo": {
+      "date_histogram": {
+        "field": "date",
+        "interval": "day"
+      },
+      "aggs": {
+        "categories": {
+          "terms": {
+            "field": "category"
+          }
+        },
+        "min_bucket_selector": {
+          "bucket_selector": {
+            "buckets_path": {
+              "count": "categories._bucket_count" <1>
+            },
+            "script": {
+              "inline": "count != 0"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+<1> By using `_bucket_count` instead of a metric name, we can filter out `histo` buckets where they contain no buckets
+for the `categories` aggregation
 
 [[dots-in-agg-names]]
 [float]

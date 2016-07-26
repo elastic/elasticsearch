@@ -349,6 +349,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertThat(geoDist.getName(), equalTo("amsterdam_rings"));
         List<? extends Bucket> buckets = geoDist.getBuckets();
         assertThat(geoDist.getBuckets().size(), equalTo(3));
+        assertThat(geoDist.getProperty("_bucket_count"), equalTo(3));
         Object[] propertiesKeys = (Object[]) geoDist.getProperty("_key");
         Object[] propertiesDocCounts = (Object[]) geoDist.getProperty("_count");
         Object[] propertiesCities = (Object[]) geoDist.getProperty("cities");
@@ -429,7 +430,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         Range geoDistance = bucket.getAggregations().get("geo_dist");
         // TODO: use diamond once JI-9019884 is fixed
-        List<Range.Bucket> buckets = new ArrayList<Range.Bucket>(geoDistance.getBuckets());
+        List<Range.Bucket> buckets = new ArrayList<>(geoDistance.getBuckets());
         assertThat(geoDistance, Matchers.notNullValue());
         assertThat(geoDistance.getName(), equalTo("geo_dist"));
         assertThat(buckets.size(), is(1));

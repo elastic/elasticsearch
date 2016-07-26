@@ -28,25 +28,19 @@ import java.util.Map;
 public class FakeRestRequest extends RestRequest {
 
     private final Map<String, String> headers;
-
-    private final Map<String, String> params;
-
     private final BytesReference content;
-
     private final Method method;
 
-    private final String path;
 
     public FakeRestRequest() {
         this(new HashMap<>(), new HashMap<>(), null, Method.GET, "/");
     }
 
     private FakeRestRequest(Map<String, String> headers, Map<String, String> params, BytesReference content, Method method, String path) {
+        super(params, path);
         this.headers = headers;
-        this.params = params;
         this.content = content;
         this.method = method;
-        this.path = path;
     }
 
     @Override
@@ -56,12 +50,7 @@ public class FakeRestRequest extends RestRequest {
 
     @Override
     public String uri() {
-        return path;
-    }
-
-    @Override
-    public String rawPath() {
-        return path;
+        return rawPath();
     }
 
     @Override
@@ -84,31 +73,8 @@ public class FakeRestRequest extends RestRequest {
         return headers.entrySet();
     }
 
-    @Override
-    public boolean hasParam(String key) {
-        return params.containsKey(key);
-    }
-
-    @Override
-    public String param(String key) {
-        return params.get(key);
-    }
-
-    @Override
-    public String param(String key, String defaultValue) {
-        String value = params.get(key);
-        if (value == null) {
-            return defaultValue;
-        }
-        return value;
-    }
-
-    @Override
-    public Map<String, String> params() {
-        return params;
-    }
-
     public static class Builder {
+
         private Map<String, String> headers = new HashMap<>();
 
         private Map<String, String> params = new HashMap<>();
@@ -147,6 +113,7 @@ public class FakeRestRequest extends RestRequest {
         public FakeRestRequest build() {
             return new FakeRestRequest(headers, params, content, method, path);
         }
+
     }
 
 }

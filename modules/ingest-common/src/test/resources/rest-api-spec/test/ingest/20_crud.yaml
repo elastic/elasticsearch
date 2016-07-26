@@ -1,4 +1,19 @@
 ---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "first_pipeline"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "second_pipeline"
+        ignore: 404
+
+---
 "Test basic pipeline crud":
   - do:
       ingest.put_pipeline:
@@ -24,6 +39,11 @@
   - match: { pipelines.0.config.description: "_description" }
 
   - do:
+      ingest.get_pipeline: {}
+  - match: { pipelines.0.id: "my_pipeline" }
+  - match: { pipelines.0.config.description: "_description" }
+
+  - do:
       ingest.delete_pipeline:
         id: "my_pipeline"
   - match: { acknowledged: true }
@@ -32,6 +52,38 @@
       catch: missing
       ingest.get_pipeline:
         id: "my_pipeline"
+
+---
+"Test Get All Pipelines (unordered)":
+  - do:
+      ingest.put_pipeline:
+        id: "first_pipeline"
+        body:  >
+          {
+            "description": "first",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field1",
+                  "value": "_value"
+                }
+              }
+            ]
+          }
+  - do:
+      ingest.put_pipeline:
+        id: "second_pipeline"
+        body:  >
+          {
+            "description": "second",
+            "processors": []
+          }
+
+  # Order is not guaranteed by the response, so we check for length instead; above tests that we get appropriate values
+  - do:
+      ingest.get_pipeline: {}
+  - length: { pipelines: 2 }
+
 
 ---
 "Test invalid config":

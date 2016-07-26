@@ -10,8 +10,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
@@ -106,44 +106,6 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
         }
     }
 
-    public void testClusterStateCollectorWithLicensing() {
-        try {
-            String[] nodes = internalCluster().getNodeNames();
-            for (String node : nodes) {
-                logger.debug("--> creating a new instance of the collector");
-                ClusterStateCollector collector = newClusterStateCollector(node);
-                assertNotNull(collector);
-
-                logger.debug("--> enabling license and checks that the collector can collect data if node is master");
-                enableLicense();
-                if (node.equals(internalCluster().getMasterName())) {
-                    assertCanCollect(collector);
-                } else {
-                    assertCannotCollect(collector);
-                }
-
-                logger.debug("--> starting graceful period and checks that the collector can still collect data if node is master");
-                beginGracefulPeriod();
-                if (node.equals(internalCluster().getMasterName())) {
-                    assertCanCollect(collector);
-                } else {
-                    assertCannotCollect(collector);
-                }
-
-                logger.debug("--> ending graceful period and checks that the collector cannot collect data");
-                endGracefulPeriod();
-                assertCannotCollect(collector);
-
-                logger.debug("--> disabling license and checks that the collector cannot collect data");
-                disableLicense();
-                assertCannotCollect(collector);
-            }
-        } finally {
-            // Ensure license is enabled before finishing the test
-            enableLicense();
-        }
-    }
-
     private ClusterStateCollector newClusterStateCollector() {
         // This collector runs on master node only
         return newClusterStateCollector(internalCluster().getMasterName());
@@ -154,7 +116,7 @@ public class ClusterStateCollectorTests extends AbstractCollectorTestCase {
         return new ClusterStateCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
                 internalCluster().getInstance(MonitoringSettings.class, nodeId),
-                internalCluster().getInstance(MonitoringLicensee.class, nodeId),
+                internalCluster().getInstance(XPackLicenseState.class, nodeId),
                 securedClient(nodeId));
     }
 

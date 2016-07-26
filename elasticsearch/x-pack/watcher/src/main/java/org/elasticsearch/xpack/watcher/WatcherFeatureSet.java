@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.xpack.XPackFeatureSet;
 
 import java.io.IOException;
@@ -24,15 +25,15 @@ import java.util.Map;
 public class WatcherFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
-    private final WatcherLicensee licensee;
+    private final XPackLicenseState licenseState;
     private final WatcherService watcherService;
 
     @Inject
-    public WatcherFeatureSet(Settings settings, @Nullable WatcherLicensee licensee, NamedWriteableRegistry namedWriteableRegistry,
+    public WatcherFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, NamedWriteableRegistry namedWriteableRegistry,
                              @Nullable WatcherService watcherService) {
         this.watcherService = watcherService;
         this.enabled = Watcher.enabled(settings);
-        this.licensee = licensee;
+        this.licenseState = licenseState;
         namedWriteableRegistry.register(Usage.class, Usage.writeableName(Watcher.NAME), Usage::new);
     }
 
@@ -48,7 +49,7 @@ public class WatcherFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licensee != null && licensee.isAvailable();
+        return licenseState != null && licenseState.isWatcherAllowed();
     }
 
     @Override

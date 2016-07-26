@@ -7,7 +7,6 @@ package org.elasticsearch.license.plugin.core;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.TestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.scheduler.SchedulerEngine;
 import org.junit.Before;

@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.ManualExecutionContext;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
-import org.elasticsearch.xpack.watcher.WatcherLicensee;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
@@ -58,10 +58,10 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     public TransportExecuteWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver, ExecutionService executionService,
-                                       Clock clock, WatcherLicensee watcherLicensee, WatchStore watchStore, TriggerService triggerService,
+                                       Clock clock, XPackLicenseState licenseState, WatchStore watchStore, TriggerService triggerService,
                                        Watch.Parser watchParser) {
         super(settings, ExecuteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                watcherLicensee, ExecuteWatchRequest::new);
+                licenseState, ExecuteWatchRequest::new);
         this.executionService = executionService;
         this.watchStore = watchStore;
         this.clock = clock;

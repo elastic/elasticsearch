@@ -3,14 +3,15 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.license.plugin;
+package org.elasticsearch.license.plugin.core;
 
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.core.LicenseService;
+import org.elasticsearch.license.plugin.AbstractLicensesIntegrationTestCase;
+import org.elasticsearch.license.plugin.LicensingClient;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.MockNetty3Plugin;
@@ -22,13 +23,13 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 
-import static org.elasticsearch.license.plugin.TestUtils.generateSignedLicense;
+import static org.elasticsearch.license.plugin.core.TestUtils.generateSignedLicense;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
 
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0, transportClientRatio = 0)
-public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTestCase {
+public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestCase {
 
     @Override
     protected Settings transportClientSettings() {
@@ -123,40 +124,40 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
         wipeAllLicenses();
         internalCluster().startNode();
         ensureGreen();
-        assertLicenseState(true);
+        assertLicenseActive(true);
         logger.info("--> restart node");
         internalCluster().fullRestart();
         ensureYellow();
         logger.info("--> await node for enabled");
-        assertLicenseState(true);
+        assertLicenseActive(true);
     }
 
     public void testClusterRestartWhileGrace() throws Exception {
         wipeAllLicenses();
         internalCluster().startNode();
-        assertLicenseState(true);
+        assertLicenseActive(true);
         putLicense(TestUtils.generateSignedLicense(TimeValue.timeValueMillis(0)));
         ensureGreen();
-        assertLicenseState(true);
+        assertLicenseActive(true);
         logger.info("--> restart node");
         internalCluster().fullRestart();
         ensureYellow();
         logger.info("--> await node for grace_period");
-        assertLicenseState(true);
+        assertLicenseActive(true);
     }
 
     public void testClusterRestartWhileExpired() throws Exception {
         wipeAllLicenses();
         internalCluster().startNode();
         ensureGreen();
-        assertLicenseState(true);
+        assertLicenseActive(true);
         putLicense(TestUtils.generateExpiredLicense(System.currentTimeMillis() - LicenseService.GRACE_PERIOD_DURATION.getMillis()));
-        assertLicenseState(false);
+        assertLicenseActive(false);
         logger.info("--> restart node");
         internalCluster().fullRestart();
         ensureYellow();
         logger.info("--> await node for disabled");
-        assertLicenseState(false);
+        assertLicenseActive(false);
     }
 
     public void testClusterNotRecovered() throws Exception {
@@ -164,13 +165,13 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
         internalCluster().startNode(nodeSettingsBuilder(0).put("discovery.zen.minimum_master_nodes", 2).put("node.master", true));
         logger.info("--> start second master out of two [recovered state]");
         internalCluster().startNode(nodeSettingsBuilder(1).put("discovery.zen.minimum_master_nodes", 2).put("node.master", true));
-        assertLicenseState(true);
+        assertLicenseActive(true);
     }
 
-    private void assertLicenseState(boolean active) throws InterruptedException {
+    private void assertLicenseActive(boolean active) throws InterruptedException {
         boolean success = awaitBusy(() -> {
-            for (LicenseService service : internalCluster().getDataNodeInstances(LicenseService.class)) {
-                if (service.licenseeStatus(service.getLicense()).isActive() == active) {
+            for (XPackLicenseState licenseState : internalCluster().getDataNodeInstances(XPackLicenseState.class)) {
+                if (licenseState.isActive() == active) {
                     return true;
                 }
             }
@@ -181,8 +182,8 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
 
     private void assertOperationMode(License.OperationMode operationMode) throws InterruptedException {
         boolean success = awaitBusy(() -> {
-            for (LicenseService service : internalCluster().getDataNodeInstances(LicenseService.class)) {
-                if (service.licenseeStatus(service.getLicense()).getMode() == operationMode) {
+            for (XPackLicenseState licenseState : internalCluster().getDataNodeInstances(XPackLicenseState.class)) {
+                if (licenseState.getOperationMode() == operationMode) {
                     return true;
                 }
             }

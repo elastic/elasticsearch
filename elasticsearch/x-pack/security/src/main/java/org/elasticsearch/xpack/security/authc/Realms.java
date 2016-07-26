@@ -5,22 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.security.SecurityLicenseState.EnabledRealmType;
-import org.elasticsearch.xpack.security.authc.activedirectory.ActiveDirectoryRealm;
-import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
-import org.elasticsearch.xpack.security.authc.file.FileRealm;
-import org.elasticsearch.xpack.security.SecurityLicenseState;
-import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
-import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -29,6 +13,21 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
+import org.elasticsearch.license.plugin.core.XPackLicenseState.AllowedRealmType;
+import org.elasticsearch.xpack.security.authc.activedirectory.ActiveDirectoryRealm;
+import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.file.FileRealm;
+import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
+import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 
@@ -44,7 +43,7 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
 
     private final Environment env;
     private final Map<String, Realm.Factory> factories;
-    private final SecurityLicenseState securityLicenseState;
+    private final XPackLicenseState licenseState;
     private final ReservedRealm reservedRealm;
 
     protected List<Realm> realms = Collections.emptyList();
@@ -53,12 +52,12 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
     // a list of realms that are considered native, that is they only interact with x-pack and no 3rd party auth sources
     protected List<Realm> nativeRealmsOnly = Collections.emptyList();
 
-    public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories, SecurityLicenseState securityLicenseState,
+    public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories, XPackLicenseState licenseState,
                   ReservedRealm reservedRealm) {
         super(settings);
         this.env = env;
         this.factories = factories;
-        this.securityLicenseState = securityLicenseState;
+        this.licenseState = licenseState;
         this.reservedRealm = reservedRealm;
     }
 
@@ -105,12 +104,12 @@ public class Realms extends AbstractLifecycleComponent implements Iterable<Realm
 
     @Override
     public Iterator<Realm> iterator() {
-        if (securityLicenseState.authenticationAndAuthorizationEnabled() == false) {
+        if (licenseState.isAuthAllowed() == false) {
             return Collections.emptyIterator();
         }
 
-        EnabledRealmType enabledRealmType = securityLicenseState.enabledRealmType();
-        switch (enabledRealmType) {
+        AllowedRealmType allowedRealmType = licenseState.allowedRealmType();
+        switch (allowedRealmType) {
             case ALL:
                 return realms.iterator();
             case DEFAULT:

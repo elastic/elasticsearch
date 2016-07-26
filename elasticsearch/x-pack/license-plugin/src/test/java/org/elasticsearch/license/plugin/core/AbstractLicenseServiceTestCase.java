@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.license.plugin.core;
 
-import java.util.Arrays;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -51,11 +49,11 @@ public abstract class AbstractLicenseServiceTestCase extends ESTestCase {
         environment = mock(Environment.class);
     }
 
-    protected void setInitialState(License license, Licensee... licensees) {
+    protected void setInitialState(License license, XPackLicenseState licenseState) {
         Path tempDir = createTempDir();
         when(environment.configFile()).thenReturn(tempDir);
         licenseService = new LicenseService(Settings.EMPTY, clusterService, clock, environment,
-                resourceWatcherService, Arrays.asList(licensees));
+                resourceWatcherService, licenseState);
         ClusterState state = mock(ClusterState.class);
         final ClusterBlocks noBlock = ClusterBlocks.builder().build();
         when(state.blocks()).thenReturn(noBlock);

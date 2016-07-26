@@ -13,10 +13,10 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestFilterChain;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.security.authc.Authentication;
-import org.elasticsearch.xpack.security.SecurityLicenseState;
+import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.junit.Before;
 
 import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;
@@ -34,7 +34,7 @@ public class SecurityRestFilterTests extends ESTestCase {
     private RestChannel channel;
     private RestFilterChain chain;
     private SecurityRestFilter filter;
-    private SecurityLicenseState licenseState;
+    private XPackLicenseState licenseState;
 
     @Before
     public void init() throws Exception {
@@ -42,8 +42,8 @@ public class SecurityRestFilterTests extends ESTestCase {
         RestController restController = mock(RestController.class);
         channel = mock(RestChannel.class);
         chain = mock(RestFilterChain.class);
-        licenseState = mock(SecurityLicenseState.class);
-        when(licenseState.authenticationAndAuthorizationEnabled()).thenReturn(true);
+        licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isAuthAllowed()).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         filter = new SecurityRestFilter(authcService, restController, Settings.EMPTY, threadPool, licenseState);
@@ -61,7 +61,7 @@ public class SecurityRestFilterTests extends ESTestCase {
 
     public void testProcessBasicLicense() throws Exception {
         RestRequest request = mock(RestRequest.class);
-        when(licenseState.authenticationAndAuthorizationEnabled()).thenReturn(false);
+        when(licenseState.isAuthAllowed()).thenReturn(false);
         filter.process(request, channel, null, chain);
         verify(chain).continueProcessing(request, channel, null);
         verifyZeroInteractions(channel, authcService);

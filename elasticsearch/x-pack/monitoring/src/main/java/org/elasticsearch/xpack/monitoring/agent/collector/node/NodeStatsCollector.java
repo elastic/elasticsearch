@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.agent.collector.AbstractCollector;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
@@ -43,9 +43,9 @@ public class NodeStatsCollector extends AbstractCollector {
 
     @Inject
     public NodeStatsCollector(Settings settings, ClusterService clusterService, MonitoringSettings monitoringSettings,
-                              MonitoringLicensee licensee, InternalClient client,
+                              XPackLicenseState licenseState, InternalClient client,
                               NodeEnvironment nodeEnvironment, DiskThresholdDecider diskThresholdDecider) {
-        super(settings, NAME, clusterService, monitoringSettings, licensee);
+        super(settings, NAME, clusterService, monitoringSettings, licenseState);
         this.client = client;
         this.nodeEnvironment = nodeEnvironment;
         this.diskThresholdDecider = diskThresholdDecider;

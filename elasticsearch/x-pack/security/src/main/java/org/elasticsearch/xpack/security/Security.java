@@ -40,6 +40,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.rest.RestHandler;
@@ -89,10 +90,10 @@ import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.security.authz.AuthorizationService;
-import org.elasticsearch.xpack.security.authz.accesscontrol.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
+import org.elasticsearch.xpack.security.authz.accesscontrol.SetSecurityUserProcessor;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
@@ -149,10 +150,10 @@ public class Security implements ActionPlugin, IngestPlugin {
     private final Environment env;
     private final boolean enabled;
     private final boolean transportClientMode;
-    private final SecurityLicenseState securityLicenseState;
+    private final XPackLicenseState licenseState;
     private final CryptoService cryptoService;
 
-    public Security(Settings settings, Environment env) throws IOException {
+    public Security(Settings settings, Environment env, XPackLicenseState licenseState) throws IOException {
         this.settings = settings;
         this.env = env;
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
@@ -163,15 +164,11 @@ public class Security implements ActionPlugin, IngestPlugin {
         } else {
             cryptoService = null;
         }
-        securityLicenseState = new SecurityLicenseState();
+        this.licenseState = licenseState;
     }
 
     public CryptoService getCryptoService() {
         return cryptoService;
-    }
-
-    public SecurityLicenseState getSecurityLicenseState() {
-        return securityLicenseState;
     }
 
     public boolean isEnabled() {
@@ -203,7 +200,7 @@ public class Security implements ActionPlugin, IngestPlugin {
                 b.bind(Realms.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
                 b.bind(CompositeRolesStore.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
                 b.bind(AuditTrailService.class)
-                    .toInstance(new AuditTrailService(settings, Collections.emptyList(), securityLicenseState));
+                    .toInstance(new AuditTrailService(settings, Collections.emptyList(), licenseState));
             });
             modules.add(new SecurityTransportModule(settings));
             return modules;
@@ -259,7 +256,7 @@ public class Security implements ActionPlugin, IngestPlugin {
                 }
             }
         }
-        final Realms realms = new Realms(settings, env, realmFactories, securityLicenseState, reservedRealm);
+        final Realms realms = new Realms(settings, env, realmFactories, licenseState, reservedRealm);
         components.add(nativeUsersStore);
         components.add(realms);
 
@@ -288,7 +285,7 @@ public class Security implements ActionPlugin, IngestPlugin {
             }
         }
         final AuditTrailService auditTrailService =
-            new AuditTrailService(settings, auditTrails.stream().collect(Collectors.toList()), securityLicenseState);
+            new AuditTrailService(settings, auditTrails.stream().collect(Collectors.toList()), licenseState);
         components.add(auditTrailService);
 
         AuthenticationFailureHandler failureHandler = null;
@@ -425,12 +422,13 @@ public class Security implements ActionPlugin, IngestPlugin {
             return;
         }
 
-        assert securityLicenseState != null;
+        assert licenseState != null;
         if (flsDlsEnabled(settings)) {
-            module.setSearcherWrapper((indexService) -> new SecurityIndexSearcherWrapper(indexService.getIndexSettings(),
-                    indexService.newQueryShardContext(), indexService.mapperService(),
-                    indexService.cache().bitsetFilterCache(), indexService.getIndexServices().getThreadPool().getThreadContext(),
-                    securityLicenseState, indexService.getIndexServices().getScriptService()));
+            module.setSearcherWrapper(indexService ->
+                new SecurityIndexSearcherWrapper(indexService.getIndexSettings(), indexService.newQueryShardContext(),
+                    indexService.mapperService(), indexService.cache().bitsetFilterCache(),
+                    indexService.getIndexServices().getThreadPool().getThreadContext(), licenseState,
+                    indexService.getIndexServices().getScriptService()));
         }
         if (transportClientMode == false) {
             /*  We need to forcefully overwrite the query cache implementation to use security's opt out query cache implementation.

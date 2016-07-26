@@ -7,9 +7,8 @@ package org.elasticsearch.xpack.graph;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.graph.GraphFeatureSet;
-import org.elasticsearch.xpack.graph.GraphLicensee;
 import org.junit.Before;
 
 import static org.hamcrest.core.Is.is;
@@ -24,24 +23,24 @@ import static org.mockito.Mockito.when;
  */
 public class GraphFeatureSetTests extends ESTestCase {
 
-    private GraphLicensee licensee;
+    private XPackLicenseState licenseState;
     private NamedWriteableRegistry namedWriteableRegistry;
 
     @Before
     public void init() throws Exception {
-        licensee = mock(GraphLicensee.class);
+        licenseState = mock(XPackLicenseState.class);
         namedWriteableRegistry = mock(NamedWriteableRegistry.class);
     }
 
     public void testWritableRegistration() throws Exception {
-        new GraphFeatureSet(Settings.EMPTY, licensee, namedWriteableRegistry);
+        new GraphFeatureSet(Settings.EMPTY, licenseState, namedWriteableRegistry);
         verify(namedWriteableRegistry).register(eq(GraphFeatureSet.Usage.class), eq("xpack.usage.graph"), anyObject());
     }
 
     public void testAvailable() throws Exception {
-        GraphFeatureSet featureSet = new GraphFeatureSet(Settings.EMPTY, licensee, namedWriteableRegistry);
+        GraphFeatureSet featureSet = new GraphFeatureSet(Settings.EMPTY, licenseState, namedWriteableRegistry);
         boolean available = randomBoolean();
-        when(licensee.isAvailable()).thenReturn(available);
+        when(licenseState.isGraphAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 
@@ -55,7 +54,7 @@ public class GraphFeatureSetTests extends ESTestCase {
         } else {
             settings.put("xpack.graph.enabled", enabled);
         }
-        GraphFeatureSet featureSet = new GraphFeatureSet(settings.build(), licensee, namedWriteableRegistry);
+        GraphFeatureSet featureSet = new GraphFeatureSet(settings.build(), licenseState, namedWriteableRegistry);
         assertThat(featureSet.enabled(), is(enabled));
     }
 

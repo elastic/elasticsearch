@@ -45,6 +45,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -52,7 +53,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
-import org.elasticsearch.xpack.security.SecurityLicenseState;
 import org.elasticsearch.xpack.security.support.Exceptions;
 import org.elasticsearch.xpack.security.user.User;
 
@@ -85,14 +85,14 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
     private final Set<String> allowedMetaFields;
     private final QueryShardContext queryShardContext;
     private final BitsetFilterCache bitsetFilterCache;
-    private final SecurityLicenseState securityLicenseState;
+    private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final ESLogger logger;
     private final ScriptService scriptService;
 
     public SecurityIndexSearcherWrapper(IndexSettings indexSettings, QueryShardContext queryShardContext,
                                         MapperService mapperService, BitsetFilterCache bitsetFilterCache,
-                                        ThreadContext threadContext, SecurityLicenseState securityLicenseState,
+                                        ThreadContext threadContext, XPackLicenseState licenseState,
                                         ScriptService scriptService) {
         this.scriptService = scriptService;
         this.logger = Loggers.getLogger(getClass(), indexSettings.getSettings());
@@ -100,7 +100,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
         this.queryShardContext = queryShardContext;
         this.bitsetFilterCache = bitsetFilterCache;
         this.threadContext = threadContext;
-        this.securityLicenseState = securityLicenseState;
+        this.licenseState = licenseState;
 
         Set<String> allowedMetaFields = new HashSet<>();
         allowedMetaFields.addAll(Arrays.asList(MapperService.getAllMetaFields()));
@@ -114,7 +114,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
 
     @Override
     protected DirectoryReader wrap(DirectoryReader reader) {
-        if (securityLicenseState.documentAndFieldLevelSecurityEnabled() == false) {
+        if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
             return reader;
         }
 
@@ -171,7 +171,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
 
     @Override
     protected IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
-        if (securityLicenseState.documentAndFieldLevelSecurityEnabled() == false) {
+        if (licenseState.isDocumentAndFieldLevelSecurityAllowed() == false) {
             return searcher;
         }
 

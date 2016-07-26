@@ -15,7 +15,7 @@ import org.elasticsearch.license.plugin.action.put.PutLicenseAction;
 import org.elasticsearch.license.plugin.action.put.PutLicenseRequest;
 import org.elasticsearch.xpack.TribeTransportTestCase;
 
-import static org.elasticsearch.license.plugin.TestUtils.generateSignedLicense;
+import static org.elasticsearch.license.plugin.core.TestUtils.generateSignedLicense;
 
 public class LicenseTribeTests extends TribeTransportTestCase {
 

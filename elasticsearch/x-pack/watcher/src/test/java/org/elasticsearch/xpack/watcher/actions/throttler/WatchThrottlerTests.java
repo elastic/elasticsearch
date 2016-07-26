@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.watcher.actions.throttler;
 
+import org.elasticsearch.license.plugin.core.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.WatcherLicensee;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -26,9 +26,9 @@ public class WatchThrottlerTests extends ESTestCase {
         when(periodThrottler.throttle("_action", ctx)).thenReturn(Throttler.Result.NO);
         Throttler.Result expectedResult = Throttler.Result.throttle("_reason");
         when(ackThrottler.throttle("_action", ctx)).thenReturn(expectedResult);
-        WatcherLicensee watcherLicensee = mock(WatcherLicensee.class);
-        when(watcherLicensee.isExecutingActionsAllowed()).thenReturn(true);
-        ActionThrottler throttler = new ActionThrottler(periodThrottler, ackThrottler, watcherLicensee);
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isWatcherAllowed()).thenReturn(true);
+        ActionThrottler throttler = new ActionThrottler(periodThrottler, ackThrottler, licenseState);
         Throttler.Result result = throttler.throttle("_action", ctx);
         assertThat(result, notNullValue());
         assertThat(result, is(expectedResult));
@@ -41,9 +41,9 @@ public class WatchThrottlerTests extends ESTestCase {
         Throttler.Result expectedResult = Throttler.Result.throttle("_reason");
         when(periodThrottler.throttle("_action", ctx)).thenReturn(expectedResult);
         when(ackThrottler.throttle("_action", ctx)).thenReturn(Throttler.Result.NO);
-        WatcherLicensee watcherLicensee = mock(WatcherLicensee.class);
-        when(watcherLicensee.isExecutingActionsAllowed()).thenReturn(true);
-        ActionThrottler throttler = new ActionThrottler(periodThrottler, ackThrottler, watcherLicensee);
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isWatcherAllowed()).thenReturn(true);
+        ActionThrottler throttler = new ActionThrottler(periodThrottler, ackThrottler, licenseState);
         Throttler.Result result = throttler.throttle("_action", ctx);
         assertThat(result, notNullValue());
         assertThat(result, is(expectedResult));
@@ -57,9 +57,9 @@ public class WatchThrottlerTests extends ESTestCase {
         when(periodThrottler.throttle("_action", ctx)).thenReturn(periodResult);
         Throttler.Result ackResult = Throttler.Result.throttle("_reason_ack");
         when(ackThrottler.throttle("_action", ctx)).thenReturn(ackResult);
-        WatcherLicensee watcherLicensee = mock(WatcherLicensee.class);
-        when(watcherLicensee.isExecutingActionsAllowed()).thenReturn(true);
-        ActionThrottler throttler = new ActionThrottler(periodThrottler, ackThrottler, watcherLicensee);
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isWatcherAllowed()).thenReturn(true);
+        ActionThrottler throttler = new ActionThrottler(periodThrottler, ackThrottler, licenseState);
         Throttler.Result result = throttler.throttle("_action", ctx);
         assertThat(result, notNullValue());
         // we always check the period first... so the result will come for the period throttler
@@ -72,9 +72,9 @@ public class WatchThrottlerTests extends ESTestCase {
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
         when(periodThrottler.throttle("_action", ctx)).thenReturn(Throttler.Result.NO);
         when(ackThrottler.throttle("_action", ctx)).thenReturn(Throttler.Result.NO);
-        WatcherLicensee watcherLicensee = mock(WatcherLicensee.class);
-        when(watcherLicensee.isExecutingActionsAllowed()).thenReturn(true);
-        ActionThrottler throttler = new ActionThrottler(periodThrottler, ackThrottler, watcherLicensee);
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isWatcherAllowed()).thenReturn(true);
+        ActionThrottler throttler = new ActionThrottler(periodThrottler, ackThrottler, licenseState);
         Throttler.Result result = throttler.throttle("_action", ctx);
         assertThat(result, notNullValue());
         assertThat(result, is(Throttler.Result.NO));
@@ -85,9 +85,9 @@ public class WatchThrottlerTests extends ESTestCase {
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
         Throttler.Result ackResult = mock(Throttler.Result.class);
         when(ackThrottler.throttle("_action", ctx)).thenReturn(ackResult);
-        WatcherLicensee watcherLicensee = mock(WatcherLicensee.class);
-        when(watcherLicensee.isExecutingActionsAllowed()).thenReturn(true);
-        ActionThrottler throttler = new ActionThrottler(null, ackThrottler, watcherLicensee);
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isWatcherAllowed()).thenReturn(true);
+        ActionThrottler throttler = new ActionThrottler(null, ackThrottler, licenseState);
         Throttler.Result result = throttler.throttle("_action", ctx);
         assertThat(result, notNullValue());
         assertThat(result, sameInstance(ackResult));
@@ -98,9 +98,9 @@ public class WatchThrottlerTests extends ESTestCase {
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
         Throttler.Result ackResult = mock(Throttler.Result.class);
         when(ackThrottler.throttle("_action", ctx)).thenReturn(ackResult);
-        WatcherLicensee watcherLicensee = mock(WatcherLicensee.class);
-        when(watcherLicensee.isExecutingActionsAllowed()).thenReturn(false);
-        ActionThrottler throttler = new ActionThrottler(null, ackThrottler, watcherLicensee);
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isWatcherAllowed()).thenReturn(false);
+        ActionThrottler throttler = new ActionThrottler(null, ackThrottler, licenseState);
         Throttler.Result result = throttler.throttle("_action", ctx);
         assertThat(result, notNullValue());
         assertThat(result.reason(), is("watcher license does not allow action execution"));

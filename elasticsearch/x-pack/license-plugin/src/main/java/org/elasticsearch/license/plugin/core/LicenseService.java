@@ -44,18 +44,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 /**
- * Service responsible for managing {@link LicensesMetaData}
- * Interfaces through which this is exposed are:
- * - LicensesClientService - responsible for listener registration of consumer plugin(s)
+ * Service responsible for managing {@link LicensesMetaData}.
  * <p>
- * Notification Scheme:
- * <p>
- * All registered listeners are notified of the current license upon registration or when a new license is installed in the cluster state.
- * When a new license is notified as enabled to the registered listener, a notification is scheduled at the time of license expiry.
- * Registered listeners are notified using {@link #onUpdate(LicensesMetaData)}
+ * On the master node, the service handles updating the cluster state when a new license is registered.
+ * It also listens on all nodes for cluster state updates, and updates {@link XPackLicenseState} when
+ * the license changes are detected in the cluster state.
  */
 public class LicenseService extends AbstractLifecycleComponent implements ClusterStateListener, SchedulerEngine.Listener {
 
@@ -65,14 +60,12 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     /**
      * Duration of grace period after a license has expired
      */
-    public static final TimeValue GRACE_PERIOD_DURATION = days(7);
+    static final TimeValue GRACE_PERIOD_DURATION = days(7);
 
     private final ClusterService clusterService;
 
-    /**
-     * Currently active consumers to notify to
-     */
-    private final List<InternalLicensee> registeredLicensees;
+    /** The xpack feature state to update when license changes are made. */
+    private final XPackLicenseState licenseState;
 
     /**
      * Currently active license
@@ -104,115 +97,70 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
 
     public LicenseService(Settings settings, ClusterService clusterService, Clock clock, Environment env,
-                          ResourceWatcherService resourceWatcherService, List<Licensee> registeredLicensees) {
+                          ResourceWatcherService resourceWatcherService, XPackLicenseState licenseState) {
         super(settings);
         this.clusterService = clusterService;
         this.clock = clock;
         this.scheduler = new SchedulerEngine(clock);
-        this.registeredLicensees = registeredLicensees.stream().map(InternalLicensee::new).collect(Collectors.toList());
+        this.licenseState = licenseState;
         this.operationModeFileWatcher = new OperationModeFileWatcher(resourceWatcherService,
-                XPackPlugin.resolveConfigFile(env, "license_mode"), logger, () -> notifyLicensees(getLicense()));
+                XPackPlugin.resolveConfigFile(env, "license_mode"), logger, () -> updateLicenseState(getLicense()));
         this.scheduler.register(this);
         populateExpirationCallbacks();
     }
 
+    private void logExpirationWarning(long expirationMillis, boolean expired) {
+        String expiredMsg = expired ? "will expire" : "expired";
+        String general = LoggerMessageFormat.format(null, "\n" +
+            "#\n" +
+            "# License [{}] on [{}]. If you have a new license, please update it.\n" +
+            "# Otherwise, please reach out to your support contact.\n" +
+            "# ", expiredMsg, DATE_FORMATTER.printer().print(expirationMillis));
+        if (expired) {
+            general = general.toUpperCase(Locale.ROOT);
+        }
+        StringBuilder builder = new StringBuilder(general);
+        builder.append(System.lineSeparator());
+        if (expired) {
+            builder.append("# COMMERCIAL PLUGINS OPERATING WITH REDUCED FUNCTIONALITY");
+        } else {
+            builder.append("# Commercial plugins operate with reduced functionality on license expiration:");
+        }
+        XPackLicenseState.EXPIRATION_MESSAGES.forEach((feature, messages) -> {
+            if (messages.length > 0) {
+                builder.append(System.lineSeparator());
+                builder.append("# - ");
+                builder.append(feature);
+                for (String message : messages) {
+                    builder.append(System.lineSeparator());
+                    builder.append("#  - ");
+                    builder.append(message);
+                }
+            }
+        });
+        logger.warn("{}", builder);
+    }
+
     private void populateExpirationCallbacks() {
         expirationCallbacks.add(new ExpirationCallback.Pre(days(7), days(25), days(1)) {
-                                    @Override
-                                    public void on(License license) {
-                                        String general = LoggerMessageFormat.format(null, "\n" +
-                                                "#\n" +
-                                                "# License will expire on [{}]. If you have a new license, please update it.\n" +
-                                                "# Otherwise, please reach out to your support contact.\n" +
-                                                "# ", DATE_FORMATTER.printer().print(license.expiryDate()));
-                                        if (!registeredLicensees.isEmpty()) {
-                                            StringBuilder builder = new StringBuilder(general);
-                                            builder.append(System.lineSeparator());
-                                            builder.append("# Commercial plugins operate with reduced functionality on license " +
-                                                    "expiration:");
-                                            for (InternalLicensee licensee : registeredLicensees) {
-                                                if (licensee.expirationMessages().length > 0) {
-                                                    builder.append(System.lineSeparator());
-                                                    builder.append("# - ");
-                                                    builder.append(licensee.id());
-                                                    for (String message : licensee.expirationMessages()) {
-                                                        builder.append(System.lineSeparator());
-                                                        builder.append("#  - ");
-                                                        builder.append(message);
-                                                    }
-                                                }
-                                            }
-                                            logger.warn("{}", builder);
-                                        } else {
-                                            logger.warn("{}", general);
-                                        }
-                                    }
-                                }
-        );
+            @Override
+            public void on(License license) {
+                logExpirationWarning(license.expiryDate(), false);
+            }
+        });
         expirationCallbacks.add(new ExpirationCallback.Pre(days(0), days(7), TimeValue.timeValueMinutes(10)) {
-                                    @Override
-                                    public void on(License license) {
-                                        String general = LoggerMessageFormat.format(null, "\n" +
-                                                "#\n" +
-                                                "# License will expire on [{}]. If you have a new license, please update it.\n" +
-                                                "# Otherwise, please reach out to your support contact.\n" +
-                                                "# ", DATE_FORMATTER.printer().print(license.expiryDate()));
-                                        if (!registeredLicensees.isEmpty()) {
-                                            StringBuilder builder = new StringBuilder(general);
-                                            builder.append(System.lineSeparator());
-                                            builder.append("# Commercial plugins operate with reduced functionality on license " +
-                                                    "expiration:");
-                                            for (InternalLicensee licensee : registeredLicensees) {
-                                                if (licensee.expirationMessages().length > 0) {
-                                                    builder.append(System.lineSeparator());
-                                                    builder.append("# - ");
-                                                    builder.append(licensee.id());
-                                                    for (String message : licensee.expirationMessages()) {
-                                                        builder.append(System.lineSeparator());
-                                                        builder.append("#  - ");
-                                                        builder.append(message);
-                                                    }
-                                                }
-                                            }
-                                            logger.warn("{}", builder.toString());
-                                        } else {
-                                            logger.warn("{}", general);
-                                        }
-                                    }
-                                }
-        );
+            @Override
+            public void on(License license) {
+                logExpirationWarning(license.expiryDate(), false);
+            }
+        });
         expirationCallbacks.add(new ExpirationCallback.Post(days(0), null, TimeValue.timeValueMinutes(10)) {
-                                    @Override
-                                    public void on(License license) {
-                                        // logged when grace period begins
-                                        String general = LoggerMessageFormat.format(null, "\n" +
-                                                "#\n" +
-                                                "# LICENSE EXPIRED ON [{}]. IF YOU HAVE A NEW LICENSE, PLEASE\n" +
-                                                "# UPDATE IT. OTHERWISE, PLEASE REACH OUT TO YOUR SUPPORT CONTACT.\n" +
-                                                "# ", DATE_FORMATTER.printer().print(license.expiryDate()));
-                                        if (!registeredLicensees.isEmpty()) {
-                                            StringBuilder builder = new StringBuilder(general);
-                                            builder.append(System.lineSeparator());
-                                            builder.append("# COMMERCIAL PLUGINS OPERATING WITH REDUCED FUNCTIONALITY");
-                                            for (InternalLicensee licensee : registeredLicensees) {
-                                                if (licensee.expirationMessages().length > 0) {
-                                                    builder.append(System.lineSeparator());
-                                                    builder.append("# - ");
-                                                    builder.append(licensee.id());
-                                                    for (String message : licensee.expirationMessages()) {
-                                                        builder.append(System.lineSeparator());
-                                                        builder.append("#  - ");
-                                                        builder.append(message);
-                                                    }
-                                                }
-                                            }
-                                            logger.warn("{}", builder.toString());
-                                        } else {
-                                            logger.warn("{}", general);
-                                        }
-                                    }
-                                }
-        );
+            @Override
+            public void on(License license) {
+                // logged when grace period begins
+                logExpirationWarning(license.expiryDate(), true);
+            }
+        });
     }
 
     /**
@@ -228,23 +176,23 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             listener.onResponse(new PutLicenseResponse(true, LicensesStatus.EXPIRED));
         } else {
             if (!request.acknowledged()) {
+                // TODO: ack messages should be generated on the master, since another node's cluster state may be behind...
                 final License currentLicense = getLicense();
                 if (currentLicense != null) {
-                    Map<String, String[]> acknowledgeMessages = new HashMap<>(registeredLicensees.size() + 1);
+                    Map<String, String[]> acknowledgeMessages = new HashMap<>();
                     if (!License.isAutoGeneratedLicense(currentLicense.signature()) // current license is not auto-generated
                             && currentLicense.issueDate() > newLicense.issueDate()) { // and has a later issue date
-                        acknowledgeMessages.put("license",
-                                new String[]{"The new license is older than the currently installed license. Are you sure you want to " +
-                                        "override the current license?"});
+                        acknowledgeMessages.put("license", new String[]{
+                            "The new license is older than the currently installed license. " +
+                            "Are you sure you want to override the current license?"});
                     }
-                    for (InternalLicensee licensee : registeredLicensees) {
-                        String[] listenerAcknowledgeMessages = licensee.acknowledgmentMessages(
-                                currentLicense.operationMode(), newLicense.operationMode());
-                        if (listenerAcknowledgeMessages.length > 0) {
-                            acknowledgeMessages.put(licensee.id(), listenerAcknowledgeMessages);
+                    XPackLicenseState.ACKNOWLEDGMENT_MESSAGES.forEach((feature, ackMessages) -> {
+                        String[] messages = ackMessages.apply(currentLicense.operationMode(), newLicense.operationMode());
+                        if (messages.length > 0) {
+                            acknowledgeMessages.put(feature, messages);
                         }
-                    }
-                    if (!acknowledgeMessages.isEmpty()) {
+                    });
+                    if (acknowledgeMessages.isEmpty() == false) {
                         // needs acknowledgement
                         listener.onResponse(new PutLicenseResponse(false, LicensesStatus.VALID, ACKNOWLEDGEMENT_HEADER,
                                 acknowledgeMessages));
@@ -280,7 +228,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         if (licensesMetaData != null) {
             final License license = licensesMetaData.getLicense();
             if (event.getJobName().equals(LICENSE_JOB)) {
-                notifyLicensees(license);
+                updateLicenseState(license);
             } else if (event.getJobName().startsWith(ExpirationCallback.EXPIRATION_JOB_PREFIX)) {
                 expirationCallbacks.stream()
                         .filter(expirationCallback -> expirationCallback.getId().equals(event.getJobName()))
@@ -313,17 +261,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                         }
                     }
                 });
-    }
-
-    public Licensee.Status licenseeStatus(License license) {
-        if (license == null) {
-            return new Licensee.Status(License.OperationMode.MISSING, false);
-        }
-        long time = clock.millis();
-        boolean active = time >= license.issueDate() &&
-            time < license.expiryDate() + GRACE_PERIOD_DURATION.getMillis();
-
-        return new Licensee.Status(license.operationMode(), active);
     }
 
     public License getLicense() {
@@ -379,15 +316,25 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     protected void doStart() throws ElasticsearchException {
         clusterService.add(this);
         scheduler.start(Collections.emptyList());
-        registeredLicensees.forEach(x -> initLicensee(x.licensee));
+        logger.debug("initializing license state");
+        final ClusterState clusterState = clusterService.state();
+        if (clusterService.lifecycleState() == Lifecycle.State.STARTED
+            && clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false
+            && clusterState.nodes().getMasterNode() != null) {
+            final LicensesMetaData currentMetaData = clusterState.metaData().custom(LicensesMetaData.TYPE);
+            if (clusterState.getNodes().isLocalNodeElectedMaster() &&
+                (currentMetaData == null || currentMetaData.getLicense() == null)) {
+                // triggers a cluster changed event
+                // eventually notifying the current licensee
+                registerTrialLicense();
+            }
+        }
     }
 
     @Override
     protected void doStop() throws ElasticsearchException {
         clusterService.remove(this);
         scheduler.stop();
-        // clear all handlers
-        registeredLicensees.clear();
         // clear current license
         currentLicense.set(null);
     }
@@ -432,23 +379,18 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         }
     }
 
-    private void notifyLicensees(final License license) {
+    protected void updateLicenseState(final License license) {
         if (license == LicensesMetaData.LICENSE_TOMBSTONE) {
             // implies license has been explicitly deleted
-            // update licensee states
-            registeredLicensees.forEach(InternalLicensee::onRemove);
+            licenseState.update(License.OperationMode.MISSING, false);
             return;
         }
         if (license != null) {
-            logger.debug("notifying [{}] listeners", registeredLicensees.size());
             long time = clock.millis();
             boolean active = time >= license.issueDate() &&
                 time < license.expiryDate() + GRACE_PERIOD_DURATION.getMillis();
+            licenseState.update(license.operationMode(), active);
 
-            Licensee.Status status = new Licensee.Status(license.operationMode(), active);
-            for (InternalLicensee licensee : registeredLicensees) {
-                licensee.onChange(status);
-            }
             if (active) {
                 if (time < license.expiryDate()) {
                     logger.debug("license [{}] - valid", license.uid());
@@ -487,7 +429,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                     previousLicense.removeOperationModeFileWatcher();
                 }
             }
-            notifyLicensees(license);
+            updateLicenseState(license);
         }
     }
 
@@ -510,24 +452,6 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         };
     }
 
-    private void initLicensee(Licensee licensee) {
-        logger.debug("initializing licensee [{}]", licensee.id());
-        final ClusterState clusterState = clusterService.state();
-        if (clusterService.lifecycleState() == Lifecycle.State.STARTED
-                && clusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false
-                && clusterState.nodes().getMasterNode() != null) {
-            final LicensesMetaData currentMetaData = clusterState.metaData().custom(LicensesMetaData.TYPE);
-            if (clusterState.getNodes().isLocalNodeElectedMaster() &&
-                (currentMetaData == null || currentMetaData.getLicense() == null)) {
-                // triggers a cluster changed event
-                // eventually notifying the current licensee
-                registerTrialLicense();
-            } else {
-                notifyLicensees(currentMetaData.getLicense());
-            }
-        }
-    }
-
     License getLicense(final LicensesMetaData metaData) {
         if (metaData != null) {
             License license = metaData.getLicense();
@@ -542,49 +466,5 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             }
         }
         return null;
-    }
-
-    /**
-     * Stores acknowledgement, expiration and license notification callbacks
-     * for a registered listener
-     */
-    private final class InternalLicensee {
-        volatile Licensee.Status currentStatus = Licensee.Status.MISSING;
-
-        private final Licensee licensee;
-
-        private InternalLicensee(Licensee licensee) {
-            this.licensee = licensee;
-        }
-
-        @Override
-        public String toString() {
-            return "(listener: " + licensee.id() + ", state: " + currentStatus + ")";
-        }
-
-        public String id() {
-            return licensee.id();
-        }
-
-        public String[] expirationMessages() {
-            return licensee.expirationMessages();
-        }
-
-        public String[] acknowledgmentMessages(License.OperationMode currentMode, License.OperationMode newMode) {
-            return licensee.acknowledgmentMessages(currentMode, newMode);
-        }
-
-        public synchronized void onChange(final Licensee.Status status) {
-            if (currentStatus == null // not yet initialized
-                    || !currentStatus.equals(status)) {  // current license has changed
-                logger.debug("licensee [{}] notified", licensee.id());
-                licensee.onChange(status);
-                currentStatus = status;
-            }
-        }
-
-        public void onRemove() {
-            onChange(Licensee.Status.MISSING);
-        }
     }
 }

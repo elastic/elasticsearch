@@ -28,9 +28,9 @@ import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext.FieldDataField;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.docvalues.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.docvalues.DocValueFieldsContext.DocValueField;
+import org.elasticsearch.search.fetch.docvalues.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SubSearchContext;
@@ -54,12 +54,12 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
     private final List<SortBuilder<?>> sorts;
     private final HighlightBuilder highlightBuilder;
     private final List<String> fieldNames;
-    private final List<String> fieldDataFields;
+    private final List<String> docValueFields;
     private final Set<ScriptField> scriptFields;
     private final FetchSourceContext fetchSourceContext;
 
     public TopHitsAggregatorFactory(String name, Type type, int from, int size, boolean explain, boolean version, boolean trackScores,
-            List<SortBuilder<?>> sorts, HighlightBuilder highlightBuilder, List<String> fieldNames, List<String> fieldDataFields,
+            List<SortBuilder<?>> sorts, HighlightBuilder highlightBuilder, List<String> fieldNames, List<String> docValueFields,
             Set<ScriptField> scriptFields, FetchSourceContext fetchSourceContext, AggregationContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
         super(name, type, context, parent, subFactories, metaData);
@@ -71,7 +71,7 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
         this.sorts = sorts;
         this.highlightBuilder = highlightBuilder;
         this.fieldNames = fieldNames;
-        this.fieldDataFields = fieldDataFields;
+        this.docValueFields = docValueFields;
         this.scriptFields = scriptFields;
         this.fetchSourceContext = fetchSourceContext;
     }
@@ -95,13 +95,13 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
         if (fieldNames != null) {
             subSearchContext.fieldNames().addAll(fieldNames);
         }
-        if (fieldDataFields != null) {
-            FieldDataFieldsContext fieldDataFieldsContext = subSearchContext
-                    .getFetchSubPhaseContext(FieldDataFieldsFetchSubPhase.CONTEXT_FACTORY);
-            for (String field : fieldDataFields) {
-                fieldDataFieldsContext.add(new FieldDataField(field));
+        if (docValueFields != null) {
+            DocValueFieldsContext docValueFieldsContext = subSearchContext
+                    .getFetchSubPhaseContext(DocValueFieldsFetchSubPhase.CONTEXT_FACTORY);
+            for (String field : docValueFields) {
+                docValueFieldsContext.add(new DocValueField(field));
             }
-            fieldDataFieldsContext.setHitExecutionNeeded(true);
+            docValueFieldsContext.setHitExecutionNeeded(true);
         }
         if (scriptFields != null) {
             for (ScriptField field : scriptFields) {

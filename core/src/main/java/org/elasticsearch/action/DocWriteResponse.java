@@ -22,6 +22,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContent;
@@ -109,6 +110,30 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         return getShardInfo().status();
     }
 
+    /**
+     * Gets the location of the written document as a string suitable for a {@code Location} header.
+     * @param routing any routing used in the request. If null the location doesn't include routing information.
+     */
+    public String getLocation(@Nullable String routing) {
+        // Absolute path for the location of the document. This should be allowed as of HTTP/1.1:
+        // https://tools.ietf.org/html/rfc7231#section-7.1.2
+        String index = getIndex();
+        String type = getType();
+        String id = getId();
+        String routingStart = "?routing=";
+        int bufferSize = 3 + index.length() + type.length() + id.length();
+        if (routing != null) {
+            bufferSize += routingStart.length() + routing.length();
+        }
+        StringBuilder location = new StringBuilder(bufferSize);
+        location.append('/').append(index);
+        location.append('/').append(type);
+        location.append('/').append(id);
+        if (routing != null) {
+            location.append(routingStart).append(routing);
+        }
+        return location.toString();
+    }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {

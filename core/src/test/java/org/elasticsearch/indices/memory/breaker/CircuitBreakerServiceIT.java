@@ -48,6 +48,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
 import org.junit.Before;
 
@@ -59,6 +60,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.cardinality;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
@@ -316,9 +318,49 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             client.prepareSearch("cb-test").setQuery(matchAllQuery()).addAggregation(cardinality("card").field("test")).get();
             fail("aggregation should have tripped the breaker");
         } catch (Exception e) {
-            String errMsg = "CircuitBreakingException[[request] Data too large, data for [<reused_arrays>] would be larger than limit of [10/10b]]";
+            String errMsg = "CircuitBreakingException[[request] Data too large";
             assertThat("Exception: [" + e.toString() + "] should contain a CircuitBreakingException",
                 e.toString(), containsString(errMsg));
+            errMsg = "would be larger than limit of [10/10b]]";
+            assertThat("Exception: [" + e.toString() + "] should contain a CircuitBreakingException", e.toString(), containsString(errMsg));
+        }
+    }
+
+    public void testBucketBreaker() throws Exception {
+        if (noopBreakerUsed()) {
+            logger.info("--> noop breakers used, skipping test");
+            return;
+        }
+        assertAcked(prepareCreate("cb-test", 1, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
+        Client client = client();
+
+        // Make request breaker limited to a small amount
+        Settings resetSettings = Settings.builder()
+                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "100b")
+                .build();
+        assertAcked(client.admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings));
+
+        // index some different terms so we have some field data for loading
+        int docCount = scaledRandomIntBetween(100, 1000);
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        for (long id = 0; id < docCount; id++) {
+            reqs.add(client.prepareIndex("cb-test", "type", Long.toString(id)).setSource("test", id));
+        }
+        indexRandom(true, reqs);
+
+        // A terms aggregation on the "test" field should trip the bucket circuit breaker
+        try {
+            SearchResponse resp = client.prepareSearch("cb-test")
+                    .setQuery(matchAllQuery())
+                    .addAggregation(terms("my_terms").field("test"))
+                    .get();
+            assertTrue("there should be shard failures", resp.getFailedShards() > 0);
+            fail("aggregation should have tripped the breaker");
+        } catch (Exception e) {
+            String errMsg = "CircuitBreakingException[[request] " +
+                    "Data too large, data for [<agg [my_terms]>] would be larger than limit of [100/100b]]";
+            assertThat("Exception: " + e.toString() + " should contain a CircuitBreakingException",
+                    e.toString(), containsString(errMsg));
         }
     }
 

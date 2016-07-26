@@ -90,7 +90,8 @@ public class RestIndexAction extends BaseRestHandler {
             } catch (IllegalArgumentException eia){
                 try {
                     XContentBuilder builder = channel.newErrorBuilder();
-                    channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", eia.getMessage()).endObject()));
+                    channel.sendResponse(
+                            new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", eia.getMessage()).endObject()));
                 } catch (IOException e1) {
                     logger.warn("Failed to send response", e1);
                     return;
@@ -101,6 +102,6 @@ public class RestIndexAction extends BaseRestHandler {
         if (consistencyLevel != null) {
             indexRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
-        client.index(indexRequest, new RestStatusToXContentListener<>(channel));
+        client.index(indexRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing())));
     }
 }

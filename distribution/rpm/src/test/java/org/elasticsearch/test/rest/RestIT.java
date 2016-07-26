@@ -25,7 +25,7 @@ import org.elasticsearch.test.rest.parser.RestTestParseException;
 import java.io.IOException;
 
 /** Rest integration test. Runs against a cluster started by {@code gradle integTest} */
-public class RestIT extends ESRestTestCase {
+public class RestIT extends ESClientYamlSuiteTestCase {
     public RestIT(RestTestCandidate testCandidate) {
         super(testCandidate);
     }

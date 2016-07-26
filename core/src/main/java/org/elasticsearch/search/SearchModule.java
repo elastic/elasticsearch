@@ -246,7 +246,7 @@ import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.docvalues.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.matchedqueries.MatchedQueriesFetchSubPhase;
 import org.elasticsearch.search.fetch.parent.ParentFieldSubFetchPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
@@ -792,7 +792,7 @@ public class SearchModule extends AbstractModule {
 
     private void registerFetchSubPhases(List<SearchPlugin> plugins) {
         registerFetchSubPhase(new ExplainFetchSubPhase());
-        registerFetchSubPhase(new FieldDataFieldsFetchSubPhase());
+        registerFetchSubPhase(new DocValueFieldsFetchSubPhase());
         registerFetchSubPhase(new ScriptFieldsFetchSubPhase());
         registerFetchSubPhase(new FetchSourceSubPhase());
         registerFetchSubPhase(new VersionFetchSubPhase());

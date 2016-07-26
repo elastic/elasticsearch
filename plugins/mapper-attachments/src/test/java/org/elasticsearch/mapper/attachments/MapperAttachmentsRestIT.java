@@ -21,13 +21,13 @@ package org.elasticsearch.mapper.attachments;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
 
-public class MapperAttachmentsRestIT extends ESRestTestCase {
+public class MapperAttachmentsRestIT extends ESClientYamlSuiteTestCase {
 
     public MapperAttachmentsRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

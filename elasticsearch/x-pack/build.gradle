@@ -19,6 +19,8 @@ ext.versions = [
 // TODO: fix this! https://github.com/elastic/x-plugins/issues/1066
 ext.compactProfile = 'full'
 
+dependencyLicenses.enabled = false
+
 licenseHeaders {
   approvedLicenses << 'BCrypt (BSD-like)'
   additionalLicense 'BCRYP', 'BCrypt (BSD-like)', 'Copyright (c) 2006 Damien Miller <djm@mindrot.org>'

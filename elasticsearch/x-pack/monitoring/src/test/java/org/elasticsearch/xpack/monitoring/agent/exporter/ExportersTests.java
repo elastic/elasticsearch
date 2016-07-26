@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.agent.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -64,21 +65,21 @@ public class ExportersTests extends ESTestCase {
     public void init() throws Exception {
         factories = new HashMap<>();
 
-        Client client = mock(Client.class);
-        when(client.settings()).thenReturn(Settings.EMPTY);
+        InternalClient client = mock(InternalClient.class);
         clusterService = mock(ClusterService.class);
+        clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(MonitoringSettings.COLLECTORS,
+            MonitoringSettings.INTERVAL, MonitoringSettings.EXPORTERS_SETTINGS)));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         // we always need to have the local exporter as it serves as the default one
-        factories.put(LocalExporter.TYPE, new LocalExporter.Factory(ClientProxy.fromClient(client), clusterService,
+        factories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, clusterService,
                 mock(CleanerService.class)));
-        clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(MonitoringSettings.COLLECTORS,
-                MonitoringSettings.INTERVAL, MonitoringSettings.EXPORTERS_SETTINGS)));
-        exporters = new Exporters(Settings.EMPTY, factories, clusterService, clusterSettings);
+
+        exporters = new Exporters(Settings.EMPTY, factories, clusterService);
     }
 
     public void testInitExportersDefault() throws Exception {
-        Exporter.Factory factory = new TestFactory("_type", true);
-        factories.put("_type", factory);
+        factories.put("_type", TestExporter::new);
         Map<String, Exporter> internalExporters = exporters.initExporters(Settings.builder().build());
 
         assertThat(internalExporters, notNullValue());
@@ -88,8 +89,7 @@ public class ExportersTests extends ESTestCase {
     }
 
     public void testInitExportersSingle() throws Exception {
-        Exporter.Factory factory = new TestFactory("_type", true);
-        factories.put("_type", factory);
+        factories.put("_type", TestExporter::new);
         Map<String, Exporter> internalExporters = exporters.initExporters(Settings.builder()
                 .put("_name.type", "_type")
                 .build());
@@ -97,13 +97,12 @@ public class ExportersTests extends ESTestCase {
         assertThat(internalExporters, notNullValue());
         assertThat(internalExporters.size(), is(1));
         assertThat(internalExporters, hasKey("_name"));
-        assertThat(internalExporters.get("_name"), instanceOf(TestFactory.TestExporter.class));
-        assertThat(internalExporters.get("_name").type, is("_type"));
+        assertThat(internalExporters.get("_name"), instanceOf(TestExporter.class));
+        assertThat(internalExporters.get("_name").config().type(), is("_type"));
     }
 
     public void testInitExportersSingleDisabled() throws Exception {
-        Exporter.Factory factory = new TestFactory("_type", true);
-        factories.put("_type", factory);
+        factories.put("_type", TestExporter::new);
         Map<String, Exporter> internalExporters = exporters.initExporters(Settings.builder()
                 .put("_name.type", "_type")
                 .put("_name.enabled", false)
@@ -138,8 +137,7 @@ public class ExportersTests extends ESTestCase {
     }
 
     public void testInitExportersMultipleSameType() throws Exception {
-        Exporter.Factory factory = new TestFactory("_type", false);
-        factories.put("_type", factory);
+        factories.put("_type", TestExporter::new);
         Map<String, Exporter> internalExporters = exporters.initExporters(Settings.builder()
                 .put("_name0.type", "_type")
                 .put("_name1.type", "_type")
@@ -148,30 +146,26 @@ public class ExportersTests extends ESTestCase {
         assertThat(internalExporters, notNullValue());
         assertThat(internalExporters.size(), is(2));
         assertThat(internalExporters, hasKey("_name0"));
-        assertThat(internalExporters.get("_name0"), instanceOf(TestFactory.TestExporter.class));
-        assertThat(internalExporters.get("_name0").type, is("_type"));
+        assertThat(internalExporters.get("_name0"), instanceOf(TestExporter.class));
+        assertThat(internalExporters.get("_name0").config().type(), is("_type"));
         assertThat(internalExporters, hasKey("_name1"));
-        assertThat(internalExporters.get("_name1"), instanceOf(TestFactory.TestExporter.class));
-        assertThat(internalExporters.get("_name1").type, is("_type"));
+        assertThat(internalExporters.get("_name1"), instanceOf(TestExporter.class));
+        assertThat(internalExporters.get("_name1").config().type(), is("_type"));
     }
 
     public void testInitExportersMultipleSameTypeSingletons() throws Exception {
-        Exporter.Factory factory = new TestFactory("_type", true);
-        factories.put("_type", factory);
-        try {
+        factories.put("_type", TestSingletonExporter::new);
+        SettingsException e = expectThrows(SettingsException.class, () ->
             exporters.initExporters(Settings.builder()
                     .put("_name0.type", "_type")
                     .put("_name1.type", "_type")
-                    .build());
-            fail("Expected SettingsException");
-        } catch (SettingsException e) {
-            assertThat(e.getMessage(), containsString("multiple [_type] exporters are configured. there can only be one"));
-        }
+                    .build())
+        );
+        assertThat(e.getMessage(), containsString("multiple [_type] exporters are configured. there can only be one"));
     }
 
     public void testSettingsUpdate() throws Exception {
-        Exporter.Factory factory = spy(new TestFactory("_type", false));
-        factories.put("_type", factory);
+        factories.put("_type", TestExporter::new);
 
         final AtomicReference<Settings> settingsHolder = new AtomicReference<>();
 
@@ -180,8 +174,9 @@ public class ExportersTests extends ESTestCase {
                 .put("xpack.monitoring.collection.exporters._name1.type", "_type")
                 .build();
         clusterSettings = new ClusterSettings(nodeSettings, new HashSet<>(Arrays.asList(MonitoringSettings.EXPORTERS_SETTINGS)));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
-        exporters = new Exporters(nodeSettings, factories, clusterService, clusterSettings) {
+        exporters = new Exporters(nodeSettings, factories, clusterService) {
             @Override
             Map<String, Exporter> initExporters(Settings settings) {
                 settingsHolder.set(settings);
@@ -211,14 +206,14 @@ public class ExportersTests extends ESTestCase {
     }
 
     public void testOpenBulkOnMaster() throws Exception {
-        Exporter.Factory factory = new MockFactory("mock", false);
-        Exporter.Factory masterOnlyFactory = new MockFactory("mock_master_only", true);
+        Exporter.Factory factory = new MockFactory(false);
+        Exporter.Factory masterOnlyFactory = new MockFactory(true);
         factories.put("mock", factory);
         factories.put("mock_master_only", masterOnlyFactory);
         Exporters exporters = new Exporters(Settings.builder()
                 .put("xpack.monitoring.collection.exporters._name0.type", "mock")
                 .put("xpack.monitoring.collection.exporters._name1.type", "mock_master_only")
-                .build(), factories, clusterService, clusterSettings);
+                .build(), factories, clusterService);
         exporters.start();
 
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
@@ -236,14 +231,14 @@ public class ExportersTests extends ESTestCase {
     }
 
     public void testExportNotOnMaster() throws Exception {
-        Exporter.Factory factory = new MockFactory("mock", false);
-        Exporter.Factory masterOnlyFactory = new MockFactory("mock_master_only", true);
+        Exporter.Factory factory = new MockFactory(false);
+        Exporter.Factory masterOnlyFactory = new MockFactory(true);
         factories.put("mock", factory);
         factories.put("mock_master_only", masterOnlyFactory);
         Exporters exporters = new Exporters(Settings.builder()
                 .put("xpack.monitoring.collection.exporters._name0.type", "mock")
                 .put("xpack.monitoring.collection.exporters._name1.type", "mock_master_only")
-                .build(), factories, clusterService, clusterSettings);
+                .build(), factories, clusterService);
         exporters.start();
 
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
@@ -257,6 +252,7 @@ public class ExportersTests extends ESTestCase {
         verify(exporters.getExporter("_name0"), times(1)).masterOnly();
         verify(exporters.getExporter("_name0"), times(1)).openBulk();
         verify(exporters.getExporter("_name1"), times(1)).masterOnly();
+        verify(exporters.getExporter("_name1"), times(1)).isSingleton();
         verifyNoMoreInteractions(exporters.getExporter("_name1"));
     }
 
@@ -273,10 +269,9 @@ public class ExportersTests extends ESTestCase {
             settings.put("xpack.monitoring.collection.exporters._name" + String.valueOf(i) + ".type", "record");
         }
 
-        Exporter.Factory factory = new CountingExportFactory("record", false);
-        factories.put("record", factory);
+        factories.put("record", CountingExporter::new);
 
-        Exporters exporters = new Exporters(settings.build(), factories, clusterService, clusterSettings);
+        Exporters exporters = new Exporters(settings.build(), factories, clusterService);
         exporters.start();
 
         final Thread[] threads = new Thread[3 + randomInt(7)];
@@ -327,51 +322,50 @@ public class ExportersTests extends ESTestCase {
 
         assertThat(exceptions, empty());
         for (Exporter exporter : exporters) {
-            assertThat(exporter, instanceOf(CountingExportFactory.CountingExporter.class));
-            assertThat(((CountingExportFactory.CountingExporter) exporter).getExportedCount(), equalTo(total));
+            assertThat(exporter, instanceOf(CountingExporter.class));
+            assertThat(((CountingExporter) exporter).getExportedCount(), equalTo(total));
         }
 
         exporters.close();
     }
 
-    static class TestFactory extends Exporter.Factory<TestFactory.TestExporter> {
-        public TestFactory(String type, boolean singleton) {
-            super(type, singleton);
+    static class TestExporter extends Exporter {
+        public TestExporter(Config config) {
+            super(config);
         }
 
         @Override
-        public TestExporter create(Exporter.Config config) {
-            return new TestExporter(type(), config);
+        public ExportBulk openBulk() {
+            return mock(ExportBulk.class);
         }
 
-        static class TestExporter extends Exporter {
-            public TestExporter(String type, Config config) {
-                super(type, config);
-            }
-
-            @Override
-            public ExportBulk openBulk() {
-                return mock(ExportBulk.class);
-            }
-
-            @Override
-            public void doClose() {
-            }
+        @Override
+        public void doClose() {
         }
     }
 
-    static class MockFactory extends Exporter.Factory<Exporter> {
+    static class TestSingletonExporter extends TestExporter {
+        TestSingletonExporter(Config config) {
+            super(config);
+        }
+
+        @Override
+        public boolean isSingleton() {
+            return true;
+        }
+    }
+
+
+    static class MockFactory implements Exporter.Factory {
         private final boolean masterOnly;
 
-        public MockFactory(String type, boolean masterOnly) {
-            super(type, false);
+        public MockFactory(boolean masterOnly) {
             this.masterOnly = masterOnly;
         }
 
         @Override
         public Exporter create(Exporter.Config config) {
             Exporter exporter = mock(Exporter.class);
-            when(exporter.type()).thenReturn(type());
             when(exporter.name()).thenReturn(config.name());
             when(exporter.masterOnly()).thenReturn(masterOnly);
             when(exporter.openBulk()).thenReturn(mock(ExportBulk.class));
@@ -379,73 +373,58 @@ public class ExportersTests extends ESTestCase {
         }
     }
 
-    /**
-     * A factory of exporters that count the number of exported documents.
-     */
-    static class CountingExportFactory extends Exporter.Factory<CountingExportFactory.CountingExporter> {
+    static class CountingExporter extends Exporter {
 
-        public CountingExportFactory(String type, boolean singleton) {
-            super(type, singleton);
+        private static final AtomicInteger count = new AtomicInteger(0);
+        private List<CountingBulk> bulks = new CopyOnWriteArrayList<>();
+
+        public CountingExporter(Config config) {
+            super(config);
         }
 
         @Override
-        public CountingExporter create(Exporter.Config config) {
-            return new CountingExporter(type(), config);
+        public ExportBulk openBulk() {
+            CountingBulk bulk = new CountingBulk(config.type() + "#" + count.getAndIncrement());
+            bulks.add(bulk);
+            return bulk;
         }
 
-        static class CountingExporter extends Exporter {
-
-            private static final AtomicInteger count = new AtomicInteger(0);
-            private List<CountingBulk> bulks = new CopyOnWriteArrayList<>();
-
-            public CountingExporter(String type, Config config) {
-                super(type, config);
-            }
-
-            @Override
-            public ExportBulk openBulk() {
-                CountingBulk bulk = new CountingBulk(type + "#" + count.getAndIncrement());
-                bulks.add(bulk);
-                return bulk;
-            }
-
-            @Override
-            public void doClose() {
-            }
-
-            public int getExportedCount() {
-                int exported = 0;
-                for (CountingBulk bulk : bulks) {
-                    exported += bulk.getCount();
-                }
-                return exported;
-            }
+        @Override
+        public void doClose() {
         }
 
-        static class CountingBulk extends ExportBulk {
-
-            private final AtomicInteger count = new AtomicInteger();
-
-            public CountingBulk(String name) {
-                super(name);
+        public int getExportedCount() {
+            int exported = 0;
+            for (CountingBulk bulk : bulks) {
+                exported += bulk.getCount();
             }
+            return exported;
+        }
+    }
 
-            @Override
-            protected void doAdd(Collection<MonitoringDoc> docs) throws ExportException {
-                count.addAndGet(docs.size());
-            }
+    static class CountingBulk extends ExportBulk {
 
-            @Override
-            protected void doFlush() {
-            }
+        private final AtomicInteger count = new AtomicInteger();
 
-            @Override
-            protected void doClose() throws ExportException {
-            }
+        public CountingBulk(String name) {
+            super(name);
+        }
 
-            int getCount() {
-                return count.get();
-            }
+        @Override
+        protected void doAdd(Collection<MonitoringDoc> docs) throws ExportException {
+            count.addAndGet(docs.size());
+        }
+
+        @Override
+        protected void doFlush() {
+        }
+
+        @Override
+        protected void doClose() throws ExportException {
+        }
+
+        int getCount() {
+            return count.get();
         }
     }
 }

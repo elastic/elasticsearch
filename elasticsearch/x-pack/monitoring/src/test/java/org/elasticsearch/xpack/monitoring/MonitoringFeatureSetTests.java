@@ -128,10 +128,10 @@ public class MonitoringFeatureSetTests extends ESTestCase {
 
     private Exporter mockExporter(String type, boolean enabled) {
         Exporter exporter = mock(Exporter.class);
-        when(exporter.type()).thenReturn(type);
         Exporter.Config enabledConfig = mock(Exporter.Config.class);
         when(enabledConfig.enabled()).thenReturn(enabled);
         when(exporter.config()).thenReturn(enabledConfig);
+        when(enabledConfig.type()).thenReturn(type);
         return exporter;
     }
 }

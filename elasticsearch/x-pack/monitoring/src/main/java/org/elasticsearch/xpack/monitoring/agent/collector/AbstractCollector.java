@@ -27,7 +27,6 @@ public abstract class AbstractCollector extends AbstractLifecycleComponent imple
     protected final MonitoringSettings monitoringSettings;
     protected final XPackLicenseState licenseState;
 
-    @Inject
     public AbstractCollector(Settings settings, String name, ClusterService clusterService,
                              MonitoringSettings monitoringSettings, XPackLicenseState licenseState) {
         super(settings);

@@ -71,7 +71,7 @@ public class MonitoringFeatureSet implements XPackFeatureSet {
         Map<String, Object> usage = new HashMap<>();
         for (Exporter exporter : exporters) {
             if (exporter.config().enabled()) {
-                String type = exporter.type();
+                String type = exporter.config().type();
                 int count = (Integer) usage.getOrDefault(type, 0);
                 usage.put(type, count + 1);
             }

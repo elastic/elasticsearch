@@ -19,7 +19,6 @@ public abstract class Exporter implements AutoCloseable {
     public static final String INDEX_NAME_TIME_FORMAT_SETTING = "index.name.time_format";
     public static final String BULK_TIMEOUT_SETTING = "bulk.timeout";
 
-    protected final String type;
     protected final Config config;
     protected final ESLogger logger;
 
@@ -27,15 +26,10 @@ public abstract class Exporter implements AutoCloseable {
 
     private AtomicBoolean closed = new AtomicBoolean(false);
 
-    public Exporter(String type, Config config) {
-        this.type = type;
+    public Exporter(Config config) {
         this.config = config;
         this.logger = config.logger(getClass());
         this.bulkTimeout = config.settings().getAsTime(BULK_TIMEOUT_SETTING, null);
-    }
-
-    public String type() {
-        return type;
     }
 
     public String name() {
@@ -47,6 +41,11 @@ public abstract class Exporter implements AutoCloseable {
     }
 
     public boolean masterOnly() {
+        return false;
+    }
+
+    /** Returns true if only one instance of this exporter should be allowed. */
+    public boolean isSingleton() {
         return false;
     }
 
@@ -76,12 +75,14 @@ public abstract class Exporter implements AutoCloseable {
     public static class Config {
 
         private final String name;
+        private final String type;
         private final boolean enabled;
         private final Settings globalSettings;
         private final Settings settings;
 
-        public Config(String name, Settings globalSettings, Settings settings) {
+        public Config(String name, String type, Settings globalSettings, Settings settings) {
             this.name = name;
+            this.type = type;
             this.globalSettings = globalSettings;
             this.settings = settings;
             this.enabled = settings.getAsBoolean("enabled", true);
@@ -89,6 +90,10 @@ public abstract class Exporter implements AutoCloseable {
 
         public String name() {
             return name;
+        }
+
+        public String type() {
+            return type;
         }
 
         public boolean enabled() {
@@ -104,24 +109,10 @@ public abstract class Exporter implements AutoCloseable {
         }
     }
 
-    public abstract static class Factory<E extends Exporter> {
+    /** A factory for constructing {@link Exporter} instances.*/
+    public interface Factory {
 
-        private final String type;
-        private final boolean singleton;
-
-        public Factory(String type, boolean singleton) {
-            this.type = type;
-            this.singleton = singleton;
-        }
-
-        public String type() {
-            return type;
-        }
-
-        public boolean singleton() {
-            return singleton;
-        }
-
-        public abstract E create(Config config);
+        /** Create an exporter with the given configuration. */
+        Exporter create(Config config);
     }
 }

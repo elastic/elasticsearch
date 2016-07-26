@@ -210,6 +210,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
 
     private void configureSocket(Socket socket) throws SocketException {
         socket.setTcpNoDelay(TCP_NO_DELAY.get(settings));
+        socket.setSoTimeout(15000);
         ByteSizeValue tcpSendBufferSize = TCP_SEND_BUFFER_SIZE.get(settings);
         if (tcpSendBufferSize.bytes() > 0) {
             socket.setSendBufferSize(tcpSendBufferSize.bytesAsInt());

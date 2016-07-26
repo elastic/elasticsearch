@@ -142,7 +142,8 @@ final class Bootstrap {
         JvmInfo.jvmInfo();
     }
 
-    private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
+    private void setup(boolean addShutdownHook, Environment environment) throws Exception {
+        Settings settings = environment.settings();
         initializeNatives(
                 environment.tmpFile(),
                 BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
@@ -171,7 +172,7 @@ final class Bootstrap {
         // install SM after natives, shutdown hooks, etc.
         Security.configure(environment, BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(settings));
 
-        node = new Node(settings) {
+        node = new Node(environment) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress) {
                 BootstrapCheck.check(settings, boundTransportAddress);
@@ -179,7 +180,7 @@ final class Bootstrap {
         };
     }
 
-    private static Environment initialSettings(boolean foreground, Path pidFile, Map<String, String> esSettings) {
+    private static Environment initialEnvironment(boolean foreground, Path pidFile, Map<String, String> esSettings) {
         Terminal terminal = foreground ? Terminal.DEFAULT : null;
         Settings.Builder builder = Settings.builder();
         if (pidFile != null) {
@@ -225,9 +226,8 @@ final class Bootstrap {
 
         INSTANCE = new Bootstrap();
 
-        Environment environment = initialSettings(foreground, pidFile, esSettings);
-        Settings settings = environment.settings();
-        LogConfigurator.configure(settings, true);
+        Environment environment = initialEnvironment(foreground, pidFile, esSettings);
+        LogConfigurator.configure(environment.settings(), true);
         checkForCustomConfFile();
 
         if (environment.pidFile() != null) {
@@ -250,9 +250,9 @@ final class Bootstrap {
             // initialized as we do not want to grant the runtime permission
             // setDefaultUncaughtExceptionHandler
             Thread.setDefaultUncaughtExceptionHandler(
-                new ElasticsearchUncaughtExceptionHandler(() -> Node.NODE_NAME_SETTING.get(settings)));
+                new ElasticsearchUncaughtExceptionHandler(() -> Node.NODE_NAME_SETTING.get(environment.settings())));
 
-            INSTANCE.setup(true, settings, environment);
+            INSTANCE.setup(true, environment);
 
             INSTANCE.start();
 
@@ -266,7 +266,7 @@ final class Bootstrap {
             }
             ESLogger logger = Loggers.getLogger(Bootstrap.class);
             if (INSTANCE.node != null) {
-                logger = Loggers.getLogger(Bootstrap.class, INSTANCE.node.settings().get("node.name"));
+                logger = Loggers.getLogger(Bootstrap.class, Node.NODE_NAME_SETTING.get(INSTANCE.node.settings()));
             }
             // HACK, it sucks to do this, but we will run users out of disk space otherwise
             if (e instanceof CreationException) {

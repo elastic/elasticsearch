@@ -107,12 +107,7 @@ public class LocalTransportChannel implements TransportChannel {
 
     private void sendResponseData(byte[] data) {
         close();
-        targetTransport.workers().execute(() -> {
-            ThreadContext threadContext = targetTransport.threadPool.getThreadContext();
-            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                targetTransport.messageReceived(data, action, sourceTransport, version, null);
-            }
-        });
+        targetTransport.receiveMessage(version, data, action, null, sourceTransport);
     }
 
     private void close() {

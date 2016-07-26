@@ -21,18 +21,13 @@ package org.elasticsearch.node.internal;
 
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -64,7 +59,7 @@ public class InternalSettingsPreparer {
     public static Settings prepareSettings(Settings input) {
         Settings.Builder output = Settings.builder();
         initializeSettings(output, input, true, Collections.emptyMap());
-        finalizeSettings(output, null, null);
+        finalizeSettings(output, null);
         return output.build();
     }
 
@@ -120,7 +115,7 @@ public class InternalSettingsPreparer {
         // re-initialize settings now that the config file has been loaded
         // TODO: only re-initialize if a config file was actually loaded
         initializeSettings(output, input, false, properties);
-        finalizeSettings(output, terminal, environment.configFile());
+        finalizeSettings(output, terminal);
 
         environment = new Environment(output.build());
 
@@ -145,9 +140,8 @@ public class InternalSettingsPreparer {
     /**
      * Finish preparing settings by replacing forced settings, prompts, and any defaults that need to be added.
      * The provided terminal is used to prompt for settings needing to be replaced.
-     * The provided configDir is optional and will be used to lookup names.txt if the node name is not set, if provided.
      */
-    private static void finalizeSettings(Settings.Builder output, Terminal terminal, Path configDir) {
+    private static void finalizeSettings(Settings.Builder output, Terminal terminal) {
         // allow to force set properties based on configuration of the settings provided
         List<String> forcedSettings = new ArrayList<>();
         for (String setting : output.internalMap().keySet()) {
@@ -167,42 +161,6 @@ public class InternalSettingsPreparer {
         }
 
         replacePromptPlaceholders(output, terminal);
-        // all settings placeholders have been resolved. resolve the value for the name setting by checking for name,
-        // then looking for node.name, and finally generate one if needed
-        String name = output.get("node.name");
-        if (name == null || name.isEmpty()) {
-            name = randomNodeName(configDir);
-            output.put("node.name", name);
-        }
-    }
-
-    private static String randomNodeName(Path configDir) {
-        InputStream input;
-        if (configDir != null && Files.exists(configDir.resolve("names.txt"))) {
-            Path namesPath = configDir.resolve("names.txt");
-            try {
-                input = Files.newInputStream(namesPath);
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to load custom names.txt from " + namesPath, e);
-            }
-        } else {
-            input = InternalSettingsPreparer.class.getResourceAsStream("/config/names.txt");
-        }
-
-        try {
-            List<String> names = new ArrayList<>();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
-                String name = reader.readLine();
-                while (name != null) {
-                    names.add(name);
-                    name = reader.readLine();
-                }
-            }
-            int index = Randomness.get().nextInt(names.size());
-            return names.get(index);
-        } catch (IOException e) {
-            throw new RuntimeException("Could not read node names list", e);
-        }
     }
 
     private static void replacePromptPlaceholders(Settings.Builder settings, Terminal terminal) {

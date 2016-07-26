@@ -377,9 +377,9 @@ For example, setting `discovery.gce.tags` to `dev` will only filter instances ha
 set will require all of those tags to be set for the instance to be included.
 
 One practical use for tag filtering is when an GCE cluster contains many nodes that are not running
-elasticsearch. In this case (particularly with high ping_timeout values) there is a risk that a new node's discovery
-phase will end before it has found the cluster (which will result in it declaring itself master of a new cluster
-with the same name - highly undesirable). Adding tag on elasticsearch GCE nodes and then filtering by that
+elasticsearch. In this case (particularly with high `discovery.zen.ping_timeout` values) there is a risk that a new
+node's discovery phase will end before it has found the cluster (which will result in it declaring itself master of a
+new cluster with the same name - highly undesirable). Adding tag on elasticsearch GCE nodes and then filtering by that
 tag will resolve this issue.
 
 Add your tag when building the new instance:

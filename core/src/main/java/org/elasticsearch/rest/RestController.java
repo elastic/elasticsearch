@@ -193,7 +193,7 @@ public class RestController extends AbstractLifecycleComponent {
         if (!checkRequestParameters(request, channel)) {
             return;
         }
-        try (ThreadContext.StoredContext t = threadContext.stashContext()) {
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
             for (String key : headersToCopy) {
                 String httpHeader = request.header(key);
                 if (httpHeader != null) {

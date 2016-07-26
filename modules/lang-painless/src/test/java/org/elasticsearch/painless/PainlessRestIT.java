@@ -21,14 +21,14 @@ package org.elasticsearch.painless;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
 
 /** Runs yaml rest tests */
-public class PainlessRestIT extends ESRestTestCase {
+public class PainlessRestIT extends ESClientYamlSuiteTestCase {
 
     public PainlessRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);
@@ -36,7 +36,7 @@ public class PainlessRestIT extends ESRestTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
-        return ESRestTestCase.createParameters(0, 1);
+        return ESClientYamlSuiteTestCase.createParameters(0, 1);
     }
 }
 

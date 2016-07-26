@@ -25,14 +25,20 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
+import java.util.Deque;
+import java.util.LinkedList;
 import java.util.Objects;
 
 public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<ReverseNestedAggregationBuilder> {
@@ -82,7 +88,40 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
     @Override
     protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
             throws IOException {
-        return new ReverseNestedAggregatorFactory(name, type, path, context, parent, subFactoriesBuilder, metaData);
+        if (findNestedAggregatorFactory(parent) == null) {
+            throw new SearchParseException(context.searchContext(),
+                    "Reverse nested aggregation [" + name + "] can only be used inside a [nested] aggregation", null);
+        }
+
+        ObjectMapper parentObjectMapper = null;
+        if (path != null) {
+            parentObjectMapper = context.searchContext().getObjectMapper(path);
+            if (parentObjectMapper == null) {
+                return new ReverseNestedAggregatorFactory(name, type, true, null, context, parent, subFactoriesBuilder, metaData);
+            }
+            if (parentObjectMapper.nested().isNested() == false) {
+                throw new AggregationExecutionException("[reverse_nested] nested path [" + path + "] is not nested");
+            }
+        }
+
+        NestedScope nestedScope = context.searchContext().getQueryShardContext().nestedScope();
+        try {
+            nestedScope.nextLevel(parentObjectMapper);
+            return new ReverseNestedAggregatorFactory(name, type, false, parentObjectMapper, context, parent, subFactoriesBuilder,
+                    metaData);
+        } finally {
+            nestedScope.previousLevel();
+        }
+    }
+
+    private static NestedAggregatorFactory findNestedAggregatorFactory(AggregatorFactory<?> parent) {
+        if (parent == null) {
+            return null;
+        } else if (parent instanceof NestedAggregatorFactory) {
+            return (NestedAggregatorFactory) parent;
+        } else {
+            return findNestedAggregatorFactory(parent.getParent());
+        }
     }
 
     @Override

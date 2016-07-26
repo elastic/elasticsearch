@@ -22,14 +22,14 @@ package org.elasticsearch.ingest.geoip;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
 import java.util.Collection;
 
-public class IngestGeoIpRestIT extends ESRestTestCase {
+public class IngestGeoIpRestIT extends ESClientYamlSuiteTestCase {
 
     public IngestGeoIpRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);
@@ -37,7 +37,7 @@ public class IngestGeoIpRestIT extends ESRestTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
-        return ESRestTestCase.createParameters(0, 1);
+        return ESClientYamlSuiteTestCase.createParameters(0, 1);
     }
 }
 

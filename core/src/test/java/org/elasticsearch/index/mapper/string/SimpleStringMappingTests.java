@@ -53,6 +53,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -301,6 +302,48 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
 
         mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping,  mapper.mappingSource().toString());
+
+        // special case: default search analyzer
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "string")
+            .field("analyzer", "keyword")
+            .endObject()
+            .endObject().endObject().endObject().string();
+
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping,  mapper.mappingSource().toString());
+
+        // special case: default search analyzer
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "string")
+            .field("analyzer", "keyword")
+            .field("search_analyzer", "default")
+            .endObject()
+            .endObject().endObject().endObject().string();
+
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping,  mapper.mappingSource().toString());
+
+
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "string")
+            .field("analyzer", "keyword")
+            .endObject()
+            .endObject().endObject().endObject().string();
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+
+        mapper.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true")));
+        String mappingString = builder.string();
+        assertTrue(mappingString.contains("analyzer"));
+        assertTrue(mappingString.contains("search_analyzer"));
+        assertTrue(mappingString.contains("search_quote_analyzer"));
     }
 
     private Map<String, Object> getSerializedMap(String fieldName, DocumentMapper mapper) throws Exception {

@@ -45,6 +45,10 @@
 
   - match: { shards_acknowledged: false }
 
+  - do:
+      cluster.health:
+          wait_for_events: urgent      
+
 ---
 "Create index with wait_for_active_shards set to all":
 

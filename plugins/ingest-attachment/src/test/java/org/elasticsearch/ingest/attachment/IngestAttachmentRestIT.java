@@ -21,13 +21,13 @@ package org.elasticsearch.ingest.attachment;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
 
-public class IngestAttachmentRestIT extends ESRestTestCase {
+public class IngestAttachmentRestIT extends ESClientYamlSuiteTestCase {
 
     public IngestAttachmentRestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);
@@ -35,7 +35,7 @@ public class IngestAttachmentRestIT extends ESRestTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
-        return ESRestTestCase.createParameters(0, 1);
+        return ESClientYamlSuiteTestCase.createParameters(0, 1);
     }
 }
 

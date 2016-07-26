@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.http.netty3.cors.Netty3CorsConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -83,6 +84,21 @@ public class Netty3HttpServerTransportTests extends ESTestCase {
         final Netty3HttpServerTransport transport = new Netty3HttpServerTransport(settings, networkService, bigArrays, threadPool);
         final Netty3CorsConfig corsConfig = transport.getCorsConfig();
         assertThat(corsConfig.isAnyOriginSupported(), equalTo(true));
+        assertThat(corsConfig.allowedRequestHeaders(), equalTo(headers));
+        assertThat(corsConfig.allowedRequestMethods().stream().map(HttpMethod::getName).collect(Collectors.toSet()), equalTo(methods));
+        transport.close();
+    }
+
+    public void testCorsConfigDefaults() {
+        final Set<String> headers = Sets.newHashSet("X-Requested-With", "Content-Type", "Content-Length");
+        final Set<String> methods = Sets.newHashSet("OPTIONS", "HEAD", "GET", "POST", "PUT", "DELETE");
+        final Settings settings = Settings.builder()
+                                      .put(SETTING_CORS_ENABLED.getKey(), true)
+                                      .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "*")
+                                      .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
+                                      .build();
+        final Netty3HttpServerTransport transport = new Netty3HttpServerTransport(settings, networkService, bigArrays, threadPool);
+        final Netty3CorsConfig corsConfig = transport.getCorsConfig();
         assertThat(corsConfig.allowedRequestHeaders(), equalTo(headers));
         assertThat(corsConfig.allowedRequestMethods().stream().map(HttpMethod::getName).collect(Collectors.toSet()), equalTo(methods));
         transport.close();

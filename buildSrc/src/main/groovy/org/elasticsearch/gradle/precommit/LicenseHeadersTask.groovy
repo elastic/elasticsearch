@@ -77,7 +77,7 @@ public class LicenseHeadersTask extends AntTask {
         if (categoryName.length() != 5) {
             throw new IllegalArgumentException("License category name must be exactly 5 characters, got ${categoryName}");
         }
-        additionalLicenses.put("${categoryName}${familyName}", pattern);
+        additionalLicenses.put(categoryName + familyName, pattern);
     }
 
     @Override

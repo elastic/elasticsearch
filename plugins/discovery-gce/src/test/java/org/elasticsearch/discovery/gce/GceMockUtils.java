@@ -37,7 +37,7 @@ import java.io.InputStream;
 import java.net.URL;
 
 public class GceMockUtils {
-    protected final static ESLogger logger = Loggers.getLogger(GceMockUtils.class);
+    protected static final ESLogger logger = Loggers.getLogger(GceMockUtils.class);
 
     public static final String GCE_METADATA_URL = "http://metadata.google.internal/computeMetadata/v1/instance";
 

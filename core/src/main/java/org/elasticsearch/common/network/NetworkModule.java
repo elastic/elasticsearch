@@ -38,16 +38,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
-
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * A module to handle registering and binding all network related classes.
@@ -83,10 +78,9 @@ public class NetworkModule extends AbstractModule {
      * @param settings The settings for the node
      * @param transportClient True if only transport classes should be allowed to be registered, false otherwise.
      * @param namedWriteableRegistry registry for named writeables for use during streaming
-     * @param discoveryPlugins Discovery plugins
      */
     public NetworkModule(NetworkService networkService, Settings settings, boolean transportClient,
-                         NamedWriteableRegistry namedWriteableRegistry, List<DiscoveryPlugin> discoveryPlugins) {
+                         NamedWriteableRegistry namedWriteableRegistry) {
         this.networkService = networkService;
         this.settings = settings;
         this.transportClient = transportClient;
@@ -96,7 +90,6 @@ public class NetworkModule extends AbstractModule {
         registerTaskStatus(ReplicationTask.Status.NAME, ReplicationTask.Status::new);
         registerTaskStatus(RawTaskStatus.NAME, RawTaskStatus::new);
         registerBuiltinAllocationCommands();
-        registerCustomNameResolvers(discoveryPlugins);
     }
 
     public boolean isTransportClient() {
@@ -142,18 +135,6 @@ public class NetworkModule extends AbstractModule {
         namedWriteableRegistry.register(AllocationCommand.class, commandName.getPreferredName(), reader);
     }
 
-    /**
-     * Register custom name resolver a DiscoveryPlugin might provide
-     * @param discoveryPlugins Discovery plugins
-     */
-    private void registerCustomNameResolvers(List<DiscoveryPlugin> discoveryPlugins) {
-        for (DiscoveryPlugin discoveryPlugin : discoveryPlugins) {
-            NetworkService.CustomNameResolver customNameResolver = discoveryPlugin.getCustomNameResolver(settings);
-            if (customNameResolver != null) {
-                this.networkService.addCustomNameResolver(customNameResolver);
-            }
-        }
-    }
     /**
      * The registry of allocation command parsers.
      */

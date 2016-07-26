@@ -34,6 +34,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
@@ -106,7 +107,7 @@ public class GceDiscoveryTests extends ESTestCase {
 
     protected List<DiscoveryNode> buildDynamicNodes(GceInstancesService gceInstancesService, Settings nodeSettings) {
         GceUnicastHostsProvider provider = new GceUnicastHostsProvider(nodeSettings, gceInstancesService,
-            transportService, new NetworkService(Settings.EMPTY));
+            transportService, new NetworkService(Settings.EMPTY, Collections.emptyList()));
 
         List<DiscoveryNode> discoveryNodes = provider.buildDynamicNodes();
         logger.info("--> nodes found: {}", discoveryNodes);

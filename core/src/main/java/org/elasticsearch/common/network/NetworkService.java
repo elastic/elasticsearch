@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.plugins.DiscoveryPlugin;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -33,7 +34,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -90,15 +90,12 @@ public class NetworkService extends AbstractComponent {
         InetAddress[] resolveIfPossible(String value) throws IOException;
     }
 
-    private final List<CustomNameResolver> customNameResolvers = new CopyOnWriteArrayList<>();;
+    private final List<CustomNameResolver> customNameResolvers;
 
-    public NetworkService(Settings settings) {
+    public NetworkService(Settings settings, List<CustomNameResolver> customNameResolvers) {
         super(settings);
         IfConfig.logIfNecessary();
-    }
-
-    public void addCustomNameResolver(CustomNameResolver customNameResolver) {
-        this.customNameResolvers.add(customNameResolver);
+        this.customNameResolvers = customNameResolvers;
     }
 
     /**
@@ -272,5 +269,20 @@ public class NetworkService extends AbstractComponent {
             }
         }
         return InetAddress.getAllByName(host);
+    }
+
+    /**
+     * Register custom name resolver a DiscoveryPlugin might provide
+     * @param discoveryPlugins Discovery plugins
+     */
+    public static List<CustomNameResolver> registerCustomNameResolvers(Settings settings, List<DiscoveryPlugin> discoveryPlugins) {
+        List<CustomNameResolver> customNameResolvers = new ArrayList<>();
+        for (DiscoveryPlugin discoveryPlugin : discoveryPlugins) {
+            NetworkService.CustomNameResolver customNameResolver = discoveryPlugin.getCustomNameResolver(settings);
+            if (customNameResolver != null) {
+                customNameResolvers.add(customNameResolver);
+            }
+        }
+        return customNameResolvers;
     }
 }

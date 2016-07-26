@@ -133,8 +133,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.network.NetworkService.registerCustomNameResolvers;
 
 /**
  * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
@@ -264,7 +265,8 @@ public class Node implements Closeable {
                 throw new IllegalStateException("Failed to created node environment", ex);
             }
             resourcesToClose.add(resourceWatcherService);
-            final NetworkService networkService = new NetworkService(settings);
+            final NetworkService networkService = new NetworkService(settings,
+                registerCustomNameResolvers(settings, pluginsService.filterPlugins(DiscoveryPlugin.class)));
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             clusterService.add(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
@@ -281,8 +283,7 @@ public class Node implements Closeable {
             }
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             modules.add(new NodeModule(this, monitorService));
-            modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry,
-                pluginsService.filterPlugins(DiscoveryPlugin.class)));
+            modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
             modules.add(new DiscoveryModule(this.settings));
             ClusterModule clusterModule = new ClusterModule(settings, clusterService);
             modules.add(clusterModule);

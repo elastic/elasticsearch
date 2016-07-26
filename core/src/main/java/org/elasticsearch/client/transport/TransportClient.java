@@ -64,6 +64,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportService;
 
+import static org.elasticsearch.common.network.NetworkService.registerCustomNameResolvers;
+
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
  * or more nodes directly by adding their respective addresses using {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
@@ -106,7 +108,8 @@ public abstract class TransportClient extends AbstractClient {
         final List<Closeable> resourcesToClose = new ArrayList<>();
         final ThreadPool threadPool = new ThreadPool(settings);
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
-        final NetworkService networkService = new NetworkService(settings);
+        final NetworkService networkService = new NetworkService(settings,
+            registerCustomNameResolvers(settings, pluginsService.filterPlugins(DiscoveryPlugin.class)));
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         try {
             final List<Setting<?>> additionalSettings = new ArrayList<>();
@@ -123,7 +126,7 @@ public abstract class TransportClient extends AbstractClient {
             for (Module pluginModule : pluginsService.createGuiceModules()) {
                 modules.add(pluginModule);
             }
-            modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry, pluginsService.filterPlugins(DiscoveryPlugin.class)));
+            modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));
             modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
             modules.add(new SearchModule(settings, namedWriteableRegistry, true, pluginsService.filterPlugins(SearchPlugin.class)));
             ActionModule actionModule = new ActionModule(false, true, settings, null, settingsModule.getClusterSettings(),

@@ -75,8 +75,7 @@ public class ClusterRerouteRequestTests extends ESTestCase {
 
     public ClusterRerouteRequestTests() {
         namedWriteableRegistry = new NamedWriteableRegistry();
-        allocationCommandRegistry = new NetworkModule(null, null, true, namedWriteableRegistry, Collections.emptyList())
-            .getAllocationCommandRegistry();
+        allocationCommandRegistry = new NetworkModule(null, null, true, namedWriteableRegistry).getAllocationCommandRegistry();
     }
 
     private ClusterRerouteRequest randomRequest() {

@@ -42,18 +42,18 @@ import java.util.Objects;
  * Class responsible for sniffing the http hosts from elasticsearch through the nodes info api and returning them back.
  * Compatible with elasticsearch 5.x and 2.x.
  */
-public final class ElasticssearchHostsSniffer implements HostsSniffer {
+public final class ElasticsearchHostsSniffer implements HostsSniffer {
 
-    private static final Log logger = LogFactory.getLog(ElasticssearchHostsSniffer.class);
+    private static final Log logger = LogFactory.getLog(ElasticsearchHostsSniffer.class);
 
     private final RestClient restClient;
     private final Map<String, String> sniffRequestParams;
     private final Scheme scheme;
     private final JsonFactory jsonFactory = new JsonFactory();
 
-    public ElasticssearchHostsSniffer(RestClient restClient, long sniffRequestTimeoutMillis, Scheme scheme) {
+    public ElasticsearchHostsSniffer(RestClient restClient, long sniffRequestTimeoutMillis, Scheme scheme) {
         this.restClient = Objects.requireNonNull(restClient, "restClient cannot be null");
-        if(sniffRequestTimeoutMillis < 0) {
+        if (sniffRequestTimeoutMillis < 0) {
             throw new IllegalArgumentException("sniffRequestTimeoutMillis must be greater than 0");
         }
         this.sniffRequestParams = Collections.<String, String>singletonMap("timeout", sniffRequestTimeoutMillis + "ms");

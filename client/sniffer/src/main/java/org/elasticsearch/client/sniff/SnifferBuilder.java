@@ -37,10 +37,10 @@ public final class SnifferBuilder {
     private long sniffAfterFailureDelayMillis = DEFAULT_SNIFF_AFTER_FAILURE_DELAY;
     private HostsSniffer hostsSniffer;
     private long sniffRequestTimeoutMillis = DEFAULT_SNIFF_REQUEST_TIMEOUT;
-    private ElasticssearchHostsSniffer.Scheme scheme = ElasticssearchHostsSniffer.Scheme.HTTP;
+    private ElasticsearchHostsSniffer.Scheme scheme = ElasticsearchHostsSniffer.Scheme.HTTP;
 
     /**
-     * Creates a new builder instance by providing the {@link RestClient} that will be used to communicate with elasticsearch,
+     * Creates a new builder instance by providing the {@link RestClient} that will be used to communicate with elasticsearch
      */
     SnifferBuilder(RestClient restClient) {
         Objects.requireNonNull(restClient, "restClient cannot be null");
@@ -72,8 +72,8 @@ public final class SnifferBuilder {
     }
 
     /**
-     * Sets the {@link HostsSniffer} to be used to read hosts. A default instance of {@link ElasticssearchHostsSniffer}
-     * is created when not provided. This method can be used to change the configuration of the {@link ElasticssearchHostsSniffer},
+     * Sets the {@link HostsSniffer} to be used to read hosts. A default instance of {@link ElasticsearchHostsSniffer}
+     * is created when not provided. This method can be used to change the configuration of the {@link ElasticsearchHostsSniffer},
      * or to provide a different implementation (e.g. in case hosts need to taken from a different source).
      */
     public SnifferBuilder setHostsSniffer(HostsSniffer hostsSniffer) {
@@ -87,7 +87,7 @@ public final class SnifferBuilder {
      */
     public Sniffer build() {
         if (hostsSniffer == null) {
-            this.hostsSniffer = new ElasticssearchHostsSniffer(restClient, sniffRequestTimeoutMillis, scheme);
+            this.hostsSniffer = new ElasticsearchHostsSniffer(restClient, sniffRequestTimeoutMillis, scheme);
         }
         return new Sniffer(restClient, hostsSniffer, sniffIntervalMillis, sniffAfterFailureDelayMillis);
     }

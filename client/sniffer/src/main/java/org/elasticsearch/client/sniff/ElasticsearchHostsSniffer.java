@@ -55,8 +55,9 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
     private final JsonFactory jsonFactory = new JsonFactory();
 
     /**
-     * Creates a new instance of the Elasticsearch sniffer. It will use the provided {@link RestClient} to fetch the hoss,
-     * the default sniff request timeout value {@link #DEFAULT_SNIFF_REQUEST_TIMEOUT} and http as the scheme for all the hosts.
+     * Creates a new instance of the Elasticsearch sniffer. It will use the provided {@link RestClient} to fetch the hosts,
+     * through the nodes info api, the default sniff request timeout value {@link #DEFAULT_SNIFF_REQUEST_TIMEOUT} and http
+     * as the scheme for all the hosts.
      * @param restClient client used to fetch the hosts from elasticsearch through nodes info api. Usually the same instance
      *                   that is also provided to {@link Sniffer#builder(RestClient)}, so that the hosts are set to the same
      *                   client that was used to fetch them.

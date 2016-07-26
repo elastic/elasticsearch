@@ -64,6 +64,15 @@ public class LicenseHeadersTask extends AntTask {
         }
     }
 
+    /**
+     * Add a new license type.
+     *
+     * The license may be added to the {@link #approvedLicenses} using the {@code familyName}.
+     *
+     * @param categoryName A 5-character string identifier for the license
+     * @param familyName An expanded string name for the license
+     * @param pattern A pattern to search for, which if found, indicates a file contains the license
+     */
     public void additionalLicense(String categoryName, String familyName, String pattern) {
         if (categoryName.length() != 5) {
             throw new IllegalArgumentException("License category name must be exactly 5 characters, got ${categoryName}");

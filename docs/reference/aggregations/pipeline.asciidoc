@@ -150,7 +150,7 @@ used here to filter out buckets which contain no buckets for an inner terms aggr
         "min_bucket_selector": {
           "bucket_selector": {
             "buckets_path": {
-              "count": "categories._bucket_count"
+              "count": "categories._bucket_count" <1>
             },
             "script": {
               "inline": "count != 0"

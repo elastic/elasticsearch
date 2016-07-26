@@ -40,17 +40,8 @@ public class IndexResponse extends DocWriteResponse {
 
     }
 
-    @Override
-    public Operation getOperation() {
-        return isCreated() ? Operation.CREATE : Operation.INDEX;
-    }
-
     public IndexResponse(ShardId shardId, String type, String id, long version, boolean created) {
-        super(shardId, type, id, version, toOperation(created));
-    }
-
-    public static Operation toOperation(boolean created) {
-        return created ? Operation.CREATE : Operation.INDEX;
+        super(shardId, type, id, version, created ? Operation.CREATE : Operation.INDEX);
     }
 
     /**
@@ -66,16 +57,6 @@ public class IndexResponse extends DocWriteResponse {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-    }
-
-    @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
         builder.append("IndexResponse[");
@@ -83,20 +64,15 @@ public class IndexResponse extends DocWriteResponse {
         builder.append(",type=").append(getType());
         builder.append(",id=").append(getId());
         builder.append(",version=").append(getVersion());
-        builder.append(",created=").append(isCreated());
         builder.append(",operation=").append(getOperation().getLowercase());
         builder.append(",shards=").append(getShardInfo());
         return builder.append("]").toString();
     }
 
-    static final class Fields {
-        static final String CREATED = "created";
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         super.toXContent(builder, params);
-        builder.field(Fields.CREATED, isCreated());
+        builder.field("created", isCreated());
         return builder;
     }
 }

@@ -127,7 +127,6 @@ public class UpdateResponse extends DocWriteResponse {
         builder.append(",type=").append(getType());
         builder.append(",id=").append(getId());
         builder.append(",version=").append(getVersion());
-        builder.append(",created=").append(isCreated());
         builder.append(",operation=").append(getOperation().getLowercase());
         builder.append(",shards=").append(getShardInfo());
         return builder.append("]").toString();

@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
@@ -38,7 +39,7 @@ import java.util.Locale;
  */
 public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, StatusToXContent {
 
-    public enum Operation {
+    public enum Operation implements Writeable {
         CREATE(0),
         INDEX(1),
         DELETE(2),
@@ -56,12 +57,13 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             return op;
         }
 
-        public String getLowercase(){
+        public String getLowercase() {
             return lowercase;
         }
 
-        public static final Operation formOperation(byte opcode) {
-            switch(opcode) {
+        public static Operation readFrom(StreamInput in) throws IOException{
+            Byte opcode = in.readByte();
+            switch(opcode){
                 case 0:
                     return CREATE;
                 case 1:
@@ -73,6 +75,11 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
                 default:
                     throw new IllegalArgumentException("Unknown operation code: " + opcode);
             }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByte(op);
         }
     }
 
@@ -166,7 +173,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         id = in.readString();
         version = in.readZLong();
         forcedRefresh = in.readBoolean();
-        operation = Operation.formOperation(in.readByte());
+        operation = Operation.readFrom(in);
     }
 
     @Override
@@ -177,25 +184,17 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         out.writeString(id);
         out.writeZLong(version);
         out.writeBoolean(forcedRefresh);
-        out.writeByte(getOperation().getOp());
-    }
-
-    static final class Fields {
-        static final String _INDEX = "_index";
-        static final String _TYPE = "_type";
-        static final String _ID = "_id";
-        static final String _VERSION = "_version";
-        static final String _OPERATION = "_operation";
+        operation.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         ReplicationResponse.ShardInfo shardInfo = getShardInfo();
-        builder.field(Fields._INDEX, shardId.getIndexName())
-            .field(Fields._TYPE, type)
-            .field(Fields._ID, id)
-            .field(Fields._VERSION, version)
-            .field(Fields._OPERATION, getOperation().getLowercase())
+        builder.field("_index", shardId.getIndexName())
+            .field("_type", type)
+            .field("_id", id)
+            .field("_version", version)
+            .field("_operation", getOperation().getLowercase())
             .field("forced_refresh", forcedRefresh);
         shardInfo.toXContent(builder, params);
         return builder;

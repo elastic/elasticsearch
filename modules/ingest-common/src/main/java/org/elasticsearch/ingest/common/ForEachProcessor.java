@@ -62,11 +62,12 @@ public final class ForEachProcessor extends AbstractProcessor {
         List<Object> values = ingestDocument.getFieldValue(field, List.class);
         List<Object> newValues = new ArrayList<>(values.size());
         for (Object value : values) {
-            Map<String, Object> innerSource = new HashMap<>(ingestDocument.getSourceAndMetadata());
-            innerSource.put("_value", value); // scalar value to access the list item being evaluated
-            IngestDocument innerIngestDocument = new IngestDocument(innerSource, ingestDocument.getIngestMetadata());
-            processor.execute(innerIngestDocument);
-            newValues.add(innerSource.get("_value"));
+            Object previousValue = ingestDocument.getIngestMetadata().put("_value", value);
+            try {
+                processor.execute(ingestDocument);
+            } finally {
+                newValues.add(ingestDocument.getIngestMetadata().put("_value", previousValue));
+            }
         }
         ingestDocument.setFieldValue(field, newValues);
     }

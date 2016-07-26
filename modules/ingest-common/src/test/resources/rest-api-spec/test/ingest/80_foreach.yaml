@@ -19,7 +19,7 @@ teardown:
                   "field" : "values",
                   "processor" : {
                       "uppercase" : {
-                        "field" : "_value"
+                        "field" : "_ingest._value"
                       }
                   }
                 }

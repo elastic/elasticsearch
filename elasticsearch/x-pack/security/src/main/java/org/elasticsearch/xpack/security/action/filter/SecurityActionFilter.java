@@ -22,13 +22,14 @@ import org.elasticsearch.license.plugin.core.LicenseUtils;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication;
+import org.elasticsearch.xpack.security.authc.AuthenticationService;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.action.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.privilege.HealthAndStatsPrivilege;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
@@ -60,7 +61,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
 
     @Inject
     public SecurityActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService,
-                                CryptoService cryptoService, AuditTrail auditTrail, SecurityLicenseState licenseState,
+                                CryptoService cryptoService, AuditTrailService auditTrail, SecurityLicenseState licenseState,
                                 SecurityActionMapper actionMapper, Set<RequestInterceptor> requestInterceptors, ThreadPool threadPool,
                                 SecurityContext securityContext) {
         super(settings);

@@ -7,19 +7,20 @@ package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 
-public class MonitoringWithSecurityInsufficientRoleIT extends ESRestTestCase {
+public class MonitoringWithSecurityInsufficientRoleIT extends ESClientYamlSuiteTestCase {
 
     public MonitoringWithSecurityInsufficientRoleIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);
@@ -27,7 +28,7 @@ public class MonitoringWithSecurityInsufficientRoleIT extends ESRestTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
-        return ESRestTestCase.createParameters(0, 1);
+        return ESClientYamlSuiteTestCase.createParameters(0, 1);
     }
 
     @Override

@@ -289,6 +289,21 @@ public class HttpInputTests extends ESTestCase {
         assertThat(result.payload().data(), not(hasKey("foo")));
     }
 
+    public void testThatStatusCodeIsSetInResultAndPayload() throws Exception {
+        HttpResponse response = new HttpResponse(200);
+        when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
+
+        HttpRequestTemplate.Builder request = HttpRequestTemplate.builder("localhost", 8080);
+        HttpInput httpInput = InputBuilders.httpInput(request.build()).build();
+        ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
+
+        WatchExecutionContext ctx = createWatchExecutionContext();
+        HttpInput.Result result = input.execute(ctx, new Payload.Simple());
+        assertThat(result.statusCode, is(200));
+        assertThat(result.payload().data(), hasKey("_status_code"));
+        assertThat(result.payload().data().get("_status_code"), is(200));
+    }
+
     private WatchExecutionContext createWatchExecutionContext() {
         Watch watch = new Watch("test-watch",
                 new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),

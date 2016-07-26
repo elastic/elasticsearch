@@ -10,8 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.core.LicenseState;
-import org.elasticsearch.license.plugin.core.LicensesService;
+import org.elasticsearch.license.plugin.core.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.MockNetty3Plugin;
@@ -124,40 +123,40 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
         wipeAllLicenses();
         internalCluster().startNode();
         ensureGreen();
-        assertLicenseState(LicenseState.ENABLED);
+        assertLicenseState(true);
         logger.info("--> restart node");
         internalCluster().fullRestart();
         ensureYellow();
         logger.info("--> await node for enabled");
-        assertLicenseState(LicenseState.ENABLED);
+        assertLicenseState(true);
     }
 
     public void testClusterRestartWhileGrace() throws Exception {
         wipeAllLicenses();
         internalCluster().startNode();
-        assertLicenseState(LicenseState.ENABLED);
+        assertLicenseState(true);
         putLicense(TestUtils.generateSignedLicense(TimeValue.timeValueMillis(0)));
         ensureGreen();
-        assertLicenseState(LicenseState.GRACE_PERIOD);
+        assertLicenseState(true);
         logger.info("--> restart node");
         internalCluster().fullRestart();
         ensureYellow();
         logger.info("--> await node for grace_period");
-        assertLicenseState(LicenseState.GRACE_PERIOD);
+        assertLicenseState(true);
     }
 
     public void testClusterRestartWhileExpired() throws Exception {
         wipeAllLicenses();
         internalCluster().startNode();
         ensureGreen();
-        assertLicenseState(LicenseState.ENABLED);
-        putLicense(TestUtils.generateExpiredLicense(System.currentTimeMillis() - LicenseState.GRACE_PERIOD_DURATION.getMillis()));
-        assertLicenseState(LicenseState.DISABLED);
+        assertLicenseState(true);
+        putLicense(TestUtils.generateExpiredLicense(System.currentTimeMillis() - LicenseService.GRACE_PERIOD_DURATION.getMillis()));
+        assertLicenseState(false);
         logger.info("--> restart node");
         internalCluster().fullRestart();
         ensureYellow();
         logger.info("--> await node for disabled");
-        assertLicenseState(LicenseState.DISABLED);
+        assertLicenseState(false);
     }
 
     public void testClusterNotRecovered() throws Exception {
@@ -165,13 +164,13 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
         internalCluster().startNode(nodeSettingsBuilder(0).put("discovery.zen.minimum_master_nodes", 2).put("node.master", true));
         logger.info("--> start second master out of two [recovered state]");
         internalCluster().startNode(nodeSettingsBuilder(1).put("discovery.zen.minimum_master_nodes", 2).put("node.master", true));
-        assertLicenseState(LicenseState.ENABLED);
+        assertLicenseState(true);
     }
 
-    private void assertLicenseState(LicenseState state) throws InterruptedException {
+    private void assertLicenseState(boolean active) throws InterruptedException {
         boolean success = awaitBusy(() -> {
-            for (LicensesService service : internalCluster().getDataNodeInstances(LicensesService.class)) {
-                if (service.licenseeStatus().getLicenseState() == state) {
+            for (LicenseService service : internalCluster().getDataNodeInstances(LicenseService.class)) {
+                if (service.licenseeStatus(service.getLicense()).isActive() == active) {
                     return true;
                 }
             }
@@ -182,8 +181,8 @@ public class LicensesServiceClusterTests extends AbstractLicensesIntegrationTest
 
     private void assertOperationMode(License.OperationMode operationMode) throws InterruptedException {
         boolean success = awaitBusy(() -> {
-            for (LicensesService service : internalCluster().getDataNodeInstances(LicensesService.class)) {
-                if (service.licenseeStatus().getMode() == operationMode) {
+            for (LicenseService service : internalCluster().getDataNodeInstances(LicenseService.class)) {
+                if (service.licenseeStatus(service.getLicense()).getMode() == operationMode) {
                     return true;
                 }
             }

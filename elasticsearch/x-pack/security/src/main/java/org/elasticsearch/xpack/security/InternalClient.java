@@ -20,7 +20,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.authc.Authentication;
-import org.elasticsearch.xpack.security.authc.InternalAuthenticationService;
+import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.user.XPackUser;
 
@@ -43,7 +43,7 @@ public class InternalClient extends FilterClient {
     public InternalClient(Settings settings, ThreadPool threadPool, Client in, CryptoService cryptoService) {
         super(settings, threadPool, in);
         this.cryptoService = cryptoService;
-        this.signUserHeader = InternalAuthenticationService.SIGN_USER_HEADER.get(settings);
+        this.signUserHeader = AuthenticationService.SIGN_USER_HEADER.get(settings);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
     }
 

@@ -69,8 +69,7 @@ import org.elasticsearch.xpack.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.authc.AuthenticationModule;
-import org.elasticsearch.xpack.security.authc.InternalAuthenticationService;
+import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.support.clock.SystemClock;
@@ -170,7 +169,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
         if (transportClientMode == false) {
             modules.add(new TextTemplateModule());
-            // Note: this only exists so LicensesService subclasses can be bound in mock tests
+            // Note: this only exists so LicenseService subclasses can be bound in mock tests
             modules.addAll(licensing.nodeModules());
         }
         return modules;
@@ -180,7 +179,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
         ArrayList<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         services.addAll(notification.nodeServices());
-        services.addAll(security.nodeServices());
         services.addAll(monitoring.nodeServices());
         return services;
     }
@@ -223,8 +221,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         }
         Set<String> headers = new HashSet<>();
         headers.add(UsernamePasswordToken.BASIC_AUTH_HEADER);
-        if (InternalAuthenticationService.RUN_AS_ENABLED.get(settings)) {
-            headers.add(InternalAuthenticationService.RUN_AS_USER_HEADER);
+        if (AuthenticationService.RUN_AS_ENABLED.get(settings)) {
+            headers.add(AuthenticationService.RUN_AS_USER_HEADER);
         }
         headers.addAll(extensionsService.getExtensions().stream()
             .flatMap(e -> e.getRestHeaders().stream()).collect(Collectors.toList()));
@@ -313,12 +311,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         return security.getProcessors(parameters);
-    }
-
-    public void onModule(AuthenticationModule module) {
-        if (extensionsService != null) {
-            extensionsService.onModule(module);
-        }
     }
 
     public void onIndexModule(IndexModule module) {

@@ -13,10 +13,10 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestFilterChain;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.security.authc.Authentication;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.SecurityLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.junit.Before;
 
 import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;

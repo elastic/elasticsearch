@@ -7,9 +7,7 @@ package org.elasticsearch.xpack.security.authz.indicesresolver;
 
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
@@ -19,8 +17,8 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.util.ArrayList;

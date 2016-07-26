@@ -6,6 +6,7 @@
 package org.elasticsearch.integration;
 
 import org.apache.http.Header;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
@@ -13,15 +14,14 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
+import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -79,50 +79,42 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
                 UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
                         new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray())));
 
-        StringEntity body = new StringEntity("{\"test\":\"test\"}", RestClient.JSON_CONTENT_TYPE);
-        try (Response response = getRestClient().performRequest("PUT", path, Collections.emptyMap(), body, basicAuthHeader)) {
-            assertThat(response.getStatusLine().getStatusCode(), equalTo(201));
-        }
+        StringEntity body = new StringEntity("{\"test\":\"test\"}", ContentType.APPLICATION_JSON);
+        Response response = getRestClient().performRequest("PUT", path, Collections.emptyMap(), body, basicAuthHeader);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(201));
 
-        try (Response response = getRestClient().performRequest("GET", path, basicAuthHeader)) {
-            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-            assertThat(EntityUtils.toString(response.getEntity()), containsString("\"test\":\"test\""));
-        }
+        response = getRestClient().performRequest("GET", path, basicAuthHeader);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        assertThat(EntityUtils.toString(response.getEntity()), containsString("\"test\":\"test\""));
 
         if (randomBoolean()) {
             flushAndRefresh();
         }
 
         //update with new field
-        body = new StringEntity("{\"doc\": {\"not test\": \"not test\"}}", RestClient.JSON_CONTENT_TYPE);
-        try (Response response = getRestClient().performRequest("POST", path + "/_update",
-                Collections.emptyMap(), body, basicAuthHeader)) {
-            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        }
+        body = new StringEntity("{\"doc\": {\"not test\": \"not test\"}}", ContentType.APPLICATION_JSON);
+        response = getRestClient().performRequest("POST", path + "/_update", Collections.emptyMap(), body, basicAuthHeader);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 
-        try (Response response = getRestClient().performRequest("GET", path, basicAuthHeader)) {
-            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-            String responseBody = EntityUtils.toString(response.getEntity());
-            assertThat(responseBody, containsString("\"test\":\"test\""));
-            assertThat(responseBody, containsString("\"not test\":\"not test\""));
-        }
+        response = getRestClient().performRequest("GET", path, basicAuthHeader);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        String responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, containsString("\"test\":\"test\""));
+        assertThat(responseBody, containsString("\"not test\":\"not test\""));
 
         // this part is important. Without this, the document may be read from the translog which would bypass the bug where
         // FLS kicks in because the request can't be found and only returns meta fields
         flushAndRefresh();
 
         body = new StringEntity("{\"update\": {\"_index\": \"index1\", \"_type\": \"type\", \"_id\": \"1\"}}\n" +
-                "{\"doc\": {\"bulk updated\":\"bulk updated\"}}\n", RestClient.JSON_CONTENT_TYPE);
-        try (Response response = getRestClient().performRequest("POST", "/_bulk",
-                Collections.emptyMap(), body, basicAuthHeader)) {
-            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        }
+                "{\"doc\": {\"bulk updated\":\"bulk updated\"}}\n", ContentType.APPLICATION_JSON);
+        response = getRestClient().performRequest("POST", "/_bulk", Collections.emptyMap(), body, basicAuthHeader);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 
-        try (Response response = getRestClient().performRequest("GET", path, basicAuthHeader)) {
-            String responseBody = EntityUtils.toString(response.getEntity());
-            assertThat(responseBody, containsString("\"test\":\"test\""));
-            assertThat(responseBody, containsString("\"not test\":\"not test\""));
-            assertThat(responseBody, containsString("\"bulk updated\":\"bulk updated\""));
-        }
+        response = getRestClient().performRequest("GET", path, basicAuthHeader);
+        responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, containsString("\"test\":\"test\""));
+        assertThat(responseBody, containsString("\"not test\":\"not test\""));
+        assertThat(responseBody, containsString("\"bulk updated\":\"bulk updated\""));
     }
 }

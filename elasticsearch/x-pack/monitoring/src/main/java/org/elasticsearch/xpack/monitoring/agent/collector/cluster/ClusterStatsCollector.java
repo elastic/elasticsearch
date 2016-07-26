@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.plugin.core.LicenseUtils;
-import org.elasticsearch.license.plugin.core.LicensesService;
+import org.elasticsearch.license.plugin.core.LicenseService;
 import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.agent.collector.AbstractCollector;
@@ -40,16 +40,16 @@ public class ClusterStatsCollector extends AbstractCollector {
 
     public static final String NAME = "cluster-stats-collector";
 
-    private final LicensesService licensesService;
+    private final LicenseService licenseService;
     private final Client client;
 
     @Inject
     public ClusterStatsCollector(Settings settings, ClusterService clusterService,
                                  MonitoringSettings monitoringSettings, MonitoringLicensee licensee, InternalClient client,
-                                 LicensesService licensesService) {
+                                 LicenseService licenseService) {
         super(settings, NAME, clusterService, monitoringSettings, licensee);
         this.client = client;
-        this.licensesService = licensesService;
+        this.licenseService = licenseService;
     }
 
     @Override
@@ -85,7 +85,7 @@ public class ClusterStatsCollector extends AbstractCollector {
         clusterInfoDoc.setSourceNode(sourceNode);
         clusterInfoDoc.setClusterName(clusterService.getClusterName().value());
         clusterInfoDoc.setVersion(Version.CURRENT.toString());
-        clusterInfoDoc.setLicense(licensesService.getLicense());
+        clusterInfoDoc.setLicense(licenseService.getLicense());
         clusterInfoDoc.setClusterStats(clusterStats);
         results.add(clusterInfoDoc);
 

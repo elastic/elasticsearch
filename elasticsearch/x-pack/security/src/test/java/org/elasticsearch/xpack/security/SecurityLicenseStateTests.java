@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.License.OperationMode;
-import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.xpack.security.SecurityLicenseState.EnabledRealmType;
 import org.elasticsearch.test.ESTestCase;
@@ -31,8 +30,7 @@ public class SecurityLicenseStateTests extends ESTestCase {
 
     public void testBasic() {
         SecurityLicenseState licenseState = new SecurityLicenseState();
-        licenseState.updateStatus(new Licensee.Status(License.OperationMode.BASIC,
-                randomBoolean() ? LicenseState.ENABLED : LicenseState.GRACE_PERIOD));
+        licenseState.updateStatus(new Licensee.Status(License.OperationMode.BASIC, true));
 
         assertThat(licenseState.authenticationAndAuthorizationEnabled(), is(false));
         assertThat(licenseState.ipFilteringEnabled(), is(false));
@@ -44,7 +42,7 @@ public class SecurityLicenseStateTests extends ESTestCase {
 
     public void testBasicExpired() {
         SecurityLicenseState licenseState = new SecurityLicenseState();
-        licenseState.updateStatus(new Licensee.Status(License.OperationMode.BASIC, LicenseState.DISABLED));
+        licenseState.updateStatus(new Licensee.Status(License.OperationMode.BASIC, false));
 
         assertThat(licenseState.authenticationAndAuthorizationEnabled(), is(false));
         assertThat(licenseState.ipFilteringEnabled(), is(false));
@@ -56,8 +54,7 @@ public class SecurityLicenseStateTests extends ESTestCase {
 
     public void testStandard() {
         SecurityLicenseState licenseState = new SecurityLicenseState();
-        licenseState.updateStatus(new Licensee.Status(OperationMode.STANDARD,
-                randomBoolean() ? LicenseState.ENABLED : LicenseState.GRACE_PERIOD));
+        licenseState.updateStatus(new Licensee.Status(OperationMode.STANDARD, true));
 
         assertThat(licenseState.authenticationAndAuthorizationEnabled(), is(true));
         assertThat(licenseState.ipFilteringEnabled(), is(false));
@@ -69,7 +66,7 @@ public class SecurityLicenseStateTests extends ESTestCase {
 
     public void testStandardExpired() {
         SecurityLicenseState licenseState = new SecurityLicenseState();
-        licenseState.updateStatus(new Licensee.Status(OperationMode.STANDARD, LicenseState.DISABLED));
+        licenseState.updateStatus(new Licensee.Status(OperationMode.STANDARD, false));
 
         assertThat(licenseState.authenticationAndAuthorizationEnabled(), is(true));
         assertThat(licenseState.ipFilteringEnabled(), is(false));
@@ -81,8 +78,7 @@ public class SecurityLicenseStateTests extends ESTestCase {
 
     public void testGold() {
         SecurityLicenseState licenseState = new SecurityLicenseState();
-        licenseState.updateStatus(new Licensee.Status(License.OperationMode.GOLD,
-                randomBoolean() ? LicenseState.ENABLED : LicenseState.GRACE_PERIOD));
+        licenseState.updateStatus(new Licensee.Status(License.OperationMode.GOLD, true));
 
         assertThat(licenseState.authenticationAndAuthorizationEnabled(), is(true));
         assertThat(licenseState.ipFilteringEnabled(), is(true));
@@ -94,7 +90,7 @@ public class SecurityLicenseStateTests extends ESTestCase {
 
     public void testGoldExpired() {
         SecurityLicenseState licenseState = new SecurityLicenseState();
-        licenseState.updateStatus(new Licensee.Status(License.OperationMode.GOLD, LicenseState.DISABLED));
+        licenseState.updateStatus(new Licensee.Status(License.OperationMode.GOLD, false));
 
         assertThat(licenseState.authenticationAndAuthorizationEnabled(), is(true));
         assertThat(licenseState.ipFilteringEnabled(), is(true));
@@ -106,8 +102,7 @@ public class SecurityLicenseStateTests extends ESTestCase {
 
     public void testPlatinum() {
         SecurityLicenseState licenseState = new SecurityLicenseState();
-        licenseState.updateStatus(new Licensee.Status(License.OperationMode.PLATINUM,
-                randomBoolean() ? LicenseState.ENABLED : LicenseState.GRACE_PERIOD));
+        licenseState.updateStatus(new Licensee.Status(License.OperationMode.PLATINUM, true));
 
         assertThat(licenseState.authenticationAndAuthorizationEnabled(), is(true));
         assertThat(licenseState.ipFilteringEnabled(), is(true));
@@ -119,7 +114,7 @@ public class SecurityLicenseStateTests extends ESTestCase {
 
     public void testPlatinumExpired() {
         SecurityLicenseState licenseState = new SecurityLicenseState();
-        licenseState.updateStatus(new Licensee.Status(License.OperationMode.PLATINUM, LicenseState.DISABLED));
+        licenseState.updateStatus(new Licensee.Status(License.OperationMode.PLATINUM, false));
 
         assertThat(licenseState.authenticationAndAuthorizationEnabled(), is(true));
         assertThat(licenseState.ipFilteringEnabled(), is(true));

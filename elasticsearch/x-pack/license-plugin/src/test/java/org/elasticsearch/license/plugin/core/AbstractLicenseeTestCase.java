@@ -123,15 +123,6 @@ public abstract class AbstractLicenseeTestCase extends ESTestCase {
     }
 
     /**
-     * Randomly get {@link LicenseState#ENABLED} or {@link LicenseState#GRACE_PERIOD}.
-     *
-     * @return Never {@code null}.
-     */
-    public static LicenseState randomEnabledOrGracePeriodState() {
-        return randomFrom(LicenseState.ENABLED, LicenseState.GRACE_PERIOD);
-    }
-
-    /**
      * Get a random value from the {@code values} that passes {@code filter}.
      *
      * @param values The values to filter and randomly select from
@@ -163,10 +154,10 @@ public abstract class AbstractLicenseeTestCase extends ESTestCase {
     }
 
     public void disable(Licensee licensee) {
-        licensee.onChange(new Licensee.Status(operationMode, LicenseState.DISABLED));
+        licensee.onChange(new Licensee.Status(operationMode, false));
     }
 
     public void enable(Licensee licensee) {
-        licensee.onChange(new Licensee.Status(operationMode, randomEnabledOrGracePeriodState()));
+        licensee.onChange(new Licensee.Status(operationMode, true));
     }
 }

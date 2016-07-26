@@ -11,7 +11,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -75,8 +74,9 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.audit.index.IndexNameResolver;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
-import org.elasticsearch.xpack.security.authc.AuthenticationModule;
-import org.elasticsearch.xpack.security.authc.InternalAuthenticationService;
+import org.elasticsearch.xpack.security.authc.AuthenticationFailureHandler;
+import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
+import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.activedirectory.ActiveDirectoryRealm;
@@ -89,13 +89,14 @@ import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.security.authz.AuthorizationModule;
-import org.elasticsearch.xpack.security.authz.InternalAuthorizationService;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.accesscontrol.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
+import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.rest.SecurityRestModule;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
@@ -184,7 +185,6 @@ public class Security implements ActionPlugin, IngestPlugin {
             if (enabled == false) {
                 return modules;
             }
-            modules.add(new SecurityModule(settings));
             modules.add(new SecurityTransportModule(settings));
             modules.add(b -> {
                 // for transport client we still must inject these ssl classes with guice
@@ -195,20 +195,16 @@ public class Security implements ActionPlugin, IngestPlugin {
 
             return modules;
         }
-
-        modules.add(new AuthenticationModule(settings));
-        modules.add(new AuthorizationModule(settings));
-        if (enabled == false || auditingEnabled(settings) == false) {
-            modules.add(b -> {
-                b.bind(AuditTrailService.class).toProvider(Providers.of(null));
-                b.bind(AuditTrail.class).toInstance(AuditTrail.NOOP);
-            });
-        }
+        modules.add(b -> XPackPlugin.bindFeatureSet(b, SecurityFeatureSet.class));
+        
         if (enabled == false) {
             modules.add(b -> {
                 b.bind(CryptoService.class).toProvider(Providers.of(null));
+                b.bind(Realms.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
+                b.bind(CompositeRolesStore.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
+                b.bind(AuditTrailService.class)
+                    .toInstance(new AuditTrailService(settings, Collections.emptyList(), securityLicenseState));
             });
-            modules.add(new SecurityModule(settings));
             modules.add(new SecurityTransportModule(settings));
             return modules;
         }
@@ -221,25 +217,11 @@ public class Security implements ActionPlugin, IngestPlugin {
             if (auditingEnabled(settings)) {
                 b.bind(AuditTrail.class).to(AuditTrailService.class); // interface used by some actions...
             }
-            if (indexAuditLoggingEnabled(settings) == false) {
-                // TODO: remove this once we can construct SecurityLifecycleService without guice
-                b.bind(IndexAuditTrail.class).toProvider(Providers.of(null));
-            }
         });
-        modules.add(new SecurityModule(settings));
         modules.add(new SecurityRestModule(settings));
         modules.add(new SecurityActionModule(settings));
         modules.add(new SecurityTransportModule(settings));
         return modules;
-    }
-
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        if (enabled == false || transportClientMode == true) {
-            return Collections.emptyList();
-        }
-        List<Class<? extends LifecycleComponent>> list = new ArrayList<>();
-        list.add(FileRolesStore.class);
-        return list;
     }
 
     public Collection<Object> createComponents(InternalClient client, ThreadPool threadPool, ClusterService clusterService,
@@ -247,6 +229,8 @@ public class Security implements ActionPlugin, IngestPlugin {
         if (enabled == false) {
             return Collections.emptyList();
         }
+        AnonymousUser.initialize(settings); // TODO: this is sketchy...testing is difficult b/c it is static....
+
         List<Object> components = new ArrayList<>();
         final SecurityContext securityContext = new SecurityContext(settings, threadPool, cryptoService);
         components.add(securityContext);
@@ -280,29 +264,69 @@ public class Security implements ActionPlugin, IngestPlugin {
         components.add(realms);
 
         // audit trails construction
+        IndexAuditTrail indexAuditTrail = null;
+        Set<AuditTrail> auditTrails = new LinkedHashSet<>();
         if (AUDIT_ENABLED_SETTING.get(settings)) {
             List<String> outputs = AUDIT_OUTPUTS_SETTING.get(settings);
             if (outputs.isEmpty()) {
                 throw new IllegalArgumentException("Audit logging is enabled but there are zero output types in "
                     + AUDIT_ENABLED_SETTING.getKey());
             }
-            Set<AuditTrail> auditTrails = new LinkedHashSet<>();
+
             for (String output : outputs) {
                 switch (output) {
                     case LoggingAuditTrail.NAME:
                         auditTrails.add(new LoggingAuditTrail(settings, clusterService, threadPool));
                         break;
                     case IndexAuditTrail.NAME:
-                        IndexAuditTrail indexAuditTrail = new IndexAuditTrail(settings, client, threadPool, clusterService);
+                        indexAuditTrail = new IndexAuditTrail(settings, client, threadPool, clusterService);
                         auditTrails.add(indexAuditTrail);
-                        components.add(indexAuditTrail); // SecurityLifecycleService needs this....
                         break;
                     default:
                         throw new IllegalArgumentException("Unknown audit trail output [" + output + "]");
                 }
             }
-            components.add(new AuditTrailService(settings, auditTrails.stream().collect(Collectors.toList()), securityLicenseState));
         }
+        final AuditTrailService auditTrailService =
+            new AuditTrailService(settings, auditTrails.stream().collect(Collectors.toList()), securityLicenseState);
+        components.add(auditTrailService);
+
+        AuthenticationFailureHandler failureHandler = null;
+        String extensionName = null;
+        for (XPackExtension extension : extensions) {
+            AuthenticationFailureHandler extensionFailureHandler = extension.getAuthenticationFailureHandler();
+            if (extensionFailureHandler != null && failureHandler != null) {
+                throw new IllegalStateException("Extensions [" + extensionName +"] and [" + extension.name() + "] " +
+                    "both set an authentication failure handler");
+            }
+            failureHandler = extensionFailureHandler;
+            extensionName = extension.name();
+        }
+        if (failureHandler == null) {
+            logger.debug("Using default authentication failure handler");
+            failureHandler = new DefaultAuthenticationFailureHandler();
+        } else {
+            logger.debug("Using authentication failure handler from extension [" + extensionName + "]");
+        }
+
+        final AuthenticationService authcService = new AuthenticationService(settings, realms, auditTrailService,
+            cryptoService, failureHandler, threadPool);
+        components.add(authcService);
+
+        final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService);
+        final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, threadPool);
+        final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(securityContext);
+        final CompositeRolesStore allRolesStore = new CompositeRolesStore(fileRolesStore, nativeRolesStore, reservedRolesStore);
+        final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
+            auditTrailService, failureHandler, threadPool);
+        components.add(fileRolesStore); // has lifecycle
+        components.add(nativeRolesStore); // used by roles actions
+        components.add(reservedRolesStore); // used by roles actions
+        components.add(allRolesStore); // for SecurityFeatureSet
+        components.add(authzService);
+
+        components.add(new SecurityLifecycleService(settings, clusterService, threadPool, indexAuditTrail,
+            nativeUsersStore, nativeRolesStore, client));
 
         return components;
     }
@@ -361,8 +385,8 @@ public class Security implements ActionPlugin, IngestPlugin {
         Realms.addSettings(settingsList);
         NativeUsersStore.addSettings(settingsList);
         NativeRolesStore.addSettings(settingsList);
-        InternalAuthenticationService.addSettings(settingsList);
-        InternalAuthorizationService.addSettings(settingsList);
+        AuthenticationService.addSettings(settingsList);
+        AuthorizationService.addSettings(settingsList);
 
         // HTTP settings
         SecurityNetty3HttpServerTransport.addSettings(settingsList);
@@ -406,7 +430,7 @@ public class Security implements ActionPlugin, IngestPlugin {
             module.setSearcherWrapper((indexService) -> new SecurityIndexSearcherWrapper(indexService.getIndexSettings(),
                     indexService.newQueryShardContext(), indexService.mapperService(),
                     indexService.cache().bitsetFilterCache(), indexService.getIndexServices().getThreadPool().getThreadContext(),
-                    securityLicenseState));
+                    securityLicenseState, indexService.getIndexServices().getScriptService()));
         }
         if (transportClientMode == false) {
             /*  We need to forcefully overwrite the query cache implementation to use security's opt out query cache implementation.

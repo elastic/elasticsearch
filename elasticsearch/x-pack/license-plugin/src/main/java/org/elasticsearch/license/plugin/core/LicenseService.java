@@ -57,10 +57,15 @@ import java.util.stream.Collectors;
  * When a new license is notified as enabled to the registered listener, a notification is scheduled at the time of license expiry.
  * Registered listeners are notified using {@link #onUpdate(LicensesMetaData)}
  */
-public class LicensesService extends AbstractLifecycleComponent implements ClusterStateListener, SchedulerEngine.Listener {
+public class LicenseService extends AbstractLifecycleComponent implements ClusterStateListener, SchedulerEngine.Listener {
 
     // pkg private for tests
     static final TimeValue TRIAL_LICENSE_DURATION = TimeValue.timeValueHours(30 * 24);
+
+    /**
+     * Duration of grace period after a license has expired
+     */
+    public static final TimeValue GRACE_PERIOD_DURATION = days(7);
 
     private final ClusterService clusterService;
 
@@ -98,8 +103,8 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, " +
             "please read the following messages and update the license again, this time with the \"acknowledge=true\" parameter:";
 
-    public LicensesService(Settings settings, ClusterService clusterService, Clock clock, Environment env,
-                           ResourceWatcherService resourceWatcherService, List<Licensee> registeredLicensees) {
+    public LicenseService(Settings settings, ClusterService clusterService, Clock clock, Environment env,
+                          ResourceWatcherService resourceWatcherService, List<Licensee> registeredLicensees) {
         super(settings);
         this.clusterService = clusterService;
         this.clock = clock;
@@ -310,12 +315,15 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
                 });
     }
 
-    public Licensee.Status licenseeStatus() {
-        final License license = getLicense();
+    public Licensee.Status licenseeStatus(License license) {
         if (license == null) {
-            return Licensee.Status.MISSING;
+            return new Licensee.Status(License.OperationMode.MISSING, false);
         }
-        return new Licensee.Status(license.operationMode(), LicenseState.resolve(license, clock.millis()));
+        long time = clock.millis();
+        boolean active = time >= license.issueDate() &&
+            time < license.expiryDate() + GRACE_PERIOD_DURATION.getMillis();
+
+        return new Licensee.Status(license.operationMode(), active);
     }
 
     public License getLicense() {
@@ -433,18 +441,22 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
         }
         if (license != null) {
             logger.debug("notifying [{}] listeners", registeredLicensees.size());
-            final LicenseState licenseState = LicenseState.resolve(license, clock.millis());
-            Licensee.Status status = new Licensee.Status(license.operationMode(), licenseState);
+            long time = clock.millis();
+            boolean active = time >= license.issueDate() &&
+                time < license.expiryDate() + GRACE_PERIOD_DURATION.getMillis();
+
+            Licensee.Status status = new Licensee.Status(license.operationMode(), active);
             for (InternalLicensee licensee : registeredLicensees) {
                 licensee.onChange(status);
             }
-            switch (status.getLicenseState()) {
-                case ENABLED:
-                    logger.debug("license [{}] - valid", license.uid()); break;
-                case GRACE_PERIOD:
-                    logger.warn("license [{}] - grace", license.uid()); break;
-                case DISABLED:
-                    logger.warn("license [{}] - expired", license.uid()); break;
+            if (active) {
+                if (time < license.expiryDate()) {
+                    logger.debug("license [{}] - valid", license.uid());
+                } else {
+                    logger.warn("license [{}] - grace", license.uid());
+                }
+            } else {
+                logger.warn("license [{}] - expired", license.uid());
             }
         }
     }
@@ -464,7 +476,7 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
             if (license.equals(previousLicense) == false) {
                 currentLicense.set(license);
                 license.setOperationModeFileWatcher(operationModeFileWatcher);
-                scheduler.add(new SchedulerEngine.Job(LICENSE_JOB, new LicenseSchedule(license)));
+                scheduler.add(new SchedulerEngine.Job(LICENSE_JOB, nextLicenseCheck(license)));
                 for (ExpirationCallback expirationCallback : expirationCallbacks) {
                     scheduler.add(new SchedulerEngine.Job(expirationCallback.getId(),
                             (startTime, now) ->
@@ -477,6 +489,25 @@ public class LicensesService extends AbstractLifecycleComponent implements Clust
             }
             notifyLicensees(license);
         }
+    }
+
+    // pkg private for tests
+    static SchedulerEngine.Schedule nextLicenseCheck(License license) {
+        return (startTime, time) -> {
+            if (time < license.issueDate()) {
+                // when we encounter a license with a future issue date
+                // which can happen with autogenerated license,
+                // we want to schedule a notification on the license issue date
+                // so the license is notificed once it is valid
+                // see https://github.com/elastic/x-plugins/issues/983
+                return license.issueDate();
+            } else if (time < license.expiryDate()) {
+                return license.expiryDate();
+            } else if (time < license.expiryDate() + GRACE_PERIOD_DURATION.getMillis()) {
+                return license.expiryDate() + GRACE_PERIOD_DURATION.getMillis();
+            }
+            return -1; // license is expired, no need to check again
+        };
     }
 
     private void initLicensee(Licensee licensee) {

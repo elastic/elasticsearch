@@ -109,13 +109,13 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
         ManualExecutionContext ctx = ctxBuilder.build();
 
         refresh();
-        long oldRecordCount = docCount(HistoryStore.INDEX_PREFIX + "*", HistoryStore.DOC_TYPE, matchAllQuery());
+        long oldRecordCount = docCount(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*", HistoryStore.DOC_TYPE, matchAllQuery());
 
         WatchRecord watchRecord = executionService().execute(ctx);
 
         refresh();
 
-        long newRecordCount = docCount(HistoryStore.INDEX_PREFIX + "*", HistoryStore.DOC_TYPE, matchAllQuery());
+        long newRecordCount = docCount(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*", HistoryStore.DOC_TYPE, matchAllQuery());
         long expectedCount = oldRecordCount + (recordExecution ? 1 : 0);
 
         assertThat("the expected count of history records should be [" + expectedCount + "]", newRecordCount, equalTo(expectedCount));

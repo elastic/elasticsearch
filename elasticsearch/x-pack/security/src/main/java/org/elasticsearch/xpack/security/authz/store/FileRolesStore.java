@@ -5,31 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
-import com.fasterxml.jackson.dataformat.yaml.snakeyaml.error.YAMLException;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.authc.support.RefreshListener;
-import org.elasticsearch.xpack.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.security.authz.permission.IndicesPermission.Group;
-import org.elasticsearch.xpack.security.authz.permission.Role;
-import org.elasticsearch.xpack.security.support.NoOpLogger;
-import org.elasticsearch.xpack.security.support.Validation;
-import org.elasticsearch.watcher.FileChangesListener;
-import org.elasticsearch.watcher.FileWatcher;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.XPackPlugin;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -40,6 +15,30 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+
+import com.fasterxml.jackson.dataformat.yaml.snakeyaml.error.YAMLException;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.watcher.FileChangesListener;
+import org.elasticsearch.watcher.FileWatcher;
+import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.authc.support.RefreshListener;
+import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.security.authz.permission.IndicesPermission.Group;
+import org.elasticsearch.xpack.security.authz.permission.Role;
+import org.elasticsearch.xpack.security.support.NoOpLogger;
+import org.elasticsearch.xpack.security.support.Validation;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -59,7 +58,6 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
 
     private volatile Map<String, Role> permissions;
 
-    @Inject
     public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService) {
         this(settings, env, watcherService, RefreshListener.NOOP);
     }

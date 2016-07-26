@@ -1,0 +1,191 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      xpack.security.put_user:
+        username: "inline_template_user"
+        body:  >
+            {
+              "password": "changeme",
+              "roles" : [ "inline_template_role" ]
+            }
+  - do:
+      xpack.security.put_user:
+        username: "stored_template_user"
+        body:  >
+            {
+              "password": "changeme",
+              "roles" : [ "stored_template_role" ]
+            }
+
+  - do:
+      xpack.security.put_user:
+        username: "file_template_user"
+        body:  >
+            {
+              "password": "changeme",
+              "roles" : [ "file_template_role" ]
+            }
+
+  - do:
+      xpack.security.put_role:
+        name: "inline_template_role"
+        body:  >
+            {
+              "indices": [
+                {
+                  "names": "foobar",
+                  "privileges": ["all"],
+                  "query" : {
+                    "template" : {
+                      "inline" : {
+                        "term" : { "username" : "{{_user.username}}" }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+
+  - do:
+      xpack.security.put_role:
+        name: "stored_template_role"
+        body:  >
+            {
+              "indices": [
+                {
+                  "names": "foobar",
+                  "privileges": ["all"],
+                  "query" : {
+                    "template" : {
+                      "id" : "1"
+                    }
+                  }
+                }
+              ]
+            }
+
+  - do:
+      xpack.security.put_role:
+        name: "file_template_role"
+        body:  >
+            {
+              "indices": [
+                {
+                  "names": "foobar",
+                  "privileges": ["all"],
+                  "query" : {
+                    "template" : {
+                      "file" : "query"
+                    }
+                  }
+                }
+              ]
+            }
+
+  - do:
+      put_template:
+        id: "1"
+        body: >
+            {
+              "term" : {
+                "username" : "{{_user.username}}"
+              }
+            }
+
+  - do:
+      index:
+        index: foobar
+        type: type
+        id: 1
+        body:  >
+          {
+            "username": "inline_template_user"
+          }
+  - do:
+      index:
+        index: foobar
+        type: type
+        id: 2
+        body:  >
+          {
+            "username": "stored_template_user"
+          }
+  - do:
+      index:
+        index: foobar
+        type: type
+        id: 3
+        body:  >
+          {
+            "username": "file_template_user"
+          }
+
+  - do:
+      indices.refresh: {}
+
+---
+teardown:
+  - do:
+      xpack.security.delete_user:
+        username: "inline_template_user"
+        ignore: 404
+  - do:
+      xpack.security.delete_user:
+        username: "stored_template_user"
+        ignore: 404
+  - do:
+      xpack.security.delete_user:
+        username: "file_template_user"
+        ignore: 404
+  - do:
+      xpack.security.delete_role:
+        name: "inline_template_role"
+        ignore: 404
+  - do:
+      xpack.security.delete_role:
+        name: "stored_template_role"
+        ignore: 404
+  - do:
+      xpack.security.delete_role:
+        name: "file_template_role"
+        ignore: 404
+
+---
+"Test inline template":
+  - do:
+      headers:
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6Y2hhbmdlbWU="
+      search:
+        index: foobar
+        body: { "query" : { "match_all" : {} } }
+  - match: { hits.total: 1}
+  - match: { hits.hits.0._source.username: inline_template_user}
+
+---
+"Test stored template":
+  - do:
+      headers:
+        Authorization: "Basic c3RvcmVkX3RlbXBsYXRlX3VzZXI6Y2hhbmdlbWU="
+      search:
+        index: foobar
+        body: { "query" : { "match_all" : {} } }
+  - match: { hits.total: 1}
+  - match: { hits.hits.0._source.username: stored_template_user}
+
+---
+"Test file template":
+  - do:
+      headers:
+        Authorization: "Basic ZmlsZV90ZW1wbGF0ZV91c2VyOmNoYW5nZW1l"
+      search:
+        index: foobar
+        body: { "query" : { "match_all" : {} } }
+  - match: { hits.total: 1}
+  - match: { hits.hits.0._source.username: file_template_user}

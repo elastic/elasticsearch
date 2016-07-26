@@ -17,7 +17,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.authz.InternalAuthorizationService;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.junit.BeforeClass;
 
@@ -46,29 +46,28 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
         if (anonymousEnabled) {
             builder.put(AnonymousUser.USERNAME_SETTING.getKey(), "anon")
                    .putArray(AnonymousUser.ROLES_SETTING.getKey(), SecuritySettingsSource.DEFAULT_ROLE, "foo")
-                   .put(InternalAuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false);
+                   .put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false);
         }
         return builder.build();
     }
 
     public void testAuthenticateApi() throws Exception {
-        try (Response response = getRestClient().performRequest(
-                "GET", "/_xpack/security/_authenticate",
+        Response response = getRestClient().performRequest("GET", "/_xpack/security/_authenticate",
                 new BasicHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                        new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
-            ObjectPath objectPath = ObjectPath.createFromXContent(XContentFactory.xContent(XContentType.JSON),
-                    EntityUtils.toString(response.getEntity()));
-            assertThat(objectPath.evaluate("username").toString(), equalTo(SecuritySettingsSource.DEFAULT_USER_NAME));
-            @SuppressWarnings("unchecked")
-            List<String> roles = (List<String>) objectPath.evaluate("roles");
-            assertThat(roles.size(), is(1));
-            assertThat(roles, contains(SecuritySettingsSource.DEFAULT_ROLE));
-        }
+                        new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))));
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        ObjectPath objectPath = ObjectPath.createFromXContent(XContentFactory.xContent(XContentType.JSON),
+                EntityUtils.toString(response.getEntity()));
+        assertThat(objectPath.evaluate("username").toString(), equalTo(SecuritySettingsSource.DEFAULT_USER_NAME));
+        @SuppressWarnings("unchecked")
+        List<String> roles = (List<String>) objectPath.evaluate("roles");
+        assertThat(roles.size(), is(1));
+        assertThat(roles, contains(SecuritySettingsSource.DEFAULT_ROLE));
     }
 
     public void testAuthenticateApiWithoutAuthentication() throws Exception {
-        try (Response response = getRestClient().performRequest("GET", "/_xpack/security/_authenticate")) {
+        try {
+            Response response = getRestClient().performRequest("GET", "/_xpack/security/_authenticate");
             if (anonymousEnabled) {
                 assertThat(response.getStatusLine().getStatusCode(), is(200));
                 ObjectPath objectPath = ObjectPath.createFromXContent(XContentFactory.xContent(XContentType.JSON),

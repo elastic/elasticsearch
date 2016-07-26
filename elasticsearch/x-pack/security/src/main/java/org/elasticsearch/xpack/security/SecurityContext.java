@@ -13,7 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.authc.Authentication;
-import org.elasticsearch.xpack.security.authc.InternalAuthenticationService;
+import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.user.User;
 
@@ -36,7 +36,7 @@ public class SecurityContext {
         this.logger = Loggers.getLogger(getClass(), settings);
         this.threadContext = threadPool.getThreadContext();
         this.cryptoService = cryptoService;
-        this.signUserHeader = InternalAuthenticationService.SIGN_USER_HEADER.get(settings);
+        this.signUserHeader = AuthenticationService.SIGN_USER_HEADER.get(settings);
     }
 
     /** Returns the current user information, or null if the current request has no authentication info. */

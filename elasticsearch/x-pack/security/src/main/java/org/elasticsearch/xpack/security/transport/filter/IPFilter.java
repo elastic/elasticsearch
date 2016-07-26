@@ -19,6 +19,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.SecurityLicenseState;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -105,7 +106,7 @@ public class IPFilter {
     private final SetOnce<Map<String, BoundTransportAddress>> profileBoundAddress = new SetOnce<>();
 
     @Inject
-    public IPFilter(final Settings settings, AuditTrail auditTrail, ClusterSettings clusterSettings,
+    public IPFilter(final Settings settings, AuditTrailService auditTrail, ClusterSettings clusterSettings,
                     SecurityLicenseState licenseState) {
         this.logger = Loggers.getLogger(getClass(), settings);
         this.auditTrail = auditTrail;

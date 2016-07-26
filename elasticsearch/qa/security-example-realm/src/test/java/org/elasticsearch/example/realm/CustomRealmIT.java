@@ -60,11 +60,10 @@ public class CustomRealmIT extends ESIntegTestCase {
     }
 
     public void testHttpAuthentication() throws Exception {
-        try (Response response = getRestClient().performRequest("GET", "/",
+        Response response = getRestClient().performRequest("GET", "/",
                 new BasicHeader(CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER),
-                new BasicHeader(CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW))) {
-            assertThat(response.getStatusLine().getStatusCode(), is(200));
-        }
+                new BasicHeader(CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW));
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
     }
 
     public void testTransportClient() throws Exception {

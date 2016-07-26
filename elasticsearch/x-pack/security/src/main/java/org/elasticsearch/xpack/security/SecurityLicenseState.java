@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.license.core.License.OperationMode;
-import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee.Status;
 
 
@@ -53,7 +52,7 @@ public class SecurityLicenseState {
      * @return true if the license allows for the stats and health APIs to be used.
      */
     public boolean statsAndHealthEnabled() {
-        return status.getLicenseState() != LicenseState.DISABLED;
+        return status.isActive();
     }
 
     /**

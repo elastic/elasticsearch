@@ -350,7 +350,7 @@ public class WatchTests extends ESTestCase {
             case SearchInput.TYPE:
                 IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry();
                 QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
-                queryRegistry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
+                queryRegistry.register(queryParser, MatchAllQueryBuilder.NAME);
                 parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, queryRegistry, null, null, scriptService));
                 return new InputRegistry(Settings.EMPTY, parsers);
             default:
@@ -423,7 +423,7 @@ public class WatchTests extends ESTestCase {
     private TransformRegistry transformRegistry() {
         IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry();
         QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
-        queryRegistry.register(queryParser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
+        queryRegistry.register(queryParser, MatchAllQueryBuilder.NAME);
         Map<String, TransformFactory> factories = new HashMap<>();
         factories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
         factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, queryRegistry, null, null, scriptService));

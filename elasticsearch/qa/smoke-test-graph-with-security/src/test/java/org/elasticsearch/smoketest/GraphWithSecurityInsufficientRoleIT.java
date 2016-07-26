@@ -21,7 +21,7 @@ public class GraphWithSecurityInsufficientRoleIT extends GraphWithSecurityIT {
     public void test() throws IOException {
         try {
             super.test();
-            fail();
+            fail("should have failed because of missing role");
         } catch(AssertionError ae) {
             assertThat(ae.getMessage(), containsString("action [indices:data/read/xpack/graph/explore"));
             assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));

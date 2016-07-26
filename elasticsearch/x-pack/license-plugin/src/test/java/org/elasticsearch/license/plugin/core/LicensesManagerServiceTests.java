@@ -55,46 +55,46 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testStoreAndGetLicenses() throws Exception {
-        LicensesService licensesService = getInstanceFromNode(LicensesService.class);
+        LicenseService licenseService = getInstanceFromNode(LicenseService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License goldLicense = generateSignedLicense("gold", TimeValue.timeValueHours(1));
-        TestUtils.registerAndAckSignedLicenses(licensesService, goldLicense, LicensesStatus.VALID);
+        TestUtils.registerAndAckSignedLicenses(licenseService, goldLicense, LicensesStatus.VALID);
         License silverLicense = generateSignedLicense("silver", TimeValue.timeValueHours(2));
-        TestUtils.registerAndAckSignedLicenses(licensesService, silverLicense, LicensesStatus.VALID);
+        TestUtils.registerAndAckSignedLicenses(licenseService, silverLicense, LicensesStatus.VALID);
         License platinumLicense = generateSignedLicense("platinum", TimeValue.timeValueHours(1));
-        TestUtils.registerAndAckSignedLicenses(licensesService, platinumLicense, LicensesStatus.VALID);
+        TestUtils.registerAndAckSignedLicenses(licenseService, platinumLicense, LicensesStatus.VALID);
         License basicLicense = generateSignedLicense("basic", TimeValue.timeValueHours(3));
-        TestUtils.registerAndAckSignedLicenses(licensesService, basicLicense, LicensesStatus.VALID);
+        TestUtils.registerAndAckSignedLicenses(licenseService, basicLicense, LicensesStatus.VALID);
         LicensesMetaData licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
         assertThat(licensesMetaData.getLicense(), equalTo(basicLicense));
-        final License getLicenses = licensesService.getLicense();
+        final License getLicenses = licenseService.getLicense();
         assertThat(getLicenses, equalTo(basicLicense));
     }
 
     public void testEffectiveLicenses() throws Exception {
-        final LicensesService licensesService = getInstanceFromNode(LicensesService.class);
+        final LicenseService licenseService = getInstanceFromNode(LicenseService.class);
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License goldLicense = generateSignedLicense("gold", TimeValue.timeValueSeconds(5));
         // put gold license
-        TestUtils.registerAndAckSignedLicenses(licensesService, goldLicense, LicensesStatus.VALID);
+        TestUtils.registerAndAckSignedLicenses(licenseService, goldLicense, LicensesStatus.VALID);
         LicensesMetaData licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(licensesService.getLicense(licensesMetaData), equalTo(goldLicense));
+        assertThat(licenseService.getLicense(licensesMetaData), equalTo(goldLicense));
 
         License platinumLicense = generateSignedLicense("platinum", TimeValue.timeValueSeconds(3));
         // put platinum license
-        TestUtils.registerAndAckSignedLicenses(licensesService, platinumLicense, LicensesStatus.VALID);
+        TestUtils.registerAndAckSignedLicenses(licenseService, platinumLicense, LicensesStatus.VALID);
         licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(licensesService.getLicense(licensesMetaData), equalTo(platinumLicense));
+        assertThat(licenseService.getLicense(licensesMetaData), equalTo(platinumLicense));
 
         License basicLicense = generateSignedLicense("basic", TimeValue.timeValueSeconds(3));
         // put basic license
-        TestUtils.registerAndAckSignedLicenses(licensesService, basicLicense, LicensesStatus.VALID);
+        TestUtils.registerAndAckSignedLicenses(licenseService, basicLicense, LicensesStatus.VALID);
         licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
-        assertThat(licensesService.getLicense(licensesMetaData), equalTo(basicLicense));
+        assertThat(licenseService.getLicense(licensesMetaData), equalTo(basicLicense));
     }
 
     public void testInvalidLicenseStorage() throws Exception {
-        LicensesService licensesService = getInstanceFromNode(LicensesService.class);
+        LicenseService licenseService = getInstanceFromNode(LicenseService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         License signedLicense = generateSignedLicense(TimeValue.timeValueMinutes(2));
 
@@ -105,7 +105,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
                 .validate()
                 .build();
 
-        TestUtils.registerAndAckSignedLicenses(licensesService, tamperedLicense, LicensesStatus.INVALID);
+        TestUtils.registerAndAckSignedLicenses(licenseService, tamperedLicense, LicensesStatus.INVALID);
 
         // ensure that the invalid license never made it to cluster state
         LicensesMetaData licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
@@ -113,25 +113,25 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testRemoveLicenses() throws Exception {
-        LicensesService licensesService = getInstanceFromNode(LicensesService.class);
+        LicenseService licenseService = getInstanceFromNode(LicenseService.class);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
 
         // generate signed licenses
         License license = generateSignedLicense(TimeValue.timeValueHours(1));
-        TestUtils.registerAndAckSignedLicenses(licensesService, license, LicensesStatus.VALID);
+        TestUtils.registerAndAckSignedLicenses(licenseService, license, LicensesStatus.VALID);
         LicensesMetaData licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
         assertThat(licensesMetaData.getLicense(), not(LicensesMetaData.LICENSE_TOMBSTONE));
 
         // remove signed licenses
-        removeAndAckSignedLicenses(licensesService);
+        removeAndAckSignedLicenses(licenseService);
         licensesMetaData = clusterService.state().metaData().custom(LicensesMetaData.TYPE);
         assertThat(licensesMetaData.getLicense(), equalTo(LicensesMetaData.LICENSE_TOMBSTONE));
     }
 
-    private void removeAndAckSignedLicenses(final LicensesService licensesService) {
+    private void removeAndAckSignedLicenses(final LicenseService licenseService) {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean success = new AtomicBoolean(false);
-        licensesService.removeLicense(new DeleteLicenseRequest(), new ActionListener<ClusterStateUpdateResponse>() {
+        licenseService.removeLicense(new DeleteLicenseRequest(), new ActionListener<ClusterStateUpdateResponse>() {
             @Override
             public void onResponse(ClusterStateUpdateResponse clusterStateUpdateResponse) {
                 if (clusterStateUpdateResponse.isAcknowledged()) {

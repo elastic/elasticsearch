@@ -7,7 +7,8 @@ package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.test.rest.ESRestTestCase;
+
+import org.elasticsearch.test.rest.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.RestTestCandidate;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.junit.After;
@@ -19,7 +20,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
 /** Runs rest tests against external cluster */
-public class WatcherGettingStartedIT extends ESRestTestCase {
+public class WatcherGettingStartedIT extends ESClientYamlSuiteTestCase {
 
     public WatcherGettingStartedIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);
@@ -27,7 +28,7 @@ public class WatcherGettingStartedIT extends ESRestTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
-        return ESRestTestCase.createParameters(0, 1);
+        return ESClientYamlSuiteTestCase.createParameters(0, 1);
     }
 
     @Before

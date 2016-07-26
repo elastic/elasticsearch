@@ -93,7 +93,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         // the action should fail as no email server is available
         assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
 
-        SearchResponse response = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").setSource(searchSource()
+        SearchResponse response = client().prepareSearch(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*").setSource(searchSource()
                 .aggregation(terms("input_result_path").field("result.input.http.request.path"))
                 .aggregation(terms("input_result_host").field("result.input.http.request.host"))
                 .aggregation(terms("webhook_path").field("result.actions.webhook.request.path")))

@@ -162,13 +162,12 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
         }
 
         static void executeHttpRequest(String path, Map<String, String> params) throws Exception {
-            try (Response response = getRestClient().performRequest("POST", path, params,
+            Response response = getRestClient().performRequest("POST", path, params,
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
                             UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                                    new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))))) {
-                assertNotNull(response.getEntity());
-                assertTrue(EntityUtils.toString(response.getEntity()).contains("cluster_name"));
-            }
+                                    new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))));
+            assertNotNull(response.getEntity());
+            assertTrue(EntityUtils.toString(response.getEntity()).contains("cluster_name"));
         }
     }
 

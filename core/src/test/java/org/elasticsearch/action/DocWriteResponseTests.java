@@ -19,12 +19,13 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.DocWriteResponse.Operation;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 public class DocWriteResponseTests extends ESTestCase {
     public void testGetLocation() {
-        DocWriteResponse response = new DocWriteResponse(new ShardId("index", "uuid", 0), "type", "id", 0) {
+        DocWriteResponse response = new DocWriteResponse(new ShardId("index", "uuid", 0), "type", "id", 0, Operation.CREATE) {
             // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
         };
         assertEquals("/index/type/id", response.getLocation(null));

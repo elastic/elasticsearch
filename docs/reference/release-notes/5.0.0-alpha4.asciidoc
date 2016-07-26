@@ -348,7 +348,7 @@ Packaging::
 
 Plugin Discovery EC2::
 * Update aws sdk to 1.10.69 and add use_throttle_retries repository setting {pull}17784[#17784] (issues: {issue}538[#538], {issue}586[#586], {issue}589[#589])
-* Update aws sdk to 1.11.20. {pull}xxxxx[#xxxxx]
+* Update aws sdk to 1.11.20. {pull}19594[#19594]
 
 
 

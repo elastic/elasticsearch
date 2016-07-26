@@ -19,7 +19,10 @@ ext.versions = [
 // TODO: fix this! https://github.com/elastic/x-plugins/issues/1066
 ext.compactProfile = 'full'
 
-dependencyLicenses.enabled = false
+licenseHeaders {
+  approvedLicenses << 'BCrypt (BSD-like)'
+  additionalLicense 'BCRYP', 'BCrypt (BSD-like)', 'Copyright (c) 2006 Damien Miller <djm@mindrot.org>'
+}
 
 dependencies {
   // license deps
@@ -231,9 +234,6 @@ thirdPartyAudit.excludes = [
     'javax.activation.URLDataSource',
     'javax.activation.UnsupportedDataTypeException'    
 ]
-
-// someone figure out what the x-plugins logic should be
-licenseHeaders.enabled = false
 
 modifyPom { MavenPom pom ->
   pom.withXml { XmlProvider xml ->

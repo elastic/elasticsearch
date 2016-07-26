@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.xpack.TribeTransportTestCase;
+import org.elasticsearch.license.TribeTransportTestCase;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkDoc;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkRequest;

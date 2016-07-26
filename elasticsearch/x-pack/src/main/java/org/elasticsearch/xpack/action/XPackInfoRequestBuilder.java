@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.action;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.license.XPackInfoResponse;
 
 import java.util.EnumSet;
 

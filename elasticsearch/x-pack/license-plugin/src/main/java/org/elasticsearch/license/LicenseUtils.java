@@ -8,7 +8,7 @@ package org.elasticsearch.license;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.rest.RestStatus;
 
-class LicenseUtils {
+public class LicenseUtils {
 
     public static final String EXPIRED_FEATURE_HEADER = "es.license.expired.feature";
 

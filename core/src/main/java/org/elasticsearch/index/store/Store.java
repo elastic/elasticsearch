@@ -213,6 +213,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Returns a new MetadataSnapshot for the latest commit in this store or
      * an empty snapshot if no index exists or can not be opened.
      *
+     * Note: the method is a simple wrapper around {@link #getMetadata()}, which tries to acquire the
+     * {@link IndexWriter#WRITE_LOCK_NAME} for the underlying directory not ensure no concurrent file changes are happening.
+     *
      * @throws CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum mismatch or an
      *                                    unexpected exception when opening the index reading the segments file.
      * @throws IndexFormatTooOldException if the lucene index is too old to be opened.
@@ -232,6 +235,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * Returns a new MetadataSnapshot for the latest commit in this store.
      *
+     * * Note: the method tries to acquire the
+     * {@link IndexWriter#WRITE_LOCK_NAME} for the underlying directory not ensure no concurrent file changes are happening.
+     *
      * @throws CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum mismatch or an
      *                                    unexpected exception when opening the index reading the segments file.
      * @throws IndexFormatTooOldException if the lucene index is too old to be opened.
@@ -249,6 +255,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * Returns a new MetadataSnapshot for the given commit. If the given commit is <code>null</code>
      * the latest commit point is used.
+     *
+     * Note that unlike {@link #getMetadata()} and {@link #getMetadataOrEmpty()}, this method doesn't try
+     * to lock the directory write lock. The owner must verify it has the right to access the store and
+     * no concurrent file changes are happening.
      *
      * @throws CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum mismatch or an
      *                                    unexpected exception when opening the index reading the segments file.
@@ -637,7 +647,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // ignore, we don't really care, will get deleted later on
                 }
             }
-            final Store.MetadataSnapshot metadataOrEmpty = getMetadata();
+            final Store.MetadataSnapshot metadataOrEmpty = getMetadata(null);
             verifyAfterCleanup(sourceMetaData, metadataOrEmpty);
         } finally {
             metadataLock.writeLock().unlock();

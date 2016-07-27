@@ -97,6 +97,8 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             writer.addDocument(document);
         }
         writer.commit();
+        writer.close();
+
         Store.MetadataSnapshot metadata = store.getMetadata();
         List<StoreFileMetaData> metas = new ArrayList<>();
         for (StoreFileMetaData md : metadata) {
@@ -123,7 +125,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         assertEquals(0, recoveryDiff.missing.size());
         IndexReader reader = DirectoryReader.open(targetStore.directory());
         assertEquals(numDocs, reader.maxDoc());
-        IOUtils.close(reader, writer, store, targetStore);
+        IOUtils.close(reader, store, targetStore);
     }
 
     public void testHandleCorruptedIndexOnSendSendFiles() throws Throwable {

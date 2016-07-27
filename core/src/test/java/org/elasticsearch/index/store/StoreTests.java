@@ -328,7 +328,7 @@ public class StoreTests extends ESTestCase {
         Store.MetadataSnapshot metadata;
         // check before we committed
         try {
-            store.getMetadata();
+            store.getMetadata(null);
             fail("no index present - expected exception");
         } catch (IndexNotFoundException ex) {
             // expected
@@ -336,7 +336,7 @@ public class StoreTests extends ESTestCase {
         assertThat(store.getMetadataOrEmpty(), is(Store.MetadataSnapshot.EMPTY)); // nothing committed
         writer.commit();
         writer.close();
-        metadata = store.getMetadata();
+        metadata = store.getMetadata(null);
         assertThat(metadata.asMap().isEmpty(), is(false));
         for (StoreFileMetaData meta : metadata) {
             try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
@@ -723,7 +723,7 @@ public class StoreTests extends ESTestCase {
             writer.addDocument(doc);
         }
 
-        Store.MetadataSnapshot firstMeta = store.getMetadata();
+        Store.MetadataSnapshot firstMeta = store.getMetadata(null);
 
         if (random().nextBoolean()) {
             for (int i = 0; i < docs; i++) {

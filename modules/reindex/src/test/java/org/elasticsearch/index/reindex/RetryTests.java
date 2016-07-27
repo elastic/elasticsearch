@@ -47,6 +47,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.reindex.ReindexTestCase.matcher;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
@@ -114,8 +115,8 @@ public class RetryTests extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings());
-        // Use pools of size 1 so we can block them
         settings.put("netty.assert.buglevel", false);
+        // Use pools of size 1 so we can block them
         settings.put("thread_pool.bulk.size", 1);
         settings.put("thread_pool.search.size", 1);
         // Use queues of size 1 because size 0 is broken and because search requests need the queue to function
@@ -140,7 +141,8 @@ public class RetryTests extends ESSingleNodeTestCase {
     public void testReindexFromRemote() throws Exception {
         NodeInfo nodeInfo = client().admin().cluster().prepareNodesInfo().get().getNodes().get(0);
         TransportAddress address = nodeInfo.getHttp().getAddress().publishAddress();
-        RemoteInfo remote = new RemoteInfo("http", address.getHost(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null, null);
+        RemoteInfo remote = new RemoteInfo("http", address.getHost(), address.getPort(), new BytesArray("{\"match_all\":{}}"), null, null,
+                emptyMap());
         ReindexRequestBuilder request = ReindexAction.INSTANCE.newRequestBuilder(client()).source("source").destination("dest")
                 .setRemoteInfo(remote);
         testCase(ReindexAction.NAME, request, matcher().created(DOC_COUNT));

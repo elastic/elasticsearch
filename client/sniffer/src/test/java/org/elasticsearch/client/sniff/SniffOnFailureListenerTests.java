@@ -46,7 +46,7 @@ public class SniffOnFailureListenerTests extends RestClientTestCase {
         }
 
         try (RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
-            try (Sniffer sniffer = Sniffer.builder(restClient, new MockHostsSniffer()).build()) {
+            try (Sniffer sniffer = Sniffer.builder(restClient).setHostsSniffer(new MockHostsSniffer()).build()) {
                 listener.setSniffer(sniffer);
                 try {
                     listener.setSniffer(sniffer);

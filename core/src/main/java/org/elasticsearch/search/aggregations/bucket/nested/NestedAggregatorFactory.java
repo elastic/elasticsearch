@@ -36,12 +36,15 @@ import java.util.Map;
 
 public class NestedAggregatorFactory extends AggregatorFactory<NestedAggregatorFactory> {
 
-    private final String path;
+    private final ObjectMapper parentObjectMapper;
+    private final ObjectMapper childObjectMapper;
 
-    public NestedAggregatorFactory(String name, Type type, String path, AggregationContext context, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
+    public NestedAggregatorFactory(String name, Type type, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper,
+                                   AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories,
+                                   Map<String, Object> metaData) throws IOException {
         super(name, type, context, parent, subFactories, metaData);
-        this.path = path;
+        this.parentObjectMapper = parentObjectMapper;
+        this.childObjectMapper = childObjectMapper;
     }
 
     @Override
@@ -50,14 +53,10 @@ public class NestedAggregatorFactory extends AggregatorFactory<NestedAggregatorF
         if (collectsFromSingleBucket == false) {
             return asMultiBucketAggregator(this, context, parent);
         }
-        ObjectMapper objectMapper = context.searchContext().getObjectMapper(path);
-        if (objectMapper == null) {
+        if (childObjectMapper == null) {
             return new Unmapped(name, context, parent, pipelineAggregators, metaData);
         }
-        if (!objectMapper.nested().isNested()) {
-            throw new AggregationExecutionException("[nested] nested path [" + path + "] is not nested");
-        }
-        return new NestedAggregator(name, factories, objectMapper, context, parent, pipelineAggregators, metaData);
+        return new NestedAggregator(name, factories, parentObjectMapper, childObjectMapper, context, parent, pipelineAggregators, metaData);
     }
 
     private static final class Unmapped extends NonCollectingAggregator {

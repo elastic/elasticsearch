@@ -23,6 +23,8 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -47,22 +49,26 @@ import java.util.Optional;
 /**
  * Facilitates creating template query requests.
  * */
+@Deprecated
+// TODO remove this class in 6.0
 public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuilder> {
+
     public static final String NAME = "template";
+    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(TemplateQueryBuilder.class));
 
     /** Template to fill. */
     private final Script template;
 
     public TemplateQueryBuilder(String template, ScriptService.ScriptType scriptType, Map<String, Object> params) {
-        this.template = new Script(template, scriptType, "mustache", params);
+        this(new Script(template, scriptType, "mustache", params));
     }
 
     public TemplateQueryBuilder(String template, ScriptService.ScriptType scriptType, Map<String, Object> params, XContentType ct) {
-        this.template = new Script(template, scriptType, "mustache", params, ct);
+        this(new Script(template, scriptType, "mustache", params, ct));
     }
 
-    // for tests, so that mock script can be used:
     TemplateQueryBuilder(Script template) {
+        DEPRECATION_LOGGER.deprecated("[{}] query is deprecated, use search template api instead", NAME);
         if (template == null) {
             throw new IllegalArgumentException("query template cannot be null");
         }

@@ -64,6 +64,13 @@ buildRestTests.docs = fileTree(projectDir) {
 Closure setupTwitter = { String name, int count ->
   buildRestTests.setups[name] = '''
   - do:
+      indices.create:
+        index: twitter
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 1
+  - do:
       bulk:
         index: twitter
         type: tweet

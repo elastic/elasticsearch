@@ -47,7 +47,7 @@ request) from exceeding a certain amount of memory.
 
 `indices.breaker.request.limit`::
 
-    Limit for request breaker, defaults to 40% of JVM heap
+    Limit for request breaker, defaults to 60% of JVM heap
 
 `indices.breaker.request.overhead`::
 
@@ -74,4 +74,3 @@ memory on a node. The memory usage is based on the content length of the request
 
 [[http-circuit-breaker]]
 [float]
-

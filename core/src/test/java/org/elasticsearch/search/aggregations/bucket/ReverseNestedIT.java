@@ -55,9 +55,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase
 public class ReverseNestedIT extends ESIntegTestCase {
 
@@ -170,9 +167,9 @@ public class ReverseNestedIT extends ESIntegTestCase {
         assertThat(bucket.getKeyAsString(), equalTo("1"));
         assertThat(bucket.getDocCount(), equalTo(6L));
         ReverseNested reverseNested = bucket.getAggregations().get("nested1_to_field1");
-        assertThat((long) reverseNested.getProperty("_count"), equalTo(5L));
+        assertThat(reverseNested.getProperty("_count"), equalTo(5L));
         Terms tags = reverseNested.getAggregations().get("field1");
-        assertThat((Terms) reverseNested.getProperty("field1"), sameInstance(tags));
+        assertThat(reverseNested.getProperty("field1"), sameInstance(tags));
         List<Terms.Bucket> tagsBuckets = new ArrayList<>(tags.getBuckets());
         assertThat(tagsBuckets.size(), equalTo(6));
         assertThat(tagsBuckets.get(0).getKeyAsString(), equalTo("c"));
@@ -472,14 +469,25 @@ public class ReverseNestedIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(nested("nested2", "nested1.nested2").subAggregation(reverseNested("incorrect").path("nested3")))
-                .execute().actionGet();
+                .get();
 
         Nested nested = searchResponse.getAggregations().get("nested2");
-        assertThat(nested, Matchers.notNullValue());
+        assertThat(nested, notNullValue());
         assertThat(nested.getName(), equalTo("nested2"));
 
         ReverseNested reverseNested = nested.getAggregations().get("incorrect");
         assertThat(reverseNested.getDocCount(), is(0L));
+
+        // Test that parsing the reverse_nested agg doesn't fail, because the parent nested agg is unmapped:
+        searchResponse = client().prepareSearch("idx")
+                .setQuery(matchAllQuery())
+                .addAggregation(nested("incorrect1", "incorrect1").subAggregation(reverseNested("incorrect2").path("incorrect2")))
+                .get();
+
+        nested = searchResponse.getAggregations().get("incorrect1");
+        assertThat(nested, notNullValue());
+        assertThat(nested.getName(), equalTo("incorrect1"));
+        assertThat(nested.getDocCount(), is(0L));
     }
 
     public void testSameParentDocHavingMultipleBuckets() throws Exception {

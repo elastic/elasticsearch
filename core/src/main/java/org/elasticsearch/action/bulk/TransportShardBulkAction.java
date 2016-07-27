@@ -248,7 +248,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         BytesReference indexSourceAsBytes = indexRequest.source();
                         // add the response
                         IndexResponse indexResponse = result.getResponse();
-                        UpdateResponse updateResponse = new UpdateResponse(indexResponse.getShardInfo(), indexResponse.getShardId(), indexResponse.getType(), indexResponse.getId(), indexResponse.getVersion(), indexResponse.isCreated());
+                        UpdateResponse updateResponse = new UpdateResponse(indexResponse.getShardInfo(), indexResponse.getShardId(), indexResponse.getType(), indexResponse.getId(), indexResponse.getVersion(), indexResponse.getOperation());
                         if (updateRequest.fields() != null && updateRequest.fields().length > 0) {
                             Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(indexSourceAsBytes, true);
                             updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, request.index(), indexResponse.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
@@ -261,7 +261,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         WriteResult<DeleteResponse> writeResult = updateResult.writeResult;
                         DeleteResponse response = writeResult.getResponse();
                         DeleteRequest deleteRequest = updateResult.request();
-                        updateResponse = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), false);
+                        updateResponse = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), response.getOperation());
                         updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, request.index(), response.getVersion(), updateResult.result.updatedSourceAsMap(), updateResult.result.updateSourceContentType(), null));
                         // Replace the update request to the translated delete request to execute on the replica.
                         item = request.items()[requestIndex] = new BulkItemRequest(request.items()[requestIndex].id(), deleteRequest);

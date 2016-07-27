@@ -21,22 +21,12 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.search.template.MultiSearchTemplateAction;
-import org.elasticsearch.action.search.template.SearchTemplateAction;
-import org.elasticsearch.action.search.template.TransportMultiSearchTemplateAction;
-import org.elasticsearch.action.search.template.TransportSearchTemplateAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.rest.action.search.template.RestDeleteSearchTemplateAction;
-import org.elasticsearch.rest.action.search.template.RestGetSearchTemplateAction;
-import org.elasticsearch.rest.action.search.template.RestMultiSearchTemplateAction;
-import org.elasticsearch.rest.action.search.template.RestPutSearchTemplateAction;
-import org.elasticsearch.rest.action.search.template.RestRenderSearchTemplateAction;
-import org.elasticsearch.rest.action.search.template.RestSearchTemplateAction;
 import org.elasticsearch.script.ScriptEngineService;
 
 import java.util.Arrays;

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.yaml.support;
+package org.elasticsearch.test.rest.yaml;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;

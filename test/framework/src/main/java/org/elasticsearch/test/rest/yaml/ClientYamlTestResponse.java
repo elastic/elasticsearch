@@ -16,14 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.yaml.client;
+package org.elasticsearch.test.rest.yaml;
 
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
-import org.elasticsearch.test.rest.yaml.Stash;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

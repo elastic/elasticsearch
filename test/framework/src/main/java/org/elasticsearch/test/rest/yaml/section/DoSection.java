@@ -23,8 +23,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
-import org.elasticsearch.test.rest.yaml.client.ClientYamlTestResponse;
-import org.elasticsearch.test.rest.yaml.client.ClientYamlTestResponseException;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
 
 import java.io.IOException;
 import java.util.HashMap;

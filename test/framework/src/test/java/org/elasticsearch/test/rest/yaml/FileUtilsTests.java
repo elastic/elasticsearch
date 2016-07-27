@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.yaml.support;
+package org.elasticsearch.test.rest.yaml;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.yaml.support.FileUtils;
+import org.elasticsearch.test.rest.yaml.FileUtils;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

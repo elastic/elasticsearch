@@ -35,7 +35,6 @@ import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.elasticsearch.test.rest.yaml.section.SkipSection;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
-import org.elasticsearch.test.rest.yaml.support.FileUtils;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;

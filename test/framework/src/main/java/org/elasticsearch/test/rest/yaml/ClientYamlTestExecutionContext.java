@@ -24,9 +24,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.rest.yaml.client.ClientYamlTestClient;
-import org.elasticsearch.test.rest.yaml.client.ClientYamlTestResponse;
-import org.elasticsearch.test.rest.yaml.client.ClientYamlTestResponseException;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 
 import java.io.IOException;

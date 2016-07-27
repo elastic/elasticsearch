@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.rest.yaml.client;
+package org.elasticsearch.test.rest.yaml;
 
 import org.elasticsearch.client.ResponseException;
 

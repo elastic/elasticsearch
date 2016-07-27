@@ -64,7 +64,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.network.NetworkService.registerCustomNameResolvers;
+import static org.elasticsearch.node.Node.generateCustomNameResolvers;
 
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
@@ -112,7 +112,7 @@ public abstract class TransportClient extends AbstractClient {
         final ThreadPool threadPool = new ThreadPool(settings);
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
         final NetworkService networkService = new NetworkService(settings,
-            registerCustomNameResolvers(settings, pluginsService.filterPlugins(DiscoveryPlugin.class)));
+            generateCustomNameResolvers(settings, pluginsService.filterPlugins(DiscoveryPlugin.class)));
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         try {
             final List<Setting<?>> additionalSettings = new ArrayList<>();

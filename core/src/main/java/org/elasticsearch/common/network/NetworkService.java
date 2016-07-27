@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.plugins.DiscoveryPlugin;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -269,20 +268,5 @@ public class NetworkService extends AbstractComponent {
             }
         }
         return InetAddress.getAllByName(host);
-    }
-
-    /**
-     * Register custom name resolver a DiscoveryPlugin might provide
-     * @param discoveryPlugins Discovery plugins
-     */
-    public static List<CustomNameResolver> registerCustomNameResolvers(Settings settings, List<DiscoveryPlugin> discoveryPlugins) {
-        List<CustomNameResolver> customNameResolvers = new ArrayList<>();
-        for (DiscoveryPlugin discoveryPlugin : discoveryPlugins) {
-            NetworkService.CustomNameResolver customNameResolver = discoveryPlugin.getCustomNameResolver(settings);
-            if (customNameResolver != null) {
-                customNameResolvers.add(customNameResolver);
-            }
-        }
-        return customNameResolvers;
     }
 }

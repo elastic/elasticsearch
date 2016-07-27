@@ -46,7 +46,6 @@ public class FunctionTests extends ScriptTestCase {
     }
 
     public void testEmpty() {
-        exec("void test(int x) {} test()");
         Exception expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("void test(int x) {} test()");
         });

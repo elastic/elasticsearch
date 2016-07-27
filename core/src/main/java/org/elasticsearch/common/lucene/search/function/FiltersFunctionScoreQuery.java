@@ -37,6 +37,8 @@ import org.elasticsearch.common.lucene.Lucene;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -238,7 +240,7 @@ public class FiltersFunctionScoreQuery extends Query {
             } else {
                 // it is a little weird to add a match although no function matches but that is the way function_score behaves right now
                 factorExplanation = Explanation.match(1.0f,
-                    "No function matched", new ArrayList<>());
+                    "No function matched", Collections.emptyList());
             }
             expl = combineFunction.explain(expl, factorExplanation, maxBoost);
             if (minScore != null && minScore > expl.getValue()) {

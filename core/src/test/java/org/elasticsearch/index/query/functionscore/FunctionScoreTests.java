@@ -733,22 +733,22 @@ public class FunctionScoreTests extends ESTestCase {
         CombineFunction combineFunction = randomFrom(new
             CombineFunction[]{CombineFunction.SUM, CombineFunction.AVG, CombineFunction.MIN, CombineFunction.MAX,
             CombineFunction.MULTIPLY, CombineFunction.REPLACE});
-        
+
         // check for document that has no macthing function
         FiltersFunctionScoreQuery query = new FiltersFunctionScoreQuery(new TermQuery(new Term(FIELD, "out")), scoreMode,
             new FilterFunction[]{new FilterFunction(new TermQuery(new Term("_uid", "2")), new WeightFactorFunction(10))},
             Float.MAX_VALUE, Float.NEGATIVE_INFINITY, combineFunction);
         TopDocs searchResult = localSearcher.search(query, 1);
-        Explanation exp1 = localSearcher.explain(query, searchResult.scoreDocs[0].doc);
-        assertThat(searchResult.scoreDocs[0].score, equalTo(exp1.getValue()));
+        Explanation explanation = localSearcher.explain(query, searchResult.scoreDocs[0].doc);
+        assertThat(searchResult.scoreDocs[0].score, equalTo(explanation.getValue()));
 
         // check for document that has a matching function
         query = new FiltersFunctionScoreQuery(new TermQuery(new Term(FIELD, "out")), scoreMode,
             new FilterFunction[]{new FilterFunction(new TermQuery(new Term("_uid", "1")), new WeightFactorFunction(10))},
             Float.MAX_VALUE, Float.NEGATIVE_INFINITY, combineFunction);
         searchResult = localSearcher.search(query, 1);
-        exp1 = localSearcher.explain(query, searchResult.scoreDocs[0].doc);
-        assertThat(searchResult.scoreDocs[0].score, equalTo(exp1.getValue()));
+        explanation = localSearcher.explain(query, searchResult.scoreDocs[0].doc);
+        assertThat(searchResult.scoreDocs[0].score, equalTo(explanation.getValue()));
     }
 
     private static class DummyScoreFunction extends ScoreFunction {

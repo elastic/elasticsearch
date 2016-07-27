@@ -225,10 +225,13 @@ public class RestRankEvalAction extends BaseRestHandler {
     public static void parseRankEvalRequest(RankEvalRequest rankEvalRequest, RestRequest request, RankEvalContext context)
             throws IOException {
         List<String> indices = Arrays.asList(Strings.splitStringByCommaToArray(request.param("index")));
+        List<String> types = Arrays.asList(Strings.splitStringByCommaToArray(request.param("type")));
         RankEvalSpec spec = PARSER.parse(context.parser(), context);
         for (QuerySpec specification : spec.getSpecifications()) {
             specification.setIndices(indices);
+            specification.setTypes(types);
         };
+
         rankEvalRequest.setRankEvalSpec(spec);
     }
 }

@@ -92,6 +92,9 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             String[] indices = new String[spec.getIndices().size()];
             spec.getIndices().toArray(indices);
             SearchRequest templatedRequest = new SearchRequest(indices, specRequest);
+            String[] types = new String[spec.getTypes().size()];
+            spec.getTypes().toArray(types);
+            templatedRequest.types(types);
 
             TransportSearchAction transportSearchAction = new TransportSearchAction(settings, threadPool, searchPhaseController,
                     transportService, searchTransportService, clusterService, actionFilters, indexNameExpressionResolver);

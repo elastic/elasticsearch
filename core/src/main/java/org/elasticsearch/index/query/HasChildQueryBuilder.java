@@ -352,7 +352,17 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                                     parentType, scoreMode, parentChildIndexFieldData, context.getSearchSimilarity());
     }
 
-    static final class LateParsingQuery extends Query {
+    /**
+     * A query that rewrites into another query using
+     * {@link JoinUtil#createJoinQuery(String, Query, Query, IndexSearcher, ScoreMode, MultiDocValues.OrdinalMap, int, int)}
+     * that executes the actual join.
+     *
+     * This query is exclusively used by the {@link HasChildQueryBuilder} and {@link HasParentQueryBuilder} to get access
+     * to the {@link DirectoryReader} used by the current search in order to retrieve the {@link MultiDocValues.OrdinalMap}.
+     * The {@link MultiDocValues.OrdinalMap} is required by {@link JoinUtil} to execute the join.
+     */
+    // TODO: Find a way to remove this query and let doToQuery(...) just return the query from JoinUtil.createJoinQuery(...)
+    public static final class LateParsingQuery extends Query {
 
         private final Query toQuery;
         private final Query innerQuery;

@@ -34,6 +34,37 @@ import java.util.List;
 
 public class ReciprocalRankTests extends ESTestCase {
 
+    public void testMaxAcceptableRank() {
+        ReciprocalRank reciprocalRank = new ReciprocalRank();
+        assertEquals(ReciprocalRank.DEFAULT_MAX_ACCEPTABLE_RANK, reciprocalRank.getMaxAcceptableRank());
+
+        int maxRank = randomIntBetween(1, 100);
+        reciprocalRank.setMaxAcceptableRank(maxRank);
+        assertEquals(maxRank, reciprocalRank.getMaxAcceptableRank());
+
+        SearchHit[] hits = new SearchHit[10];
+        for (int i = 0; i < 10; i++) {
+            hits[i] = new InternalSearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
+        }
+        List<RatedDocument> ratedDocs = new ArrayList<>();
+        int relevantAt = 5;
+        for (int i = 0; i < 10; i++) {
+            if (i == relevantAt) {
+                ratedDocs.add(new RatedDocument(Integer.toString(i), Rating.RELEVANT.ordinal()));
+            } else {
+                ratedDocs.add(new RatedDocument(Integer.toString(i), Rating.IRRELEVANT.ordinal()));
+            }
+        }
+
+        int rankAtFirstRelevant = relevantAt + 1;
+        EvalQueryQuality evaluation = reciprocalRank.evaluate(hits, ratedDocs);
+        assertEquals(1.0 / rankAtFirstRelevant, evaluation.getQualityLevel(), Double.MIN_VALUE);
+
+        reciprocalRank = new ReciprocalRank(rankAtFirstRelevant - 1);
+        evaluation = reciprocalRank.evaluate(hits, ratedDocs);
+        assertEquals(0.0, evaluation.getQualityLevel(), Double.MIN_VALUE);
+    }
+
     public void testEvaluationOneRelevantInResults() {
         ReciprocalRank reciprocalRank = new ReciprocalRank();
         SearchHit[] hits = new SearchHit[10];
@@ -63,6 +94,6 @@ public class ReciprocalRankTests extends ESTestCase {
         }
         List<RatedDocument> ratedDocs = new ArrayList<>();
         EvalQueryQuality evaluation = reciprocalRank.evaluate(hits, ratedDocs);
-        assertEquals(1.0 / Integer.MAX_VALUE, evaluation.getQualityLevel(), Double.MIN_VALUE);
+        assertEquals(0.0, evaluation.getQualityLevel(), Double.MIN_VALUE);
     }
 }

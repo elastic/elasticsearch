@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -42,13 +44,49 @@ import javax.naming.directory.SearchResult;
 public class ReciprocalRank extends RankedListQualityMetric {
 
     public static final String NAME = "reciprocal_rank";
-    // the rank to use if the result list does not contain any relevant document
-    // TODO decide on better default or make configurable
-    private static final int RANK_IF_NOT_FOUND = Integer.MAX_VALUE;
+    public static final int DEFAULT_MAX_ACCEPTABLE_RANK = 10;
+    private int maxAcceptableRank = DEFAULT_MAX_ACCEPTABLE_RANK;
+
+    /**
+     * Initializes maxAcceptableRank with 10
+     */
+    public ReciprocalRank() {
+        // use defaults
+    }
+
+    /**
+     * @param maxAcceptableRank
+     *            maximal acceptable rank. Must be positive.
+     */
+    public ReciprocalRank(int maxAcceptableRank) {
+        if (maxAcceptableRank <= 0) {
+            throw new IllegalArgumentException("maximal acceptable rank needs to be positive but was [" + maxAcceptableRank + "]");
+        }
+        this.maxAcceptableRank = maxAcceptableRank;
+    }
+
+    public ReciprocalRank(StreamInput in) throws IOException {
+        this.maxAcceptableRank = in.readInt();
+    }
 
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    /**
+     * @param maxAcceptableRank
+     *            maximal acceptable rank. Must be positive.
+     */
+    public void setMaxAcceptableRank(int maxAcceptableRank) {
+        if (maxAcceptableRank <= 0) {
+            throw new IllegalArgumentException("maximal acceptable rank needs to be positive but was [" + maxAcceptableRank + "]");
+        }
+        this.maxAcceptableRank = maxAcceptableRank;
+    }
+
+    public int getMaxAcceptableRank() {
+        return this.maxAcceptableRank;
     }
 
     /**
@@ -67,30 +105,38 @@ public class ReciprocalRank extends RankedListQualityMetric {
             }
         }
 
-        Collection<String> unknownDocIds = new ArrayList<String>();
-        int firstRelevant = RANK_IF_NOT_FOUND;
+        Collection<String> unknownDocIds = new ArrayList<>();
+        int firstRelevant = -1;
         boolean found = false;
         for (int i = 0; i < hits.length; i++) {
             String id = hits[i].getId();
-            if (relevantDocIds.contains(id) && found == false) {
-                firstRelevant = i + 1; // add one because rank is not 0-based
-                found = true;
-                continue;
-            } else if (irrelevantDocIds.contains(id) == false) {
+            if (relevantDocIds.contains(id)) {
+                if (found == false && i < maxAcceptableRank) {
+                    firstRelevant = i + 1; // add one because rank is not
+                                           // 0-based
+                    found = true;
+                }
+            } else {
                 unknownDocIds.add(id);
             }
         }
 
-        double reciprocalRank = 1.0d / firstRelevant;
+        double reciprocalRank = (firstRelevant == -1) ? 0 : 1.0d / firstRelevant;
         return new EvalQueryQuality(reciprocalRank, unknownDocIds);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(maxAcceptableRank);
     }
 
+    private static final ParseField MAX_RANK_FIELD = new ParseField("max_acceptable_rank");
     private static final ObjectParser<ReciprocalRank, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(
             "reciprocal_rank", () -> new ReciprocalRank());
+
+    static {
+        PARSER.declareInt(ReciprocalRank::setMaxAcceptableRank, MAX_RANK_FIELD);
+    }
 
     public static ReciprocalRank fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {
         return PARSER.apply(parser, matcher);

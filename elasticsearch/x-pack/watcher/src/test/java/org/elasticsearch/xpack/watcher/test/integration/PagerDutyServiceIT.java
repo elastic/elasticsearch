@@ -3,13 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockMustacheScriptEngine;
-import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyAction;
 import org.elasticsearch.xpack.notification.pagerduty.IncidentEvent;
@@ -20,9 +17,6 @@ import org.elasticsearch.xpack.notification.pagerduty.SentEvent;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.watch.Payload;
-
-import java.util.Collection;
-import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -38,9 +32,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 @Network
 public class PagerDutyServiceIT extends AbstractWatcherIntegrationTestCase {
 
@@ -52,20 +43,6 @@ public class PagerDutyServiceIT extends AbstractWatcherIntegrationTestCase {
     @Override
     protected boolean enableSecurity() {
         return false;
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        Collection<Class<? extends Plugin>> mockPlugins = super.getMockPlugins();
-        mockPlugins.remove(MockMustacheScriptEngine.TestPlugin.class);
-        return mockPlugins;
-    }
-
-    @Override
-    protected List<Class<? extends Plugin>> pluginTypes() {
-        List<Class<? extends Plugin>> types = super.pluginTypes();
-        types.add(MustachePlugin.class);
-        return types;
     }
 
     @Override
@@ -100,7 +77,7 @@ public class PagerDutyServiceIT extends AbstractWatcherIntegrationTestCase {
     public void testWatchWithPagerDutyAction() throws Exception {
         String account = "test_account";
         PagerDutyAction.Builder actionBuilder = pagerDutyAction(IncidentEvent
-                .templateBuilder("pager duty integration test `{{ctx.payload.ref}}`").setAccount(account));
+                .templateBuilder("pager duty integration test").setAccount(account));
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("1").setSource(watchBuilder()
                 .trigger(schedule(interval("10m")))

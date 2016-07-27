@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.xpack.watcher.test.integration;
 
 
 import org.apache.lucene.util.LuceneTestCase.BadApple;
@@ -13,9 +13,6 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockMustacheScriptEngine;
-import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
@@ -32,10 +29,6 @@ import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.hamcrest.Matchers;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -54,28 +47,9 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 
-/**
- */
 //test is just too slow, please fix it to not be sleep-based
 @BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 public class WatchAckIT extends AbstractWatcherIntegrationTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        Collection<Class<? extends Plugin>> types = new ArrayList<>();
-        types.addAll(super.nodePlugins());
-        // TODO remove dependency on mustache
-        types.add(MustachePlugin.class);
-        return types;
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        Set<Class<? extends Plugin>> plugins = new HashSet<>(super.getMockPlugins());
-        // remove the mock because we use mustache here...
-        plugins.remove(MockMustacheScriptEngine.TestPlugin.class);
-        return plugins;
-    }
 
     private IndexResponse indexTestDoc() {
         createIndex("actions", "events");

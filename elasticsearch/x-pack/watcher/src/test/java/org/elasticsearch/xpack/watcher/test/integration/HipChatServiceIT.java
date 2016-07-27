@@ -3,13 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockMustacheScriptEngine;
-import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
@@ -19,9 +16,6 @@ import org.elasticsearch.xpack.notification.hipchat.HipChatService;
 import org.elasticsearch.xpack.notification.hipchat.SentMessages;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
-
-import java.util.Collection;
-import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -36,9 +30,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 @Network
 @TestLogging("watcher.support.http:TRACE")
 public class HipChatServiceIT extends AbstractWatcherIntegrationTestCase {
@@ -50,20 +41,6 @@ public class HipChatServiceIT extends AbstractWatcherIntegrationTestCase {
     @Override
     protected boolean enableSecurity() {
         return false;
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getMockPlugins() {
-        Collection<Class<? extends Plugin>> mockPlugins = super.getMockPlugins();
-        mockPlugins.remove(MockMustacheScriptEngine.TestPlugin.class);
-        return mockPlugins;
-    }
-
-    @Override
-    protected List<Class<? extends Plugin>> pluginTypes() {
-        List<Class<? extends Plugin>> types = super.pluginTypes();
-        types.add(MustachePlugin.class);
-        return types;
     }
 
     @Override
@@ -148,7 +125,7 @@ public class HipChatServiceIT extends AbstractWatcherIntegrationTestCase {
         switch (profile) {
             case USER:
                 account = "user_account";
-                actionBuilder = hipchatAction(account, "{{ctx.payload.ref}}")
+                actionBuilder = hipchatAction(account, "_message")
                         .addRooms("test-watcher", "test-watcher-2")
                         .addUsers("watcher@elastic.co")
                         .setFormat(HipChatMessage.Format.TEXT)
@@ -158,7 +135,7 @@ public class HipChatServiceIT extends AbstractWatcherIntegrationTestCase {
 
             case INTEGRATION:
                 account = "integration_account";
-                actionBuilder = hipchatAction(account, "{{ctx.payload.ref}}")
+                actionBuilder = hipchatAction(account, "_message")
                         .setFormat(HipChatMessage.Format.TEXT)
                         .setColor(color)
                         .setNotify(false);
@@ -167,7 +144,7 @@ public class HipChatServiceIT extends AbstractWatcherIntegrationTestCase {
             default:
                 assertThat(profile, is(HipChatAccount.Profile.V1));
                 account = "v1_account";
-                actionBuilder = hipchatAction(account, "{{ctx.payload.ref}}")
+                actionBuilder = hipchatAction(account, "_message")
                         .addRooms("test-watcher", "test-watcher-2")
                         .setFrom("watcher-test")
                         .setFormat(HipChatMessage.Format.TEXT)

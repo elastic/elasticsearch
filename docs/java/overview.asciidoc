@@ -1,7 +1,7 @@
 == Overview
 
 Official low-level client for Elasticsearch. Allows to communicate with an
-Elasticsearch cluster through http. Compatible with other official clients.
+Elasticsearch cluster through http. Compatible with any elasticsearch version.
 
 === Features
 
@@ -19,9 +19,9 @@ The low-level client's features include:
 
 * persistent connections
 
-* optional automatic discovery of cluster nodes
-
 * trace logging of requests and responses
+
+* optional automatic discovery of cluster nodes
 
 
 === License

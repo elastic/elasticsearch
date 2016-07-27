@@ -63,8 +63,8 @@ public abstract class RankedListQualityMetric implements NamedWriteable {
         case ReciprocalRank.NAME:
             rc = ReciprocalRank.fromXContent(parser, context);
             break;
-        case DiscountedCumulativeGainAtN.NAME:
-            rc = DiscountedCumulativeGainAtN.fromXContent(parser, context);
+        case DiscountedCumulativeGainAt.NAME:
+            rc = DiscountedCumulativeGainAt.fromXContent(parser, context);
             break;
         default:
             throw new ParsingException(parser.getTokenLocation(), "[_na] unknown query metric name [{}]", metricName);

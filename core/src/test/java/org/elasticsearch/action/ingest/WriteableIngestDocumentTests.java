@@ -47,7 +47,7 @@ public class WriteableIngestDocumentTests extends ESTestCase {
         for (int i = 0; i < numFields; i++) {
             sourceAndMetadata.put(randomFrom(IngestDocument.MetaData.values()).getFieldName(), randomAsciiOfLengthBetween(5, 10));
         }
-        Map<String, String> ingestMetadata = new HashMap<>();
+        Map<String, Object> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
         for (int i = 0; i < numFields; i++) {
             ingestMetadata.put(randomAsciiOfLengthBetween(5, 10), randomAsciiOfLengthBetween(5, 10));
@@ -70,7 +70,7 @@ public class WriteableIngestDocumentTests extends ESTestCase {
             changed = true;
         }
 
-        Map<String, String> otherIngestMetadata;
+        Map<String, Object> otherIngestMetadata;
         if (randomBoolean()) {
             otherIngestMetadata = new HashMap<>();
             numFields = randomIntBetween(1, 5);
@@ -103,7 +103,7 @@ public class WriteableIngestDocumentTests extends ESTestCase {
         for (int i = 0; i < numFields; i++) {
             sourceAndMetadata.put(randomFrom(IngestDocument.MetaData.values()).getFieldName(), randomAsciiOfLengthBetween(5, 10));
         }
-        Map<String, String> ingestMetadata = new HashMap<>();
+        Map<String, Object> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
         for (int i = 0; i < numFields; i++) {
             ingestMetadata.put(randomAsciiOfLengthBetween(5, 10), randomAsciiOfLengthBetween(5, 10));
@@ -131,7 +131,7 @@ public class WriteableIngestDocumentTests extends ESTestCase {
 
         Map<String, Object> toXContentDoc = (Map<String, Object>) toXContentMap.get("doc");
         Map<String, Object> toXContentSource = (Map<String, Object>) toXContentDoc.get("_source");
-        Map<String, String> toXContentIngestMetadata = (Map<String, String>) toXContentDoc.get("_ingest");
+        Map<String, Object> toXContentIngestMetadata = (Map<String, Object>) toXContentDoc.get("_ingest");
 
         Map<IngestDocument.MetaData, String> metadataMap = ingestDocument.extractMetadata();
         for (Map.Entry<IngestDocument.MetaData, String> metadata : metadataMap.entrySet()) {

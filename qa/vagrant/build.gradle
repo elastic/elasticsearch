@@ -101,7 +101,7 @@ dependencies {
   // Collect all the plugins
   for (Project subproj : project.rootProject.subprojects) {
     if (subproj.path.startsWith(':plugins:')) {
-      test project("${subproj.path}")
+      test project(path: "${subproj.path}", configuration: 'zip')
     }
   }
 

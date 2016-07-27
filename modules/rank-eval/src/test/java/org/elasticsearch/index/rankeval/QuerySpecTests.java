@@ -35,8 +35,9 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
+
+import static java.util.Collections.emptyList;
 
 public class QuerySpecTests extends ESTestCase {
 
@@ -51,7 +52,7 @@ public class QuerySpecTests extends ESTestCase {
     @BeforeClass
     public static void init() throws IOException {
         aggsParsers = new AggregatorParsers(new ParseFieldRegistry<>("aggregation"), new ParseFieldRegistry<>("aggregation_pipes"));
-        searchModule = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false, new ArrayList<>());
+        searchModule = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false, emptyList());
         queriesRegistry = searchModule.getQueryParserRegistry();
         suggesters = searchModule.getSuggesters();
     }

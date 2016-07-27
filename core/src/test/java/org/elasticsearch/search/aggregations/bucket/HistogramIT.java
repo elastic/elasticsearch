@@ -26,7 +26,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -253,7 +252,7 @@ public class HistogramIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
         // TODO: use diamond once JI-9019884 is fixed
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -276,7 +275,7 @@ public class HistogramIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
         // TODO: use diamond once JI-9019884 is fixed
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(numValueBuckets - i - 1);
             assertThat(bucket, notNullValue());
@@ -300,7 +299,7 @@ public class HistogramIT extends ESIntegTestCase {
 
         LongHashSet buckets = new LongHashSet();
         // TODO: use diamond once JI-9019884 is fixed
-        List<Histogram.Bucket> histoBuckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> histoBuckets = new ArrayList<>(histo.getBuckets());
         long previousCount = Long.MIN_VALUE;
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = histoBuckets.get(i);
@@ -329,7 +328,7 @@ public class HistogramIT extends ESIntegTestCase {
 
         LongHashSet buckets = new LongHashSet();
         // TODO: use diamond once JI-9019884 is fixed
-        List<Histogram.Bucket> histoBuckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> histoBuckets = new ArrayList<>(histo.getBuckets());
         long previousCount = Long.MAX_VALUE;
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = histoBuckets.get(i);
@@ -356,12 +355,13 @@ public class HistogramIT extends ESIntegTestCase {
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
+        assertThat(histo.getProperty("_bucket_count"), equalTo(numValueBuckets));
         Object[] propertiesKeys = (Object[]) histo.getProperty("_key");
         Object[] propertiesDocCounts = (Object[]) histo.getProperty("_count");
         Object[] propertiesCounts = (Object[]) histo.getProperty("sum.value");
 
         // TODO: use diamond once JI-9019884 is fixed
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -404,7 +404,7 @@ public class HistogramIT extends ESIntegTestCase {
         LongHashSet visited = new LongHashSet();
         double previousSum = Double.NEGATIVE_INFINITY;
         // TODO: use diamond once JI-9019884 is fixed
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -448,7 +448,7 @@ public class HistogramIT extends ESIntegTestCase {
         LongHashSet visited = new LongHashSet();
         double previousSum = Double.POSITIVE_INFINITY;
         // TODO: use diamond once JI-9019884 is fixed
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -492,7 +492,7 @@ public class HistogramIT extends ESIntegTestCase {
         LongHashSet visited = new LongHashSet();
         double previousSum = Double.POSITIVE_INFINITY;
         // TODO: use diamond once JI-9019884 is fixed
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -538,7 +538,7 @@ public class HistogramIT extends ESIntegTestCase {
         LongHashSet visited = new LongHashSet();
         double prevMax = asc ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
         // TODO: use diamond once JI-9019884 is fixed
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -625,7 +625,7 @@ public class HistogramIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(numValuesBuckets));
 
         // TODO: use diamond once JI-9019884 is fixed
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValuesBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(numValuesBuckets - i - 1);
             assertThat(bucket, notNullValue());

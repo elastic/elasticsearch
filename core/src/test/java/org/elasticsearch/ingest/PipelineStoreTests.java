@@ -28,11 +28,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -48,7 +46,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
 
 public class PipelineStoreTests extends ESTestCase {
 
@@ -212,6 +209,19 @@ public class PipelineStoreTests extends ESTestCase {
         assertThat(pipelines.get(1).getId(), equalTo("_id2"));
 
         pipelines = store.innerGetPipelines(ingestMetadata, "_id*");
+        pipelines.sort((o1, o2) -> o1.getId().compareTo(o2.getId()));
+        assertThat(pipelines.size(), equalTo(2));
+        assertThat(pipelines.get(0).getId(), equalTo("_id1"));
+        assertThat(pipelines.get(1).getId(), equalTo("_id2"));
+
+        // get all variants: (no IDs or '*')
+        pipelines = store.innerGetPipelines(ingestMetadata);
+        pipelines.sort((o1, o2) -> o1.getId().compareTo(o2.getId()));
+        assertThat(pipelines.size(), equalTo(2));
+        assertThat(pipelines.get(0).getId(), equalTo("_id1"));
+        assertThat(pipelines.get(1).getId(), equalTo("_id2"));
+
+        pipelines = store.innerGetPipelines(ingestMetadata, "*");
         pipelines.sort((o1, o2) -> o1.getId().compareTo(o2.getId()));
         assertThat(pipelines.size(), equalTo(2));
         assertThat(pipelines.get(0).getId(), equalTo("_id1"));

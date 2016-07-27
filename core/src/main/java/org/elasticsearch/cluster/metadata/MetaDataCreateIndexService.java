@@ -202,8 +202,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             if (response.isAcknowledged()) {
                 activeShardsObserver.waitForActiveShards(request.index(), request.waitForActiveShards(), request.ackTimeout(),
                     shardsAcked -> {
-                        logger.debug("[{}] index created, but the operation timed out while waiting for " +
-                                         "enough shards to be started.", request.index());
+                        if (shardsAcked == false) {
+                            logger.debug("[{}] index created, but the operation timed out while waiting for " +
+                                             "enough shards to be started.", request.index());
+                        }
                         listener.onResponse(new CreateIndexClusterStateUpdateResponse(response.isAcknowledged(), shardsAcked));
                     }, listener::onFailure);
             } else {

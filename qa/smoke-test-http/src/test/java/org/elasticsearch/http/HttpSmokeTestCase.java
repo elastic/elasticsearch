@@ -25,6 +25,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.Netty3Plugin;
+import org.elasticsearch.transport.Netty4Plugin;
+import org.junit.BeforeClass;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -32,33 +34,56 @@ import java.util.List;
 
 public abstract class HttpSmokeTestCase extends ESIntegTestCase {
 
+    private static String nodeTransportTypeKey;
+    private static String nodeHttpTypeKey;
+    private static String clientTypeKey;
+
+    @SuppressWarnings("unchecked")
+    @BeforeClass
+    public static void setUpTransport() {
+        nodeTransportTypeKey = getTypeKey(randomFrom(MockTcpTransportPlugin.class, Netty3Plugin.class, Netty4Plugin.class));
+        nodeHttpTypeKey = getTypeKey(randomFrom(Netty3Plugin.class, Netty4Plugin.class));
+        clientTypeKey = getTypeKey(randomFrom(MockTcpTransportPlugin.class, Netty3Plugin.class, Netty4Plugin.class));
+    }
+
+    private static String getTypeKey(Class<? extends Plugin> clazz) {
+        if (clazz.equals(MockTcpTransportPlugin.class)) {
+            return MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME;
+        } else if (clazz.equals(Netty3Plugin.class)) {
+            return Netty3Plugin.NETTY_TRANSPORT_NAME;
+        } else {
+            assert clazz.equals(Netty4Plugin.class);
+            return Netty4Plugin.NETTY_TRANSPORT_NAME;
+        }
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
-            .put("netty.assert.buglevel", false)
-            .put(NetworkModule.TRANSPORT_TYPE_KEY, randomFrom(Netty3Plugin.NETTY_TRANSPORT_NAME,
-                MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME))
-            .put(NetworkModule.HTTP_ENABLED.getKey(), true).build();
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("netty.assert.buglevel", false)
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, nodeTransportTypeKey)
+                .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey)
+                .put(NetworkModule.HTTP_ENABLED.getKey(), true).build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTcpTransportPlugin.class, Netty3Plugin.class, BogusPlugin.class);
+        return pluginList(MockTcpTransportPlugin.class, Netty3Plugin.class, Netty4Plugin.class, BogusPlugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return pluginList(MockTcpTransportPlugin.class, Netty3Plugin.class, BogusPlugin.class);
+        return pluginList(MockTcpTransportPlugin.class, Netty3Plugin.class, Netty4Plugin.class, BogusPlugin.class);
     }
 
     @Override
     protected Settings transportClientSettings() {
         return Settings.builder()
-            .put(super.transportClientSettings())
-            .put("netty.assert.buglevel", false)
-            .put(NetworkModule.TRANSPORT_TYPE_KEY, randomFrom(Netty3Plugin.NETTY_TRANSPORT_NAME,
-                MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)).build();
+                .put(super.transportClientSettings())
+                .put("netty.assert.buglevel", false)
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, clientTypeKey)
+                .build();
     }
 
     @Override
@@ -66,15 +91,18 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
         return true;
     }
 
-
     public static final class BogusPlugin extends Plugin {
-        // see Netty3Plugin.... this runs without the permission from the netty3 module so it will fail since reindex can't set the property
+
+        // this runs without the permission from the netty modules so it will fail since reindex can't set the property
         // to make it still work we disable that check but need to register the setting first
-        private static final Setting<Boolean> ASSERT_NETTY_BUGLEVEL = Setting.boolSetting("netty.assert.buglevel", true,
-            Setting.Property.NodeScope);
+        private static final Setting<Boolean> ASSERT_NETTY_BUGLEVEL =
+                Setting.boolSetting("netty.assert.buglevel", true, Setting.Property.NodeScope);
+
         @Override
         public List<Setting<?>> getSettings() {
             return Collections.singletonList(ASSERT_NETTY_BUGLEVEL);
         }
+
     }
+
 }

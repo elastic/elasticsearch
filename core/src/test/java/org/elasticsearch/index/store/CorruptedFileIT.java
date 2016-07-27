@@ -70,6 +70,7 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockIndexEventListener;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportException;
@@ -471,6 +472,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
      * TODO once checksum verification on snapshotting is implemented this test needs to be fixed or split into several
      * parts... We should also corrupt files on the actual snapshot and check that we don't restore the corrupted shard.
      */
+    @TestLogging("monitor.fs:DEBUG")
     public void testCorruptFileThenSnapshotAndRestore() throws ExecutionException, InterruptedException, IOException {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);

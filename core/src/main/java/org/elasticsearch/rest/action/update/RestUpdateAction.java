@@ -97,6 +97,6 @@ public class RestUpdateAction extends BaseRestHandler {
             }
         }
 
-        client.update(updateRequest, new RestStatusToXContentListener<>(channel));
+        client.update(updateRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(updateRequest.routing())));
     }
 }

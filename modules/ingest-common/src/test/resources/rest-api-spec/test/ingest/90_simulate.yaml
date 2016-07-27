@@ -1,4 +1,11 @@
 ---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
 "Test simulate with stored ingest pipeline":
   - do:
       ingest.put_pipeline:

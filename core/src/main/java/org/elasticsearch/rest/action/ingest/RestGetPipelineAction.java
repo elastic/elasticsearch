@@ -35,6 +35,7 @@ public class RestGetPipelineAction extends BaseRestHandler {
     @Inject
     public RestGetPipelineAction(Settings settings, RestController controller) {
         super(settings);
+        controller.registerHandler(RestRequest.Method.GET, "/_ingest/pipeline", this);
         controller.registerHandler(RestRequest.Method.GET, "/_ingest/pipeline/{id}", this);
     }
 

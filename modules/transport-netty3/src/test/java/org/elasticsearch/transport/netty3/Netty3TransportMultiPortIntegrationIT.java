@@ -73,7 +73,7 @@ public class Netty3TransportMultiPortIntegrationIT extends ESNetty3IntegTestCase
     public void testThatTransportClientCanConnect() throws Exception {
         Settings settings = Settings.builder()
                 .put("cluster.name", internalCluster().getClusterName())
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty3")
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, Netty3Plugin.NETTY_TRANSPORT_NAME)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         try (TransportClient transportClient = new MockTransportClient(settings, Netty3Plugin.class)) {

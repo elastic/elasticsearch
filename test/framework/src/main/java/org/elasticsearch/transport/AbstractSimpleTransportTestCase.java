@@ -21,6 +21,8 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +30,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -41,16 +46,19 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -75,24 +83,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
-        serviceA = build(
-            Settings.builder()
-                .put("name", "TS_A")
-                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-                .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-                .build(),
-            version0);
-        serviceA.acceptIncomingRequests();
+        serviceA = buildService("TS_A", version0);
         nodeA = new DiscoveryNode("TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
         // serviceA.setLocalNode(nodeA);
-        serviceB = build(
-            Settings.builder()
-                .put("name", "TS_B")
-                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-                .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-                .build(),
-            version1);
-        serviceB.acceptIncomingRequests();
+        serviceB = buildService("TS_B", version1);
         nodeB = new DiscoveryNode("TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), version1);
         //serviceB.setLocalNode(nodeB);
         // wait till all nodes are properly connected and the event has been sent, so tests in this class
@@ -129,6 +123,18 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat("failed to wait for all nodes to connect", latch.await(5, TimeUnit.SECONDS), equalTo(true));
         serviceA.removeConnectionListener(waitForConnection);
         serviceB.removeConnectionListener(waitForConnection);
+    }
+
+    private MockTransportService buildService(final String name, final Version version) {
+        MockTransportService service = build(
+            Settings.builder()
+                .put(Node.NODE_NAME_SETTING.getKey(), name)
+                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
+                .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
+                .build(),
+            version);
+        service.acceptIncomingRequests();
+        return service;
     }
 
     @Override
@@ -483,6 +489,126 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(latch.await(5, TimeUnit.SECONDS), equalTo(true));
     }
 
+    @TestLogging("transport:DEBUG,transport.tracer:TRACE")
+    // boaz is on this
+    @AwaitsFix(bugUrl = "https://elasticsearch-ci.elastic.co/job/elastic+elasticsearch+master+multijob-os-compatibility/os=oraclelinux/835")
+    public void testConcurrentSendRespondAndDisconnect() throws BrokenBarrierException, InterruptedException {
+        Set<Exception> sendingErrors = ConcurrentCollections.newConcurrentSet();
+        Set<Exception> responseErrors = ConcurrentCollections.newConcurrentSet();
+        serviceA.registerRequestHandler("test", TestRequest::new,
+            randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC, (request, channel) -> {
+                try {
+                    channel.sendResponse(new TestResponse());
+                } catch (Exception e) {
+                    logger.info("caught exception while responding", e);
+                    responseErrors.add(e);
+                }
+            });
+        final TransportRequestHandler<TestRequest> ignoringRequestHandler = (request, channel) -> {
+            try {
+                channel.sendResponse(new TestResponse());
+            } catch (Exception e) {
+                // we don't really care what's going on B, we're testing through A
+                logger.trace("caught exception while responding from node B", e);
+            }
+        };
+        serviceB.registerRequestHandler("test", TestRequest::new, ThreadPool.Names.SAME, ignoringRequestHandler);
+
+        int halfSenders = scaledRandomIntBetween(3, 10);
+        final CyclicBarrier go = new CyclicBarrier(halfSenders * 2 + 1);
+        final CountDownLatch done = new CountDownLatch(halfSenders * 2);
+        for (int i = 0; i < halfSenders; i++) {
+            // B senders just generated activity so serciveA can respond, we don't test what's going on there
+            final int sender = i;
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    logger.trace("caught exception while sending from B", e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    go.await();
+                    for (int iter = 0; iter < 10; iter++) {
+                        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+                        final String info = sender + "_B_" + iter;
+                        serviceB.sendRequest(nodeA, "test", new TestRequest(info),
+                            new ActionListenerResponseHandler<>(listener, TestResponse::new));
+                        try {
+                            listener.actionGet();
+
+                        } catch (Exception e) {
+                            logger.trace("caught exception while sending to node {}", e, nodeA);
+                        }
+                    }
+                }
+
+                @Override
+                public void onAfter() {
+                    done.countDown();
+                }
+            });
+        }
+
+        for (int i = 0; i < halfSenders; i++) {
+            final int sender = i;
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("unexpected error", e);
+                    sendingErrors.add(e);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    go.await();
+                    for (int iter = 0; iter < 10; iter++) {
+                        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+                        final String info = sender + "_" + iter;
+                        final DiscoveryNode node = nodeB; // capture now
+                        serviceA.sendRequest(node, "test", new TestRequest(info),
+                            new ActionListenerResponseHandler<>(listener, TestResponse::new));
+                        try {
+                            listener.actionGet();
+                        } catch (ConnectTransportException e) {
+                            // ok!
+                        } catch (Exception e) {
+                            logger.error("caught exception while sending to node {}", e, node);
+                            sendingErrors.add(e);
+                        }
+                    }
+                }
+
+                @Override
+                public void onAfter() {
+                    done.countDown();
+                }
+            });
+        }
+        go.await();
+        for (int i = 0; i <= 10; i++) {
+            if (i % 3 == 0) {
+                // simulate restart of nodeB
+                serviceB.close();
+                MockTransportService newService = buildService("TS_B_" + i, version1);
+                newService.registerRequestHandler("test", TestRequest::new, ThreadPool.Names.SAME, ignoringRequestHandler);
+                serviceB = newService;
+                nodeB = new DiscoveryNode("TS_B_" + i, "TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), version1);
+                serviceB.connectToNode(nodeA);
+                serviceA.connectToNode(nodeB);
+            } else if (serviceA.nodeConnected(nodeB)) {
+                serviceA.disconnectFromNode(nodeB);
+            } else {
+                serviceA.connectToNode(nodeB);
+            }
+        }
+
+        done.await();
+
+        assertThat("found non connection errors while sending", sendingErrors, empty());
+        assertThat("found non connection errors while responding", responseErrors, empty());
+    }
+
     public void testNotifyOnShutdown() throws Exception {
         final CountDownLatch latch2 = new CountDownLatch(1);
 
@@ -664,7 +790,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertTrue(inFlight.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
     }
 
-    @TestLogging(value = "test. transport.tracer:TRACE")
+    @TestLogging(value = "test.transport.tracer:TRACE")
     public void testTracerLog() throws InterruptedException {
         TransportRequestHandler handler = new TransportRequestHandler<StringMessageRequest>() {
             @Override

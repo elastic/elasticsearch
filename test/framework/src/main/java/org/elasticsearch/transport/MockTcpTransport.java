@@ -146,8 +146,8 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             output.write(minimalHeader);
             output.writeInt(msgSize);
             output.write(buffer);
-            BytesReference bytes = output.bytes();
-            if (validateMessageHeader(bytes)) {
+            final BytesReference bytes = output.bytes();
+            if (TcpTransport.validateMessageHeader(bytes)) {
                 InetSocketAddress remoteAddress = (InetSocketAddress) socket.getRemoteSocketAddress();
                 messageReceived(bytes.slice(TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE, msgSize),
                     mockChannel, mockChannel.profile, remoteAddress, msgSize);
@@ -349,5 +349,6 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     protected Version getCurrentVersion() {
         return mockVersion;
     }
+
 }
 

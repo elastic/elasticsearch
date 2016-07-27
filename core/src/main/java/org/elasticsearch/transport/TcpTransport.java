@@ -93,6 +93,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -918,25 +919,32 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions);
                 }
             };
-            try {
-                sendMessage(targetChannel, message, onRequestSent, false);
-            } catch (IOException ex) {
-                if (nodeConnected(node)) {
-                    throw ex;
-                } else {
-                    // we might got disconnected in between the nodeChannel(node, options) call and the sending -
-                    // in that case throw a subclass of ConnectTransportException since some code retries based on this
-                    // see TransportMasterNodeAction for instance
-                    throw new NodeNotConnectedException(node, "Node not connected");
-                }
-            }
-            addedReleaseListener = true;
+            addedReleaseListener = internalSendMessage(targetChannel, message, onRequestSent);
         } finally {
             IOUtils.close(stream);
             if (!addedReleaseListener) {
                 Releasables.close(bStream.bytes());
             }
         }
+    }
+
+    /**
+     * sends a message view the given channel, using the given callbacks.
+     *
+     * @return true if the message was successfully sent or false when an error occurred and the error hanlding logic was activated
+     *
+     */
+    private boolean internalSendMessage(Channel targetChannel, BytesReference message, Runnable onRequestSent) throws IOException {
+        boolean success;
+        try {
+            sendMessage(targetChannel, message, onRequestSent, false);
+            success = true;
+        } catch (IOException ex) {
+            // passing exception handling to deal with this and raise disconnect events and decide the right logging level
+            onException(targetChannel, ex);
+            success = false;
+        }
+        return success;
     }
 
     /**
@@ -997,9 +1005,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     transportServiceAdapter.onResponseSent(requestId, action, response, finalOptions);
                 }
             };
-            sendMessage(channel, reference, onRequestSent, false);
-            addedReleaseListener = true;
-
+            addedReleaseListener = internalSendMessage(channel, reference, onRequestSent);
         } finally {
             IOUtils.close(stream);
             if (!addedReleaseListener) {
@@ -1071,23 +1077,23 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         if (buffer.get(offset) != 'E' || buffer.get(offset + 1) != 'S') {
             // special handling for what is probably HTTP
             if (bufferStartsWith(buffer, offset, "GET ") ||
-                bufferStartsWith(buffer, offset, "POST ") ||
-                bufferStartsWith(buffer, offset, "PUT ") ||
-                bufferStartsWith(buffer, offset, "HEAD ") ||
-                bufferStartsWith(buffer, offset, "DELETE ") ||
-                bufferStartsWith(buffer, offset, "OPTIONS ") ||
-                bufferStartsWith(buffer, offset, "PATCH ") ||
-                bufferStartsWith(buffer, offset, "TRACE ")) {
+                    bufferStartsWith(buffer, offset, "POST ") ||
+                    bufferStartsWith(buffer, offset, "PUT ") ||
+                    bufferStartsWith(buffer, offset, "HEAD ") ||
+                    bufferStartsWith(buffer, offset, "DELETE ") ||
+                    bufferStartsWith(buffer, offset, "OPTIONS ") ||
+                    bufferStartsWith(buffer, offset, "PATCH ") ||
+                    bufferStartsWith(buffer, offset, "TRACE ")) {
 
                 throw new HttpOnTransportException("This is not a HTTP port");
             }
 
             // we have 6 readable bytes, show 4 (should be enough)
             throw new StreamCorruptedException("invalid internal transport message format, got ("
-                + Integer.toHexString(buffer.get(offset) & 0xFF) + ","
-                + Integer.toHexString(buffer.get(offset + 1) & 0xFF) + ","
-                + Integer.toHexString(buffer.get(offset + 2) & 0xFF) + ","
-                + Integer.toHexString(buffer.get(offset + 3) & 0xFF) + ")");
+                    + Integer.toHexString(buffer.get(offset) & 0xFF) + ","
+                    + Integer.toHexString(buffer.get(offset + 1) & 0xFF) + ","
+                    + Integer.toHexString(buffer.get(offset + 2) & 0xFF) + ","
+                    + Integer.toHexString(buffer.get(offset + 3) & 0xFF) + ")");
         }
 
         final int dataLen;
@@ -1106,7 +1112,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         // safety against too large frames being sent
         if (dataLen > NINETY_PER_HEAP_SIZE) {
             throw new IllegalArgumentException("transport content length received [" + new ByteSizeValue(dataLen) + "] exceeded ["
-                + new ByteSizeValue(NINETY_PER_HEAP_SIZE) + "]");
+                    + new ByteSizeValue(NINETY_PER_HEAP_SIZE) + "]");
         }
 
         if (buffer.length() < dataLen + sizeHeaderLength) {
@@ -1154,7 +1160,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     public final void messageReceived(BytesReference reference, Channel channel, String profileName,
                                       InetSocketAddress remoteAddress, int messageLengthBytes) throws IOException {
         final int totalMessageSize = messageLengthBytes + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
-        transportServiceAdapter.received(totalMessageSize);
+        transportServiceAdapter.addBytesReceived(totalMessageSize);
         // we have additional bytes to read, outside of the header
         boolean hasMessageBytesToRead = (totalMessageSize - TcpHeader.HEADER_SIZE) > 0;
         StreamInput streamIn = reference.streamInput();

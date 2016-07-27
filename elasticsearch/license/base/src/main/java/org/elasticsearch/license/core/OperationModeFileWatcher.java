@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * In case of failure to read a valid operation mode from <code>licenseModePath</code>,
  * the operation mode will default to PLATINUM
  */
-public final class OperationModeFileWatcher extends FileChangesListener {
+public final class OperationModeFileWatcher implements FileChangesListener {
     private final ResourceWatcherService resourceWatcherService;
     private final Path licenseModePath;
     private final AtomicBoolean initialized = new AtomicBoolean();

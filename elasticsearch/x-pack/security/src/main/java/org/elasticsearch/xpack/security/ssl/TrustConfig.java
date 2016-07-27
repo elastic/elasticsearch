@@ -264,7 +264,7 @@ abstract class TrustConfig {
         }
     }
 
-    protected static class ChangeListener extends FileChangesListener {
+    protected static class ChangeListener implements FileChangesListener {
 
         private final List<Path> paths;
         private final Reloadable reloadable;

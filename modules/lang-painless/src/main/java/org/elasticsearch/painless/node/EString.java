@@ -29,51 +29,32 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * Represents an array length field load.
+ * Represents a string constant.
  */
-public final class LArrayLength extends ALink {
+public final class EString extends AExpression {
 
-    final String value;
+    public EString(Location location, String string) {
+        super(location);
 
-    LArrayLength(Location location, String value) {
-        super(location, -1);
-
-        this.value = Objects.requireNonNull(value);
-    }
-    
-    @Override
-    void extractVariables(Set<String> variables) {}
-
-    @Override
-    ALink analyze(Locals locals) {
-        if ("length".equals(value)) {
-            if (!load) {
-                throw createError(new IllegalArgumentException("Must read array field [length]."));
-            } else if (store) {
-                throw createError(new IllegalArgumentException("Cannot write to read-only array field [length]."));
-            }
-
-            after = Definition.INT_TYPE;
-        } else {
-            throw createError(new IllegalArgumentException("Illegal field access [" + value + "]."));
-        }
-
-        return this;
+        this.constant = Objects.requireNonNull(string);
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
+    void extractVariables(Set<String> variables) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-        writer.arrayLength();
+    void analyze(Locals locals) {
+        if (!read) {
+            throw createError(new IllegalArgumentException("Must read from constant [" + constant + "]."));
+        }
+
+        actual = Definition.STRING_TYPE;
     }
 
     @Override
-    void store(MethodWriter writer, Globals globals) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
+    void write(MethodWriter writer, Globals globals) {
+        throw new IllegalStateException("Illegal tree structure.");
     }
 }

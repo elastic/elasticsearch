@@ -19,75 +19,91 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Definition.Struct;
-
-import java.util.Objects;
-import java.util.Set;
-
+import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+
+import java.util.Set;
 
 /**
  * Represents a field load/store shortcut.  (Internal only.)
  */
-final class LShortcut extends ALink {
+final class PSubShortcut extends AStoreable {
 
-    final String value;
+    private final String value;
+    private final String type;
+    private final Method getter;
+    private final Method setter;
 
-    Method getter = null;
-    Method setter = null;
+    PSubShortcut(Location location, String value, String type, Method getter, Method setter) {
+        super(location);
 
-    LShortcut(Location location, String value) {
-        super(location, 1);
-
-        this.value = Objects.requireNonNull(value);
+        this.value = value;
+        this.type = type;
+        this.getter = getter;
+        this.setter = setter;
     }
-    
-    @Override
-    void extractVariables(Set<String> variables) {}
 
     @Override
-    ALink analyze(Locals locals) {
-        Struct struct = before.struct;
+    void extractVariables(Set<String> variables) {
+        throw createError(new IllegalStateException("Illegal tree structure."));
+    }
 
-        getter = struct.methods.get(new Definition.MethodKey("get" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
-
-        if (getter == null) {
-            getter = struct.methods.get(new Definition.MethodKey("is" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 0));
-        }
-
-        setter = struct.methods.get(new Definition.MethodKey("set" + Character.toUpperCase(value.charAt(0)) + value.substring(1), 1));
-
+    @Override
+    void analyze(Locals locals) {
         if (getter != null && (getter.rtn.sort == Sort.VOID || !getter.arguments.isEmpty())) {
             throw createError(new IllegalArgumentException(
-                "Illegal get shortcut on field [" + value + "] for type [" + struct.name + "]."));
+                "Illegal get shortcut on field [" + value + "] for type [" + type + "]."));
         }
 
         if (setter != null && (setter.rtn.sort != Sort.VOID || setter.arguments.size() != 1)) {
             throw createError(new IllegalArgumentException(
-                "Illegal set shortcut on field [" + value + "] for type [" + struct.name + "]."));
+                "Illegal set shortcut on field [" + value + "] for type [" + type + "]."));
         }
 
         if (getter != null && setter != null && setter.arguments.get(0) != getter.rtn) {
             throw createError(new IllegalArgumentException("Shortcut argument types must match."));
         }
 
-        if ((getter != null || setter != null) && (!load || getter != null) && (!store || setter != null)) {
-            after = setter != null ? setter.arguments.get(0) : getter.rtn;
+        if ((getter != null || setter != null) && (!read || getter != null) && (!write || setter != null)) {
+            actual = setter != null ? setter.arguments.get(0) : getter.rtn;
         } else {
-            throw createError(new IllegalArgumentException("Illegal shortcut on field [" + value + "] for type [" + struct.name + "]."));
+            throw createError(new IllegalArgumentException("Illegal shortcut on field [" + value + "] for type [" + type + "]."));
         }
-
-        return this;
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        writer.writeDebugInfo(location);
+
+        getter.write(writer);
+
+        if (!getter.rtn.clazz.equals(getter.handle.type().returnType())) {
+            writer.checkCast(getter.rtn.type);
+        }
+    }
+
+    @Override
+    int accessElementCount() {
+        return 1;
+    }
+
+    @Override
+    boolean isDefOptimized() {
+        return false;
+    }
+
+    @Override
+    void updateActual(Type actual) {
+        throw new IllegalArgumentException("Illegal tree structure.");
+    }
+
+    @Override
+    void setup(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 

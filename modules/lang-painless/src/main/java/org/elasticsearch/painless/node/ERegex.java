@@ -35,61 +35,53 @@ import org.elasticsearch.painless.WriterConstants;
 /**
  * Represents a regex constant. All regexes are constants.
  */
-public final class LRegex extends ALink {
+public final class ERegex extends AExpression {
+
     private final String pattern;
     private final int flags;
     private Constant constant;
 
-    public LRegex(Location location, String pattern, String flagsString) {
-        super(location, 1);
+    public ERegex(Location location, String pattern, String flagsString) {
+        super(location);
+
         this.pattern = pattern;
+
         int flags = 0;
+
         for (int c = 0; c < flagsString.length(); c++) {
             flags |= flagForChar(flagsString.charAt(c));
         }
+
         this.flags = flags;
-        try {
-            // Compile the pattern early after parsing so we can throw an error to the user with the location
-            Pattern.compile(pattern, flags);
-        } catch (PatternSyntaxException e) {
-            throw createError(e);
-        }
-    }
-    
-    @Override
-    void extractVariables(Set<String> variables) {}
-
-    @Override
-    ALink analyze(Locals locals) {
-        if (before != null) {
-            throw createError(new IllegalArgumentException("Illegal Regex constant [" + pattern + "]."));
-        } else if (store) {
-            throw createError(new IllegalArgumentException("Cannot write to Regex constant [" + pattern + "]."));
-        } else if (!load) {
-            throw createError(new IllegalArgumentException("Regex constant may only be read [" + pattern + "]."));
-        }
-
-        constant = new Constant(location, Definition.PATTERN_TYPE.type, "regexAt$" + location.getOffset(), this::initializeConstant);
-        after = Definition.PATTERN_TYPE;
-
-        return this;
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
+    void extractVariables(Set<String> variables) {
         // Do nothing.
     }
 
     @Override
-    void load(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-        writer.getStatic(WriterConstants.CLASS_TYPE, constant.name, Definition.PATTERN_TYPE.type);
-        globals.addConstantInitializer(constant);
+    void analyze(Locals locals) {
+        if (!read) {
+            throw createError(new IllegalArgumentException("Regex constant may only be read [" + pattern + "]."));
+        }
+
+        try {
+            Pattern.compile(pattern, flags);
+        } catch (PatternSyntaxException exception) {
+            throw createError(exception);
+        }
+
+        constant = new Constant(location, Definition.PATTERN_TYPE.type, "regexAt$" + location.getOffset(), this::initializeConstant);
+        actual = Definition.PATTERN_TYPE;
     }
 
     @Override
-    void store(MethodWriter writer, Globals globals) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
+    void write(MethodWriter writer, Globals globals) {
+        writer.writeDebugInfo(location);
+
+        writer.getStatic(WriterConstants.CLASS_TYPE, constant.name, Definition.PATTERN_TYPE.type);
+        globals.addConstantInitializer(constant);
     }
 
     private void initializeConstant(MethodWriter writer) {
@@ -100,15 +92,16 @@ public final class LRegex extends ALink {
 
     private int flagForChar(char c) {
         switch (c) {
-        case 'c': return Pattern.CANON_EQ;
-        case 'i': return Pattern.CASE_INSENSITIVE;
-        case 'l': return Pattern.LITERAL;
-        case 'm': return Pattern.MULTILINE;
-        case 's': return Pattern.DOTALL;
-        case 'U': return Pattern.UNICODE_CHARACTER_CLASS;
-        case 'u': return Pattern.UNICODE_CASE;
-        case 'x': return Pattern.COMMENTS;
-        default: throw new IllegalArgumentException("Unknown flag [" + c + "]");
+            case 'c': return Pattern.CANON_EQ;
+            case 'i': return Pattern.CASE_INSENSITIVE;
+            case 'l': return Pattern.LITERAL;
+            case 'm': return Pattern.MULTILINE;
+            case 's': return Pattern.DOTALL;
+            case 'U': return Pattern.UNICODE_CHARACTER_CLASS;
+            case 'u': return Pattern.UNICODE_CASE;
+            case 'x': return Pattern.COMMENTS;
+            default:
+                throw new IllegalArgumentException("Unknown flag [" + c + "]");
         }
     }
 }

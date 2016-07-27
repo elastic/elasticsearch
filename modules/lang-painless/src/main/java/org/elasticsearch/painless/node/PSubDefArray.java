@@ -19,49 +19,72 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.DefBootstrap;
+import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Objects;
 import java.util.Set;
 
-import org.elasticsearch.painless.MethodWriter;
-
 /**
  * Represents an array load/store or shortcut on a def type.  (Internal only.)
  */
-final class LDefArray extends ALink implements IDefLink {
+final class PSubDefArray extends AStoreable {
 
-    AExpression index;
+    private AExpression index;
 
-    LDefArray(Location location, AExpression index) {
-        super(location, 2);
+    PSubDefArray(Location location, AExpression index) {
+        super(location);
 
         this.index = Objects.requireNonNull(index);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
-        index.extractVariables(variables);
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override
-    ALink analyze(Locals locals) {
+    void analyze(Locals locals) {
         index.analyze(locals);
         index.expected = index.actual;
         index = index.cast(locals);
 
-        after = Definition.DEF_TYPE;
-
-        return this;
+        actual = expected == null || explicit ? Definition.DEF_TYPE : expected;
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        index.write(writer, globals);
+
+        writer.writeDebugInfo(location);
+
+        org.objectweb.asm.Type methodType =
+            org.objectweb.asm.Type.getMethodType(actual.type, Definition.DEF_TYPE.type, index.actual.type);
+        writer.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
+    }
+
+    @Override
+    int accessElementCount() {
+        return 2;
+    }
+
+    @Override
+    boolean isDefOptimized() {
+        return true;
+    }
+
+    @Override
+    void updateActual(Type actual) {
+        this.actual = actual;
+    }
+
+    @Override
+    void setup(MethodWriter writer, Globals globals) {
         index.write(writer, globals);
     }
 
@@ -69,7 +92,8 @@ final class LDefArray extends ALink implements IDefLink {
     void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        Type methodType = Type.getMethodType(after.type, Definition.DEF_TYPE.type, index.actual.type);
+        org.objectweb.asm.Type methodType =
+            org.objectweb.asm.Type.getMethodType(actual.type, Definition.DEF_TYPE.type, index.actual.type);
         writer.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
     }
 
@@ -77,7 +101,8 @@ final class LDefArray extends ALink implements IDefLink {
     void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        Type methodType = Type.getMethodType(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, index.actual.type, after.type);
+        org.objectweb.asm.Type methodType =
+            org.objectweb.asm.Type.getMethodType(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, index.actual.type, actual.type);
         writer.invokeDefCall("arrayStore", methodType, DefBootstrap.ARRAY_STORE);
     }
 }

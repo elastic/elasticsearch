@@ -35,20 +35,20 @@ import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 /**
  * Represents a user-defined call.
  */
-public class LCallLocal extends ALink {
+public final class ECallLocal extends AExpression {
 
-    final String name;
-    final List<AExpression> arguments;
+    private final String name;
+    private final List<AExpression> arguments;
 
-    Method method = null;
+    private Method method = null;
 
-    public LCallLocal(Location location, String name, List<AExpression> arguments) {
-        super(location, -1);
+    public ECallLocal(Location location, String name, List<AExpression> arguments) {
+        super(location);
 
         this.name = Objects.requireNonNull(name);
         this.arguments = Objects.requireNonNull(arguments);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         for (AExpression argument : arguments) {
@@ -57,42 +57,29 @@ public class LCallLocal extends ALink {
     }
 
     @Override
-    ALink analyze(Locals locals) {
-        if (before != null) {
-            throw createError(new IllegalArgumentException("Illegal call [" + name + "] against an existing target."));
-        } else if (store) {
-            throw createError(new IllegalArgumentException("Cannot assign a value to a call [" + name + "]."));
-        }
-
+    void analyze(Locals locals) {
         MethodKey methodKey = new MethodKey(name, arguments.size());
         method = locals.getMethod(methodKey);
 
-        if (method != null) {
-            for (int argument = 0; argument < arguments.size(); ++argument) {
-                AExpression expression = arguments.get(argument);
-
-                expression.expected = method.arguments.get(argument);
-                expression.internal = true;
-                expression.analyze(locals);
-                arguments.set(argument, expression.cast(locals));
-            }
-
-            statement = true;
-            after = method.rtn;
-
-            return this;
+        if (method == null) {
+            throw createError(new IllegalArgumentException("Unknown call [" + name + "] with [" + arguments.size() + "] arguments."));
         }
 
-        throw createError(new IllegalArgumentException("Unknown call [" + name + "] with [" + arguments.size() + "] arguments."));
+        for (int argument = 0; argument < arguments.size(); ++argument) {
+            AExpression expression = arguments.get(argument);
+
+            expression.expected = method.arguments.get(argument);
+            expression.internal = true;
+            expression.analyze(locals);
+            arguments.set(argument, expression.cast(locals));
+        }
+
+        statement = true;
+        actual = method.rtn;
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        // Do nothing.
-    }
-
-    @Override
-    void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         for (AExpression argument : arguments) {
@@ -100,10 +87,5 @@ public class LCallLocal extends ALink {
         }
 
         writer.invokeStatic(CLASS_TYPE, method.method);
-    }
-
-    @Override
-    void store(MethodWriter writer, Globals globals) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

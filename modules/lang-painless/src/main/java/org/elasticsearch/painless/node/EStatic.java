@@ -22,64 +22,42 @@ package org.elasticsearch.painless.node;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Definition.Cast;
-
-import java.util.Set;
-
-import org.elasticsearch.painless.AnalyzerCaster;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.util.Objects;
+import java.util.Set;
+
+import org.elasticsearch.painless.Locals;
+
 /**
- * Represents a cast made in a variable/method chain.
+ * Represents a static type target.
  */
-public final class LCast extends ALink {
+public final class EStatic extends AExpression {
 
-    final String type;
+    private final String type;
 
-    Cast cast = null;
+    public EStatic(Location location, String type) {
+        super(location);
 
-    public LCast(Location location, String type) {
-        super(location, -1);
-
-        this.type = type;
-    }
-    
-    @Override
-    void extractVariables(Set<String> variables) {}
-
-    @Override
-    ALink analyze(Locals locals) {
-        if (before == null) {
-            throw createError(new IllegalStateException("Illegal cast without a target."));
-        } else if (store) {
-            throw createError(new IllegalArgumentException("Cannot assign a value to a cast."));
-        }
-
-        try {
-            after = Definition.getType(type);
-        } catch (IllegalArgumentException exception) {
-            throw createError(new IllegalArgumentException("Not a type [" + type + "]."));
-        }
-
-        cast = AnalyzerCaster.getLegalCast(location, before, after, true, false);
-
-        return cast != null ? this : null;
+        this.type = Objects.requireNonNull(type);
     }
 
     @Override
-    void write(MethodWriter writer, Globals globals) {
-        writer.writeDebugInfo(location);
-        writer.writeCast(cast);
-    }
-
-    @Override
-    void load(MethodWriter writer, Globals globals) {
+    void extractVariables(Set<String> variables) {
         // Do nothing.
     }
 
     @Override
-    void store(MethodWriter writer, Globals globals) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
+    void analyze(Locals locals) {
+        try {
+            actual = Definition.getType(type);
+        } catch (IllegalArgumentException exception) {
+            throw createError(new IllegalArgumentException("Not a type [" + type + "]."));
+        }
+    }
+
+    @Override
+    void write(MethodWriter writer, Globals globals) {
+        // Do nothing.
     }
 }

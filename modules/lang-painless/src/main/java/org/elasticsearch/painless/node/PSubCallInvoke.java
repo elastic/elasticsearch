@@ -19,67 +19,66 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition.Sort;
+import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 /**
- * Represents the top-level node for an expression as a statement.
+ * Represents a method call.
  */
-public final class SExpression extends AStatement {
+final class PSubCallInvoke extends AExpression {
 
-    private AExpression expression;
+    private final Method method;
+    private final Type box;
+    private final List<AExpression> arguments;
 
-    public SExpression(Location location, AExpression expression) {
+    public PSubCallInvoke(Location location, Method method, Type box, List<AExpression> arguments) {
         super(location);
 
-        this.expression = Objects.requireNonNull(expression);
+        this.method = Objects.requireNonNull(method);
+        this.box = box;
+        this.arguments = Objects.requireNonNull(arguments);
     }
 
     @Override
     void extractVariables(Set<String> variables) {
-        expression.extractVariables(variables);
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
     @Override
     void analyze(Locals locals) {
-        Type rtnType = locals.getReturnType();
-        boolean isVoid = rtnType.sort == Sort.VOID;
+        for (int argument = 0; argument < arguments.size(); ++argument) {
+            AExpression expression = arguments.get(argument);
 
-        expression.read = lastSource && !isVoid;
-        expression.analyze(locals);
-
-        if (!lastSource && !expression.statement) {
-            throw createError(new IllegalArgumentException("Not a statement."));
+            expression.expected = method.arguments.get(argument);
+            expression.internal = true;
+            expression.analyze(locals);
+            arguments.set(argument, expression.cast(locals));
         }
 
-        boolean rtn = lastSource && !isVoid && expression.actual.sort != Sort.VOID;
-
-        expression.expected = rtn ? rtnType : expression.actual;
-        expression.internal = rtn;
-        expression = expression.cast(locals);
-
-        methodEscape = rtn;
-        loopEscape = rtn;
-        allEscape = rtn;
-        statementCount = 1;
+        statement = true;
+        actual = method.rtn;
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        writer.writeStatementOffset(location);
-        expression.write(writer, globals);
+        writer.writeDebugInfo(location);
 
-        if (methodEscape) {
-            writer.returnValue();
-        } else {
-            writer.writePop(expression.expected.sort.size);
+        if (box.sort.primitive) {
+            writer.box(box.type);
         }
+
+        for (AExpression argument : arguments) {
+            argument.write(writer, globals);
+        }
+
+        method.write(writer);
     }
 }

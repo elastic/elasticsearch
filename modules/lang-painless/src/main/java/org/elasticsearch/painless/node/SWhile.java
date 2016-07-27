@@ -21,22 +21,24 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
+import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
 import java.util.Set;
-
-import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a while loop.
  */
 public final class SWhile extends AStatement {
 
-    AExpression condition;
-    final SBlock block;
+    private AExpression condition;
+    private final SBlock block;
+
+    private boolean continuous = false;
 
     public SWhile(Location location, AExpression condition, SBlock block) {
         super(location);
@@ -44,7 +46,7 @@ public final class SWhile extends AStatement {
         this.condition = Objects.requireNonNull(condition);
         this.block = block;
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         condition.extractVariables(variables);
@@ -60,8 +62,6 @@ public final class SWhile extends AStatement {
         condition.expected = Definition.BOOLEAN_TYPE;
         condition.analyze(locals);
         condition = condition.cast(locals);
-
-        boolean continuous = false;
 
         if (condition.constant != null) {
             continuous = (boolean)condition.constant;
@@ -109,8 +109,10 @@ public final class SWhile extends AStatement {
 
         writer.mark(begin);
 
-        condition.fals = end;
-        condition.write(writer, globals);
+        if (!continuous) {
+            condition.write(writer, globals);
+            writer.ifZCmp(Opcodes.IFEQ, end);
+        }
 
         if (block != null) {
             if (loopCounter != null) {

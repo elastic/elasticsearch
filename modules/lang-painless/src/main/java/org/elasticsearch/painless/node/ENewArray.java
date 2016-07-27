@@ -33,14 +33,14 @@ import java.util.Set;
 /**
  * Represents an array instantiation.
  */
-public final class LNewArray extends ALink {
+public final class ENewArray extends AExpression {
 
-    final String type;
-    final List<AExpression> arguments;
-    final boolean initialize;
+    private final String type;
+    private final List<AExpression> arguments;
+    private final boolean initialize;
 
-    public LNewArray(Location location, String type, List<AExpression> arguments, boolean initialize) {
-        super(location, -1);
+    public ENewArray(Location location, String type, List<AExpression> arguments, boolean initialize) {
+        super(location);
 
         this.type = Objects.requireNonNull(type);
         this.arguments = Objects.requireNonNull(arguments);
@@ -55,13 +55,9 @@ public final class LNewArray extends ALink {
     }
 
     @Override
-    ALink analyze(Locals locals) {
-        if (before != null) {
-            throw createError(new IllegalArgumentException("Cannot create a new array with a target already defined."));
-        } else if (store) {
-            throw createError(new IllegalArgumentException("Cannot assign a value to a new array."));
-        } else if (!load) {
-            throw createError(new IllegalArgumentException("A newly created array must be read."));
+    void analyze(Locals locals) {
+         if (!read) {
+            throw createError(new IllegalArgumentException("A newly created array must be read from."));
         }
 
         final Type type;
@@ -81,23 +77,16 @@ public final class LNewArray extends ALink {
             arguments.set(argument, expression.cast(locals));
         }
 
-        after = Definition.getType(type.struct, initialize ? 1 : arguments.size());
-
-        return this;
+        actual = Definition.getType(type.struct, initialize ? 1 : arguments.size());
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        // Do nothing.
-    }
-
-    @Override
-    void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
         if (initialize) {
             writer.push(arguments.size());
-            writer.newArray(Definition.getType(after.struct, 0).type);
+            writer.newArray(Definition.getType(actual.struct, 0).type);
 
             for (int index = 0; index < arguments.size(); ++index) {
                 AExpression argument = arguments.get(index);
@@ -105,7 +94,7 @@ public final class LNewArray extends ALink {
                 writer.dup();
                 writer.push(index);
                 argument.write(writer, globals);
-                writer.arrayStore(Definition.getType(after.struct, 0).type);
+                writer.arrayStore(Definition.getType(actual.struct, 0).type);
             }
         } else {
             for (AExpression argument : arguments) {
@@ -113,15 +102,10 @@ public final class LNewArray extends ALink {
             }
 
             if (arguments.size() > 1) {
-                writer.visitMultiANewArrayInsn(after.type.getDescriptor(), after.type.getDimensions());
+                writer.visitMultiANewArrayInsn(actual.type.getDescriptor(), actual.type.getDimensions());
             } else {
-                writer.newArray(Definition.getType(after.struct, 0).type);
+                writer.newArray(Definition.getType(actual.struct, 0).type);
             }
         }
-    }
-
-    @Override
-    void store(MethodWriter writer, Globals globals) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

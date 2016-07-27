@@ -35,20 +35,20 @@ import java.util.Set;
 /**
  * Represents and object instantiation.
  */
-public final class LNewObj extends ALink {
+public final class ENewObj extends AExpression {
 
-    final String type;
-    final List<AExpression> arguments;
+    private final String type;
+    private final List<AExpression> arguments;
 
-    Method constructor;
+    private Method constructor;
 
-    public LNewObj(Location location, String type, List<AExpression> arguments) {
-        super(location, -1);
+    public ENewObj(Location location, String type, List<AExpression> arguments) {
+        super(location);
 
         this.type = Objects.requireNonNull(type);
         this.arguments = Objects.requireNonNull(arguments);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         for (AExpression argument : arguments) {
@@ -57,13 +57,7 @@ public final class LNewObj extends ALink {
     }
 
     @Override
-    ALink analyze(Locals locals) {
-        if (before != null) {
-            throw createError(new IllegalArgumentException("Illegal new call with a target already defined."));
-        } else if (store) {
-            throw createError(new IllegalArgumentException("Cannot assign a value to a new call."));
-        }
-
+    void analyze(Locals locals) {
         final Type type;
 
         try {
@@ -94,25 +88,19 @@ public final class LNewObj extends ALink {
             }
 
             statement = true;
-            after = type;
+            actual = type;
         } else {
             throw createError(new IllegalArgumentException("Unknown new call on type [" + struct.name + "]."));
         }
-
-        return this;
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
-        // Do nothing.
-    }
-
-    @Override
-    void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
-        writer.newInstance(after.type);
 
-        if (load) {
+        writer.newInstance(actual.type);
+
+        if (read) {
             writer.dup();
         }
 
@@ -121,10 +109,5 @@ public final class LNewObj extends ALink {
         }
 
         writer.invokeConstructor(constructor.owner.type, constructor.method);
-    }
-
-    @Override
-    void store(MethodWriter writer, Globals globals) {
-        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

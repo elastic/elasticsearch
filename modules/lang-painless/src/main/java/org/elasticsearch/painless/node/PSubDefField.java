@@ -19,43 +19,66 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.DefBootstrap;
+import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
-import org.objectweb.asm.Type;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Objects;
 import java.util.Set;
 
-import org.elasticsearch.painless.MethodWriter;
-
 /**
  * Represents a field load/store or shortcut on a def type.  (Internal only.)
  */
-final class LDefField extends ALink implements IDefLink {
+final class PSubDefField extends AStoreable {
 
-    final String value;
+    private final String value;
 
-    LDefField(Location location, String value) {
-        super(location, 1);
+    PSubDefField(Location location, String value) {
+        super(location);
 
         this.value = Objects.requireNonNull(value);
     }
 
     @Override
-    void extractVariables(Set<String> variables) {}
+    void extractVariables(Set<String> variables) {
+        throw createError(new IllegalStateException("Illegal tree structure."));
+    }
 
     @Override
-    ALink analyze(Locals locals) {
-        after = Definition.DEF_TYPE;
-
-        return this;
+    void analyze(Locals locals) {
+        actual = expected == null || explicit ? Definition.DEF_TYPE : expected;
     }
 
     @Override
     void write(MethodWriter writer, Globals globals) {
+        writer.writeDebugInfo(location);
+
+        org.objectweb.asm.Type methodType =
+            org.objectweb.asm.Type.getMethodType(actual.type, Definition.DEF_TYPE.type);
+        writer.invokeDefCall(value, methodType, DefBootstrap.LOAD);
+    }
+
+    @Override
+    int accessElementCount() {
+        return 1;
+    }
+
+    @Override
+    boolean isDefOptimized() {
+        return true;
+    }
+
+    @Override
+    void updateActual(Type actual) {
+        this.actual = actual;
+    }
+
+    @Override
+    void setup(MethodWriter writer, Globals globals) {
         // Do nothing.
     }
 
@@ -63,7 +86,8 @@ final class LDefField extends ALink implements IDefLink {
     void load(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        Type methodType = Type.getMethodType(after.type, Definition.DEF_TYPE.type);
+        org.objectweb.asm.Type methodType =
+            org.objectweb.asm.Type.getMethodType(actual.type, Definition.DEF_TYPE.type);
         writer.invokeDefCall(value, methodType, DefBootstrap.LOAD);
     }
 
@@ -71,7 +95,8 @@ final class LDefField extends ALink implements IDefLink {
     void store(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        Type methodType = Type.getMethodType(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, after.type);
+        org.objectweb.asm.Type methodType =
+            org.objectweb.asm.Type.getMethodType(Definition.VOID_TYPE.type, Definition.DEF_TYPE.type, actual.type);
         writer.invokeDefCall(value, methodType, DefBootstrap.STORE);
     }
 }

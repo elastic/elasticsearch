@@ -35,7 +35,10 @@ import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.cache.query.index.IndexQueryCache;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.HasChildQueryBuilder;
+import org.elasticsearch.index.query.HasParentQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
@@ -46,6 +49,8 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -2092,4 +2097,43 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
             assertThat(e.toString(), containsString("[has_parent] no child types found for type [child]"));
         }
     }
+
+    public void testHighlighersIgnoreParentChild() {
+        assertAcked(prepareCreate("test")
+                .addMapping("parent-type", "searchText", "type=string,term_vector=with_positions_offsets,index_options=offsets")
+                .addMapping("child-type", "_parent", "type=parent-type", "searchText",
+                        "type=string,term_vector=with_positions_offsets,index_options=offsets"));
+        client().prepareIndex("test", "parent-type", "parent-id").setSource("searchText", "quick brown fox").get();
+        client().prepareIndex("test", "child-type", "child-id").setParent("parent-id").setSource("searchText", "quick brown fox").get();
+        refresh();
+
+        String[] highlightTypes = new String[] {"plain", "fvh", "postings"};
+        for (String highlightType : highlightTypes) {
+            logger.info("Testing with highlight type [{}]", highlightType);
+            SearchResponse searchResponse = client().prepareSearch("test")
+                    .setQuery(QueryBuilders.boolQuery()
+                            .must(QueryBuilders.matchQuery("searchText", "fox"))
+                            .must(QueryBuilders.hasChildQuery("child-type", QueryBuilders.matchAllQuery()))
+                    )
+                    .addHighlightedField(new HighlightBuilder.Field("searchText").highlighterType(highlightType))
+                    .get();
+            assertHitCount(searchResponse, 1);
+            assertThat(searchResponse.getHits().getAt(0).id(), equalTo("parent-id"));
+            HighlightField highlightField = searchResponse.getHits().getAt(0).getHighlightFields().get("searchText");
+            assertThat(highlightField.getFragments()[0].string(), equalTo("quick brown <em>fox</em>"));
+
+            searchResponse = client().prepareSearch("test")
+                    .setQuery(QueryBuilders.boolQuery()
+                            .must(QueryBuilders.matchQuery("searchText", "fox"))
+                            .must(QueryBuilders.hasParentQuery("parent-type", QueryBuilders.matchAllQuery()))
+                    )
+                    .addHighlightedField(new HighlightBuilder.Field("searchText").highlighterType(highlightType))
+                    .get();
+            assertHitCount(searchResponse, 1);
+            assertThat(searchResponse.getHits().getAt(0).id(), equalTo("child-id"));
+            highlightField = searchResponse.getHits().getAt(0).getHighlightFields().get("searchText");
+            assertThat(highlightField.getFragments()[0].string(), equalTo("quick brown <em>fox</em>"));
+        }
+    }
+
 }

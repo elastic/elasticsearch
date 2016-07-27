@@ -20,8 +20,7 @@
 package org.elasticsearch.discovery.gce;
 
 import com.google.api.client.http.HttpTransport;
-import org.elasticsearch.cloud.gce.GceMetadataServiceImpl;
-import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.cloud.gce.GceMetadataService;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
@@ -30,7 +29,7 @@ import java.security.GeneralSecurityException;
 /**
  * Mock for GCE Metadata Service
  */
-public class GceMetadataServiceMock extends GceMetadataServiceImpl {
+public class GceMetadataServiceMock extends GceMetadataService {
 
     protected HttpTransport mockHttpTransport;
 

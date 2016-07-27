@@ -148,7 +148,7 @@ public class GceInstancesServiceImpl extends AbstractLifecycleComponent implemen
             // Forcing Google Token API URL as set in GCE SDK to
             //      http://metadata/computeMetadata/v1/instance/service-accounts/default/token
             // See https://developers.google.com/compute/docs/metadata#metadataserver
-            String tokenServerEncodedUrl = GceMetadataServiceImpl.GCE_HOST.get(settings) +
+            String tokenServerEncodedUrl = GceMetadataService.GCE_HOST.get(settings) +
                 "/computeMetadata/v1/instance/service-accounts/default/token";
             ComputeCredential credential = new ComputeCredential.Builder(getGceHttpTransport(), gceJsonFactory)
                     .setTokenServerEncodedUrl(tokenServerEncodedUrl)

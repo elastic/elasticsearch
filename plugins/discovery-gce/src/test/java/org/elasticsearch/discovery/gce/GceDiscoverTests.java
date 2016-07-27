@@ -24,14 +24,13 @@ import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
 import org.elasticsearch.cloud.gce.GceInstancesServiceImpl;
-import org.elasticsearch.cloud.gce.GceMetadataServiceImpl;
+import org.elasticsearch.cloud.gce.GceMetadataService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -68,7 +67,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
     public static class TestPlugin extends Plugin {
         @Override
         public List<Setting<?>> getSettings() {
-            return Arrays.asList(GceMetadataServiceImpl.GCE_HOST, GceInstancesServiceImpl.GCE_ROOT_URL,
+            return Arrays.asList(GceMetadataService.GCE_HOST, GceInstancesServiceImpl.GCE_ROOT_URL,
                 GceInstancesServiceImpl.GCE_VALIDATE_CERTIFICATES);
         }
     }

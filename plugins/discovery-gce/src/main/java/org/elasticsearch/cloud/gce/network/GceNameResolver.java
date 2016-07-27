@@ -19,7 +19,7 @@
 
 package org.elasticsearch.cloud.gce.network;
 
-import org.elasticsearch.cloud.gce.GceMetadataServiceImpl;
+import org.elasticsearch.cloud.gce.GceMetadataService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
@@ -41,7 +41,7 @@ import java.net.URISyntaxException;
  */
 public class GceNameResolver extends AbstractComponent implements CustomNameResolver {
 
-    private final GceMetadataServiceImpl gceMetadataService;
+    private final GceMetadataService gceMetadataService;
 
     /**
      * enum that can be added to over time with more meta-data types
@@ -73,7 +73,7 @@ public class GceNameResolver extends AbstractComponent implements CustomNameReso
     /**
      * Construct a {@link CustomNameResolver}.
      */
-    public GceNameResolver(Settings settings, GceMetadataServiceImpl gceMetadataService) {
+    public GceNameResolver(Settings settings, GceMetadataService gceMetadataService) {
         super(settings);
         this.gceMetadataService = gceMetadataService;
     }

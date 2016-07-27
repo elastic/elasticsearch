@@ -23,18 +23,16 @@ import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.util.ClassInfo;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.gce.GceInstancesService;
-import org.elasticsearch.cloud.gce.GceMetadataServiceImpl;
+import org.elasticsearch.cloud.gce.GceMetadataService;
 import org.elasticsearch.cloud.gce.GceModule;
 import org.elasticsearch.cloud.gce.network.GceNameResolver;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.gce.GceUnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
@@ -105,7 +103,7 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
     @Override
     public NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
         logger.debug("Register _gce_, _gce:xxx network names");
-        return new GceNameResolver(settings, new GceMetadataServiceImpl(settings));
+        return new GceNameResolver(settings, new GceMetadataService(settings));
     }
 
     @Override

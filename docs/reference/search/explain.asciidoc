@@ -48,72 +48,87 @@ This will yield the following result:
    "_id": "1",
    "matched": true,
    "explanation": {
-      "value": 1.0,
+      "value": 0.2876821,
       "description": "sum of:",
       "details": [
          {
-            "value": 1.0,
+            "value": 0.2876821,
             "description": "weight(message:search in 0) [PerFieldSimilarity], result of:",
             "details": [
                {
-                  "value": 1.0,
-                  "description": "fieldWeight in 0, product of:",
+                  "value": 0.2876821,
+                  "description": "score(doc=0,freq=1.0 = termFreq=1.0\n), product of:",
                   "details": [
                      {
-                        "value": 1.0,
-                        "description": "tf(freq=1.0), with freq of:",
-                        "details": [
-                           {
-                              "value": 1.0,
-                              "description": "termFreq=1.0",
-                              "details": []
-                           }
-                        ]
-                     },
-                     {
-                        "value": 1.0,
+                        "value": 0.2876821,
                         "description": "idf(docFreq=1, docCount=1)",
-                        "details": []
+                        "details": [ ]
                      },
                      {
                         "value": 1.0,
-                        "description": "fieldNorm(doc=0)",
-                        "details": []
+                        "description": "tfNorm, computed from:",
+                        "details" : [
+                         {
+                           "value" : 1.0,
+                           "description" : "termFreq=1.0",
+                           "details" : [ ]
+                         },
+                         {
+                           "value" : 1.2,
+                           "description" : "parameter k1",
+                           "details" : [ ]
+                         },
+                         {
+                           "value" : 0.75,
+                           "description" : "parameter b",
+                           "details" : [ ]
+                         },
+                         {
+                           "value" : 1.0,
+                           "description" : "avgFieldLength",
+                           "details" : [ ]
+                         },
+                         {
+                           "value" : 1.0,
+                           "description" : "fieldLength",
+                           "details" : [ ]
+                         }
+                       ]
                      }
-                  ]
-               }
-            ]
-         },
-         {
-            "value": 0.0,
-            "description": "match on required clause, product of:",
-            "details": [
-               {
-                  "value": 0.0,
-                  "description": "# clause",
-                  "details": []
-               },
-               {
-                  "value": 1.0,
-                  "description": "_type:tweet, product of:",
-                  "details": [
+                   ]
+                 }
+               ]
+             },
+             {
+               "value" : 0.0,
+               "description" : "match on required clause, product of:",
+               "details" : [
+                 {
+                   "value" : 0.0,
+                   "description" : "# clause",
+                   "details" : [ ]
+                 },
+                 {
+                   "value" : 1.0,
+                   "description" : "_type:tweet, product of:",
+                   "details" : [
                      {
-                        "value": 1.0,
-                        "description": "boost",
-                        "details": []
+                       "value" : 1.0,
+                       "description" : "boost",
+                       "details" : [ ]
                      },
                      {
-                        "value": 1.0,
-                        "description": "queryNorm",
-                        "details": []
+                       "value" : 1.0,
+                       "description" : "queryNorm",
+                       "details" : [ ]
                      }
-                  ]
-               }
-            ]
+                   ]
+                 }
+               ]
+             }
+           ]
          }
-      ]
-   }
-}
+       }
 --------------------------------------------------
 // TESTRESPONSE
 

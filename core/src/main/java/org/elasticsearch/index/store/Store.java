@@ -39,6 +39,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
@@ -219,11 +220,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public MetadataSnapshot getMetadataOrEmpty() throws IOException {
         try {
-            return getMetadata(null);
+            return getMetadata();
         } catch (IndexNotFoundException ex) {
             // that's fine - happens all the time no need to log
-        } catch (FileNotFoundException | NoSuchFileException ex) {
-            logger.info("Failed to open / find files while reading metadata snapshot");
+        } catch (FileNotFoundException | NoSuchFileException | LockObtainFailedException ex) {
+            logger.info("Failed to open / find files while reading metadata snapshot", ex);
         }
         return MetadataSnapshot.EMPTY;
     }
@@ -240,7 +241,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @throws IndexNotFoundException     if no index / valid commit-point can be found in this store
      */
     public MetadataSnapshot getMetadata() throws IOException {
-        return getMetadata(null);
+        try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
+            return getMetadata(null);
+        }
     }
 
     /**

@@ -296,7 +296,7 @@ public class Node implements Closeable {
             final SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);
             resourcesToClose.add(resourceWatcherService);
             final NetworkService networkService = new NetworkService(settings,
-                generateCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class)));
+                getCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class)));
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             clusterService.add(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
@@ -725,10 +725,10 @@ public class Node implements Closeable {
     }
 
     /**
-     * Generate Custom Name Resolvers list based on a Discovery Plugins list
+     * Get Custom Name Resolvers list based on a Discovery Plugins list
      * @param discoveryPlugins Discovery plugins list
      */
-    private List<NetworkService.CustomNameResolver> generateCustomNameResolvers(List<DiscoveryPlugin> discoveryPlugins) {
+    private List<NetworkService.CustomNameResolver> getCustomNameResolvers(List<DiscoveryPlugin> discoveryPlugins) {
         List<NetworkService.CustomNameResolver> customNameResolvers = new ArrayList<>();
         for (DiscoveryPlugin discoveryPlugin : discoveryPlugins) {
             NetworkService.CustomNameResolver customNameResolver = discoveryPlugin.getCustomNameResolver(settings);

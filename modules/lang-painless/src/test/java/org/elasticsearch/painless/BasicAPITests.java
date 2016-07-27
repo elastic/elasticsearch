@@ -84,8 +84,6 @@ public class BasicAPITests extends ScriptTestCase {
 
     /** Test list method invocation */
     public void testListGet() {
-        String s = Debugger.toString("def x = new ArrayList(); x.add(5); return x.get(0);");
-
         assertEquals(5, exec("def x = new ArrayList(); x.add(5); return x.get(0);"));
         assertEquals(5, exec("def x = new ArrayList(); x.add(5); def index = 0; return x.get(index);"));
     }

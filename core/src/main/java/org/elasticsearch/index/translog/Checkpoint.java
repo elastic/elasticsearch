@@ -61,7 +61,7 @@ class Checkpoint {
         Channels.writeToChannel(buffer, channel);
     }
 
-    private void write(DataOutput out) throws IOException {
+    void write(DataOutput out) throws IOException {
         out.writeLong(offset);
         out.writeInt(numOps);
         out.writeLong(generation);

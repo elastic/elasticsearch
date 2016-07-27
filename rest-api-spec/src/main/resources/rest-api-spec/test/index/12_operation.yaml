@@ -1,0 +1,21 @@
+---
+"Index operation field":
+
+  - do:
+      index:
+          index:  test_index
+          type:   test
+          id:     1
+          body:   { foo: bar }
+
+  - match:   { _operation: create }
+
+  - do:
+      index:
+          index:    test_index
+          type:     test
+          id:       1
+          body:     { foo: bar }
+          op_type:  index
+
+  - match:   { _operation: index }

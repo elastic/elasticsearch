@@ -21,19 +21,19 @@ And here is a sample response:
     "timed_out": false,
     "took": 62,
     "_shards":{
-        "total" : 5,
-        "successful" : 5,
+        "total" : 1,
+        "successful" : 1,
         "failed" : 0
     },
     "hits":{
         "total" : 1,
-        "max_score": 0.2876821,
+        "max_score": 1.3862944,
         "hits" : [
             {
                 "_index" : "twitter",
                 "_type" : "tweet",
                 "_id" : "0",
-                "_score": 0.2876821,
+                "_score": 1.3862944,
                 "_source" : {
                     "user" : "kimchy",
                     "date" : "2009-11-15T14:12:12",

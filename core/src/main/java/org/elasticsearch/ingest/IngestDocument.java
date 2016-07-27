@@ -54,7 +54,7 @@ public final class IngestDocument {
     static final String TIMESTAMP = "timestamp";
 
     private final Map<String, Object> sourceAndMetadata;
-    private final Map<String, String> ingestMetadata;
+    private final Map<String, Object> ingestMetadata;
 
     public IngestDocument(String index, String type, String id, String routing, String parent, String timestamp,
                           String ttl, Map<String, Object> source) {
@@ -94,7 +94,7 @@ public final class IngestDocument {
      * source and ingest metadata. This is needed because the ingest metadata will be initialized with the current timestamp at
      * init time, which makes equality comparisons impossible in tests.
      */
-    public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, String> ingestMetadata) {
+    public IngestDocument(Map<String, Object> sourceAndMetadata, Map<String, Object> ingestMetadata) {
         this.sourceAndMetadata = sourceAndMetadata;
         this.ingestMetadata = ingestMetadata;
     }
@@ -517,7 +517,7 @@ public final class IngestDocument {
      * Returns the available ingest metadata fields, by default only timestamp, but it is possible to set additional ones.
      * Use only for reading values, modify them instead using {@link #setFieldValue(String, Object)} and {@link #removeField(String)}
      */
-    public Map<String, String> getIngestMetadata() {
+    public Map<String, Object> getIngestMetadata() {
         return this.ingestMetadata;
     }
 

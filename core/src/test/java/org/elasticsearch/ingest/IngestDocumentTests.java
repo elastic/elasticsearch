@@ -907,7 +907,7 @@ public class IngestDocumentTests extends ESTestCase {
         for (int i = 0; i < numFields; i++) {
             sourceAndMetadata.put(randomFrom(IngestDocument.MetaData.values()).getFieldName(), randomAsciiOfLengthBetween(5, 10));
         }
-        Map<String, String> ingestMetadata = new HashMap<>();
+        Map<String, Object> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
         for (int i = 0; i < numFields; i++) {
             ingestMetadata.put(randomAsciiOfLengthBetween(5, 10), randomAsciiOfLengthBetween(5, 10));
@@ -930,7 +930,7 @@ public class IngestDocumentTests extends ESTestCase {
             changed = true;
         }
 
-        Map<String, String> otherIngestMetadata;
+        Map<String, Object> otherIngestMetadata;
         if (randomBoolean()) {
             otherIngestMetadata = new HashMap<>();
             numFields = randomIntBetween(1, 5);
@@ -962,7 +962,7 @@ public class IngestDocumentTests extends ESTestCase {
         long before = System.currentTimeMillis();
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         long after = System.currentTimeMillis();
-        String timestampString = ingestDocument.getIngestMetadata().get("timestamp");
+        String timestampString = (String) ingestDocument.getIngestMetadata().get("timestamp");
         assertThat(timestampString, notNullValue());
         assertThat(timestampString, endsWith("+0000"));
         DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZZ", Locale.ROOT);

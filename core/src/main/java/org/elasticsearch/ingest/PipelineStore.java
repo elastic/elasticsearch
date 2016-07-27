@@ -207,6 +207,11 @@ public class PipelineStore extends AbstractComponent implements ClusterStateList
             return Collections.emptyList();
         }
 
+        // if we didn't ask for _any_ ID, then we get them all (this is the same as if they ask for '*')
+        if (ids.length == 0) {
+            return new ArrayList<>(ingestMetadata.getPipelines().values());
+        }
+
         List<PipelineConfiguration> result = new ArrayList<>(ids.length);
         for (String id : ids) {
             if (Regex.isSimpleMatchPattern(id)) {

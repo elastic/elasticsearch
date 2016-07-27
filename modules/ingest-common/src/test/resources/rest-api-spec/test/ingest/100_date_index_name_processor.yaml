@@ -1,4 +1,11 @@
 ---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "1"
+        ignore: 404
+
+---
 "Test date index name processor with defaults":
   - do:
       ingest.put_pipeline:

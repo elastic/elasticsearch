@@ -115,11 +115,11 @@ TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
 
 experimental[]
 
-https://github.com/HdrHistogram/HdrHistogram[HDR Histogram] (High Dynamic Range Histogram) is an alternative implementation 
-that can be useful when calculating percentile ranks for latency measurements as it can be faster than the t-digest implementation 
-with the trade-off of a larger memory footprint. This implementation maintains a fixed worse-case percentage error (specified as a 
-number of significant digits). This means that if data is recorded with values from 1 microsecond up to 1 hour (3,600,000,000 
-microseconds) in a histogram set to 3 significant digits, it will maintain a value resolution of 1 microsecond for values up to 
+https://github.com/HdrHistogram/HdrHistogram[HDR Histogram] (High Dynamic Range Histogram) is an alternative implementation
+that can be useful when calculating percentile ranks for latency measurements as it can be faster than the t-digest implementation
+with the trade-off of a larger memory footprint. This implementation maintains a fixed worse-case percentage error (specified as a
+number of significant digits). This means that if data is recorded with values from 1 microsecond up to 1 hour (3,600,000,000
+microseconds) in a histogram set to 3 significant digits, it will maintain a value resolution of 1 microsecond for values up to
 1 millisecond and 3.6 seconds (or better) for the maximum tracked value (1 hour).
 
 The HDR Histogram can be used by specifying the `method` parameter in the request:
@@ -132,17 +132,18 @@ The HDR Histogram can be used by specifying the `method` parameter in the reques
             "percentile_ranks" : {
                 "field" : "load_time",
                 "values" : [15, 30],
-                "method" : "hdr", <1>
-                "number_of_significant_value_digits" : 3 <2>
+                "hdr": { <1>
+                  "number_of_significant_value_digits" : 3 <2>
+                }
             }
         }
     }
 }
 --------------------------------------------------
-<1> The `method` parameter is set to `hdr` to indicate that HDR Histogram should be used to calculate the percentile_ranks
+<1> `hdr` object indicates that HDR Histogram should be used to calculate the percentiles and specific settings for this algorithm can be specified inside the object
 <2> `number_of_significant_value_digits` specifies the resolution of values for the histogram in number of significant digits
 
-The HDRHistogram only supports positive values and will error if it is passed a negative value. It is also not a good idea to use 
+The HDRHistogram only supports positive values and will error if it is passed a negative value. It is also not a good idea to use
 the HDRHistogram if the range of values is unknown as this could lead to high memory usage.
 
 ==== Missing value
@@ -166,4 +167,3 @@ had a value.
 --------------------------------------------------
 
 <1> Documents without a value in the `grade` field will fall into the same bucket as documents that have the value `10`.
-

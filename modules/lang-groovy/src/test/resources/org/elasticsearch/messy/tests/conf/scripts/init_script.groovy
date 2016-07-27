@@ -1,1 +1,0 @@
-vars.multiplier = 3

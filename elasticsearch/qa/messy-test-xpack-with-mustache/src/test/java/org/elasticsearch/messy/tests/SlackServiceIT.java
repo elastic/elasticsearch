@@ -11,14 +11,15 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.xpack.watcher.actions.slack.SlackAction;
 import org.elasticsearch.xpack.notification.slack.SentMessages;
 import org.elasticsearch.xpack.notification.slack.SlackAccount;
 import org.elasticsearch.xpack.notification.slack.SlackService;
 import org.elasticsearch.xpack.notification.slack.message.Attachment;
 import org.elasticsearch.xpack.notification.slack.message.SlackMessage;
+import org.elasticsearch.xpack.watcher.actions.slack.SlackAction;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
+import org.joda.time.DateTime;
 
 import java.util.Collection;
 import java.util.List;
@@ -72,7 +73,7 @@ public class SlackServiceIT extends AbstractWatcherIntegrationTestCase {
 
                 // this is for the `test-watcher-integration` group level integration in HipChat
                 .put("xpack.notification.slack.account.test_account.url",
-                        "https://hooks.slack.com/services/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")
+                        "https://hooks.slack.com/services/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")
                 .build();
     }
 
@@ -86,7 +87,7 @@ public class SlackServiceIT extends AbstractWatcherIntegrationTestCase {
                 "SlackServiceTests",
                 new String[] { "#watcher-test", "#watcher-test-2"}, // TODO once we have a dedicated test user in slack, add it here
                 null,
-                "slack integration test `testSendMessage()`", attachments);
+                "slack integration test `testSendMessage()` " + DateTime.now(), attachments);
 
         SlackAccount account = service.getAccount("test_account");
         assertThat(account, notNullValue());
@@ -103,7 +104,7 @@ public class SlackServiceIT extends AbstractWatcherIntegrationTestCase {
     public void testWatchWithSlackAction() throws Exception {
         String account = "test_account";
         SlackAction.Builder actionBuilder = slackAction(account, SlackMessage.Template.builder()
-                .setText("slack integration test `{{ctx.payload.ref}}`")
+                .setText("slack integration test `{{ctx.payload.ref}}` " + DateTime.now())
                 .addTo("#watcher-test", "#watcher-test-2"));
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("1").setSource(watchBuilder()

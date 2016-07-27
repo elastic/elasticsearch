@@ -171,7 +171,7 @@ public final class SSource extends AStatement {
         }
 
         if (statements == null || statements.isEmpty()) {
-            throw createError(new IllegalArgumentException("Cannot generateSignature an empty script."));
+            throw createError(new IllegalArgumentException("Cannot generate an empty script."));
         }
 
         mainMethod = Locals.newMainMethodScope(program, reserved.usesScore(), reserved.usesCtx(), reserved.getMaxLoopCounter());

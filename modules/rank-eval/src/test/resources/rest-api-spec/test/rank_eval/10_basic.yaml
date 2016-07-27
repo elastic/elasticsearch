@@ -1,6 +1,12 @@
 ---
 "Response format":
-
+  - do:
+     indices.create:
+         index: foo
+         body:
+           settings:
+             index:
+               number_of_shards: 1
   - do:
       index:
         index:   foo
@@ -55,3 +61,97 @@
   - match: {rank_eval.quality_level: 1}
   - match: {rank_eval.unknown_docs.0.amsterdam_query:  [ "doc4"]}
   - match: {rank_eval.unknown_docs.1.berlin_query:  [ "doc4"]}
+---
+"Reciprocal Rank":
+
+  - do:
+     indices.create:
+         index: foo
+         body:
+           settings:
+             index:
+               number_of_shards: 1
+  - do:
+      index:
+        index:   foo
+        type:    bar
+        id:      doc1
+        body:    { "text": "berlin" }
+
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc2
+        body:   { "text": "amsterdam" }
+
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc3
+        body:   { "text": "amsterdam" }
+        
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc4
+        body:   { "text": "something about amsterdam and berlin" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      rank_eval:
+        body: {
+          "spec_id" : "cities_qa_queries",
+          "requests" : [
+            {
+                "id": "amsterdam_query",
+                "request": { "query": { "match" : {"text" : "amsterdam" }}},
+                # doc4 should be returned in third position, so reciprocal rank is 1/3
+                "ratings": [{ "doc4": 1}]
+            },
+            {
+                "id" : "berlin_query",
+                "request": { "query": { "match" : { "text" : "berlin" } }, "size" : 10 },
+                # doc1 should be returned in first position, doc3 in second, so reciprocal rank is 1/2 
+                "ratings": [{"doc4": 1}]
+            }
+          ],
+          "metric" : { "reciprocal_rank": {} }
+        }
+
+  - match: {rank_eval.spec_id: "cities_qa_queries"}
+# average is (1/3 + 1/2)/2 = 5/12 ~ 0.41666666666666663
+  - match: {rank_eval.quality_level: 0.41666666666666663}
+
+  - do:
+    rank_eval:
+      body: {
+        "spec_id" : "cities_qa_queries",
+        "requests" : [
+          {
+              "id": "amsterdam_query",
+              "request": { "query": { "match" : {"text" : "amsterdam" }}},
+              # doc4 should be returned in third position, so reciprocal rank is 1/3
+              "ratings": [{ "doc4": 1}]
+          },
+          {
+              "id" : "berlin_query",
+              "request": { "query": { "match" : { "text" : "berlin" } }, "size" : 10 },
+              # doc1 should be returned in first position, doc3 in second, so reciprocal rank is 1/2 
+              "ratings": [{"doc4": 1}]
+          }
+        ],
+        "metric" : { 
+            "reciprocal_rank": {
+               "max_acceptable_rank" : 2
+           } 
+        }
+      }
+
+  - match: {rank_eval.spec_id: "cities_qa_queries"}
+# average is (0 + 1/2)/2 = 1/4
+  - match: {rank_eval.quality_level: 0.25}

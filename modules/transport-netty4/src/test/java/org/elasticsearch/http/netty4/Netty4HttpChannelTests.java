@@ -58,6 +58,7 @@ import org.junit.Before;
 import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
@@ -77,7 +78,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
 
     @Before
     public void setup() throws Exception {
-        networkService = new NetworkService(Settings.EMPTY);
+        networkService = new NetworkService(Settings.EMPTY, Collections.emptyList());
         threadPool = new TestThreadPool("test");
         bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
     }

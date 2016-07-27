@@ -446,7 +446,7 @@ Generating the terms using a script:
         "genres" : {
             "terms" : {
                 "script" : {
-                    "inline": "doc['genre'].value"
+                    "inline": "doc['genre'].value",
                     "lang": "painless"
                 }
             }

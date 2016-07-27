@@ -45,7 +45,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -63,8 +62,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.plugins.DiscoveryPlugin.generateCustomNameResolvers;
 
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
@@ -111,8 +108,7 @@ public abstract class TransportClient extends AbstractClient {
         final List<Closeable> resourcesToClose = new ArrayList<>();
         final ThreadPool threadPool = new ThreadPool(settings);
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
-        final NetworkService networkService = new NetworkService(settings,
-            generateCustomNameResolvers(settings, pluginsService.filterPlugins(DiscoveryPlugin.class)));
+        final NetworkService networkService = new NetworkService(settings, Collections.emptyList());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         try {
             final List<Setting<?>> additionalSettings = new ArrayList<>();

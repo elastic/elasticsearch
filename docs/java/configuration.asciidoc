@@ -13,11 +13,12 @@ Client.
 Configuring requests timeouts can be done by providing an instance of
 `RequestConfigCallback` while building the `RestClient` through its builder.
 The interface has one method that receives an instance of
-`org.apache.http.client.config.RequestConfig.Builder` as an argument and has
-the same return type. The request config builder can be modified and then
-returned. In the following example we increase the connect timeout (defaults
-to 1 second) and the socket timeout (defaults to 10 seconds). Also we adjust
-the max retry timeout accordingly (defaults to 10 seconds too).
+https://hc.apache.org/httpcomponents-client-ga/httpclient/apidocs/org/apache/http/client/config/RequestConfig.Builder.html[`org.apache.http.client.config.RequestConfig.Builder`]
+ as an argument and has the same return type. The request config builder can
+be modified and then returned. In the following example we increase the
+connect timeout (defaults to 1 second) and the socket timeout (defaults to 10
+seconds). Also we adjust the max retry timeout accordingly (defaults to 10
+seconds too).
 
 [source,java]
 --------------------------------------------------
@@ -38,10 +39,10 @@ RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
 Configuring basic authentication can be done by providing an
 `HttpClientConfigCallback` while building the `RestClient` through its builder.
 The interface has one method that receives an instance of
-`org.apache.http.impl.nio.client.HttpAsyncClientBuilder` as an argument and has
-the same return type. The http client builder can be modified and then
-returned. In the following example we set a default credentials provider that
-requires basic authentication.
+https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
+ as an argument and has the same return type. The http client builder can be
+modified and then returned. In the following example we set a default
+credentials provider that requires basic authentication.
 
 [source,java]
 --------------------------------------------------
@@ -63,10 +64,11 @@ RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
 
 Encrypted communication can also be configured through the
 `HttpClientConfigCallback`. The
-`org.apache.http.impl.nio.client.HttpAsyncClientBuilder` received as an
-argument exposes multiple ways to configure encrypted communication:
-`setSSLContext`, `setSSLSessionStrategy` and `setConnectionManager`, in order
-of precedence from the least important. The following is an example.
+https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
+ received as an argument exposes multiple methods to configure encrypted
+ communication: `setSSLContext`, `setSSLSessionStrategy` and
+ `setConnectionManager`, in order of precedence from the least important.
+ The following is an example:
 
 [source,java]
 --------------------------------------------------

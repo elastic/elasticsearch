@@ -18,12 +18,29 @@ Add the following to your `pom.xml` file:
 </dependency>
 --------------------------------------------------
 
+=== Dependencies
+
+The low-level Java REST client internally uses the
+http://hc.apache.org/httpcomponents-asyncclient-dev/[Apache Http Async Client]
+ to send http requests. It depends on the following artifacts, namely the async
+ http client and its own transitive dependencies:
+
+- org.apache.httpcomponents:httpasyncclient
+- org.apache.httpcomponents:httpcore-nio
+- org.apache.httpcomponents:httpclient
+- org.apache.httpcomponents:httpcore
+- commons-codec:commons-codec
+- commons-logging:commons-logging
+
+
 === Initialization
 
-A `RestClient` instance can be created through the corresponding
+A `RestClient` instance can be built through the corresponding
 `RestClientBuilder` class, created via `RestClient#builder(HttpHost...)`
- static method. The only required argument is one or more nodes that the
- client will communicate with, as follows:
+static method. The only required argument is one or more hosts that the
+client will communicate with, provided as instances of
+https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/HttpHost.html[HttpHost]
+ as follows:
 
 [source,java]
 --------------------------------------------------
@@ -56,10 +73,12 @@ fails,  in case actions need to be taken. Used internally when sniffing on
 failure is enabled
 - `setRequestConfigCallback`: callback that allows to modify the default
 request configuration (e.g. request timeouts, authentication, or anything that
-the `org.apache.http.client.config.RequestConfig.Builder` allows to set)
+the https://hc.apache.org/httpcomponents-client-ga/httpclient/apidocs/org/apache/http/client/config/RequestConfig.Builder.html[`org.apache.http.client.config.RequestConfig.Builder`]
+ allows to set)
 - `setHttpClientConfigCallback`: callback that allows to modify the http client
  configuration (e.g. encrypted communication over ssl, or anything that the
- `org.apache.http.impl.nio.client.HttpAsyncClientBuilder` allows to set)
+http://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
+ allows to set)
 
 
 === Performing requests
@@ -80,11 +99,11 @@ call (e.g. ``/_cluster/health`)
 - `entity`: the optional request body enclosed in an
 `org.apache.http.HttpEntity` object
 - `responseConsumer`: the optional
-`org.apache.http.nio.protocol.HttpAsyncResponseConsumer` callback. Controls
-how the response body gets streamed from a non-blocking HTTP connection on
-the client side. When not provided, the default implementation is used which
-buffers the whole response body in heap memory
-- `responseLister`: the listener to be notified upon request success or failure
+http://hc.apache.org/httpcomponents-core-ga/httpcore-nio/apidocs/org/apache/http/nio/protocol/HttpAsyncResponseConsumer.html[`org.apache.http.nio.protocol.HttpAsyncResponseConsumer`]
+ callback. Controls how the response body gets streamed from a non-blocking
+HTTP connection on the client side. When not provided, the default
+implementation is used which buffers the whole response body in heap memory
+- `responseListener`: the listener to be notified upon request success or failure
 whenever the async `performRequest` method variants are used
 - `headers`: optional request headers
 
@@ -99,8 +118,9 @@ response object returned by the http client and exposes the following informatio
 - `getStatusLine()`: the response status line
 - `getHeaders()`: the response headers, which can also be retrieved by name
 though `getHeader(String)`
-- `getEntity()`: the response body enclosed in an `org.apache.http.HttpEntity`
-object
+- `getEntity()`: the response body enclosed in an
+https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/HttpEntity.html[`org.apache.http.HttpEntity`]
+ object
 
 When performing a request, an exception is thrown (or received as an argument
  in `ResponseListener#onSucces(Exception)` in the following scenarios:
@@ -137,15 +157,16 @@ Response indexResponse = restClient.performRequest(
 --------------------------------------------------
 
 Note that the low-level client doesn't expose any helper for json marshalling
-and unmarshalling. Users are free to use the library that they prefer for that
-purpose. The underlying Apache Http Client ships with different
-`org.apache.http.HttpEntity` implementations that allow to provide the request
-body in different formats (stream, byte array, string etc.). As for reading the
-response body, the `HttpEntity#getContent` method comes handy which returns
-an `InputStream` reading from the previously buffered response body. As an
-alternative, it is possible to provide a custom
-`org.apache.http.nio.protocol.HttpAsyncResponseConsumer` that controls how
- bytes are read and eventually buffered in the first place.
+and un-marshalling. Users are free to use the library that they prefer for that
+purpose. The underlying Apache Async Http Client ships with different
+https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/HttpEntity.html[`org.apache.http.HttpEntity`]
+ implementations that allow to provide the request body in different formats
+(stream, byte array, string etc.). As for reading the response body, the
+`HttpEntity#getContent` method comes handy which returns an `InputStream`
+reading from the previously buffered response body. As an alternative, it is
+possible to provide a custom
+http://hc.apache.org/httpcomponents-core-ga/httpcore-nio/apidocs/org/apache/http/nio/protocol/HttpAsyncResponseConsumer.html[`org.apache.http.nio.protocol.HttpAsyncResponseConsumer`]
+ that controls how bytes are read and eventually buffered in the first place.
 
 The following is a basic example of how async requests can be sent:
 
@@ -181,12 +202,11 @@ latch.await();
 
 === Logging
 
-The Java REST client uses the same logging library that the Apache Http Client
-uses: [Apache Commons Logging](https://commons.apache.org/proper/commons-logging/).
-Commons Logging comes with support for a number of popular logging
-implementations. The java packages to enable logging for are
-`org.elasticsearch.client` for the client itself and
-`org.elasticsearch.client.sniffer` for the sniffer.
+The Java REST client uses the same logging library that the Apache Async Http
+Client uses: https://commons.apache.org/proper/commons-logging/[Apache Commons Logging],
+ which comes with support for a number of popular logging implementations. The
+java packages to enable logging for are `org.elasticsearch.client` for the
+client itself and `org.elasticsearch.client.sniffer` for the sniffer.
 
 The request tracer logging can also be enabled to log every request and
 corresponding response in curl format. That comes handy when debugging, for

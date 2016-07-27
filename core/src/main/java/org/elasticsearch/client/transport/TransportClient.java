@@ -64,7 +64,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.node.Node.generateCustomNameResolvers;
+import static org.elasticsearch.plugins.DiscoveryPlugin.generateCustomNameResolvers;
 
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one

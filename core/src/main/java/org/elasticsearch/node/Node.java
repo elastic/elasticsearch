@@ -135,6 +135,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.plugins.DiscoveryPlugin.generateCustomNameResolvers;
+
 /**
  * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
  * in order to use a {@link Client} to perform actions/operations against the cluster.
@@ -722,20 +724,5 @@ public class Node implements Closeable {
      */
     BigArrays createBigArrays(Settings settings, CircuitBreakerService circuitBreakerService) {
         return new BigArrays(settings, circuitBreakerService);
-    }
-
-    /**
-     * Generate Custom Name Resolvers list based on a Discovery Plugins list
-     * @param discoveryPlugins Discovery plugins list
-     */
-    public static List<NetworkService.CustomNameResolver> generateCustomNameResolvers(Settings settings, List<DiscoveryPlugin> discoveryPlugins) {
-        List<NetworkService.CustomNameResolver> customNameResolvers = new ArrayList<>();
-        for (DiscoveryPlugin discoveryPlugin : discoveryPlugins) {
-            NetworkService.CustomNameResolver customNameResolver = discoveryPlugin.getCustomNameResolver(settings);
-            if (customNameResolver != null) {
-                customNameResolvers.add(customNameResolver);
-            }
-        }
-        return customNameResolvers;
     }
 }

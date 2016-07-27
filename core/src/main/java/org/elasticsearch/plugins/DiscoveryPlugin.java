@@ -31,6 +31,8 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -54,5 +56,20 @@ public interface DiscoveryPlugin {
      */
     default NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
         return null;
+    }
+
+    /**
+     * Generate Custom Name Resolvers list based on a Discovery Plugins list
+     * @param discoveryPlugins Discovery plugins list
+     */
+    static List<NetworkService.CustomNameResolver> generateCustomNameResolvers(Settings settings, List<DiscoveryPlugin> discoveryPlugins) {
+        List<NetworkService.CustomNameResolver> customNameResolvers = new ArrayList<>();
+        for (DiscoveryPlugin discoveryPlugin : discoveryPlugins) {
+            NetworkService.CustomNameResolver customNameResolver = discoveryPlugin.getCustomNameResolver(settings);
+            if (customNameResolver != null) {
+                customNameResolvers.add(customNameResolver);
+            }
+        }
+        return customNameResolvers;
     }
 }

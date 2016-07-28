@@ -133,10 +133,10 @@ def start_node(version, release_dir, data_dir, repo_dir, tcp_port=DEFAULT_TRANSP
   logging.info('Starting node from %s on port %s/%s, data_dir %s' % (release_dir, tcp_port, http_port, data_dir))
   if cluster_name is None:
     cluster_name = 'bwc_index_' + version
-  if version.startswith('5'):
-    prefix = '-E'
-  else:
+  if parse_version(version) < parse_version("5.0.0-alpha1"):
     prefix = '-Des.'
+  else:
+    prefix = '-E'
   cmd = [
     os.path.join(release_dir, 'bin/elasticsearch'),
     '%spath.data=%s' %(prefix, data_dir),

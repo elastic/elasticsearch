@@ -286,19 +286,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 });
             }
         }
-
-        // delete local indices that do neither exist in previous cluster state nor part of tombstones
-        for (AllocatedIndex<? extends Shard> indexService : indicesService) {
-            Index index = indexService.index();
-            IndexMetaData indexMetaData = event.state().metaData().index(index);
-            if (indexMetaData == null) {
-                assert false : "index" + index + " exists locally, doesn't have a metadata but is not part"
-                    + " of the delete index list. \nprevious state: " + event.previousState().prettyPrint()
-                    + "\n current state:\n" + event.state().prettyPrint();
-                logger.warn("[{}] isn't part of metadata but is part of in memory structures. removing", index);
-                indicesService.deleteIndex(index, "isn't part of metadata (explicit check)");
-            }
-        }
     }
 
     /**

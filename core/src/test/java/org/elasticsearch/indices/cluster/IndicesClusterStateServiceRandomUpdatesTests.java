@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.cluster;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -32,11 +33,13 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation.FailedShard;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.set.Sets;
@@ -95,6 +98,49 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         // TODO: check if we can go to green by starting all shards and finishing all iterations
         logger.info("Final cluster state: {}", state.prettyPrint());
+    }
+
+    public void testSimulateMasterDataDirectoryWiped() {
+        // we have an IndicesClusterStateService per node in the cluster
+        final Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap = new HashMap<>();
+        ClusterState previousState = randomInitialClusterState(clusterStateServiceMap);
+        ClusterState newClusterState = ClusterState.builder(previousState)
+                                           .metaData(MetaData.builder(previousState.metaData()).clusterUUID(UUIDs.randomBase64UUID()))
+                                           .build();
+
+        // add index to the cluster
+        String name = "index_" + randomAsciiOfLength(8).toLowerCase(Locale.ROOT);
+        CreateIndexRequest request = new CreateIndexRequest(name, Settings.builder()
+                                                                      .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
+                                                                      .put(SETTING_NUMBER_OF_REPLICAS, 1)
+                                                                      .build()).waitForActiveShards(ActiveShardCount.ALL);
+        ClusterState state = cluster.createIndex(previousState, request);
+        assertTrue(state.metaData().hasIndex(name));
+
+        // apply cluster state to nodes (incl. master)
+        for (DiscoveryNode node : state.nodes()) {
+            IndicesClusterStateService indicesClusterStateService = clusterStateServiceMap.get(node);
+            ClusterState localState = adaptClusterStateToLocalNode(state, node);
+            ClusterState previousLocalState = adaptClusterStateToLocalNode(previousState, node);
+            indicesClusterStateService.clusterChanged(
+                new ClusterChangedEvent("simulated change 1", localState, previousLocalState));
+
+            // check that cluster state has been properly applied to node
+            assertClusterStateMatchesNodeState(localState, indicesClusterStateService);
+        }
+
+        for (DiscoveryNode node : newClusterState.nodes()) {
+            IndicesClusterStateService indicesClusterStateService = clusterStateServiceMap.get(node);
+            ClusterState localState = adaptClusterStateToLocalNode(newClusterState, node);
+            ClusterState previousLocalState = adaptClusterStateToLocalNode(state, node);
+            indicesClusterStateService.clusterChanged(
+                new ClusterChangedEvent("simulated change 2", localState, previousLocalState));
+
+            // check that in memory data structures have been removed with the new cluster
+            for (ObjectCursor<IndexMetaData> indexMetaData : state.metaData().getIndices().values()) {
+                assertNull(indicesClusterStateService.indicesService.indexService(indexMetaData.value.getIndex()));
+            }
+        }
     }
 
     public ClusterState randomInitialClusterState(Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap) {

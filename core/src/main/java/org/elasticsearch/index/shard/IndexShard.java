@@ -812,6 +812,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         deletionPolicy.release(snapshot);
     }
 
+    /**
+     * gets a {@link Store.MetadataSnapshot} for the current directory. This method is safe to call in all lifecycle of the index shard,
+     * without having to worry about the current state of the engine and concurrent flushes
+     *
+     * @return
+     * @throws IOException
+     */
     public Store.MetadataSnapshot snapshotStore() throws IOException {
         synchronized (mutex) {
             // if the engine is not running, we can access the store directly, but we need to make sure no one starts

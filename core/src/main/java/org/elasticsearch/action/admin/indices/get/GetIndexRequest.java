@@ -121,14 +121,6 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         return features;
     }
 
-    /**
-     * @deprecated use {@link #features()} instead
-     */
-    @Deprecated
-    public Feature[] featuresAsEnums() {
-        return features();
-    }
-    
     @Override
     public ActionRequestValidationException validate() {
         return null;

@@ -37,9 +37,6 @@ import java.util.Locale;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 
-/**
- *
- */
 public class RestClusterHealthAction extends BaseRestHandler {
 
     @Inject
@@ -60,7 +57,8 @@ public class RestClusterHealthAction extends BaseRestHandler {
         if (waitForStatus != null) {
             clusterHealthRequest.waitForStatus(ClusterHealthStatus.valueOf(waitForStatus.toUpperCase(Locale.ROOT)));
         }
-        clusterHealthRequest.waitForRelocatingShards(request.paramAsInt("wait_for_relocating_shards", clusterHealthRequest.waitForRelocatingShards()));
+        clusterHealthRequest.waitForRelocatingShards(
+                request.paramAsInt("wait_for_relocating_shards", clusterHealthRequest.waitForRelocatingShards()));
         clusterHealthRequest.waitForActiveShards(request.paramAsInt("wait_for_active_shards", clusterHealthRequest.waitForActiveShards()));
         clusterHealthRequest.waitForNodes(request.param("wait_for_nodes", clusterHealthRequest.waitForNodes()));
         if (request.param("wait_for_events") != null) {

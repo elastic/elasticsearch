@@ -813,6 +813,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Store.MetadataSnapshot snapshotStore() throws IOException {
+        synchronized (mutex) {
+            // if the engine is not running, we can access the store directly, but we need to make sure no one starts
+            // the engine on us. If the engine is running, we can get a snapshot via the deletion policy which is initialized.
+            // That can be done out of mutex, since the engine can be closed half way.
+            Engine engine = getEngineOrNull();
+            if (engine == null) {
+                return store.getMetadata(null);
+            }
+        }
         IndexCommit indexCommit = null;
         store.incRef();
         try {

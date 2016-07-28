@@ -92,10 +92,6 @@ public class TimeValueTests extends ESTestCase {
                      TimeValue.parseTimeValue("10 m", null, "test"));
         assertEquals(new TimeValue(10, TimeUnit.MINUTES),
                      TimeValue.parseTimeValue("10m", null, "test"));
-        assertEquals(new TimeValue(10, TimeUnit.MINUTES),
-                     TimeValue.parseTimeValue("10 M", null, "test"));
-        assertEquals(new TimeValue(10, TimeUnit.MINUTES),
-                     TimeValue.parseTimeValue("10M", null, "test"));
 
         assertEquals(new TimeValue(10, TimeUnit.HOURS),
                      TimeValue.parseTimeValue("10 h", null, "test"));
@@ -114,6 +110,17 @@ public class TimeValueTests extends ESTestCase {
                      TimeValue.parseTimeValue("10 D", null, "test"));
         assertEquals(new TimeValue(10, TimeUnit.DAYS),
                      TimeValue.parseTimeValue("10D", null, "test"));
+
+        // Time values of months should throw an exception as months are not
+        // supported. Note that this is the only unit that is not case sensitive
+        // as `m` is the only character that is overloaded in terms of which
+        // time unit is expected between the upper and lower case versions
+        expectThrows(ElasticsearchParseException.class, () -> {
+            TimeValue.parseTimeValue("10 M", null, "test");
+        });
+        expectThrows(ElasticsearchParseException.class, () -> {
+            TimeValue.parseTimeValue("10M", null, "test");
+        });
 
         final int length = randomIntBetween(0, 8);
         final String zeros = new String(new char[length]).replace('\0', '0');

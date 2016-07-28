@@ -789,15 +789,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Creates a new {@link IndexCommit} snapshot form the currently running engine. All resources referenced by this
-     * commit won't be freed until the commit / snapshot is released via {@link #releaseSnapshot(IndexCommit)}.
+     * commit won't be freed until the commit / snapshot is released via {@link #releaseIndexCommit(IndexCommit)}.
      *
      * @param flushFirst <code>true</code> if the index should first be flushed to disk / a low level lucene commit should be executed
      */
-    public IndexCommit snapshotIndex(boolean flushFirst) throws EngineException {
+    public IndexCommit acquireIndexCommit(boolean flushFirst) throws EngineException {
         IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
         if (state == IndexShardState.STARTED || state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED) {
-            return getEngine().snapshotIndex(flushFirst);
+            return getEngine().acquireIndexCommit(flushFirst);
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
@@ -805,11 +805,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
 
     /**
-     * Releases a snapshot taken from {@link #snapshotIndex(boolean)} this must be called to release the resources
+     * Releases a snapshot taken from {@link #acquireIndexCommit(boolean)} this must be called to release the resources
      * referenced by the given snapshot {@link IndexCommit}.
      */
-    public void releaseSnapshot(IndexCommit snapshot) throws IOException {
+    public void releaseIndexCommit(IndexCommit snapshot) throws IOException {
         deletionPolicy.release(snapshot);
+    }
+
+    public Store.MetadataSnapshot snapshotStore() throws IOException {
+        IndexCommit indexCommit = null;
+        store.incRef();
+        try {
+            indexCommit = deletionPolicy.snapshot();
+            return store.getMetadata(indexCommit);
+        } finally {
+            store.decRef();
+            if (indexCommit != null) {
+                deletionPolicy.release(indexCommit);
+            }
+        }
     }
 
     /**

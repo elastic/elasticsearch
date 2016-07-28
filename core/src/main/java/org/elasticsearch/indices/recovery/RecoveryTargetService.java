@@ -178,6 +178,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
                     new RecoveryFailedException(recoveryTarget.state(), "failed to list local files", e), true);
             return;
         }
+        logger.trace("{} local file snapshot:", recoveryTarget, metadataSnapshot);
         final StartRecoveryRequest request = new StartRecoveryRequest(recoveryTarget.shardId(), recoveryTarget.sourceNode(),
                 clusterService.localNode(),
                 metadataSnapshot, recoveryTarget.state().getType(), recoveryTarget.recoveryId());

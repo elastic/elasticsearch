@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.store;
 
-import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -123,21 +122,9 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
             IndexService indexService = indicesService.indexService(shardId.getIndex());
             if (indexService != null) {
                 IndexShard indexShard = indexService.getShardOrNull(shardId.id());
-
                 if (indexShard != null) {
-                    final Store store = indexShard.store();
-                    IndexCommit snapshot = null;
-                    store.incRef();
-                    try {
-                        exists = true;
-                        snapshot = indexShard.snapshotIndex(false);
-                        return new StoreFilesMetaData(shardId, store.getMetadata(snapshot));
-                    } finally {
-                        if (snapshot != null) {
-                            indexShard.releaseSnapshot(snapshot);
-                        }
-                        store.decRef();
-                    }
+                    exists = true;
+                    return new StoreFilesMetaData(shardId, indexShard.snapshotStore());
                 }
             }
             // try and see if we an list unallocated

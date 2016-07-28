@@ -69,3 +69,50 @@
                          \s*
                 )
                 $/
+
+---
+"Test cat indices using wildcards":
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: bar
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: baz
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      cat.indices:
+        index: f*
+        v: false
+        h: i
+
+  - match:
+      $body: |
+               /^(foo \n?)$/
+
+  - do:
+      cat.indices:
+        index: ba*
+        v: false
+        h: i
+
+  - match:
+      $body: |
+               /^(ba(r|z) \n?){2}$/

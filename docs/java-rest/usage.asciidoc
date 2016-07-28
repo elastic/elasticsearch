@@ -14,7 +14,7 @@ Add the following to your `pom.xml` file:
 <dependency>
     <groupId>org.elasticsearch.client</groupId>
     <artifactId>rest</artifactId>
-    <version>${es.version}</version>
+    <version>{version}</version>
 </dependency>
 --------------------------------------------------
 
@@ -51,8 +51,8 @@ https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/Ht
 [source,java]
 --------------------------------------------------
 RestClient restClient = RestClient.builder(
-        new HttpHost("localhost", 9200),
-        new HttpHost("localhost", 9201)).build();
+        new HttpHost("http", "localhost", 9200),
+        new HttpHost("http", "localhost", 9201)).build();
 --------------------------------------------------
 
 The `RestClient` class is thread-safe and ideally has the same lifecycle as
@@ -175,7 +175,7 @@ https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/Ht
 reading from the previously buffered response body. As an alternative, it is
 possible to provide a custom
 http://hc.apache.org/httpcomponents-core-ga/httpcore-nio/apidocs/org/apache/http/nio/protocol/HttpAsyncResponseConsumer.html[`org.apache.http.nio.protocol.HttpAsyncResponseConsumer`]
- that controls how bytes are read and buffered in the first place.
+ that controls how bytes are read and buffered.
 
 The following is a basic example of how async requests can be sent:
 

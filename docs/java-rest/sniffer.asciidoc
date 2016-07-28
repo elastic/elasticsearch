@@ -18,7 +18,7 @@ Add the following to your `pom.xml` file:
 <dependency>
     <groupId>org.elasticsearch.client</groupId>
     <artifactId>sniffer</artifactId>
-    <version>${es.version}</version>
+    <version>{version}</version>
 </dependency>
 --------------------------------------------------
 
@@ -32,7 +32,10 @@ supports fetching the nodes list from elasticsearch 2.x and onwards.
 
 Once a `RestClient` instance has been created, a `Sniffer` can be associated
 to it. The `Sniffer` will make use of the provided `RestClient` to periodically
-(every 5 minutes by default) fetch the nodes and set them to it:
+(every 5 minutes by default) fetch the list of current nodes from the cluster
+and update them by calling `RestClient#setHosts`.
+
+
 
 [source,java]
 --------------------------------------------------

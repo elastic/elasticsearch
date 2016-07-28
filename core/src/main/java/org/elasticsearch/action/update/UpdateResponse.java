@@ -72,16 +72,9 @@ public class UpdateResponse extends DocWriteResponse {
         return this.getResult;
     }
 
-    /**
-     * Returns true if document was created due to an UPSERT operation
-     */
-    public boolean isCreated() {
-        return this.operation == Operation.CREATE;
-    }
-
     @Override
     public RestStatus status() {
-        return isCreated() ? RestStatus.CREATED : super.status();
+        return this.operation == Operation.CREATE ? RestStatus.CREATED : super.status();
     }
 
     @Override

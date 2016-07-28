@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.indexing;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -38,6 +39,7 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  *
@@ -93,15 +95,15 @@ public class IndexActionIT extends ESIntegTestCase {
         ensureGreen();
 
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
-        assertTrue(indexResponse.isCreated());
+        assertThat(indexResponse.getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
 
         indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").execute().actionGet();
-        assertFalse(indexResponse.isCreated());
+        assertThat(indexResponse.getOperation(), not(DocWriteResponse.Operation.CREATE));
 
         client().prepareDelete("test", "type", "1").execute().actionGet();
 
         indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").execute().actionGet();
-        assertTrue(indexResponse.isCreated());
+        assertThat(indexResponse.getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
 
     }
 
@@ -110,14 +112,14 @@ public class IndexActionIT extends ESIntegTestCase {
         ensureGreen();
 
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
-        assertTrue(indexResponse.isCreated());
+        assertThat(indexResponse.getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
 
         client().prepareDelete("test", "type", "1").execute().actionGet();
 
         flush();
 
         indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").execute().actionGet();
-        assertTrue(indexResponse.isCreated());
+        assertThat(indexResponse.getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
     }
 
     public void testCreatedFlagParallelExecution() throws Exception {
@@ -138,7 +140,9 @@ public class IndexActionIT extends ESIntegTestCase {
                 public Void call() throws Exception {
                     int docId = random.nextInt(docCount);
                     IndexResponse indexResponse = index("test", "type", Integer.toString(docId), "field1", "value");
-                    if (indexResponse.isCreated()) createdCounts.incrementAndGet(docId);
+                    if (indexResponse.getOperation() == DocWriteResponse.Operation.CREATE) {
+                        createdCounts.incrementAndGet(docId);
+                    }
                     return null;
                 }
             });
@@ -158,7 +162,7 @@ public class IndexActionIT extends ESIntegTestCase {
 
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(123)
                                               .setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        assertTrue(indexResponse.isCreated());
+        assertThat(indexResponse.getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
     }
 
     public void testCreateFlagWithBulk() {
@@ -169,7 +173,7 @@ public class IndexActionIT extends ESIntegTestCase {
         assertThat(bulkResponse.hasFailures(), equalTo(false));
         assertThat(bulkResponse.getItems().length, equalTo(1));
         IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();
-        assertTrue(indexResponse.isCreated());
+        assertThat(indexResponse.getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
     }
 
     public void testCreateIndexWithLongName() {

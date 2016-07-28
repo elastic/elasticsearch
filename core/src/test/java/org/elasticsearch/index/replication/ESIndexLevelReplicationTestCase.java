@@ -256,7 +256,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
                 final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", Integer.toString(docId.incrementAndGet()))
                     .source("{}");
                 final IndexResponse response = index(indexRequest);
-                assertThat(response.isCreated(), equalTo(true));
+                assertThat(response.getOperation(), equalTo(true));
             }
             return numOfDoc;
         }

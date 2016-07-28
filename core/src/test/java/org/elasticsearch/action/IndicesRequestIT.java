@@ -118,6 +118,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 @ClusterScope(scope = Scope.SUITE, numClientNodes = 1, minNumDataNodes = 2)
 public class IndicesRequestIT extends ESIntegTestCase {
@@ -234,7 +235,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         client().prepareIndex(indexOrAlias, "type", "id").setSource("field", "value").get();
         UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").doc("field1", "value1");
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
-        assertThat(updateResponse.isCreated(), equalTo(false));
+        assertThat(updateResponse.getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
 
         clearInterceptedActions();
         assertSameIndices(updateRequest, updateShardActions);
@@ -248,7 +249,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         String indexOrAlias = randomIndexOrAlias();
         UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").upsert("field", "value").doc("field1", "value1");
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
-        assertThat(updateResponse.isCreated(), equalTo(true));
+        assertThat(updateResponse.getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
 
         clearInterceptedActions();
         assertSameIndices(updateRequest, updateShardActions);
@@ -264,7 +265,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id")
                 .script(new Script("ctx.op='delete'", ScriptService.ScriptType.INLINE, CustomScriptPlugin.NAME, Collections.emptyMap()));
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
-        assertThat(updateResponse.isCreated(), equalTo(false));
+        assertThat(updateResponse.getOperation(), not(DocWriteResponse.Operation.CREATE));
 
         clearInterceptedActions();
         assertSameIndices(updateRequest, updateShardActions);

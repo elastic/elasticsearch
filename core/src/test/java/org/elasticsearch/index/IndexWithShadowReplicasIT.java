@@ -21,6 +21,7 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -414,7 +415,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                     try {
                         final IndexResponse indexResponse = client().prepareIndex(IDX, "doc",
                                 Integer.toString(counter.incrementAndGet())).setSource("foo", "bar").get();
-                        assertTrue(indexResponse.isCreated());
+                        assertThat(indexResponse.getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
                     } catch (Exception e) {
                         exceptions.add(e);
                     }
@@ -507,7 +508,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 while (counter.get() < (numPhase1Docs + numPhase2Docs + numPhase3Docs)) {
                     final IndexResponse indexResponse = client().prepareIndex(IDX, "doc",
                             Integer.toString(counter.incrementAndGet())).setSource("foo", "bar").get();
-                    assertTrue(indexResponse.isCreated());
+                    assertThat(indexResponse.getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
                     final int docCount = counter.get();
                     if (docCount == numPhase1Docs) {
                         phase1finished.countDown();

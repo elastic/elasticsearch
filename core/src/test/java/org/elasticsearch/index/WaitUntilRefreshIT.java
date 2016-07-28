@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -53,6 +54,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests that requests with RefreshPolicy.WAIT_UNTIL will be visible when they return.
@@ -85,7 +87,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
 
         // Now delete with blockUntilRefresh
         DeleteResponse delete = client().prepareDelete("test", "test", "1").setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
-        assertTrue("document was deleted", delete.isFound());
+        assertThat("document was deleted", delete.getOperation(), equalTo(DocWriteResponse.Operation.DELETE));
         assertFalse("request shouldn't have forced a refresh", delete.forcedRefresh());
         assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get());
     }

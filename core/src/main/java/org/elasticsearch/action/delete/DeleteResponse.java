@@ -42,21 +42,14 @@ public class DeleteResponse extends DocWriteResponse {
         super(shardId, type, id, version, found ? Operation.DELETE : Operation.NOOP);
     }
 
-    /**
-     * Returns <tt>true</tt> if a doc was found to delete.
-     */
-    public boolean isFound() {
-        return operation == Operation.DELETE;
-    }
-
     @Override
     public RestStatus status() {
-        return isFound() ? super.status() : RestStatus.NOT_FOUND;
+        return operation == Operation.DELETE ? super.status() : RestStatus.NOT_FOUND;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("found", isFound());
+        builder.field("found", operation == Operation.DELETE);
         super.toXContent(builder, params);
         return builder;
     }

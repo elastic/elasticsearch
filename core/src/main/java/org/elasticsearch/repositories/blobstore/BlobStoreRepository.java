@@ -228,9 +228,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final ChecksumBlobStoreFormat<BlobStoreIndexShardSnapshots> indexShardSnapshotsFormat;
 
-    // flag to indicate if the index gen file has been checked for updating from pre 5.0 versions
-    private volatile boolean indexGenChecked;
-
     /**
      * Constructs new BlobStoreRepository
      *
@@ -344,22 +341,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     // Older repository index files (index-N) only contain snapshot info, not indices info,
-    // so if the index file is of the older format, populate it with the indices entries
+    // so if the repository data is of the older format, populate it with the indices entries
     // so we know which indices of snapshots have blob ids in the older format.
-    private RepositoryData updateIndexGenIfNecessary() throws IOException {
-        if (indexGenChecked) {
-            // an optimization to avoid the blobExists call (which can be expensive
-            // especially for cloud based storage repositories) if the index gen file
-            // has already been updated
-            return null;
-        }
-        if (isReadOnly() || snapshotsBlobContainer.blobExists(SNAPSHOTS_FILE) == false) {
-            // pre 5.0 repositories have a single index file instead of generational index-N files,
-            // so if the single index file is missing, we already have an up to date repository.
-            indexGenChecked = true;
-            return null;
-        }
-        final RepositoryData repositoryData = readIndexGen();
+    private RepositoryData upgradeRepositoryData(final RepositoryData repositoryData) throws IOException {
+        assert repositoryData.isLegacyFormat(); // should not be called on non-legacy repositories
         final Map<IndexId, Set<SnapshotId>> indexToSnapshots = new HashMap<>();
         for (final SnapshotId snapshotId : repositoryData.getSnapshotIds()) {
             final SnapshotInfo snapshotInfo;
@@ -382,10 +367,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
         }
         try {
-            // write the new index gen file with the indices included
             final RepositoryData updatedRepoData = repositoryData.initIndices(indexToSnapshots);
-            writeIndexGen(updatedRepoData);
-            indexGenChecked = true;
+            if (isReadOnly() == false) {
+                // write the new index gen file with the indices included
+                writeIndexGen(updatedRepoData);
+            }
             return updatedRepoData;
         } catch (IOException e) {
             throw new RepositoryException(metadata.name(), "failed to update the repository index blob with indices data on startup", e);
@@ -703,9 +689,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public RepositoryData getRepositoryData() {
         try {
-            RepositoryData repositoryData = updateIndexGenIfNecessary();
-            if (repositoryData == null) {
-                repositoryData = readIndexGen();
+            RepositoryData repositoryData = readIndexGen();
+            if (repositoryData.isLegacyFormat()) {
+                // pre 5.0 repository data needs to be updated to include the indices
+                repositoryData = upgradeRepositoryData(repositoryData);
             }
             return repositoryData;
         } catch (NoSuchFileException nsfe) {
@@ -771,19 +758,22 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     RepositoryData readIndexGen() throws IOException {
         final long indexGen = latestIndexBlobId();
         final String snapshotsIndexBlobName;
+        final boolean legacyFormat;
         if (indexGen == -1) {
             // index-N file doesn't exist, either its a fresh repository, or its in the
             // old format, so look for the older index file before returning an empty list
             snapshotsIndexBlobName = SNAPSHOTS_FILE;
+            legacyFormat = true;
         } else {
             snapshotsIndexBlobName = INDEX_FILE_PREFIX + Long.toString(indexGen);
+            legacyFormat = false;
         }
 
         try (InputStream blob = snapshotsBlobContainer.readBlob(snapshotsIndexBlobName)) {
             BytesStreamOutput out = new BytesStreamOutput();
             Streams.copy(blob, out);
             try (XContentParser parser = XContentHelper.createParser(out.bytes())) {
-                return RepositoryData.fromXContent(parser);
+                return RepositoryData.fromXContent(parser, legacyFormat);
             }
         }
     }

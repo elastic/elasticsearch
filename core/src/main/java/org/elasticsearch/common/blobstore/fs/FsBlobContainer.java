@@ -27,6 +27,7 @@ import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.io.Streams;
 
 import java.io.BufferedInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -98,10 +99,11 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public InputStream readBlob(String name) throws IOException {
         final Path resolvedPath = path.resolve(name);
-        if (!Files.exists(resolvedPath)) {
-            throw new NoSuchFileException("[" + resolvedPath + "] file not found");
+        try {
+            return new BufferedInputStream(Files.newInputStream(resolvedPath), blobStore.bufferSizeInBytes());
+        } catch (FileNotFoundException fnfe) {
+            throw new NoSuchFileException("[" + name + "] blob not found");
         }
-        return new BufferedInputStream(Files.newInputStream(resolvedPath), blobStore.bufferSizeInBytes());
     }
 
     @Override

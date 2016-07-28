@@ -302,9 +302,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     try {
                         final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id());
                         final IndexId indexId = indicesMap.get(shardId.getIndexName());
-                        if (indexId == null) {
-                            throw new IllegalStateException("[" + shardId.getIndexName() + "] being snapshotted, but not found in the snapshots in progress");
-                        }
+                        assert indexId != null;
                         executor.execute(new AbstractRunnable() {
                             @Override
                             public void doRun() {

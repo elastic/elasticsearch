@@ -503,7 +503,6 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
     /***
      * test one can snapshot the store at various lifecycle stages
-     * @throws IOException
      */
     public void testSnapshotStore() throws IOException {
         createIndex("test");

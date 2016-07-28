@@ -84,10 +84,42 @@ which is rendered as:
 {
 "query": {
   "terms": {
-    "status": [ "pending", "published" ]
+    "status": [ "", "pending", "", published", "" ] <1>
   }
 }
 ------------------------------------------
+<1> The empty `""` will be ignored as long as `""` is not a valid value for the `status` field.
+
+Alternatively, you can flatten the `status` parameter into a string which is
+passed in unescaped (using `{{{ }}}`) as follows:
+
+[source,js]
+------------------------------------------
+GET /_search/template
+{
+  "inline": "{\"query\": {\"terms\": {\"status\": [ {{{status}}} ]}}}",
+  "params": {
+    "status": "\"pending\", \"published\""
+  }
+}
+------------------------------------------
+
+which is rendered as:
+
+[source,js]
+------------------------------------------
+{
+  "query": {
+    "terms": {
+      "status": [
+        "pending",
+        "published"
+      ]
+    }
+  }
+}
+------------------------------------------
+
 
 [float]
 ===== Concatenating array of values
@@ -329,7 +361,7 @@ We could write the query as:
 ==================================
 As written above, this template is not valid JSON because it includes the
 _section_ markers like `{{#line_no}}`.  For this reason, the template should
-either be stored in a file (see <<pre-registered-templates>>) or, when used 
+either be stored in a file (see <<pre-registered-templates>>) or, when used
 via the REST API, should be written as a string:
 
 [source,js]
@@ -466,7 +498,7 @@ This call will return the rendered template:
 ------------------------------------------
 <1> `status` array has been populated with values from the `params` object.
 
-File and indexed templates can also be rendered by replacing `inline` with 
+File and indexed templates can also be rendered by replacing `inline` with
 `file` or `id` respectively. For example, to render a file template
 
 [source,js]

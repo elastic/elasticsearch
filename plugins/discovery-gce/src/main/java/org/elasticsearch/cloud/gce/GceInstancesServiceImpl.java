@@ -21,9 +21,6 @@ package org.elasticsearch.cloud.gce;
 
 import com.google.api.client.googleapis.compute.ComputeCredential;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
-import com.google.api.client.http.GenericUrl;
-import com.google.api.client.http.HttpHeaders;
-import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
@@ -33,10 +30,8 @@ import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cloud.gce.network.GceNameResolver;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -44,10 +39,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.gce.RetryHttpInitializerWrapper;
 
 import java.io.IOException;
-import java.net.URL;
 import java.security.AccessController;
 import java.security.GeneralSecurityException;
-import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
@@ -56,27 +49,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
-public class GceComputeServiceImpl extends AbstractLifecycleComponent
-    implements GceComputeService {
+public class GceInstancesServiceImpl extends AbstractLifecycleComponent implements GceInstancesService {
 
     // all settings just used for testing - not registered by default
     public static final Setting<Boolean> GCE_VALIDATE_CERTIFICATES =
         Setting.boolSetting("cloud.gce.validate_certificates", true, Property.NodeScope);
-    public static final Setting<String> GCE_HOST =
-        new Setting<>("cloud.gce.host", "http://metadata.google.internal", Function.identity(), Property.NodeScope);
     public static final Setting<String> GCE_ROOT_URL =
         new Setting<>("cloud.gce.root_url", "https://www.googleapis.com", Function.identity(), Property.NodeScope);
 
     private final String project;
     private final List<String> zones;
-    // Forcing Google Token API URL as set in GCE SDK to
-    //      http://metadata/computeMetadata/v1/instance/service-accounts/default/token
-    // See https://developers.google.com/compute/docs/metadata#metadataserver
-    private final String gceHost;
-    private final String metaDataUrl;
-    private final String tokenServerEncodedUrl;
-    private String gceRootUrl;
-
 
     @Override
     public Collection<Instance> instances() {
@@ -117,47 +99,6 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent
         return instances;
     }
 
-    @Override
-    public String metadata(String metadataPath) throws IOException {
-        String urlMetadataNetwork = this.metaDataUrl + "/" + metadataPath;
-        logger.debug("get metadata from [{}]", urlMetadataNetwork);
-        final URL url = new URL(urlMetadataNetwork);
-        HttpHeaders headers;
-        try {
-            // hack around code messiness in GCE code
-            // TODO: get this fixed
-            SecurityManager sm = System.getSecurityManager();
-            if (sm != null) {
-                sm.checkPermission(new SpecialPermission());
-            }
-            headers = AccessController.doPrivileged(new PrivilegedExceptionAction<HttpHeaders>() {
-                @Override
-                public HttpHeaders run() throws IOException {
-                    return new HttpHeaders();
-                }
-            });
-            GenericUrl genericUrl = AccessController.doPrivileged(new PrivilegedAction<GenericUrl>() {
-                @Override
-                public GenericUrl run() {
-                    return new GenericUrl(url);
-                }
-            });
-
-            // This is needed to query meta data: https://cloud.google.com/compute/docs/metadata
-            headers.put("Metadata-Flavor", "Google");
-            HttpResponse response;
-            response = getGceHttpTransport().createRequestFactory()
-                    .buildGetRequest(genericUrl)
-                    .setHeaders(headers)
-                    .execute();
-            String metadata = response.parseAsString();
-            logger.debug("metadata found [{}]", metadata);
-            return metadata;
-        } catch (Exception e) {
-            throw new IOException("failed to fetch metadata from [" + urlMetadataNetwork + "]", e);
-        }
-    }
-
     private Compute client;
     private TimeValue refreshInterval = null;
     private long lastRefresh;
@@ -169,17 +110,13 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent
     private JsonFactory gceJsonFactory;
 
     private final boolean validateCerts;
+
     @Inject
-    public GceComputeServiceImpl(Settings settings, NetworkService networkService) {
+    public GceInstancesServiceImpl(Settings settings) {
         super(settings);
         this.project = PROJECT_SETTING.get(settings);
         this.zones = ZONE_SETTING.get(settings);
-        this.gceHost = GCE_HOST.get(settings);
-        this.metaDataUrl =  gceHost + "/computeMetadata/v1/instance";
-        this.gceRootUrl = GCE_ROOT_URL.get(settings);
-        tokenServerEncodedUrl = metaDataUrl + "/service-accounts/default/token";
         this.validateCerts = GCE_VALIDATE_CERTIFICATES.get(settings);
-        networkService.addCustomNameResolver(new GceNameResolver(settings, this));
     }
 
     protected synchronized HttpTransport getGceHttpTransport() throws GeneralSecurityException, IOException {
@@ -208,8 +145,13 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent
             gceJsonFactory = new JacksonFactory();
 
             logger.info("starting GCE discovery service");
+            // Forcing Google Token API URL as set in GCE SDK to
+            //      http://metadata/computeMetadata/v1/instance/service-accounts/default/token
+            // See https://developers.google.com/compute/docs/metadata#metadataserver
+            String tokenServerEncodedUrl = GceMetadataService.GCE_HOST.get(settings) +
+                "/computeMetadata/v1/instance/service-accounts/default/token";
             ComputeCredential credential = new ComputeCredential.Builder(getGceHttpTransport(), gceJsonFactory)
-                    .setTokenServerEncodedUrl(this.tokenServerEncodedUrl)
+                    .setTokenServerEncodedUrl(tokenServerEncodedUrl)
                     .build();
 
             // hack around code messiness in GCE code
@@ -233,7 +175,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent
 
 
             Compute.Builder builder = new Compute.Builder(getGceHttpTransport(), gceJsonFactory, null).setApplicationName(VERSION)
-                .setRootUrl(gceRootUrl);
+                .setRootUrl(GCE_ROOT_URL.get(settings));
 
             if (RETRY_SETTING.exists(settings)) {
                 TimeValue maxWait = MAX_WAIT_SETTING.get(settings);

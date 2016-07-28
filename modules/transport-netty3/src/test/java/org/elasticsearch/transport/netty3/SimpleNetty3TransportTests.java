@@ -36,6 +36,7 @@ import org.elasticsearch.transport.TransportSettings;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -47,8 +48,8 @@ public class SimpleNetty3TransportTests extends AbstractSimpleTransportTestCase 
         Settings settings,
         ThreadPool threadPool, final Version version) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        Transport transport = new Netty3Transport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE,
-            namedWriteableRegistry, new NoneCircuitBreakerService()) {
+        Transport transport = new Netty3Transport(settings, threadPool, new NetworkService(settings, Collections.emptyList()),
+            BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
             @Override
             protected Version getCurrentVersion() {
                 return version;

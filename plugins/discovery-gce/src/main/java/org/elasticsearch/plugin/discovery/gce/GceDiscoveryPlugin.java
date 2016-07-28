@@ -22,30 +22,36 @@ package org.elasticsearch.plugin.discovery.gce;
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.util.ClassInfo;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cloud.gce.GceComputeService;
+import org.elasticsearch.cloud.gce.GceInstancesService;
+import org.elasticsearch.cloud.gce.GceMetadataService;
 import org.elasticsearch.cloud.gce.GceModule;
+import org.elasticsearch.cloud.gce.network.GceNameResolver;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.gce.GceUnicastHostsProvider;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-public class GceDiscoveryPlugin extends Plugin {
+public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
     public static final String GCE = "gce";
+    private final Settings settings;
+    protected final ESLogger logger = Loggers.getLogger(GceDiscoveryPlugin.class);
 
     static {
         /*
@@ -69,32 +75,46 @@ public class GceDiscoveryPlugin extends Plugin {
         });
     }
 
+    public GceDiscoveryPlugin(Settings settings) {
+        this.settings = settings;
+        logger.trace("starting gce discovery plugin...");
+    }
+
     @Override
     public Collection<Module> createGuiceModules() {
-        return Collections.singletonList(new GceModule());
+        return Collections.singletonList(new GceModule(settings));
     }
 
     @Override
     @SuppressWarnings("rawtypes") // Supertype uses raw type
     public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
-        return Collections.singletonList(GceModule.getComputeServiceImpl());
+        logger.debug("Register gce compute service");
+        Collection<Class<? extends LifecycleComponent>> services = new ArrayList<>();
+        services.add(GceModule.getComputeServiceImpl());
+        return services;
     }
 
     public void onModule(DiscoveryModule discoveryModule) {
+        logger.debug("Register gce discovery type and gce unicast provider");
         discoveryModule.addDiscoveryType(GCE, ZenDiscovery.class);
-        // If discovery.type: gce, we add Gce as a unicast provider
-            discoveryModule.addUnicastHostProvider(GCE, GceUnicastHostsProvider.class);
+        discoveryModule.addUnicastHostProvider(GCE, GceUnicastHostsProvider.class);
+    }
+
+    @Override
+    public NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
+        logger.debug("Register _gce_, _gce:xxx network names");
+        return new GceNameResolver(settings, new GceMetadataService(settings));
     }
 
     @Override
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
-        // Register GCE settings
-        GceComputeService.PROJECT_SETTING,
-        GceComputeService.ZONE_SETTING,
-        GceUnicastHostsProvider.TAGS_SETTING,
-        GceComputeService.REFRESH_SETTING,
-        GceComputeService.RETRY_SETTING,
-        GceComputeService.MAX_WAIT_SETTING);
+            // Register GCE settings
+            GceInstancesService.PROJECT_SETTING,
+            GceInstancesService.ZONE_SETTING,
+            GceUnicastHostsProvider.TAGS_SETTING,
+            GceInstancesService.REFRESH_SETTING,
+            GceInstancesService.RETRY_SETTING,
+            GceInstancesService.MAX_WAIT_SETTING);
     }
 }

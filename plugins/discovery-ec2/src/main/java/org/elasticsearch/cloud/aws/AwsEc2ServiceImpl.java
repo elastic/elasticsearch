@@ -55,10 +55,8 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent implements Aws
     private AmazonEC2Client client;
 
     @Inject
-    public AwsEc2ServiceImpl(Settings settings, NetworkService networkService) {
+    public AwsEc2ServiceImpl(Settings settings) {
         super(settings);
-        // add specific ec2 name resolver
-        networkService.addCustomNameResolver(new Ec2NameResolver(settings));
     }
 
     @Override

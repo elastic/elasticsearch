@@ -26,38 +26,22 @@ import com.google.api.client.json.Json;
 import com.google.api.client.testing.http.MockHttpTransport;
 import com.google.api.client.testing.http.MockLowLevelHttpRequest;
 import com.google.api.client.testing.http.MockLowLevelHttpResponse;
-import org.elasticsearch.cloud.gce.GceComputeServiceImpl;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.Callback;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
-import java.security.GeneralSecurityException;
 
-/**
- *
- */
-public class GceComputeServiceMock extends GceComputeServiceImpl {
-
-    protected HttpTransport mockHttpTransport;
-
-    public GceComputeServiceMock(Settings settings, NetworkService networkService) {
-        super(settings, networkService);
-        this.mockHttpTransport = configureMock();
-    }
-
-    @Override
-    protected HttpTransport getGceHttpTransport() throws GeneralSecurityException, IOException {
-        return this.mockHttpTransport;
-    }
+public class GceMockUtils {
+    protected static final ESLogger logger = Loggers.getLogger(GceMockUtils.class);
 
     public static final String GCE_METADATA_URL = "http://metadata.google.internal/computeMetadata/v1/instance";
 
-    protected HttpTransport configureMock() {
+    protected static HttpTransport configureMock() {
         return new MockHttpTransport() {
             @Override
             public LowLevelHttpRequest buildRequest(String method, final String url) throws IOException {
@@ -94,7 +78,7 @@ public class GceComputeServiceMock extends GceComputeServiceImpl {
         // We extract from the url the mock file path we want to use
         String mockFileName = Strings.replace(url, urlRoot, "");
 
-        URL resource = GceComputeServiceMock.class.getResource(mockFileName);
+        URL resource = GceMockUtils.class.getResource(mockFileName);
         if (resource == null) {
             throw new IOException("can't read [" + url + "] in src/test/resources/org/elasticsearch/discovery/gce");
         }

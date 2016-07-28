@@ -92,6 +92,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -294,7 +295,8 @@ public class Node implements Closeable {
             // so we might be late here already
             final SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);
             resourcesToClose.add(resourceWatcherService);
-            final NetworkService networkService = new NetworkService(settings);
+            final NetworkService networkService = new NetworkService(settings,
+                getCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class)));
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             clusterService.add(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
@@ -720,5 +722,20 @@ public class Node implements Closeable {
      */
     BigArrays createBigArrays(Settings settings, CircuitBreakerService circuitBreakerService) {
         return new BigArrays(settings, circuitBreakerService);
+    }
+
+    /**
+     * Get Custom Name Resolvers list based on a Discovery Plugins list
+     * @param discoveryPlugins Discovery plugins list
+     */
+    private List<NetworkService.CustomNameResolver> getCustomNameResolvers(List<DiscoveryPlugin> discoveryPlugins) {
+        List<NetworkService.CustomNameResolver> customNameResolvers = new ArrayList<>();
+        for (DiscoveryPlugin discoveryPlugin : discoveryPlugins) {
+            NetworkService.CustomNameResolver customNameResolver = discoveryPlugin.getCustomNameResolver(settings);
+            if (customNameResolver != null) {
+                customNameResolvers.add(customNameResolver);
+            }
+        }
+        return customNameResolvers;
     }
 }

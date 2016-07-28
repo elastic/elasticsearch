@@ -34,7 +34,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
 
 public class DynamicMappingIT extends ESIntegTestCase {
 
@@ -101,8 +100,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 public void run() {
                     try {
                         startLatch.await();
-                        assertThat(client().prepareIndex("index", "type", id).setSource("field" + id, "bar").get().getOperation(),
-                            equalTo(DocWriteResponse.Operation.CREATE));
+                        assertEquals(DocWriteResponse.Operation.CREATE, client().prepareIndex("index", "type", id).setSource("field" + id, "bar").get().getOperation());
                     } catch (Exception e) {
                         error.compareAndSet(null, e);
                     }

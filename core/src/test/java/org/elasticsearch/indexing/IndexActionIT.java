@@ -39,7 +39,6 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
 
 /**
  *
@@ -98,7 +97,7 @@ public class IndexActionIT extends ESIntegTestCase {
         assertThat(indexResponse.getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
 
         indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").execute().actionGet();
-        assertThat(indexResponse.getOperation(), not(DocWriteResponse.Operation.CREATE));
+        assertThat(indexResponse.getOperation(), equalTo(DocWriteResponse.Operation.INDEX));
 
         client().prepareDelete("test", "type", "1").execute().actionGet();
 

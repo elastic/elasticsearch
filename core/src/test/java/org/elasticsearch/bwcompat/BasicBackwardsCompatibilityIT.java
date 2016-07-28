@@ -80,7 +80,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -544,7 +543,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertThat(updateResponse.getIndex(), equalTo("test"));
         assertThat(updateResponse.getType(), equalTo("type1"));
         assertThat(updateResponse.getId(), equalTo("1"));
-        assertThat(updateResponse.getOperation(), not(DocWriteResponse.Operation.CREATE));
+        assertThat(updateResponse.getOperation(), equalTo(DocWriteResponse.Operation.INDEX));
 
         getResponse = client().prepareGet("test", "type1", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));

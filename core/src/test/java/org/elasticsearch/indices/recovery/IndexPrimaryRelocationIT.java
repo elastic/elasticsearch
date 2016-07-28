@@ -56,9 +56,9 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
             public void run() {
                 while (finished.get() == false) {
                     IndexResponse indexResponse = client().prepareIndex("test", "type", "id").setSource("field", "value").get();
-                    assertThat("deleted document was found", indexResponse.getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
+                    assertThat(indexResponse.getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
                     DeleteResponse deleteResponse = client().prepareDelete("test", "type", "id").get();
-                    assertThat("indexed document was not found", deleteResponse.getOperation(), equalTo(DocWriteResponse.Operation.DELETE));
+                    assertThat(deleteResponse.getOperation(), equalTo(DocWriteResponse.Operation.DELETE));
                 }
             }
         };

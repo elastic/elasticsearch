@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -57,7 +56,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class BulkWithUpdatesIT extends ESIntegTestCase {
@@ -213,7 +211,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[0].getResponse().getVersion(), equalTo(1L));
         assertThat(bulkResponse.getItems()[1].getResponse().getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
         assertThat(bulkResponse.getItems()[1].getResponse().getVersion(), equalTo(1L));
-        assertThat(bulkResponse.getItems()[2].getResponse().getOperation(), not(DocWriteResponse.Operation.CREATE));
+        assertThat(bulkResponse.getItems()[2].getResponse().getOperation(), equalTo(DocWriteResponse.Operation.INDEX));
         assertThat(bulkResponse.getItems()[2].getResponse().getVersion(), equalTo(2L));
 
         bulkResponse = client().prepareBulk()
@@ -238,7 +236,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[0].getResponse().getVersion(), equalTo(10L));
         assertThat(bulkResponse.getItems()[1].getResponse().getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
         assertThat(bulkResponse.getItems()[1].getResponse().getVersion(), equalTo(10L));
-        assertThat(bulkResponse.getItems()[2].getResponse().getOperation(), not(DocWriteResponse.Operation.CREATE));
+        assertThat(bulkResponse.getItems()[2].getResponse().getOperation(), equalTo(DocWriteResponse.Operation.INDEX));
         assertThat(bulkResponse.getItems()[2].getResponse().getVersion(), equalTo(12L));
 
         bulkResponse = client().prepareBulk()

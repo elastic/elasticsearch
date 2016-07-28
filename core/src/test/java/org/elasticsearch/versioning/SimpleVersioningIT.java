@@ -47,7 +47,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
 
 /**
  *
@@ -60,7 +59,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         // Note - external version doesn't throw version conflicts on deletes of non existent records. This is different from internal versioning
 
         DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1").setVersion(17).setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        assertThat(deleteResponse.getOperation(), not(DocWriteResponse.Operation.DELETE));
+        assertThat(deleteResponse.getOperation(), equalTo(DocWriteResponse.Operation.NOOP));
 
         // this should conflict with the delete command transaction which told us that the object was deleted at version 17.
         assertThrows(
@@ -145,7 +144,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
 
         // But delete with a higher version is OK.
         deleteResponse = client().prepareDelete("test", "type", "1").setVersion(18).setVersionType(VersionType.EXTERNAL_GTE).execute().actionGet();
-        assertThat(deleteResponse.getOperation(), not(DocWriteResponse.Operation.DELETE));
+        assertThat(deleteResponse.getOperation(), equalTo(DocWriteResponse.Operation.NOOP));
         assertThat(deleteResponse.getVersion(), equalTo(18L));
     }
 
@@ -187,7 +186,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
 
         // But delete with a higher version is OK.
         deleteResponse = client().prepareDelete("test", "type", "1").setVersion(18).setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        assertThat(deleteResponse.getOperation(), not(DocWriteResponse.Operation.DELETE));
+        assertThat(deleteResponse.getOperation(), equalTo(DocWriteResponse.Operation.NOOP));
         assertThat(deleteResponse.getVersion(), equalTo(18L));
 
 
@@ -291,7 +290,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         // This is intricate - the object was deleted but a delete transaction was with the right version. We add another one
         // and thus the transaction is increased.
         deleteResponse = client().prepareDelete("test", "type", "1").setVersion(3).execute().actionGet();
-        assertThat(deleteResponse.getOperation(), not(DocWriteResponse.Operation.DELETE));
+        assertThat(deleteResponse.getOperation(), equalTo(DocWriteResponse.Operation.NOOP));
         assertThat(deleteResponse.getVersion(), equalTo(4L));
     }
 

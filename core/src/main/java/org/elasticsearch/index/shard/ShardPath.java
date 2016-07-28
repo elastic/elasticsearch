@@ -26,6 +26,7 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -171,9 +172,9 @@ public final class ShardPath {
             dataPath = env.resolveCustomLocation(indexSettings, shardId);
             statePath = env.nodePaths()[0].resolve(shardId);
         } else {
-            long totFreeSpace = 0;
+            BigInteger totFreeSpace = BigInteger.ZERO;
             for (NodeEnvironment.NodePath nodePath : env.nodePaths()) {
-                totFreeSpace += Math.max(0, nodePath.fileStore.getUsableSpace());
+                totFreeSpace = totFreeSpace.add(BigInteger.valueOf(nodePath.fileStore.getUsableSpace()));
             }
 
             // TODO: this is a hack!!  We should instead keep track of incoming (relocated) shards since we know
@@ -181,25 +182,24 @@ public final class ShardPath {
 
             // Very rough heuristic of how much disk space we expect the shard will use over its lifetime, the max of current average
             // shard size across the cluster and 5% of the total available free space on this node:
-            long estShardSizeInBytes = Math.max(avgShardSizeInBytes, (long) (totFreeSpace/20.0));
+            BigInteger estShardSizeInBytes = BigInteger.valueOf(avgShardSizeInBytes).max(totFreeSpace.divide(BigInteger.valueOf(20)));
 
             // TODO - do we need something more extensible? Yet, this does the job for now...
             final NodeEnvironment.NodePath[] paths = env.nodePaths();
             NodeEnvironment.NodePath bestPath = null;
-            long maxUsableBytes = Long.MIN_VALUE;
+            BigInteger maxUsableBytes = BigInteger.valueOf(-1);
             for (NodeEnvironment.NodePath nodePath : paths) {
                 FileStore fileStore = nodePath.fileStore;
 
-                // Apparently, FileStore.getUsableSpace() can sometimes be negative, even possibly Long.MIN_VALUE, which can lead to NPE
-                // below since we would fail to set bestPath:
-                long usableBytes = Math.max(0, fileStore.getUsableSpace());
+                BigInteger usableBytes = BigInteger.valueOf(fileStore.getUsableSpace());
+                assert usableBytes.compareTo(BigInteger.ZERO) >= 0;
 
                 // Deduct estimated reserved bytes from usable space:
                 Integer count = dataPathToShardCount.get(nodePath.path);
                 if (count != null) {
-                    usableBytes = Math.subtractExact(usableBytes, Math.multiplyExact(estShardSizeInBytes, count));
+                    usableBytes = usableBytes.subtract(estShardSizeInBytes.multiply(BigInteger.valueOf(count)));
                 }
-                if (usableBytes > maxUsableBytes) {
+                if (usableBytes.compareTo(maxUsableBytes) > 0) {
                     maxUsableBytes = usableBytes;
                     bestPath = nodePath;
                 }

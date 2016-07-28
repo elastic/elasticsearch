@@ -211,31 +211,4 @@ public class NewPathForShardTests extends ESTestCase {
 
         nodeEnv.close();
     }
-
-    public void testNegativeUsableSpace() throws Exception {
-        Path path = PathUtils.get(createTempDir().toString());
-
-        // Use 1 data path:
-        String[] paths = new String[] {path.resolve("a").toString()};
-
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), path)
-            .putArray(Environment.PATH_DATA_SETTING.getKey(), paths).build();
-        NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings));
-
-        // Make sure all our mocking above actually worked:
-        NodePath[] nodePaths = nodeEnv.nodePaths();
-        assertEquals(1, nodePaths.length);
-
-        assertEquals("mocka", nodePaths[0].fileStore.name());
-
-        // Path a is confused about its free space:
-        aFileStore.usableSpace = -Long.MIN_VALUE;
-
-        ShardId shardId = new ShardId("index", "_na_", 0);
-        ShardPath result = ShardPath.selectNewPathForShard(nodeEnv, shardId, INDEX_SETTINGS, 100, Collections.<Path,Integer>emptyMap());
-        assertTrue(result.getDataPath().toString().contains(aPathPart));
-
-        nodeEnv.close();
-    }
 }

@@ -74,7 +74,7 @@ public class SslClientAuthTests extends SecurityIntegTestCase {
         Settings settings = Settings.builder()
                 .put(getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient"))
                 .build();
-        ClientSSLService sslService = new ClientSSLService(settings, null, new Global(settings), null);
+        ClientSSLService sslService = new ClientSSLService(settings, null, new Global(settings));
         SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslService.sslContext(), NoopHostnameVerifier.INSTANCE);
         try (RestClient restClient = createRestClient(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy), "https")) {
             Response response = restClient.performRequest("GET", "/",

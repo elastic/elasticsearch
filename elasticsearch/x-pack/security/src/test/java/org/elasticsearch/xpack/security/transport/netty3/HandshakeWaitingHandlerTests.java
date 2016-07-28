@@ -76,7 +76,7 @@ public class HandshakeWaitingHandlerTests extends ESTestCase {
                 .put("xpack.security.ssl.keystore.password", "testnode")
                 .build();
         Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
-        ServerSSLService sslService = new ServerSSLService(settings, env, new Global(settings), null);
+        ServerSSLService sslService = new ServerSSLService(settings, env, new Global(settings));
 
         sslContext = sslService.sslContext();
 

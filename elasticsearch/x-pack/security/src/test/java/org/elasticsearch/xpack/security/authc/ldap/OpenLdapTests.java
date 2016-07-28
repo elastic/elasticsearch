@@ -52,7 +52,7 @@ public class OpenLdapTests extends ESTestCase {
         }
         globalSettings = builder.build();
         Environment environment = new Environment(globalSettings);
-        clientSSLService = new ClientSSLService(globalSettings, environment, new Global(globalSettings), null);
+        clientSSLService = new ClientSSLService(globalSettings, environment, new Global(globalSettings));
     }
 
     public void testConnect() throws Exception {

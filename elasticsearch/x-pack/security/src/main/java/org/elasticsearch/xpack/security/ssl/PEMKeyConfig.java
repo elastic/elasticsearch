@@ -28,23 +28,27 @@ class PEMKeyConfig extends KeyConfig {
     final String keyPassword;
     final List<String> certPaths;
 
-    PEMKeyConfig(boolean includeSystem, boolean reloadEnabled, String keyPath, String keyPassword, List<String> certPaths) {
-        super(includeSystem, reloadEnabled);
+    PEMKeyConfig(boolean includeSystem, String keyPath, String keyPassword, List<String> certPaths) {
+        super(includeSystem);
         this.keyPath = keyPath;
         this.keyPassword = keyPassword;
         this.certPaths = certPaths;
     }
 
     @Override
-    X509ExtendedKeyManager[] loadKeyManagers(@Nullable Environment environment) {
+    X509ExtendedKeyManager loadKeyManager(@Nullable Environment environment) {
+        // password must be non-null for keystore...
+        char[] password = keyPassword == null ? new char[0] : keyPassword.toCharArray();
         try {
             PrivateKey privateKey = readPrivateKey(CertUtils.resolvePath(keyPath, environment));
             Certificate[] certificateChain = CertUtils.readCertificates(certPaths, environment);
-            // password must be non-null for keystore...
-            char[] password = keyPassword == null ? new char[0] : keyPassword.toCharArray();
             return CertUtils.keyManagers(certificateChain, privateKey, password);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a KeyManagerFactory", e);
+        } finally {
+            if (password != null) {
+                Arrays.fill(password, (char) 0);
+            }
         }
     }
 
@@ -60,7 +64,7 @@ class PEMKeyConfig extends KeyConfig {
     }
 
     @Override
-    X509ExtendedTrustManager[] nonSystemTrustManagers(@Nullable Environment environment) {
+    X509ExtendedTrustManager nonSystemTrustManager(@Nullable Environment environment) {
         try {
             Certificate[] certificates = CertUtils.readCertificates(certPaths, environment);
             return CertUtils.trustManagers(certificates);

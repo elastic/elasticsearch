@@ -43,8 +43,8 @@ public class SecurityNetty3TransportTests extends ESTestCase {
                 .build();
         Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
         Global globalSSLConfiguration = new Global(settings);
-        serverSSLService = new ServerSSLService(settings, env, globalSSLConfiguration, null);
-        clientSSLService = new ClientSSLService(settings, env, globalSSLConfiguration, null);
+        serverSSLService = new ServerSSLService(settings, env, globalSSLConfiguration);
+        clientSSLService = new ClientSSLService(settings, env, globalSSLConfiguration);
     }
 
     public void testThatSSLCanBeDisabledByProfile() throws Exception {

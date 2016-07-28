@@ -13,13 +13,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.ssl.SSLConfiguration.Custom;
 import org.elasticsearch.xpack.security.ssl.SSLConfiguration.Global;
-import org.elasticsearch.xpack.security.ssl.TrustConfig.Reloadable.Listener;
-import org.elasticsearch.watcher.ResourceWatcherService;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLSessionContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
@@ -28,9 +25,12 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Enumeration;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -39,19 +39,18 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public abstract class AbstractSSLService extends AbstractComponent {
 
-    private final ConcurrentHashMap<SSLConfiguration, SSLContext> sslContexts = new ConcurrentHashMap<>();
     private final SSLContextCacheLoader cacheLoader = new SSLContextCacheLoader();
+    private final ConcurrentHashMap<SSLConfiguration, SSLContext> sslContexts = new ConcurrentHashMap<>();
 
     protected final SSLConfiguration globalSSLConfiguration;
     protected final Environment env;
-    protected final ResourceWatcherService resourceWatcherService;
 
-    public AbstractSSLService(Settings settings, Environment environment, Global globalSSLConfiguration,
-                              ResourceWatcherService resourceWatcherService) {
+    private Listener listener = Listener.NOOP;
+
+    AbstractSSLService(Settings settings, Environment environment, Global globalSSLConfiguration) {
         super(settings);
         this.env = environment;
         this.globalSSLConfiguration = globalSSLConfiguration;
-        this.resourceWatcherService = resourceWatcherService;
     }
 
     public String[] supportedProtocols() {
@@ -167,6 +166,27 @@ public abstract class AbstractSSLService extends AbstractComponent {
         return requestedCiphersList.toArray(new String[requestedCiphersList.size()]);
     }
 
+    /**
+     * Sets the listener to the value provided. Must not be {@code null}
+     */
+    void setListener(Listener listener) {
+        this.listener = Objects.requireNonNull(listener);
+    }
+
+    /**
+     * Returns the existing {@link SSLContext} for the configuration or {@code null}
+     */
+    SSLContext getSSLContext(SSLConfiguration sslConfiguration) {
+        return sslContexts.get(sslConfiguration);
+    }
+
+    /**
+     * Accessor to the loaded ssl configuration objects at the current point in time. This is useful for testing
+     */
+    Collection<SSLConfiguration> getLoadedSSLConfigurations() {
+        return Collections.unmodifiableSet(new HashSet<>(sslContexts.keySet()));
+    }
+
     private class SSLContextCacheLoader {
 
         public SSLContext load(SSLConfiguration sslConfiguration) {
@@ -175,15 +195,15 @@ public abstract class AbstractSSLService extends AbstractComponent {
                 logger.debug("using ssl settings [{}]", sslConfiguration);
             }
 
-            ConfigRefreshListener configRefreshListener = new ConfigRefreshListener(sslConfiguration);
-            TrustManager[] trustManagers = sslConfiguration.trustConfig().trustManagers(env, resourceWatcherService, configRefreshListener);
-            KeyManager[] keyManagers = sslConfiguration.keyConfig().keyManagers(env, resourceWatcherService, configRefreshListener);
+            TrustManager[] trustManagers = sslConfiguration.trustConfig().trustManagers(env);
+            KeyManager[] keyManagers = sslConfiguration.keyConfig().keyManagers(env);
             SSLContext sslContext = createSslContext(keyManagers, trustManagers, sslConfiguration.protocol(),
                     sslConfiguration.sessionCacheSize(), sslConfiguration.sessionCacheTimeout());
 
             // check the supported ciphers and log them here
             supportedCiphers(sslContext.getSupportedSSLParameters().getCipherSuites(),
                     sslConfiguration.ciphers().toArray(Strings.EMPTY_ARRAY), true);
+            listener.onSSLContextLoaded(sslConfiguration);
             return sslContext;
         }
 
@@ -199,37 +219,6 @@ public abstract class AbstractSSLService extends AbstractComponent {
             } catch (Exception e) {
                 throw new ElasticsearchException("failed to initialize the SSLContext", e);
             }
-        }
-    }
-
-    class ConfigRefreshListener implements Listener {
-
-        private final SSLConfiguration sslConfiguration;
-
-        ConfigRefreshListener(SSLConfiguration sslConfiguration) {
-            this.sslConfiguration = sslConfiguration;
-        }
-
-        @Override
-        public void onReload() {
-            SSLContext context = sslContexts.get(sslConfiguration);
-            if (context != null) {
-                invalidateSessions(context.getClientSessionContext());
-                invalidateSessions(context.getServerSessionContext());
-            }
-        }
-
-        void invalidateSessions(SSLSessionContext sslSessionContext) {
-            Enumeration<byte[]> sessionIds = sslSessionContext.getIds();
-            while (sessionIds.hasMoreElements()) {
-                byte[] sessionId = sessionIds.nextElement();
-                sslSessionContext.getSession(sessionId).invalidate();
-            }
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            logger.error("failed to load updated ssl context for [{}]", e, sslConfiguration);
         }
     }
 
@@ -304,5 +293,15 @@ public abstract class AbstractSSLService extends AbstractComponent {
             socket.setEnabledProtocols(supportedProtocols);
             socket.setEnabledCipherSuites(ciphers);
         }
+    }
+
+    interface Listener {
+        /**
+         * Called after a new SSLContext has been created
+         * @param sslConfiguration the configuration used to create the SSLContext
+         */
+        void onSSLContextLoaded(SSLConfiguration sslConfiguration);
+
+        Listener NOOP = (s) -> {};
     }
 }

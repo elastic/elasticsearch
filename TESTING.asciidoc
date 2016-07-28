@@ -416,8 +416,8 @@ that'd consume a ton of ram.
 == Testing scripts more directly
 
 In general its best to stick to testing in vagrant because the bats scripts are
-destructive. When working with a single package its generally faster to run its
-tests in a tighter loop than maven provides. In one window:
+destructive. When working with a single package it's generally faster to run its
+tests in a tighter loop than gradle provides. In one window:
 
 --------------------------------
 gradle :distribution:rpm:assemble

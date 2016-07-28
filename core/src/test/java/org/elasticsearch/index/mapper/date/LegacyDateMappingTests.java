@@ -459,7 +459,7 @@ public class LegacyDateMappingTests extends ESSingleNodeTestCase {
                 .bytes());
         assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(1433239200000L));
         indexResponse = client().prepareIndex("test", "test").setSource(document).get();
-        assertThat(indexResponse.getOperation(), equalTo(Operation.CREATE));
+        assertThat(indexResponse.getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
     }
 
     public void testThatNewIndicesOnlyAllowStrictDates() throws Exception {

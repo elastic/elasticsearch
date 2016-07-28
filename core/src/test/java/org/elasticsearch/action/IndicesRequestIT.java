@@ -235,7 +235,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         client().prepareIndex(indexOrAlias, "type", "id").setSource("field", "value").get();
         UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").doc("field1", "value1");
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
-        assertThat(updateResponse.getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
+        assertThat(updateResponse.getOperation(), not(DocWriteResponse.Operation.CREATE));
 
         clearInterceptedActions();
         assertSameIndices(updateRequest, updateShardActions);

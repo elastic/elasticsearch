@@ -50,20 +50,6 @@ public class UpdateResponse extends DocWriteResponse {
         setShardInfo(shardInfo);
     }
 
-    public static Operation convert(UpdateHelper.Operation op) {
-        switch(op) {
-            case UPSERT:
-                return Operation.CREATE;
-            case INDEX:
-                return Operation.INDEX;
-            case DELETE:
-                return Operation.DELETE;
-            case NONE:
-                return Operation.NOOP;
-        }
-        throw new IllegalArgumentException();
-    }
-
     public void setGetResult(GetResult getResult) {
         this.getResult = getResult;
     }

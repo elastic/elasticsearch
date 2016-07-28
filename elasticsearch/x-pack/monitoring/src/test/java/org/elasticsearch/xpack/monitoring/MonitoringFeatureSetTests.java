@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.monitoring.agent.exporter.Exporter;
@@ -33,26 +34,26 @@ import static org.mockito.Mockito.when;
  */
 public class MonitoringFeatureSetTests extends ESTestCase {
 
-    private MonitoringLicensee licensee;
+    private XPackLicenseState licenseState;
     private NamedWriteableRegistry namedWriteableRegistry;
     private Exporters exporters;
 
     @Before
     public void init() throws Exception {
-        licensee = mock(MonitoringLicensee.class);
+        licenseState = mock(XPackLicenseState.class);
         exporters = mock(Exporters.class);
         namedWriteableRegistry = mock(NamedWriteableRegistry.class);
     }
 
     public void testWritableRegistration() throws Exception {
-        new MonitoringFeatureSet(Settings.EMPTY, licensee, exporters, namedWriteableRegistry);
+        new MonitoringFeatureSet(Settings.EMPTY, licenseState, exporters, namedWriteableRegistry);
         verify(namedWriteableRegistry).register(eq(MonitoringFeatureSet.Usage.class), eq("xpack.usage.monitoring"), anyObject());
     }
 
     public void testAvailable() throws Exception {
-        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, licensee, exporters, namedWriteableRegistry);
+        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, licenseState, exporters, namedWriteableRegistry);
         boolean available = randomBoolean();
-        when(licensee.isAvailable()).thenReturn(available);
+        when(licenseState.isMonitoringAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 
@@ -60,12 +61,12 @@ public class MonitoringFeatureSetTests extends ESTestCase {
         boolean enabled = randomBoolean();
         Settings.Builder settings = Settings.builder();
         settings.put("xpack.monitoring.enabled", enabled);
-        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(settings.build(), licensee, exporters, namedWriteableRegistry);
+        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(settings.build(), licenseState, exporters, namedWriteableRegistry);
         assertThat(featureSet.enabled(), is(enabled));
     }
 
     public void testEnabledDefault() throws Exception {
-        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, licensee, exporters, namedWriteableRegistry);
+        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, licenseState, exporters, namedWriteableRegistry);
         assertThat(featureSet.enabled(), is(true));
     }
 
@@ -102,7 +103,7 @@ public class MonitoringFeatureSetTests extends ESTestCase {
         }
         when(exporters.iterator()).thenReturn(exporterList.iterator());
 
-        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, licensee, exporters, namedWriteableRegistry);
+        MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, licenseState, exporters, namedWriteableRegistry);
         XPackFeatureSet.Usage usage = featureSet.usage();
         assertThat(usage.name(), is(featureSet.name()));
         assertThat(usage.enabled(), is(featureSet.enabled()));
@@ -127,10 +128,10 @@ public class MonitoringFeatureSetTests extends ESTestCase {
 
     private Exporter mockExporter(String type, boolean enabled) {
         Exporter exporter = mock(Exporter.class);
-        when(exporter.type()).thenReturn(type);
         Exporter.Config enabledConfig = mock(Exporter.Config.class);
         when(enabledConfig.enabled()).thenReturn(enabled);
         when(exporter.config()).thenReturn(enabledConfig);
+        when(enabledConfig.type()).thenReturn(type);
         return exporter;
     }
 }

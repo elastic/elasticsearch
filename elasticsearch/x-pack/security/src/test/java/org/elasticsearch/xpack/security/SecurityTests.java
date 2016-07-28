@@ -14,13 +14,13 @@ import java.util.Map;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
-import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
@@ -52,7 +52,7 @@ public class SecurityTests extends ESTestCase {
         Settings settings = Settings.builder().put(testSettings)
             .put("path.home", createTempDir()).build();
         Environment env = new Environment(settings);
-        Security security = new Security(settings, env);
+        Security security = new Security(settings, env, new XPackLicenseState());
         ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
         return security.createComponents(null, threadPool, clusterService, null, Arrays.asList(extensions));

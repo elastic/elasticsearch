@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.actions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.watcher.WatcherLicensee;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.support.validation.Validation;
 import org.elasticsearch.xpack.watcher.transform.TransformRegistry;
@@ -25,15 +25,15 @@ public class ActionRegistry {
     private final Map<String, ActionFactory> parsers;
     private final TransformRegistry transformRegistry;
     private final Clock clock;
-    private final WatcherLicensee watcherLicensee;
+    private final XPackLicenseState licenseState;
 
     @Inject
     public ActionRegistry(Map<String, ActionFactory> parsers, TransformRegistry transformRegistry, Clock clock,
-                          WatcherLicensee watcherLicensee) {
+                          XPackLicenseState licenseState) {
         this.parsers = parsers;
         this.transformRegistry = transformRegistry;
         this.clock = clock;
-        this.watcherLicensee = watcherLicensee;
+        this.licenseState = licenseState;
     }
 
     ActionFactory factory(String type) {
@@ -57,7 +57,7 @@ public class ActionRegistry {
                     throw new ElasticsearchParseException("could not parse action [{}] for watch [{}]. {}", id, watchId, error);
                 }
             } else if (token == XContentParser.Token.START_OBJECT && id != null) {
-                ActionWrapper action = ActionWrapper.parse(watchId, id, parser, this, transformRegistry, clock, watcherLicensee);
+                ActionWrapper action = ActionWrapper.parse(watchId, id, parser, this, transformRegistry, clock, licenseState);
                 actions.add(action);
             }
         }

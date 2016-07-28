@@ -9,7 +9,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.license.plugin.action.get.GetLicenseAction;
+import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.xpack.security.action.user.AuthenticateRequestBuilder;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordRequestBuilder;
 import org.elasticsearch.xpack.security.authc.Authentication;

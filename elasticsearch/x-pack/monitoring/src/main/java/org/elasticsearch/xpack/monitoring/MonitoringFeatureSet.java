@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.monitoring.agent.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.agent.exporter.Exporters;
@@ -26,14 +27,14 @@ import java.util.Map;
 public class MonitoringFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
-    private final MonitoringLicensee licensee;
+    private final XPackLicenseState licenseState;
     private final Exporters exporters;
 
     @Inject
-    public MonitoringFeatureSet(Settings settings, @Nullable MonitoringLicensee licensee, @Nullable Exporters exporters,
+    public MonitoringFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, @Nullable Exporters exporters,
                                 NamedWriteableRegistry namedWriteableRegistry) {
         this.enabled = MonitoringSettings.ENABLED.get(settings);
-        this.licensee = licensee;
+        this.licenseState = licenseState;
         this.exporters = exporters;
         namedWriteableRegistry.register(Usage.class, Usage.writeableName(Monitoring.NAME), Usage::new);
     }
@@ -50,7 +51,7 @@ public class MonitoringFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licensee != null && licensee.isAvailable();
+        return licenseState != null && licenseState.isMonitoringAllowed();
     }
 
     @Override
@@ -70,7 +71,7 @@ public class MonitoringFeatureSet implements XPackFeatureSet {
         Map<String, Object> usage = new HashMap<>();
         for (Exporter exporter : exporters) {
             if (exporter.config().enabled()) {
-                String type = exporter.type();
+                String type = exporter.config().type();
                 int count = (Integer) usage.getOrDefault(type, 0);
                 usage.put(type, count + 1);
             }

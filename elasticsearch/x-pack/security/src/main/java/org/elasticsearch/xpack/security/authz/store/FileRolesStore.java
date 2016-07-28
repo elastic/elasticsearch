@@ -287,7 +287,7 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
         return segments;
     }
 
-    private class FileListener extends FileChangesListener {
+    private class FileListener implements FileChangesListener {
 
         @Override
         public void onFileCreated(Path file) {

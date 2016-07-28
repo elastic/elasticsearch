@@ -11,14 +11,15 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackInfoResponse;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.plugin.core.LicenseService;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackBuild;
 import org.elasticsearch.xpack.XPackFeatureSet;
-import org.elasticsearch.xpack.action.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
-import org.elasticsearch.xpack.action.XPackInfoResponse.LicenseInfo;
+import org.elasticsearch.license.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
+import org.elasticsearch.license.XPackInfoResponse.LicenseInfo;
 
 import java.util.Set;
 import java.util.stream.Collectors;

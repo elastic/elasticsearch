@@ -46,9 +46,6 @@ public class Graph extends Plugin implements ActionPlugin {
     public Collection<Module> createGuiceModules() {
         return Collections.singletonList(b -> {
             XPackPlugin.bindFeatureSet(b, GraphFeatureSet.class);
-            if (transportClientMode) {
-                b.bind(GraphLicensee.class).toProvider(Providers.of(null));
-            }
         });
     }
 

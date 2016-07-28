@@ -5,24 +5,23 @@
  */
 package org.elasticsearch.xpack.monitoring.agent.collector.shards;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.agent.collector.AbstractCollector;
-import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.elasticsearch.xpack.monitoring.agent.collector.AbstractCollector;
+import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
 
 /**
  * Collector for shards.
@@ -34,10 +33,9 @@ public class ShardsCollector extends AbstractCollector {
 
     public static final String NAME = "shards-collector";
 
-    @Inject
     public ShardsCollector(Settings settings, ClusterService clusterService,
-                           MonitoringSettings monitoringSettings, MonitoringLicensee licensee) {
-        super(settings, NAME, clusterService, monitoringSettings, licensee);
+                           MonitoringSettings monitoringSettings, XPackLicenseState licenseState) {
+        super(settings, NAME, clusterService, monitoringSettings, licenseState);
     }
 
     @Override

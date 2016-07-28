@@ -16,8 +16,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.xpack.security.audit.AuditTrail;
-import org.elasticsearch.xpack.security.SecurityLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
@@ -88,8 +87,8 @@ public class IPFilter {
         }
     };
 
-    private final AuditTrail auditTrail;
-    private final SecurityLicenseState licenseState;
+    private final AuditTrailService auditTrail;
+    private final XPackLicenseState licenseState;
     private final boolean alwaysAllowBoundAddresses;
 
     private final ESLogger logger;
@@ -107,7 +106,7 @@ public class IPFilter {
 
     @Inject
     public IPFilter(final Settings settings, AuditTrailService auditTrail, ClusterSettings clusterSettings,
-                    SecurityLicenseState licenseState) {
+                    XPackLicenseState licenseState) {
         this.logger = Loggers.getLogger(getClass(), settings);
         this.auditTrail = auditTrail;
         this.licenseState = licenseState;
@@ -174,7 +173,7 @@ public class IPFilter {
     }
 
     public boolean accept(String profile, InetAddress peerAddress) {
-        if (licenseState.ipFilteringEnabled() == false) {
+        if (licenseState.isIpFilteringAllowed() == false) {
             return true;
         }
 

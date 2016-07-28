@@ -56,7 +56,7 @@ import static org.hamcrest.core.Is.is;
 @TestLogging("discovery:TRACE,watcher:TRACE")
 @ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 0)
 @SuppressLocalMode
-public class NoMasterNodeIT extends AbstractWatcherIntegrationTestCase {
+public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
     private ClusterDiscoveryConfiguration.UnicastZen config;
 
     @Override

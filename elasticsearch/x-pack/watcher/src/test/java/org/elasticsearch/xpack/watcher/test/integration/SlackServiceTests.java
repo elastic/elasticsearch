@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 @Network
-public class SlackServiceIT extends AbstractWatcherIntegrationTestCase {
+public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
     @Override
     protected boolean timeWarped() {
         return true;

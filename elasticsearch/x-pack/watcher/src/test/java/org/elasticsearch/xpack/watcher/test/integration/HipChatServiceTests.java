@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @Network
 @TestLogging("watcher.support.http:TRACE")
-public class HipChatServiceIT extends AbstractWatcherIntegrationTestCase {
+public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
     @Override
     protected boolean timeWarped() {
         return true;

@@ -49,7 +49,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 //test is just too slow, please fix it to not be sleep-based
 @BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
-public class WatchAckIT extends AbstractWatcherIntegrationTestCase {
+public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
 
     private IndexResponse indexTestDoc() {
         createIndex("actions", "events");

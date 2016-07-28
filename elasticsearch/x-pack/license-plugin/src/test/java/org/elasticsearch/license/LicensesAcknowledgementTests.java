@@ -8,7 +8,6 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.license.core.License;
 
 import static org.elasticsearch.license.TestUtils.generateSignedLicense;
 import static org.hamcrest.Matchers.equalTo;

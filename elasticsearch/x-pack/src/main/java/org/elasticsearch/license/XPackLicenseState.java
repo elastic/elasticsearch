@@ -13,7 +13,7 @@ import java.util.function.BiFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.core.License.OperationMode;
+import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.xpack.graph.Graph;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;

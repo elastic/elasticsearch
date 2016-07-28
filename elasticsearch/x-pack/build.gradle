@@ -1,6 +1,5 @@
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.NodeInfo
-
 import java.nio.charset.StandardCharsets
 
 group 'org.elasticsearch.plugin'
@@ -27,10 +26,6 @@ licenseHeaders {
 }
 
 dependencies {
-  // license deps
-  compile project(':x-plugins:elasticsearch:license:base')
-  testCompile project(':x-plugins:elasticsearch:license:licensor')
-
   // security deps
   compile project(path: ':modules:transport-netty3', configuration: 'runtime')
   compile 'dk.brics.automaton:automaton:1.11-8'
@@ -76,6 +71,11 @@ for (String module : ['', 'license-plugin/', 'security/', 'watcher/', 'monitorin
       resources.srcDir("${module}src/test/resources")
     }
   }
+}
+
+// make LicenseSigner available for testing signed licenses
+sourceSets.test.java {
+  srcDir '../license-tools/src/main/java'
 }
 
 compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
@@ -238,29 +238,3 @@ thirdPartyAudit.excludes = [
     'javax.activation.URLDataSource',
     'javax.activation.UnsupportedDataTypeException'    
 ]
-
-modifyPom { MavenPom pom ->
-  pom.withXml { XmlProvider xml ->
-    // first find if we have dependencies at all, and grab the node
-    NodeList depsNodes = xml.asNode().get('dependencies')
-    if (depsNodes.isEmpty()) {
-      return
-    }
-
-    // find the 'base' dependency and replace it with the correct name because the project name is
-    // always used even when the pom of the other project is correct
-    Iterator<Node> childNodeIter = depsNodes.get(0).children().iterator()
-    while (childNodeIter.hasNext()) {
-      Node depNode = childNodeIter.next()
-      String groupId = depNode.get('groupId').get(0).text()
-      Node artifactIdNode = depNode.get('artifactId').get(0)
-      String artifactId = artifactIdNode.text()
-      String scope = depNode.get("scope").get(0).text()
-      if (groupId.equals('org.elasticsearch') && artifactId.equals('base')) {
-        artifactIdNode.replaceNode(new Node(null, 'artifactId', 'license-core'))
-      } else if ('test'.equals(scope)) {
-        childNodeIter.remove()
-      }
-    }
-  }
-}

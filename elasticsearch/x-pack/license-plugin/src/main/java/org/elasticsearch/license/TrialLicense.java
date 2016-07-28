@@ -11,15 +11,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.license.core.License;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Collections;
 
-import static org.elasticsearch.license.core.CryptUtils.decrypt;
-import static org.elasticsearch.license.core.CryptUtils.encrypt;
+import static org.elasticsearch.license.CryptUtils.decrypt;
+import static org.elasticsearch.license.CryptUtils.encrypt;
 
 class TrialLicense {
 

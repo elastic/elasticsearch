@@ -8,7 +8,6 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.license.core.License;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;

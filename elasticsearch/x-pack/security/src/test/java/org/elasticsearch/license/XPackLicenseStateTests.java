@@ -9,18 +9,18 @@ import java.util.Arrays;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import org.elasticsearch.license.core.License.OperationMode;
+import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.security.Security;
 import org.hamcrest.Matchers;
 
-import static org.elasticsearch.license.core.License.OperationMode.MISSING;
-import static org.elasticsearch.license.core.License.OperationMode.BASIC;
-import static org.elasticsearch.license.core.License.OperationMode.GOLD;
-import static org.elasticsearch.license.core.License.OperationMode.PLATINUM;
-import static org.elasticsearch.license.core.License.OperationMode.STANDARD;
-import static org.elasticsearch.license.core.License.OperationMode.TRIAL;
+import static org.elasticsearch.license.License.OperationMode.MISSING;
+import static org.elasticsearch.license.License.OperationMode.BASIC;
+import static org.elasticsearch.license.License.OperationMode.GOLD;
+import static org.elasticsearch.license.License.OperationMode.PLATINUM;
+import static org.elasticsearch.license.License.OperationMode.STANDARD;
+import static org.elasticsearch.license.License.OperationMode.TRIAL;
 import static org.hamcrest.Matchers.is;
 
 /**

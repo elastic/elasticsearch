@@ -7,7 +7,6 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.license.core.License;
 
 /**
  *

@@ -10,7 +10,6 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.license.core.License;
 
 import java.io.IOException;
 
@@ -29,7 +28,7 @@ public class PutLicenseRequest extends AcknowledgedRequest<PutLicenseRequest> {
     }
 
     /**
-     * Parses license from json format to an instance of {@link org.elasticsearch.license.core.License}
+     * Parses license from json format to an instance of {@link License}
      *
      * @param licenseDefinition licenses definition
      */

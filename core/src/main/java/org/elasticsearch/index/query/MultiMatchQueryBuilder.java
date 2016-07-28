@@ -29,6 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -747,7 +748,11 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
 
         Query query = multiMatchQuery.parse(type, newFieldsBoosts, value, minimumShouldMatch);
         if (query == null) {
-            return null;
+            if (newFieldsBoosts.isEmpty()) {
+                return new MatchNoDocsQuery("[" + NAME + "] could not resolve any field names");
+            } else {
+                return new MatchNoDocsQuery("[" + NAME + "] parsing resolved to null query");
+            }
         }
         return query;
     }

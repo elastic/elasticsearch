@@ -280,7 +280,6 @@ public class MatchQuery {
         if (zeroTermsQuery == DEFAULT_ZERO_TERMS_QUERY) {
             return Queries.newMatchNoDocsQuery("Matching no documents because no terms present.");
         }
-
         return Queries.newMatchAllQuery();
     }
 

@@ -27,12 +27,14 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MultiMatchQuery;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Same as {@link MatchQueryParser} but has support for multiple fields.
@@ -73,10 +75,10 @@ public class MultiMatchQueryParser implements QueryParser {
             } else if ("fields".equals(currentFieldName)) {
                 if (token == XContentParser.Token.START_ARRAY) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        extractFieldAndBoost(parseContext, parser, fieldNameWithBoosts);
+                        parseFieldAndBoost(parser, fieldNameWithBoosts);
                     }
                 } else if (token.isValue()) {
-                    extractFieldAndBoost(parseContext, parser, fieldNameWithBoosts);
+                    parseFieldAndBoost(parser, fieldNameWithBoosts);
                 } else {
                     throw new QueryParsingException(parseContext, "[" + NAME + "] query does not support [" + currentFieldName + "]");
                 }
@@ -160,7 +162,10 @@ public class MultiMatchQueryParser implements QueryParser {
                 }
             }
         }
-        Query query = multiMatchQuery.parse(type, fieldNameWithBoosts, value, minimumShouldMatch);
+
+        Map<String, Float> newFieldsBoosts = handleFieldsMatchPattern(parseContext.mapperService(), fieldNameWithBoosts);
+
+        Query query = multiMatchQuery.parse(type, newFieldsBoosts, value, minimumShouldMatch);
         if (query == null) {
             return null;
         }
@@ -172,7 +177,23 @@ public class MultiMatchQueryParser implements QueryParser {
         return query;
     }
 
-    private void extractFieldAndBoost(QueryParseContext parseContext, XContentParser parser, Map<String, Float> fieldNameWithBoosts) throws IOException {
+    private static Map<String, Float> handleFieldsMatchPattern(MapperService mapperService, Map<String, Float> fieldsBoosts) {
+        Map<String, Float> newFieldsBoosts = new TreeMap<>();
+        for (Map.Entry<String, Float> fieldBoost : fieldsBoosts.entrySet()) {
+            String fField = fieldBoost.getKey();
+            Float fBoost = fieldBoost.getValue();
+            if (Regex.isSimpleMatchPattern(fField)) {
+                for (String field : mapperService.simpleMatchToIndexNames(fField)) {
+                    newFieldsBoosts.put(field, fBoost);
+                }
+            } else {
+                newFieldsBoosts.put(fField, fBoost);
+            }
+        }
+        return newFieldsBoosts;
+    }
+
+    private static void parseFieldAndBoost(XContentParser parser, Map<String, Float> fieldsBoosts) throws IOException {
         String fField = null;
         Float fBoost = null;
         char[] fieldText = parser.textCharacters();
@@ -188,13 +209,6 @@ public class MultiMatchQueryParser implements QueryParser {
         if (fField == null) {
             fField = parser.text();
         }
-
-        if (Regex.isSimpleMatchPattern(fField)) {
-            for (String field : parseContext.mapperService().simpleMatchToIndexNames(fField)) {
-                fieldNameWithBoosts.put(field, fBoost);
-            }
-        } else {
-            fieldNameWithBoosts.put(fField, fBoost);
-        }
+        fieldsBoosts.put(fField, fBoost);
     }
 }

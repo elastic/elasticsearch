@@ -7,7 +7,7 @@
 /**
  * Licensing for xpack.
  *
- * A {@link org.elasticsearch.license.core.License} is a signed set of json properties that determine what features
+ * A {@link org.elasticsearch.license.License} is a signed set of json properties that determine what features
  * are available in a running cluster. Licenses are registered through a
  * {@link org.elasticsearch.license.PutLicenseRequest}. This action is handled by the master node, which places
  * the signed license into the cluster state. Each node listens for cluster state updates via the

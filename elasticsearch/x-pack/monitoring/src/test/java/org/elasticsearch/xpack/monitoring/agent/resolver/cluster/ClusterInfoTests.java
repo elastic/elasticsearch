@@ -10,7 +10,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.license.core.License;
+import org.elasticsearch.license.License;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.agent.collector.cluster.ClusterStatsCollector;

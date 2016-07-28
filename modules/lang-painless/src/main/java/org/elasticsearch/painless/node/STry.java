@@ -21,9 +21,9 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
-import org.objectweb.asm.Label;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
+import org.objectweb.asm.Label;
 
 import java.util.Collections;
 import java.util.List;
@@ -34,8 +34,8 @@ import java.util.Set;
  */
 public final class STry extends AStatement {
 
-    final SBlock block;
-    final List<SCatch> catches;
+    private final SBlock block;
+    private final List<SCatch> catches;
 
     public STry(Location location, SBlock block, List<SCatch> catches) {
         super(location);
@@ -43,7 +43,7 @@ public final class STry extends AStatement {
         this.block = block;
         this.catches = Collections.unmodifiableList(catches);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         if (block != null) {

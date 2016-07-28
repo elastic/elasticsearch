@@ -24,6 +24,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.Node;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -101,9 +102,8 @@ public class Loggers {
                 prefixesList.add(addr.getHostName());
             }
         }
-        String name = settings.get("node.name");
-        if (name != null) {
-            prefixesList.add(name);
+        if (Node.NODE_NAME_SETTING.exists(settings)) {
+            prefixesList.add(Node.NODE_NAME_SETTING.get(settings));
         }
         if (prefixes != null && prefixes.length > 0) {
             prefixesList.addAll(asList(prefixes));

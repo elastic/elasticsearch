@@ -64,7 +64,7 @@ Nodes can be excluded from becoming a master by setting `node.master` to `false`
 
 The `discovery.zen.minimum_master_nodes` sets the minimum
 number of master eligible nodes that need to join a newly elected master in order for an election to
-complete and for the elected node to accept it's mastership. The same setting controls the minimum number of
+complete and for the elected node to accept its mastership. The same setting controls the minimum number of
 active master eligible nodes that should be a part of any active cluster. If this requirement is not met the
 active master node will step down and a new master election will be begin.
 
@@ -133,5 +133,5 @@ read or write operations, like the get index settings, put mapping and cluster s
 `write`:: (default) Write operations will be rejected. Read operations will succeed, based on the last known cluster configuration.
 This may result in partial reads of stale data as this node may be isolated from the rest of the cluster. 
 
-The `discovery.zen.no_master_block` setting doesn't apply to nodes based apis (for example cluster stats, node info and
-node stats apis) which will not be blocked and try to execute on any node possible.
+The `discovery.zen.no_master_block` setting doesn't apply to nodes-based apis (for example cluster stats, node info and
+node stats apis).  Requests to these apis will not be blocked and can run on any available node.

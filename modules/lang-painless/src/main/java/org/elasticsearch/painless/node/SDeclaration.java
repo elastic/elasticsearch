@@ -20,28 +20,27 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
 import java.util.Set;
-
-import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a single variable declaration.
  */
 public final class SDeclaration extends AStatement {
 
-    final String type;
-    final String name;
-    AExpression expression;
+    private final String type;
+    private final String name;
+    private AExpression expression;
 
-    Variable variable;
+    private Variable variable = null;
 
     public SDeclaration(Location location, String type, String name, AExpression expression) {
         super(location);
@@ -50,10 +49,11 @@ public final class SDeclaration extends AStatement {
         this.name = Objects.requireNonNull(name);
         this.expression = expression;
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         variables.add(name);
+
         if (expression != null) {
             expression.extractVariables(variables);
         }

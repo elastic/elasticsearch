@@ -17,36 +17,94 @@ co-occurrence and frequencies.
 
 ==== API Example
 
-The `phrase` request is defined along side the query part in the json
-request:
+In general the `phrase` suggester requires special mapping up front to work.
+The `phrase` suggester examples on this page need the following mapping to
+work. The `reverse` analyzer is used only in the last example.
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/_search' -d '{
-  "suggest" : {
-    "text" : "Xor the Got-Jewel",
-    "simple_phrase" : {
-      "phrase" : {
-        "analyzer" : "body",
-        "field" : "bigram",
-        "size" : 1,
-        "real_word_error_likelihood" : 0.95,
-        "max_errors" : 0.5,
-        "gram_size" : 2,
-        "direct_generator" : [ {
-          "field" : "body",
-          "suggest_mode" : "always",
-          "min_word_length" : 1
-        } ],
-        "highlight": {
-          "pre_tag": "<em>",
-          "post_tag": "</em>"
+POST test
+{
+  "settings": {
+    "index": {
+      "number_of_shards": 1,
+      "analysis": {
+        "analyzer": {
+          "trigram": {
+            "type": "custom",
+            "tokenizer": "standard",
+            "filter": ["standard", "shingle"]
+          },
+          "reverse": {
+            "type": "custom",
+            "tokenizer": "standard",
+            "filter": ["standard", "reverse"]
+          }
+        },
+        "filter": {
+          "shingle": {
+            "type": "shingle",
+            "min_shingle_size": 2,
+            "max_shingle_size": 3
+          }
+        }
+      }
+    }
+  },
+  "mappings": {
+    "test": {
+      "properties": {
+        "title": {
+          "type": "text",
+          "fields": {
+            "trigram": {
+              "type": "text",
+              "analyzer": "trigram"
+            },
+            "reverse": {
+              "type": "text",
+              "analyzer": "reverse"
+            }
+          }
         }
       }
     }
   }
-}'
+}
+POST test/test
+{"title": "noble warriors"}
+POST test/test
+{"title": "nobel prize"}
+POST _refresh
 --------------------------------------------------
+// TESTSETUP
+
+Once you have the analyzers and mappings set up you can use the `phrase`
+suggester in the same spot you'd use the `term` suggester:
+
+[source,js]
+--------------------------------------------------
+POST _suggest?pretty -d'
+{
+  "text": "noble prize",
+  "simple_phrase": {
+    "phrase": {
+      "field": "title.trigram",
+      "size": 1,
+      "gram_size": 3,
+      "direct_generator": [ {
+        "field": "title.trigram",
+        "suggest_mode": "always"
+      } ],
+      "highlight": {
+        "pre_tag": "<em>",
+        "post_tag": "</em>"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
 
 The response contains suggestions scored by the most likely spell
 correction first. In this case we received the expected correction
@@ -57,37 +115,23 @@ can contain misspellings (See parameter descriptions below).
 
 [source,js]
 --------------------------------------------------
-  {
-  "took" : 5,
-  "timed_out" : false,
-  "_shards" : {
-    "total" : 5,
-    "successful" : 5,
-    "failed" : 0
-  },
-  "hits" : {
-    "total" : 2938,
-    "max_score" : 0.0,
-    "hits" : [ ]
-  },
-  "suggest" : {
-    "simple_phrase" : [ {
-      "text" : "Xor the Got-Jewel",
+{
+  "_shards": ...
+  "simple_phrase" : [
+    {
+      "text" : "noble prize",
       "offset" : 0,
-      "length" : 17,
+      "length" : 11,
       "options" : [ {
-        "text" : "xorr the god jewel",
-        "highlighted": "<em>xorr</em> the <em>god</em> jewel",
-        "score" : 0.17877324
-      }, {
-        "text" : "xor the god jewel",
-        "highlighted": "xor the <em>god</em> jewel",
-        "score" : 0.14231323
-      } ]
-    } ]
-  }
+        "text" : "nobel prize",
+        "highlighted": "<em>nobel</em> prize",
+        "score" : 0.40765354
+      }]
+    }
+  ]
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"_shards": .../"_shards": "$body._shards",/]
 
 ==== Basic Phrase suggest API parameters
 
@@ -178,34 +222,34 @@ can contain misspellings (See parameter descriptions below).
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/_search' -d {
-   "suggest" : {
-     "text" : "Xor the Got-Jewel",
-     "simple_phrase" : {
-       "phrase" : {
-         "field" :  "bigram",
-         "size" :   1,
-         "direct_generator" : [ {
-           "field" :            "body",
-           "suggest_mode" :     "always",
-           "min_word_length" :  1
-         } ],
-         "collate": {
-           "query": { <1>
-             "inline" : {
-               "match": {
-                   "{{field_name}}" : "{{suggestion}}" <2>
-               }
-             }
-           },
-           "params": {"field_name" : "title"}, <3>
-           "prune": true <4>
-         }
-       }
-     }
-   }
- }
+POST _suggest
+{
+  "text" : "noble prize",
+  "simple_phrase" : {
+    "phrase" : {
+      "field" :  "title.trigram",
+      "size" :   1,
+      "direct_generator" : [ {
+        "field" :            "title.trigram",
+        "suggest_mode" :     "always",
+        "min_word_length" :  1
+      } ],
+      "collate": {
+        "query": { <1>
+          "inline" : {
+            "match": {
+              "{{field_name}}" : "{{suggestion}}" <2>
+            }
+          }
+        },
+        "params": {"field_name" : "title"}, <3>
+        "prune": true <4>
+      }
+    }
+  }
+}
 --------------------------------------------------
+// CONSOLE
 <1> This query will be run once for every suggestion.
 <2> The `{{suggestion}}` variable will be replaced by the text
     of each suggestion.
@@ -342,33 +386,27 @@ accept ordinary analyzer names.
 
 [source,js]
 --------------------------------------------------
-curl -s -XPOST 'localhost:9200/_search' -d {
- "suggest" : {
-    "text" : "Xor the Got-Jewel",
-    "simple_phrase" : {
-      "phrase" : {
-        "analyzer" : "body",
-        "field" : "bigram",
-        "size" : 4,
-        "real_word_error_likelihood" : 0.95,
-        "confidence" : 2.0,
-        "gram_size" : 2,
-        "direct_generator" : [ {
-          "field" : "body",
-          "suggest_mode" : "always",
-          "min_word_length" : 1
-        }, {
-          "field" : "reverse",
-          "suggest_mode" : "always",
-          "min_word_length" : 1,
-          "pre_filter" : "reverse",
-          "post_filter" : "reverse"
-        } ]
-      }
+POST _suggest
+{
+  "text" : "obel prize",
+  "simple_phrase" : {
+    "phrase" : {
+      "field" : "title.trigram",
+      "size" : 1,
+      "direct_generator" : [ {
+        "field" : "title.trigram",
+        "suggest_mode" : "always"
+      }, {
+        "field" : "title.reverse",
+        "suggest_mode" : "always",
+        "pre_filter" : "reverse",
+        "post_filter" : "reverse"
+      } ]
     }
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 `pre_filter` and `post_filter` can also be used to inject synonyms after
 candidates are generated. For instance for the query `captain usq` we

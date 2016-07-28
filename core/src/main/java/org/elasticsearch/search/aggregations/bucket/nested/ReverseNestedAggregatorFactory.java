@@ -37,46 +37,26 @@ import java.util.Map;
 
 public class ReverseNestedAggregatorFactory extends AggregatorFactory<ReverseNestedAggregatorFactory> {
 
-    private final String path;
+    private final boolean unmapped;
+    private final ObjectMapper parentObjectMapper;
 
-    public ReverseNestedAggregatorFactory(String name, Type type, String path, AggregationContext context, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
+    public ReverseNestedAggregatorFactory(String name, Type type, boolean unmapped, ObjectMapper parentObjectMapper,
+                                          AggregationContext context, AggregatorFactory<?> parent,
+                                          AggregatorFactories.Builder subFactories,
+                                          Map<String, Object> metaData) throws IOException {
         super(name, type, context, parent, subFactories, metaData);
-        this.path = path;
+        this.unmapped = unmapped;
+        this.parentObjectMapper = parentObjectMapper;
     }
 
     @Override
     public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
-        // Early validation
-        NestedAggregator closestNestedAggregator = findClosestNestedAggregator(parent);
-        if (closestNestedAggregator == null) {
-            throw new SearchParseException(context.searchContext(),
-                    "Reverse nested aggregation [" + name + "] can only be used inside a [nested] aggregation", null);
-        }
-
-        final ObjectMapper objectMapper;
-        if (path != null) {
-            objectMapper = context.searchContext().getObjectMapper(path);
-            if (objectMapper == null) {
-                return new Unmapped(name, context, parent, pipelineAggregators, metaData);
-            }
-            if (!objectMapper.nested().isNested()) {
-                throw new AggregationExecutionException("[reverse_nested] nested path [" + path + "] is not nested");
-            }
+        if (unmapped) {
+            return new Unmapped(name, context, parent, pipelineAggregators, metaData);
         } else {
-            objectMapper = null;
+            return new ReverseNestedAggregator(name, factories, parentObjectMapper, context, parent, pipelineAggregators, metaData);
         }
-        return new ReverseNestedAggregator(name, factories, objectMapper, context, parent, pipelineAggregators, metaData);
-    }
-
-    private static NestedAggregator findClosestNestedAggregator(Aggregator parent) {
-        for (; parent != null; parent = parent.parent()) {
-            if (parent instanceof NestedAggregator) {
-                return (NestedAggregator) parent;
-            }
-        }
-        return null;
     }
 
     private static final class Unmapped extends NonCollectingAggregator {

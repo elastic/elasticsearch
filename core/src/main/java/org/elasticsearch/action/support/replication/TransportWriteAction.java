@@ -207,7 +207,9 @@ public abstract class TransportWriteAction<
                 if (location != null) {
                     pendingOps = true;
                     indexShard.addRefreshListener(location, forcedRefresh -> {
-                        logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
+                        if (forcedRefresh) {
+                            logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
+                        }
                         respond.respondAfterAsyncAction(forcedRefresh);
                     });
                 }

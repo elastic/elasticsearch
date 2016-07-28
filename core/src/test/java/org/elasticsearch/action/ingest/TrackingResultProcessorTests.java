@@ -111,7 +111,7 @@ public class TrackingResultProcessorTests extends ESTestCase {
         assertThat(resultList.get(0).getFailure(), equalTo(exception));
         assertThat(resultList.get(0).getProcessorTag(), equalTo(expectedFailResult.getProcessorTag()));
 
-        Map<String, String> metadata = resultList.get(1).getIngestDocument().getIngestMetadata();
+        Map<String, Object> metadata = resultList.get(1).getIngestDocument().getIngestMetadata();
         assertThat(metadata.get(ON_FAILURE_MESSAGE_FIELD), equalTo("fail"));
         assertThat(metadata.get(ON_FAILURE_PROCESSOR_TYPE_FIELD), equalTo("test"));
         assertThat(metadata.get(ON_FAILURE_PROCESSOR_TAG_FIELD), equalTo("fail"));

@@ -229,7 +229,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
             }
 
             final byte[] data = BytesReference.toBytes(stream.bytes());
-            transportServiceAdapter.sent(data.length);
+            transportServiceAdapter.addBytesSent(data.length);
             transportServiceAdapter.onRequestSent(node, requestId, action, request, options);
             targetTransport.receiveMessage(version, data, action, requestId, this);
         }
@@ -272,7 +272,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
                                           @Nullable final Long sendRequestId) {
         Transports.assertTransportThread();
         try {
-            transportServiceAdapter.received(data.length);
+            transportServiceAdapter.addBytesReceived(data.length);
             StreamInput stream = StreamInput.wrap(data);
             stream.setVersion(version);
 

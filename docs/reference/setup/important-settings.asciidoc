@@ -70,9 +70,9 @@ environments, otherwise you might end up with nodes joining the wrong cluster.
 [[node.name]]
 === `node.name`
 
-By default, Elasticsearch will randomly pick a descriptive `node.name` from a
-list of around 3000 Marvel characters when your node starts up, but this also
-means that the `node.name` will change the next time the node restarts.
+By default, Elasticsearch will take the 7 first charachter of the randomly generated uuid used as the node id.
+Note that the node id is persisted and does not change when a node restarts and therefore the default node name
+will also not change.
 
 It is worth configuring a more meaningful name which will also have the
 advantage of persisting after restarting the node:

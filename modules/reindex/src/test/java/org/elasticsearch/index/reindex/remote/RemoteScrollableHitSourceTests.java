@@ -20,30 +20,48 @@
 package org.elasticsearch.index.reindex.remote;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpEntityEnclosingRequest;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
+import org.apache.http.ProtocolVersion;
+import org.apache.http.StatusLine;
+import org.apache.http.concurrent.FutureCallback;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.InputStreamEntity;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
+import org.apache.http.message.BasicHttpResponse;
+import org.apache.http.message.BasicStatusLine;
+import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
+import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
-import org.elasticsearch.index.reindex.remote.RemoteScrollableHitSource.ResponseListener;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -53,6 +71,9 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class RemoteScrollableHitSourceTests extends ESTestCase {
     private final String FAKE_SCROLL_ID = "DnF1ZXJ5VGhlbkZldGNoBQAAAfakescroll";
@@ -68,7 +89,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         threadPool = new TestThreadPool(getTestName()) {
             @Override
             public Executor executor(String name) {
-                return r -> r.run();
+                return Runnable::run;
             }
 
             @Override
@@ -299,6 +320,66 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         assertEquals(retriesAllowed, retries);
     }
 
+    public void testThreadContextRestored() throws Exception {
+        String header = randomAsciiOfLength(5);
+        threadPool.getThreadContext().putHeader("test", header);
+        AtomicBoolean called = new AtomicBoolean();
+        sourceWithMockedRemoteCall("start_ok.json").doStart(r -> {
+            assertEquals(header, threadPool.getThreadContext().getHeader("test"));
+            called.set(true);
+        });
+        assertTrue(called.get());
+    }
+
+    public void testWrapExceptionToPreserveStatus() throws IOException {
+        Exception cause = new Exception();
+
+        // Successfully get the status without a body
+        RestStatus status = randomFrom(RestStatus.values());
+        ElasticsearchStatusException wrapped = RemoteScrollableHitSource.wrapExceptionToPreserveStatus(status.getStatus(), null, cause);
+        assertEquals(status, wrapped.status());
+        assertEquals(cause, wrapped.getCause());
+        assertEquals("No error body.", wrapped.getMessage());
+
+        // Successfully get the status without a body
+        HttpEntity okEntity = new StringEntity("test body", StandardCharsets.UTF_8);
+        wrapped = RemoteScrollableHitSource.wrapExceptionToPreserveStatus(status.getStatus(), okEntity, cause);
+        assertEquals(status, wrapped.status());
+        assertEquals(cause, wrapped.getCause());
+        assertEquals("body=test body", wrapped.getMessage());
+
+        // Successfully get the status with a broken body
+        IOException badEntityException = new IOException();
+        HttpEntity badEntity = mock(HttpEntity.class);
+        when(badEntity.getContent()).thenThrow(badEntityException);
+        wrapped = RemoteScrollableHitSource.wrapExceptionToPreserveStatus(status.getStatus(), badEntity, cause);
+        assertEquals(status, wrapped.status());
+        assertEquals(cause, wrapped.getCause());
+        assertEquals("Failed to extract body.", wrapped.getMessage());
+        assertEquals(badEntityException, wrapped.getSuppressed()[0]);
+
+        // Fail to get the status without a body
+        int notAnHttpStatus = -1;
+        assertNull(RestStatus.fromCode(notAnHttpStatus));
+        wrapped = RemoteScrollableHitSource.wrapExceptionToPreserveStatus(notAnHttpStatus, null, cause);
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, wrapped.status());
+        assertEquals(cause, wrapped.getCause());
+        assertEquals("Couldn't extract status [" + notAnHttpStatus + "]. No error body.", wrapped.getMessage());
+
+        // Fail to get the status without a body
+        wrapped = RemoteScrollableHitSource.wrapExceptionToPreserveStatus(notAnHttpStatus, okEntity, cause);
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, wrapped.status());
+        assertEquals(cause, wrapped.getCause());
+        assertEquals("Couldn't extract status [" + notAnHttpStatus + "]. body=test body", wrapped.getMessage());
+
+        // Fail to get the status with a broken body
+        wrapped = RemoteScrollableHitSource.wrapExceptionToPreserveStatus(notAnHttpStatus, badEntity, cause);
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR, wrapped.status());
+        assertEquals(cause, wrapped.getCause());
+        assertEquals("Couldn't extract status [" + notAnHttpStatus + "]. Failed to extract body.", wrapped.getMessage());
+        assertEquals(badEntityException, wrapped.getSuppressed()[0]);
+    }
+
     private RemoteScrollableHitSource sourceWithMockedRemoteCall(String... paths) throws Exception {
         return sourceWithMockedRemoteCall(true, paths);
     }
@@ -307,6 +388,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
      * Creates a hit source that doesn't make the remote request and instead returns data from some files. Also requests are always returned
      * synchronously rather than asynchronously.
      */
+    @SuppressWarnings("unchecked")
     private RemoteScrollableHitSource sourceWithMockedRemoteCall(boolean mockRemoteVersion, String... paths) throws Exception {
         URL[] resources = new URL[paths.length];
         for (int i = 0; i < paths.length; i++) {
@@ -315,35 +397,50 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
                 throw new IllegalArgumentException("Couldn't find [" + paths[i] + "]");
             }
         }
-        RemoteScrollableHitSource.AsyncClient client = new RemoteScrollableHitSource.AsyncClient() {
+
+        CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
+        when(httpClient.<HttpResponse>execute(any(HttpAsyncRequestProducer.class), any(HttpAsyncResponseConsumer.class),
+                any(FutureCallback.class))).thenAnswer(new Answer<Future<HttpResponse>>() {
+
             int responseCount = 0;
-            @Override
-            public void performRequest(String method, String uri, Map<String, String> params, HttpEntity entity,
-                    ResponseListener listener) {
-                try {
-                    URL resource = resources[responseCount];
-                    String path = paths[responseCount++];
-                    InputStream stream = resource.openStream();
-                    if (path.startsWith("fail:")) {
-                        String body = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
-                        if (path.equals("fail:rejection.json")) {
-                            listener.onRetryableFailure(new RuntimeException(body));
-                        } else {
-                            listener.onFailure(new RuntimeException(body));
-                        }
-                    } else {
-                        listener.onResponse(stream);
-                    }
-                } catch (IOException e) {
-                    listener.onFailure(e);
-                }
-            }
 
             @Override
-            public void close() throws IOException {
+            public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
+                // Throw away the current thread context to simulate running async httpclient's thread pool
+                threadPool.getThreadContext().stashContext();
+                HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
+                FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[2];
+                HttpEntityEnclosingRequest request = (HttpEntityEnclosingRequest)requestProducer.generateRequest();
+                URL resource = resources[responseCount];
+                String path = paths[responseCount++];
+                ProtocolVersion protocolVersion = new ProtocolVersion("http", 1, 1);
+                if (path.startsWith("fail:")) {
+                    String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
+                    if (path.equals("fail:rejection.json")) {
+                        StatusLine statusLine = new BasicStatusLine(protocolVersion, RestStatus.TOO_MANY_REQUESTS.getStatus(), "");
+                        BasicHttpResponse httpResponse = new BasicHttpResponse(statusLine);
+                        futureCallback.completed(httpResponse);
+                    } else {
+                        futureCallback.failed(new RuntimeException(body));
+                    }
+                } else {
+                    StatusLine statusLine = new BasicStatusLine(protocolVersion, 200, "");
+                    HttpResponse httpResponse = new BasicHttpResponse(statusLine);
+                    httpResponse.setEntity(new InputStreamEntity(resource.openStream(),
+                            randomBoolean() ? ContentType.APPLICATION_JSON : null));
+                    futureCallback.completed(httpResponse);
+                }
+                return null;
             }
-        };
-        TestRemoteScrollableHitSource hitSource = new TestRemoteScrollableHitSource(client) {
+        });
+
+        HttpAsyncClientBuilder clientBuilder = mock(HttpAsyncClientBuilder.class);
+        when(clientBuilder.build()).thenReturn(httpClient);
+
+        RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
+                .setHttpClientConfigCallback(httpClientBuilder -> clientBuilder).build();
+
+        TestRemoteScrollableHitSource hitSource = new TestRemoteScrollableHitSource(restClient) {
             @Override
             void lookupRemoteVersion(Consumer<Version> onVersion) {
                 if (mockRemoteVersion) {
@@ -372,7 +469,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
     }
 
     private class TestRemoteScrollableHitSource extends RemoteScrollableHitSource {
-        public TestRemoteScrollableHitSource(RemoteScrollableHitSource.AsyncClient client) {
+        TestRemoteScrollableHitSource(RestClient client) {
             super(RemoteScrollableHitSourceTests.this.logger, backoff(), RemoteScrollableHitSourceTests.this.threadPool,
                     RemoteScrollableHitSourceTests.this::countRetry, RemoteScrollableHitSourceTests.this::failRequest, client,
                     new BytesArray("{}"), RemoteScrollableHitSourceTests.this.searchRequest);

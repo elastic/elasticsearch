@@ -56,6 +56,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -151,11 +152,12 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         String scheme = hostMatcher.group("scheme");
         String host = hostMatcher.group("host");
         int port = Integer.parseInt(hostMatcher.group("port"));
+        Map<String, String> headers = extractStringStringMap(remote, "headers");
         if (false == remote.isEmpty()) {
             throw new IllegalArgumentException(
                     "Unsupported fields in [remote]: [" + Strings.collectionToCommaDelimitedString(remote.keySet()) + "]");
         }
-        return new RemoteInfo(scheme, host, port, queryForRemote(source), username, password);
+        return new RemoteInfo(scheme, host, port, queryForRemote(source), username, password, headers);
     }
 
     /**
@@ -187,6 +189,25 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             return (String) value;
         }
         throw new IllegalArgumentException("Expected [" + name + "] to be a string but was [" + value + "]");
+    }
+
+    private static Map<String, String> extractStringStringMap(Map<String, Object> source, String name) {
+        Object value = source.remove(name);
+        if (value == null) {
+            return emptyMap();
+        }
+        if (false == value instanceof Map) {
+            throw new IllegalArgumentException("Expected [" + name + "] to be an object containing strings but was [" + value + "]");
+        }
+        Map<?, ?> map = (Map<?, ?>) value;
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            if (false == entry.getKey() instanceof String || false == entry.getValue() instanceof String) {
+                throw new IllegalArgumentException("Expected [" + name + "] to be an object containing strings but has [" + entry + "]");
+            }
+        }
+        @SuppressWarnings("unchecked") // We just checked....
+        Map<String, String> safe = (Map<String, String>) map;
+        return safe;
     }
 
     private static BytesReference queryForRemote(Map<String, Object> source) throws IOException {

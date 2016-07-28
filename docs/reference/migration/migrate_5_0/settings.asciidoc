@@ -28,6 +28,9 @@ The `name` setting has been removed and is replaced by `node.name`. Usage of
 
 The `node.add_id_to_custom_path` was renamed to `add_lock_id_to_custom_path`.
 
+The default for the `node.name` settings is now the first 7 charachters of the node id,
+which is in turn a randomly generated UUID.
+
 The settings `node.mode` and `node.local` are removed. Local mode should be configured via
 `discovery.type: local` and `transport.type:local`. In order to disable _http_ please use `http.enabled: false`
 

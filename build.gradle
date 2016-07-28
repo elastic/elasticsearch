@@ -166,6 +166,7 @@ subprojects {
     "org.elasticsearch.client:rest:${version}": ':client:rest',
     "org.elasticsearch.client:sniffer:${version}": ':client:sniffer',
     "org.elasticsearch.client:test:${version}": ':client:test',
+    "org.elasticsearch.client:transport:${version}": ':client:transport',
     "org.elasticsearch.test:framework:${version}": ':test:framework',
     "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:integ-test-zip',
     "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:zip',
@@ -175,6 +176,7 @@ subprojects {
     "org.elasticsearch.test:logger-usage:${version}": ':test:logger-usage',
     // for transport client
     "org.elasticsearch.plugin:transport-netty3-client:${version}": ':modules:transport-netty3',
+    "org.elasticsearch.plugin:transport-netty4-client:${version}": ':modules:transport-netty4',
     "org.elasticsearch.plugin:reindex-client:${version}": ':modules:reindex',
     "org.elasticsearch.plugin:lang-mustache-client:${version}": ':modules:lang-mustache',
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',

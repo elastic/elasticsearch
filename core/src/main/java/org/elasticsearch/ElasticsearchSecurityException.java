@@ -19,7 +19,6 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -27,40 +26,39 @@ import java.io.IOException;
 /**
  * Generic security exception
  */
-public class ElasticsearchSecurityException extends ElasticsearchException {
-
-    private final RestStatus status;
-
+public class ElasticsearchSecurityException extends ElasticsearchStatusException {
+    /**
+     * Build the exception with a specific status and cause.
+     */
     public ElasticsearchSecurityException(String msg, RestStatus status, Throwable cause, Object... args) {
-        super(msg, cause, args);
-        this.status = status ;
+        super(msg, status, cause, args);
     }
 
+    /**
+     * Build the exception with the status derived from the cause.
+     */
     public ElasticsearchSecurityException(String msg, Exception cause, Object... args) {
         this(msg, ExceptionsHelper.status(cause), cause, args);
     }
 
+    /**
+     * Build the exception with a status of {@link RestStatus#INTERNAL_SERVER_ERROR} without a cause.
+     */
     public ElasticsearchSecurityException(String msg, Object... args) {
-        this(msg, RestStatus.INTERNAL_SERVER_ERROR, null, args);
+        this(msg, RestStatus.INTERNAL_SERVER_ERROR, args);
     }
 
+    /**
+     * Build the exception without a cause.
+     */
     public ElasticsearchSecurityException(String msg, RestStatus status, Object... args) {
-        this(msg, status, null, args);
+        super(msg, status, args);
     }
 
+    /**
+     * Read from a stream.
+     */
     public ElasticsearchSecurityException(StreamInput in) throws IOException {
         super(in);
-        status = RestStatus.readFrom(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        RestStatus.writeTo(out, status);
-    }
-
-    @Override
-    public final RestStatus status() {
-        return status;
     }
 }

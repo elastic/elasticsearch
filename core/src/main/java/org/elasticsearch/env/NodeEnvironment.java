@@ -34,10 +34,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -52,6 +52,7 @@ import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.monitor.fs.FsProbe;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.node.Node;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -79,7 +80,9 @@ import static java.util.Collections.unmodifiableSet;
 /**
  * A component that holds all data paths for a single node.
  */
-public final class NodeEnvironment extends AbstractComponent implements Closeable {
+public final class NodeEnvironment  implements Closeable {
+
+    private final ESLogger logger;
 
     public static class NodePath {
         /* ${data.paths}/nodes/{node.id} */
@@ -139,8 +142,6 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
     private final Path sharedDataPath;
     private final Lock[] locks;
 
-    private final boolean addLockIdToCustomPath;
-
     private final int nodeLockId;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Map<ShardId, InternalShardLock> shardLocks = new HashMap<>();
@@ -177,12 +178,8 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
     public static final String NODES_FOLDER = "nodes";
     public static final String INDICES_FOLDER = "indices";
     public static final String NODE_LOCK_FILENAME = "node.lock";
-    public static final String UPGRADE_LOCK_FILENAME = "upgrade.lock";
 
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
-        super(settings);
-
-        this.addLockIdToCustomPath = ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.get(settings);
 
         if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
             nodePaths = null;
@@ -190,11 +187,15 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
             locks = null;
             nodeLockId = -1;
             nodeMetaData = new NodeMetaData(generateNodeId(settings));
+            logger = Loggers.getLogger(getClass(), Node.addNodeNameIfNeeded(settings, this.nodeMetaData.nodeId()));
             return;
         }
         final NodePath[] nodePaths = new NodePath[environment.dataWithClusterFiles().length];
         final Lock[] locks = new Lock[nodePaths.length];
         boolean success = false;
+
+        // trace logger to debug issues before the default node name is derived from the node id
+        ESLogger startupTraceLogger = Loggers.getLogger(getClass(), settings);
 
         try {
             sharedDataPath = environment.sharedDataFile();
@@ -207,7 +208,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
                     Path dataDir = environment.dataFiles()[dirIndex];
                     // TODO: Remove this in 6.0, we are no longer going to read from the cluster name directory
                     if (readFromDataPathWithClusterName(dataDirWithClusterName)) {
-                        DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+                        DeprecationLogger deprecationLogger = new DeprecationLogger(startupTraceLogger);
                         deprecationLogger.deprecated("ES has detected the [path.data] folder using the cluster name as a folder [{}], " +
                                         "Elasticsearch 6.0 will not allow the cluster name as a folder within the data path", dataDir);
                         dataDir = dataDirWithClusterName;
@@ -216,20 +217,20 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
                     Files.createDirectories(dir);
 
                     try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
-                        logger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
+                        startupTraceLogger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
                         try {
                             locks[dirIndex] = luceneDir.obtainLock(NODE_LOCK_FILENAME);
                             nodePaths[dirIndex] = new NodePath(dir);
                             nodeLockId = possibleLockId;
                         } catch (LockObtainFailedException ex) {
-                            logger.trace("failed to obtain node lock on {}", dir.toAbsolutePath());
+                            startupTraceLogger.trace("failed to obtain node lock on {}", dir.toAbsolutePath());
                             // release all the ones that were obtained up until now
                             releaseAndNullLocks(locks);
                             break;
                         }
 
                     } catch (IOException e) {
-                        logger.trace("failed to obtain node lock on {}", e, dir.toAbsolutePath());
+                        startupTraceLogger.trace("failed to obtain node lock on {}", e, dir.toAbsolutePath());
                         lastException = new IOException("failed to obtain lock on " + dir.toAbsolutePath(), e);
                         // release all the ones that were obtained up until now
                         releaseAndNullLocks(locks);
@@ -246,6 +247,8 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
                 throw new IllegalStateException("Failed to obtain node lock, is the following location writable?: "
                     + Arrays.toString(environment.dataWithClusterFiles()), lastException);
             }
+            this.nodeMetaData = loadOrCreateNodeMetaData(settings, startupTraceLogger, nodePaths);
+            this.logger = Loggers.getLogger(getClass(), Node.addNodeNameIfNeeded(settings, this.nodeMetaData.nodeId()));
 
             this.nodeLockId = nodeLockId;
             this.locks = locks;
@@ -257,8 +260,6 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
 
             maybeLogPathDetails();
             maybeLogHeapDetails();
-
-            this.nodeMetaData = loadOrCreateNodeMetaData(settings, logger, nodePaths);
 
             applySegmentInfosTrace(settings);
             assertCanWrite();
@@ -924,10 +925,6 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
         }
     }
 
-    Settings getSettings() { // for testing
-        return settings;
-    }
-
     /**
      * Resolve the custom path for a index's shard.
      * Uses the {@code IndexMetaData.SETTING_DATA_PATH} setting to determine
@@ -940,7 +937,7 @@ public final class NodeEnvironment extends AbstractComponent implements Closeabl
         if (customDataDir != null) {
             // This assert is because this should be caught by MetaDataCreateIndexService
             assert sharedDataPath != null;
-            if (addLockIdToCustomPath) {
+            if (ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.get(indexSettings.getNodeSettings())) {
                 return sharedDataPath.resolve(customDataDir).resolve(Integer.toString(this.nodeLockId));
             } else {
                 return sharedDataPath.resolve(customDataDir);

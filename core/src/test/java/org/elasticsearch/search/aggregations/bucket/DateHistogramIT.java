@@ -380,6 +380,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(histo.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = histo.getBuckets();
         assertThat(buckets.size(), equalTo(3));
+        assertThat(histo.getProperty("_bucket_count"), equalTo(3));
         Object[] propertiesKeys = (Object[]) histo.getProperty("_key");
         Object[] propertiesDocCounts = (Object[]) histo.getProperty("_count");
         Object[] propertiesCounts = (Object[]) histo.getProperty("sum.value");
@@ -600,7 +601,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(4));
 
         // TODO: use diamond once JI-9019884 is fixed
-        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
+        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
 
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());

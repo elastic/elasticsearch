@@ -19,263 +19,128 @@
 
 package org.elasticsearch.test.rest;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
+import org.apache.http.Header;
+import org.apache.http.HttpHost;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.http.ssl.SSLContexts;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.client.RestTestResponse;
-import org.elasticsearch.test.rest.parser.RestTestParseException;
-import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
-import org.elasticsearch.test.rest.section.DoSection;
-import org.elasticsearch.test.rest.section.ExecutableSection;
-import org.elasticsearch.test.rest.section.RestTestSuite;
-import org.elasticsearch.test.rest.section.SkipSection;
-import org.elasticsearch.test.rest.section.TestSection;
-import org.elasticsearch.test.rest.spec.RestApi;
-import org.elasticsearch.test.rest.spec.RestSpec;
-import org.elasticsearch.test.rest.support.FileUtils;
 import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.security.KeyManagementException;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
+import javax.net.ssl.SSLContext;
+
 import static java.util.Collections.sort;
+import static java.util.Collections.unmodifiableList;
 
 /**
- * Runs the clients test suite against an elasticsearch cluster.
+ * Superclass for tests that interact with an external test cluster using Elasticsearch's {@link RestClient}.
  */
-public abstract class ESRestTestCase extends ESTestCase {
+public class ESRestTestCase extends ESTestCase {
+    public static final String TRUSTSTORE_PATH = "truststore.path";
+    public static final String TRUSTSTORE_PASSWORD = "truststore.password";
 
     /**
-     * Property that allows to control which REST tests get run. Supports comma separated list of tests
-     * or directories that contain tests e.g. -Dtests.rest.suite=index,get,create/10_with_id
+     * Convert the entity from a {@link Response} into a map of maps.
      */
-    public static final String REST_TESTS_SUITE = "tests.rest.suite";
-    /**
-     * Property that allows to blacklist some of the REST tests based on a comma separated list of globs
-     * e.g. -Dtests.rest.blacklist=get/10_basic/*
-     */
-    public static final String REST_TESTS_BLACKLIST = "tests.rest.blacklist";
-    /**
-     * Property that allows to control whether spec validation is enabled or not (default true).
-     */
-    public static final String REST_TESTS_VALIDATE_SPEC = "tests.rest.validate_spec";
-    /**
-     * Property that allows to control where the REST spec files need to be loaded from
-     */
-    public static final String REST_TESTS_SPEC = "tests.rest.spec";
-
-    public static final String REST_LOAD_PACKAGED_TESTS = "tests.rest.load_packaged";
-
-    private static final String DEFAULT_TESTS_PATH = "/rest-api-spec/test";
-    private static final String DEFAULT_SPEC_PATH = "/rest-api-spec/api";
-
-    /**
-     * This separator pattern matches ',' except it is preceded by a '\'.
-     * This allows us to support ',' within paths when it is escaped with a slash.
-     *
-     * For example, the path string "/a/b/c\,d/e/f,/foo/bar,/baz" is separated to "/a/b/c\,d/e/f", "/foo/bar" and "/baz".
-     *
-     * For reference, this regular expression feature is known as zero-width negative look-behind.
-     *
-     */
-    private static final String PATHS_SEPARATOR = "(?<!\\\\),";
-
-    private final List<BlacklistedPathPatternMatcher> blacklistPathMatchers = new ArrayList<>();
-    private final URL[] clusterUrls;
-    private static RestTestExecutionContext restTestExecutionContext;
-    private static RestTestExecutionContext adminExecutionContext;
-
-    private final RestTestCandidate testCandidate;
-
-    public ESRestTestCase(RestTestCandidate testCandidate) {
-        this.testCandidate = testCandidate;
-        String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
-        for (String entry : blacklist) {
-            this.blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
+    public static Map<String, Object> entityAsMap(Response response) throws IOException {
+        XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
+        try (XContentParser parser = xContentType.xContent().createParser(response.getEntity().getContent())) {
+            return parser.map();
         }
+    }
+
+    private final List<HttpHost> clusterHosts;
+    /**
+     * A client for the running Elasticsearch cluster. Lazily initialized on first use.
+     */
+    private final RestClient client;
+    /**
+     * A client for the running Elasticsearch cluster configured to take test administrative actions like remove all indexes after the test
+     * completes. Lazily initialized on first use.
+     */
+    private final RestClient adminClient;
+
+    public ESRestTestCase() {
         String cluster = System.getProperty("tests.rest.cluster");
         if (cluster == null) {
-            throw new RuntimeException("Must specify tests.rest.cluster for rest tests");
+            throw new RuntimeException("Must specify [tests.rest.cluster] system property with a comma delimited list of [host:port] "
+                    + "to which to send REST requests");
         }
         String[] stringUrls = cluster.split(",");
-        clusterUrls = new URL[stringUrls.length];
-        int i = 0;
-        try {
-            for (String stringUrl : stringUrls) {
-                clusterUrls[i++] = new URL("http://" + stringUrl);
+        List<HttpHost> clusterHosts = new ArrayList<>(stringUrls.length);
+        for (String stringUrl : stringUrls) {
+            int portSeparator = stringUrl.lastIndexOf(':');
+            if (portSeparator < 0) {
+                throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
             }
+            String host = stringUrl.substring(0, portSeparator);
+            int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
+            clusterHosts.add(new HttpHost(host, port, getProtocol()));
+        }
+        this.clusterHosts = unmodifiableList(clusterHosts);
+        try {
+            client = buildClient(restClientSettings());
+            adminClient = buildClient(restAdminSettings());
         } catch (IOException e) {
-            throw new RuntimeException("Failed to parse cluster addresses for rest test", e);
-        }
-    }
-
-    @Override
-    protected void afterIfFailed(List<Throwable> errors) {
-        logger.info("Stash dump on failure [{}]", XContentHelper.toString(restTestExecutionContext.stash()));
-        super.afterIfFailed(errors);
-    }
-
-    public static Iterable<Object[]> createParameters(int id, int count) throws IOException, RestTestParseException {
-        //parse tests only if rest test group is enabled, otherwise rest tests might not even be available on file system
-        List<RestTestCandidate> restTestCandidates = collectTestCandidates(id, count);
-        List<Object[]> objects = new ArrayList<>();
-        for (RestTestCandidate restTestCandidate : restTestCandidates) {
-            objects.add(new Object[]{restTestCandidate});
-        }
-        return objects;
-    }
-
-    private static List<RestTestCandidate> collectTestCandidates(int id, int count) throws RestTestParseException, IOException {
-        List<RestTestCandidate> testCandidates = new ArrayList<>();
-        FileSystem fileSystem = getFileSystem();
-        // don't make a try-with, getFileSystem returns null
-        // ... and you can't close() the default filesystem
-        try {
-            String[] paths = resolvePathsProperty(REST_TESTS_SUITE, DEFAULT_TESTS_PATH);
-            Map<String, Set<Path>> yamlSuites = FileUtils.findYamlSuites(fileSystem, DEFAULT_TESTS_PATH, paths);
-            RestTestSuiteParser restTestSuiteParser = new RestTestSuiteParser();
-            //yaml suites are grouped by directory (effectively by api)
-            for (String api : yamlSuites.keySet()) {
-                List<Path> yamlFiles = new ArrayList<>(yamlSuites.get(api));
-                for (Path yamlFile : yamlFiles) {
-                    String key = api + yamlFile.getFileName().toString();
-                    if (mustExecute(key, id, count)) {
-                        RestTestSuite restTestSuite = restTestSuiteParser.parse(api, yamlFile);
-                        for (TestSection testSection : restTestSuite.getTestSections()) {
-                            testCandidates.add(new RestTestCandidate(restTestSuite, testSection));
-                        }
-                    }
-                }
-            }
-        } finally {
-            IOUtils.close(fileSystem);
-        }
-
-        //sort the candidates so they will always be in the same order before being shuffled, for repeatability
-        Collections.sort(testCandidates, new Comparator<RestTestCandidate>() {
-            @Override
-            public int compare(RestTestCandidate o1, RestTestCandidate o2) {
-                return o1.getTestPath().compareTo(o2.getTestPath());
-            }
-        });
-
-        return testCandidates;
-    }
-
-    private static boolean mustExecute(String test, int id, int count) {
-        int hash = (int) (Math.abs((long)test.hashCode()) % count);
-        return hash == id;
-    }
-
-    private static String[] resolvePathsProperty(String propertyName, String defaultValue) {
-        String property = System.getProperty(propertyName);
-        if (!Strings.hasLength(property)) {
-            return defaultValue == null ? Strings.EMPTY_ARRAY : new String[]{defaultValue};
-        } else {
-            return property.split(PATHS_SEPARATOR);
+            // Wrap the IOException so children don't have to declare a constructor just to rethrow it.
+            throw new RuntimeException("Error building clients", e);
         }
     }
 
     /**
-     * Returns a new FileSystem to read REST resources, or null if they
-     * are available from classpath.
+     * Clean up after the test case.
      */
-    @SuppressForbidden(reason = "proper use of URL, hack around a JDK bug")
-    static FileSystem getFileSystem() throws IOException {
-        // REST suite handling is currently complicated, with lots of filtering and so on
-        // For now, to work embedded in a jar, return a ZipFileSystem over the jar contents.
-        URL codeLocation = FileUtils.class.getProtectionDomain().getCodeSource().getLocation();
-        boolean loadPackaged = RandomizedTest.systemPropertyAsBoolean(REST_LOAD_PACKAGED_TESTS, true);
-        if (codeLocation.getFile().endsWith(".jar") && loadPackaged) {
-            try {
-                // hack around a bug in the zipfilesystem implementation before java 9,
-                // its checkWritable was incorrect and it won't work without write permissions.
-                // if we add the permission, it will open jars r/w, which is too scary! so copy to a safe r-w location.
-                Path tmp = Files.createTempFile(null, ".jar");
-                try (InputStream in = codeLocation.openStream()) {
-                    Files.copy(in, tmp, StandardCopyOption.REPLACE_EXISTING);
-                }
-                return FileSystems.newFileSystem(new URI("jar:" + tmp.toUri()), Collections.<String,Object>emptyMap());
-            } catch (URISyntaxException e) {
-                throw new IOException("couldn't open zipfilesystem: ", e);
-            }
-        } else {
-            return null;
-        }
-    }
-
-    @BeforeClass
-    public static void initExecutionContext() throws IOException {
-        String[] specPaths = resolvePathsProperty(REST_TESTS_SPEC, DEFAULT_SPEC_PATH);
-        RestSpec restSpec = null;
-        FileSystem fileSystem = getFileSystem();
-        // don't make a try-with, getFileSystem returns null
-        // ... and you can't close() the default filesystem
-        try {
-            restSpec = RestSpec.parseFrom(fileSystem, DEFAULT_SPEC_PATH, specPaths);
-        } finally {
-            IOUtils.close(fileSystem);
-        }
-        validateSpec(restSpec);
-        restTestExecutionContext = new RestTestExecutionContext(restSpec);
-        adminExecutionContext = new RestTestExecutionContext(restSpec);
-    }
-
-    protected RestTestExecutionContext getAdminExecutionContext() {
-        return adminExecutionContext;
-    }
-
-    private static void validateSpec(RestSpec restSpec) {
-        boolean validateSpec = RandomizedTest.systemPropertyAsBoolean(REST_TESTS_VALIDATE_SPEC, true);
-        if (validateSpec) {
-            StringBuilder errorMessage = new StringBuilder();
-            for (RestApi restApi : restSpec.getApis()) {
-                if (restApi.getMethods().contains("GET") && restApi.isBodySupported()) {
-                    if (!restApi.getMethods().contains("POST")) {
-                        errorMessage.append("\n- ").append(restApi.getName()).append(" supports GET with a body but doesn't support POST");
-                    }
-                }
-            }
-            if (errorMessage.length() > 0) {
-                throw new IllegalArgumentException(errorMessage.toString());
-            }
-        }
-    }
-
     @After
-    public void wipeCluster() throws Exception {
+    public final void after() throws Exception {
+        wipeCluster();
+        logIfThereAreRunningTasks();
+        closeClients();
+    }
+
+    /**
+     * Get a client, building it if it hasn't been built for this test.
+     */
+    protected final RestClient client() {
+        return client;
+    }
+
+    /**
+     * Get the client used for test administrative actions. Do not use this while writing a test. Only use it for cleaning up after tests.
+     */
+    protected final RestClient adminClient() {
+        return adminClient;
+    }
+
+    private void wipeCluster() throws IOException {
         // wipe indices
-        Map<String, String> deleteIndicesArgs = new HashMap<>();
-        deleteIndicesArgs.put("index", "*");
         try {
-            adminExecutionContext.callApi("indices.delete", deleteIndicesArgs, Collections.emptyList(), Collections.emptyMap());
+            adminClient().performRequest("DELETE", "*");
         } catch (ResponseException e) {
             // 404 here just means we had no indexes
             if (e.getResponse().getStatusLine().getStatusCode() != 404) {
@@ -284,24 +149,19 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         // wipe index templates
-        Map<String, String> deleteTemplatesArgs = new HashMap<>();
-        deleteTemplatesArgs.put("name", "*");
-        adminExecutionContext.callApi("indices.delete_template", deleteTemplatesArgs, Collections.emptyList(), Collections.emptyMap());
+        adminClient().performRequest("DELETE", "_template/*");
 
         // wipe snapshots
-        Map<String, String> deleteSnapshotsArgs = new HashMap<>();
-        deleteSnapshotsArgs.put("repository", "*");
-        adminExecutionContext.callApi("snapshot.delete_repository", deleteSnapshotsArgs, Collections.emptyList(), Collections.emptyMap());
+        // Technically this deletes all repositories and leave the snapshots in the repository. OK.
+        adminClient().performRequest("DELETE", "_snapshot/*");
     }
 
     /**
      * Logs a message if there are still running tasks. The reasoning is that any tasks still running are state the is trying to bleed into
      * other tests.
      */
-    @After
-    public void logIfThereAreRunningTasks() throws InterruptedException, IOException {
-        RestTestResponse tasks = adminExecutionContext.callApi("tasks.list", emptyMap(), emptyList(), emptyMap());
-        Set<String> runningTasks = runningTasks(tasks);
+    private void logIfThereAreRunningTasks() throws InterruptedException, IOException {
+        Set<String> runningTasks = runningTasks(adminClient().performRequest("GET", "_tasks"));
         // Ignore the task list API - it doens't count against us
         runningTasks.remove(ListTasksAction.NAME);
         runningTasks.remove(ListTasksAction.NAME + "[n]");
@@ -318,14 +178,8 @@ public abstract class ESRestTestCase extends ESTestCase {
          */
     }
 
-    @AfterClass
-    public static void close() {
-        if (restTestExecutionContext != null) {
-            restTestExecutionContext.close();
-            adminExecutionContext.close();
-            restTestExecutionContext = null;
-            adminExecutionContext = null;
-        }
+    private void closeClients() throws IOException {
+        IOUtils.close(client, adminClient);
     }
 
     /**
@@ -335,82 +189,69 @@ public abstract class ESRestTestCase extends ESTestCase {
         return Settings.EMPTY;
     }
 
-    /** Returns the REST client settings used for admin actions like cleaning up after the test has completed. */
+    /**
+     * Returns the REST client settings used for admin actions like cleaning up after the test has completed.
+     */
     protected Settings restAdminSettings() {
         return restClientSettings(); // default to the same client settings
     }
 
-    @Before
-    public void reset() throws IOException {
-        // admin context must be available for @After always, regardless of whether the test was blacklisted
-        adminExecutionContext.initClient(clusterUrls, restAdminSettings());
-        adminExecutionContext.clear();
-
-        //skip test if it matches one of the blacklist globs
-        for (BlacklistedPathPatternMatcher blacklistedPathMatcher : blacklistPathMatchers) {
-            String testPath = testCandidate.getSuitePath() + "/" + testCandidate.getTestSection().getName();
-            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher
-                    .isSuffixMatch(testPath));
-        }
-        //The client needs non static info to get initialized, therefore it can't be initialized in the before class
-        restTestExecutionContext.initClient(clusterUrls, restClientSettings());
-        restTestExecutionContext.clear();
-
-        //skip test if the whole suite (yaml file) is disabled
-        assumeFalse(buildSkipMessage(testCandidate.getSuitePath(), testCandidate.getSetupSection().getSkipSection()),
-                testCandidate.getSetupSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
-        //skip test if the whole suite (yaml file) is disabled
-        assumeFalse(buildSkipMessage(testCandidate.getSuitePath(), testCandidate.getTeardownSection().getSkipSection()),
-            testCandidate.getTeardownSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
-        //skip test if test section is disabled
-        assumeFalse(buildSkipMessage(testCandidate.getTestPath(), testCandidate.getTestSection().getSkipSection()),
-                testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+    /**
+     * Get the list of hosts in the cluster.
+     */
+    protected final List<HttpHost> getClusterHosts() {
+        return clusterHosts;
     }
 
-    private static String buildSkipMessage(String description, SkipSection skipSection) {
-        StringBuilder messageBuilder = new StringBuilder();
-        if (skipSection.isVersionCheck()) {
-            messageBuilder.append("[").append(description).append("] skipped, reason: [").append(skipSection.getReason()).append("] ");
-        } else {
-            messageBuilder.append("[").append(description).append("] skipped, reason: features ")
-                    .append(skipSection.getFeatures()).append(" not supported");
-        }
-        return messageBuilder.toString();
+    /**
+     * Override this to switch to testing https.
+     */
+    protected String getProtocol() {
+        return "http";
     }
 
-    public void test() throws IOException {
-        //let's check that there is something to run, otherwise there might be a problem with the test section
-        if (testCandidate.getTestSection().getExecutableSections().size() == 0) {
-            throw new IllegalArgumentException("No executable sections loaded for [" + testCandidate.getTestPath() + "]");
+    private RestClient buildClient(Settings settings) throws IOException {
+        RestClientBuilder builder = RestClient.builder(clusterHosts.toArray(new HttpHost[0])).setMaxRetryTimeoutMillis(30000)
+                .setRequestConfigCallback(requestConfigBuilder -> requestConfigBuilder.setSocketTimeout(30000));
+        String keystorePath = settings.get(TRUSTSTORE_PATH);
+        if (keystorePath != null) {
+            final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);
+            if (keystorePass == null) {
+                throw new IllegalStateException(TRUSTSTORE_PATH + " is provided but not " + TRUSTSTORE_PASSWORD);
+            }
+            Path path = PathUtils.get(keystorePath);
+            if (!Files.exists(path)) {
+                throw new IllegalStateException(TRUSTSTORE_PATH + " is set but points to a non-existing file");
+            }
+            try {
+                KeyStore keyStore = KeyStore.getInstance("jks");
+                try (InputStream is = Files.newInputStream(path)) {
+                    keyStore.load(is, keystorePass.toCharArray());
+                }
+                SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
+                SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslcontext);
+                builder.setHttpClientConfigCallback(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy));
+            } catch (KeyStoreException|NoSuchAlgorithmException|KeyManagementException|CertificateException e) {
+                throw new RuntimeException("Error setting up ssl", e);
+            }
         }
 
-        if (!testCandidate.getSetupSection().isEmpty()) {
-            logger.debug("start setup test [{}]", testCandidate.getTestPath());
-            for (DoSection doSection : testCandidate.getSetupSection().getDoSections()) {
-                doSection.execute(restTestExecutionContext);
+        try (ThreadContext threadContext = new ThreadContext(settings)) {
+            Header[] defaultHeaders = new Header[threadContext.getHeaders().size()];
+            int i = 0;
+            for (Map.Entry<String, String> entry : threadContext.getHeaders().entrySet()) {
+                defaultHeaders[i++] = new BasicHeader(entry.getKey(), entry.getValue());
             }
-            logger.debug("end setup test [{}]", testCandidate.getTestPath());
+            builder.setDefaultHeaders(defaultHeaders);
         }
-
-        restTestExecutionContext.clear();
-
-        try {
-            for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {
-                executableSection.execute(restTestExecutionContext);
-            }
-        } finally {
-            logger.debug("start teardown test [{}]", testCandidate.getTestPath());
-            for (DoSection doSection : testCandidate.getTeardownSection().getDoSections()) {
-                doSection.execute(restTestExecutionContext);
-            }
-            logger.debug("end teardown test [{}]", testCandidate.getTestPath());
-        }
+        return builder.build();
     }
 
     @SuppressWarnings("unchecked")
-    public Set<String> runningTasks(RestTestResponse response) throws IOException {
+    private Set<String> runningTasks(Response response) throws IOException {
         Set<String> runningTasks = new HashSet<>();
-        Map<String, Object> nodes = (Map<String, Object>) response.evaluate("nodes");
+
+        Map<String, Object> nodes = (Map<String, Object>) entityAsMap(response).get("nodes");
         for (Map.Entry<String, Object> node : nodes.entrySet()) {
             Map<String, Object> nodeInfo = (Map<String, Object>) node.getValue();
             Map<String, Object> nodeTasks = (Map<String, Object>) nodeInfo.get("tasks");
@@ -421,4 +262,5 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
         return runningTasks;
     }
+
 }

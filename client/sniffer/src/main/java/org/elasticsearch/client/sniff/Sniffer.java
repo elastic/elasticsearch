@@ -23,11 +23,11 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -35,12 +35,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Class responsible for sniffing nodes from an elasticsearch cluster and setting them to a provided instance of {@link RestClient}.
- * Must be created via {@link Builder}, which allows to set all of the different options or rely on defaults.
+ * Class responsible for sniffing nodes from some source (default is elasticsearch itself) and setting them to a provided instance of
+ * {@link RestClient}. Must be created via {@link SnifferBuilder}, which allows to set all of the different options or rely on defaults.
  * A background task fetches the nodes through the {@link HostsSniffer} and sets them to the {@link RestClient} instance.
  * It is possible to perform sniffing on failure by creating a {@link SniffOnFailureListener} and providing it as an argument to
- * {@link org.elasticsearch.client.RestClient.Builder#setFailureListener(RestClient.FailureListener)}. The Sniffer implementation
- * needs to be lazily set to the previously created SniffOnFailureListener through {@link SniffOnFailureListener#setSniffer(Sniffer)}.
+ * {@link RestClientBuilder#setFailureListener(RestClient.FailureListener)}. The Sniffer implementation needs to be lazily set to the
+ * previously created SniffOnFailureListener through {@link SniffOnFailureListener#setSniffer(Sniffer)}.
  */
 public final class Sniffer implements Closeable {
 
@@ -48,7 +48,7 @@ public final class Sniffer implements Closeable {
 
     private final Task task;
 
-    private Sniffer(RestClient restClient, HostsSniffer hostsSniffer, long sniffInterval, long sniffAfterFailureDelay) {
+    Sniffer(RestClient restClient, HostsSniffer hostsSniffer, long sniffInterval, long sniffAfterFailureDelay) {
         this.task = new Task(hostsSniffer, restClient, sniffInterval, sniffAfterFailureDelay);
     }
 
@@ -143,64 +143,12 @@ public final class Sniffer implements Closeable {
     }
 
     /**
-     * Returns a new {@link Builder} to help with {@link Sniffer} creation.
+     * Returns a new {@link SnifferBuilder} to help with {@link Sniffer} creation.
+     *
+     * @param restClient the client that gets its hosts set (via {@link RestClient#setHosts(HttpHost...)}) once they are fetched
+     * @return a new instance of {@link SnifferBuilder}
      */
-    public static Builder builder(RestClient restClient, HostsSniffer hostsSniffer) {
-        return new Builder(restClient, hostsSniffer);
-    }
-
-    /**
-     * Sniffer builder. Helps creating a new {@link Sniffer}.
-     */
-    public static final class Builder {
-        public static final long DEFAULT_SNIFF_INTERVAL = TimeUnit.MINUTES.toMillis(5);
-        public static final long DEFAULT_SNIFF_AFTER_FAILURE_DELAY = TimeUnit.MINUTES.toMillis(1);
-
-        private final RestClient restClient;
-        private final HostsSniffer hostsSniffer;
-        private long sniffIntervalMillis = DEFAULT_SNIFF_INTERVAL;
-        private long sniffAfterFailureDelayMillis = DEFAULT_SNIFF_AFTER_FAILURE_DELAY;
-
-        /**
-         * Creates a new builder instance by providing the {@link RestClient} that will be used to communicate with elasticsearch,
-         * and the
-         */
-        private Builder(RestClient restClient, HostsSniffer hostsSniffer) {
-            Objects.requireNonNull(restClient, "restClient cannot be null");
-            this.restClient = restClient;
-            Objects.requireNonNull(hostsSniffer, "hostsSniffer cannot be null");
-            this.hostsSniffer = hostsSniffer;
-        }
-
-        /**
-         * Sets the interval between consecutive ordinary sniff executions in milliseconds. Will be honoured when
-         * sniffOnFailure is disabled or when there are no failures between consecutive sniff executions.
-         * @throws IllegalArgumentException if sniffIntervalMillis is not greater than 0
-         */
-        public Builder setSniffIntervalMillis(int sniffIntervalMillis) {
-            if (sniffIntervalMillis <= 0) {
-                throw new IllegalArgumentException("sniffIntervalMillis must be greater than 0");
-            }
-            this.sniffIntervalMillis = sniffIntervalMillis;
-            return this;
-        }
-
-        /**
-         * Sets the delay of a sniff execution scheduled after a failure (in milliseconds)
-         */
-        public Builder setSniffAfterFailureDelayMillis(int sniffAfterFailureDelayMillis) {
-            if (sniffAfterFailureDelayMillis <= 0) {
-                throw new IllegalArgumentException("sniffAfterFailureDelayMillis must be greater than 0");
-            }
-            this.sniffAfterFailureDelayMillis = sniffAfterFailureDelayMillis;
-            return this;
-        }
-
-        /**
-         * Creates the {@link Sniffer} based on the provided configuration.
-         */
-        public Sniffer build() {
-            return new Sniffer(restClient, hostsSniffer, sniffIntervalMillis, sniffAfterFailureDelayMillis);
-        }
+    public static SnifferBuilder builder(RestClient restClient) {
+        return new SnifferBuilder(restClient);
     }
 }

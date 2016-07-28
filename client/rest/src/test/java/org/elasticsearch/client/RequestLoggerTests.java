@@ -35,6 +35,8 @@ import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
+import org.apache.http.nio.entity.NByteArrayEntity;
+import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.util.EntityUtils;
 
 import java.io.ByteArrayInputStream;
@@ -97,14 +99,24 @@ public class RequestLoggerTests extends RestClientTestCase {
             expected += " -d '" + requestBody + "'";
             HttpEntityEnclosingRequest enclosingRequest = (HttpEntityEnclosingRequest) request;
             HttpEntity entity;
-            if (getRandom().nextBoolean()) {
-                entity = new StringEntity(requestBody, StandardCharsets.UTF_8);
-            } else {
-                entity = new InputStreamEntity(new ByteArrayInputStream(requestBody.getBytes(StandardCharsets.UTF_8)));
+            switch(RandomInts.randomIntBetween(getRandom(), 0, 3)) {
+                case 0:
+                    entity = new StringEntity(requestBody, StandardCharsets.UTF_8);
+                    break;
+                case 1:
+                    entity = new InputStreamEntity(new ByteArrayInputStream(requestBody.getBytes(StandardCharsets.UTF_8)));
+                    break;
+                case 2:
+                    entity = new NStringEntity(requestBody, StandardCharsets.UTF_8);
+                    break;
+                case 3:
+                    entity = new NByteArrayEntity(requestBody.getBytes(StandardCharsets.UTF_8));
+                    break;
+                default:
+                    throw new UnsupportedOperationException();
             }
             enclosingRequest.setEntity(entity);
         }
-
         String traceRequest = RequestLogger.buildTraceRequest(request, host);
         assertThat(traceRequest, equalTo(expected));
         if (hasBody) {
@@ -137,6 +149,7 @@ public class RequestLoggerTests extends RestClientTestCase {
             if (getRandom().nextBoolean()) {
                 entity = new StringEntity(responseBody, StandardCharsets.UTF_8);
             } else {
+                //test a non repeatable entity
                 entity = new InputStreamEntity(new ByteArrayInputStream(responseBody.getBytes(StandardCharsets.UTF_8)));
             }
             httpResponse.setEntity(entity);

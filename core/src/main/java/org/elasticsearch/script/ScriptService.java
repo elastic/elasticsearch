@@ -487,7 +487,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
     }
 
-    private class ScriptChangesListener extends FileChangesListener {
+    private class ScriptChangesListener implements FileChangesListener {
 
         private Tuple<String, String> getScriptNameExt(Path file) {
             Path scriptPath = scriptsDirectory.relativize(file);

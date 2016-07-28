@@ -815,9 +815,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * gets a {@link Store.MetadataSnapshot} for the current directory. This method is safe to call in all lifecycle of the index shard,
      * without having to worry about the current state of the engine and concurrent flushes
-     *
-     * @return
-     * @throws IOException
      */
     public Store.MetadataSnapshot snapshotStore() throws IOException {
         synchronized (mutex) {

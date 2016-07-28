@@ -96,6 +96,10 @@ public final class Response {
         return response.getEntity();
     }
 
+    HttpResponse getHttpResponse() {
+        return response;
+    }
+
     @Override
     public String toString() {
         return "Response{" +

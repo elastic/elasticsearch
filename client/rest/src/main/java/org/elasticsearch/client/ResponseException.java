@@ -19,6 +19,10 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.BufferedHttpEntity;
+import org.apache.http.util.EntityUtils;
+
 import java.io.IOException;
 
 /**
@@ -34,9 +38,19 @@ public final class ResponseException extends IOException {
         this.response = response;
     }
 
-    private static String buildMessage(Response response) {
-        return response.getRequestLine().getMethod() + " " + response.getHost() + response.getRequestLine().getUri()
+    private static String buildMessage(Response response) throws IOException {
+        String message = response.getRequestLine().getMethod() + " " + response.getHost() + response.getRequestLine().getUri()
                 + ": " + response.getStatusLine().toString();
+
+        HttpEntity entity = response.getEntity();
+        if (entity != null) {
+            if (entity.isRepeatable() == false) {
+                entity = new BufferedHttpEntity(entity);
+                response.getHttpResponse().setEntity(entity);
+            }
+            message += "\n" + EntityUtils.toString(entity);
+        }
+        return message;
     }
 
     /**

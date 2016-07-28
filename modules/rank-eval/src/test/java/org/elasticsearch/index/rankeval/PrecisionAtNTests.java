@@ -38,7 +38,7 @@ public class PrecisionAtNTests extends ESTestCase {
 
     public void testPrecisionAtFiveCalculation() throws IOException, InterruptedException, ExecutionException {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(new RatedDocument("0", Rating.RELEVANT.ordinal()));
+        rated.add(new RatedDocument("test", "testtype", "0", Rating.RELEVANT.ordinal()));
         SearchHit[] hits = new InternalSearchHit[1];
         hits[0] = new InternalSearchHit(0, "0", new Text("type"), Collections.emptyMap());
         assertEquals(1, (new PrecisionAtN(5)).evaluate(hits, rated).getQualityLevel(), 0.00001);
@@ -46,11 +46,11 @@ public class PrecisionAtNTests extends ESTestCase {
 
     public void testPrecisionAtFiveIgnoreOneResult() throws IOException, InterruptedException, ExecutionException {
         List<RatedDocument> rated = new ArrayList<>();
-        rated.add(new RatedDocument("0", Rating.RELEVANT.ordinal()));
-        rated.add(new RatedDocument("1", Rating.RELEVANT.ordinal()));
-        rated.add(new RatedDocument("2", Rating.RELEVANT.ordinal()));
-        rated.add(new RatedDocument("3", Rating.RELEVANT.ordinal()));
-        rated.add(new RatedDocument("4", Rating.IRRELEVANT.ordinal()));
+        rated.add(new RatedDocument("test", "testtype", "0", Rating.RELEVANT.ordinal()));
+        rated.add(new RatedDocument("test", "testtype", "1", Rating.RELEVANT.ordinal()));
+        rated.add(new RatedDocument("test", "testtype", "2", Rating.RELEVANT.ordinal()));
+        rated.add(new RatedDocument("test", "testtype", "3", Rating.RELEVANT.ordinal()));
+        rated.add(new RatedDocument("test", "testtype", "4", Rating.IRRELEVANT.ordinal()));
         SearchHit[] hits = new InternalSearchHit[5];
         for (int i = 0; i < 5; i++) {
             hits[i] = new InternalSearchHit(i, i+"", new Text("type"), Collections.emptyMap());

@@ -19,31 +19,81 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A document ID and its rating for the query QA use case.
  * */
-public class RatedDocument implements Writeable {
+public class RatedDocument extends ToXContentToBytes implements Writeable {
 
-    private final String docId;
-    private final int rating;
+    public static final ParseField DOC_ID_FIELD = new ParseField("doc_id");
+    public static final ParseField TYPE_FIELD = new ParseField("type");
+    public static final ParseField INDEX_FIELD = new ParseField("index");
+    public static final ParseField RATING_FIELD = new ParseField("rating");
 
-    public RatedDocument(String docId, int rating) {
+    private static final ObjectParser<RatedDocument, RankEvalContext> PARSER = new ObjectParser<>("ratings", RatedDocument::new);
+
+    static {
+        PARSER.declareString(RatedDocument::setIndex, INDEX_FIELD);
+        PARSER.declareString(RatedDocument::setType, TYPE_FIELD);
+        PARSER.declareString(RatedDocument::setDocId, DOC_ID_FIELD);
+        PARSER.declareInt(RatedDocument::setRating, RATING_FIELD);
+    }
+
+    // TODO instead of docId use path to id and id itself
+    private String docId;
+    private String type;
+    private String index;
+    private int rating;
+
+    RatedDocument() {}
+
+    void setIndex(String index) {
+        this.index = index;
+    }
+
+    void setType(String type) {
+        this.type = type;
+    }
+    
+    void setDocId(String docId) {
+        this.docId = docId;
+    }
+   
+    void setRating(int rating) {
+        this.rating = rating;
+    }
+
+    public RatedDocument(String index, String type, String docId, int rating) {
+        this.index = index;
+        this.type = type;
         this.docId = docId;
         this.rating = rating;
     }
 
     public RatedDocument(StreamInput in) throws IOException {
+        this.index = in.readString();
+        this.type = in.readString();
         this.docId = in.readString();
         this.rating = in.readVInt();
+    }
+
+    public String getIndex() {
+        return index;
+    }
+
+    public String getType() {
+        return type;
     }
 
     public String getDocID() {
@@ -56,31 +106,44 @@ public class RatedDocument implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(index);
+        out.writeString(type);
         out.writeString(docId);
         out.writeVInt(rating);
     }
 
-    public static RatedDocument fromXContent(XContentParser parser) throws IOException {
-        String id = null;
-        int rating = Integer.MIN_VALUE;
-        Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (parser.currentToken().equals(Token.FIELD_NAME)) {
-                if (id != null) {
-                    throw new ParsingException(parser.getTokenLocation(), "only one document id allowed, found [{}] but already got [{}]",
-                            parser.currentName(), id);
-                }
-                id = parser.currentName();
-            } else if (parser.currentToken().equals(Token.VALUE_NUMBER)) {
-                rating = parser.intValue();
-            } else {
-                throw new ParsingException(parser.getTokenLocation(), "unexpected token [{}] while parsing rated document",
-                        token);
-            }
+    public static RatedDocument fromXContent(XContentParser parser, RankEvalContext context) throws IOException {
+        return PARSER.parse(parser, context);
+    }
+    
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(INDEX_FIELD.getPreferredName(), index);
+        builder.field(TYPE_FIELD.getPreferredName(), type);
+        builder.field(DOC_ID_FIELD.getPreferredName(), docId);
+        builder.field(RATING_FIELD.getPreferredName(), rating);
+        builder.endObject();
+        return builder;
+    }
+    
+    @Override
+    public final boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
         }
-        if (id ==  null) {
-            throw new ParsingException(parser.getTokenLocation(), "didn't find document id");
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
         }
-        return new RatedDocument(id, rating);
+        RatedDocument other = (RatedDocument) obj;
+        return Objects.equals(index, other.index) &&
+                Objects.equals(type, other.type) &&
+                Objects.equals(docId, other.docId) &&
+                Objects.equals(rating, other.rating);
+    }
+    
+    @Override
+    public final int hashCode() {
+        return Objects.hash(getClass(), index, type, docId, rating);
     }
 }

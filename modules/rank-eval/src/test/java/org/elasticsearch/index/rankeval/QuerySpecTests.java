@@ -79,7 +79,10 @@ public class QuerySpecTests extends ESTestCase {
          + "           },\n"
          + "           \"size\": 10\n"
          + "   },\n"
-         + "   \"ratings\": [ {\"1\": 1 }, { \"2\": 0 }, { \"3\": 1 } ]\n"
+         + "   \"ratings\": [ "
+         + "        {\"index\": \"test\", \"type\": \"testtype\", \"doc_id\": \"1\", \"rating\" : 1 }, "
+         + "        {\"index\": \"test\", \"type\": \"testtype\", \"doc_id\": \"2\", \"rating\" : 0 }, "
+         + "        {\"index\": \"test\", \"type\": \"testtype\", \"doc_id\": \"3\", \"rating\" : 1 }]\n"
          + "}";
         XContentParser parser = XContentFactory.xContent(querySpecString).createParser(querySpecString);
         QueryParseContext queryContext = new QueryParseContext(queriesRegistry, parser, ParseFieldMatcher.STRICT);

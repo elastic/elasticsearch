@@ -115,7 +115,7 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
     private static List<RatedDocument> createRelevant(String... docs) {
         List<RatedDocument> relevant = new ArrayList<>();
         for (String doc : docs) {
-            relevant.add(new RatedDocument(doc, Rating.RELEVANT.ordinal()));
+            relevant.add(new RatedDocument("test", "testtype", doc, Rating.RELEVANT.ordinal()));
         }
         return relevant;
     }

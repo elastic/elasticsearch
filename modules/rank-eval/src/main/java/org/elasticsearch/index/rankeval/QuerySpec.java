@@ -159,7 +159,7 @@ public class QuerySpec implements Writeable {
         } , REQUEST_FIELD);
         PARSER.declareObjectArray(QuerySpec::setRatedDocs, (p, c) -> {
             try {
-                return RatedDocument.fromXContent(p);
+                return RatedDocument.fromXContent(p, c);
             } catch (IOException ex) {
                 throw new ParsingException(p.getTokenLocation(), "error parsing ratings", ex);
             }

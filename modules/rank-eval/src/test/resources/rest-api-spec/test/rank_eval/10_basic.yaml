@@ -40,12 +40,15 @@
             {
                 "id": "amsterdam_query",
                 "request": { "query": { "match" : {"text" : "amsterdam" }}},
-                "ratings": [{ "doc1": 0}, {"doc2": 1}, {"doc3": 1}]
+                "ratings": [
+                    { "index": "foo", "type": "bar", "doc_id": "doc1", "rating": 0},
+                    { "index": "foo", "type": "bar", "doc_id": "doc2", "rating": 1},
+                    { "index": "foo", "type": "bar", "doc_id": "doc3", "rating": 1}]
             },
             {
                 "id" : "berlin_query",
                 "request": { "query": { "match" : { "text" : "berlin" } }, "size" : 10 },
-                "ratings": [{"doc1": 1}]
+                "ratings": [{"index": "foo", "type": "bar", "doc_id": "doc1", "rating": 1}]
             }
           ],
           "metric" : { "precisionatn": { "size": 10}}

@@ -1,3 +1,4 @@
+[[sniffer]]
 == Sniffer
 
 Minimal library that allows to automatically discover nodes from a running
@@ -21,6 +22,12 @@ Add the following to your `pom.xml` file:
 </dependency>
 --------------------------------------------------
 
+The low-level REST client is subject to the same release cycle as
+elasticsearch. Replace `${es.version}` with the desired sniffer version, first
+released with `5.0.0-alpha4`. There  is no relation between the sniffer version
+and the elasticsearch version that the client can communicate with. Sniffer
+supports fetching the nodes list from elasticsearch 2.x and onwards.
+
 === Usage
 
 Once a `RestClient` instance has been created, a `Sniffer` can be associated
@@ -35,7 +42,7 @@ Sniffer sniffer = Sniffer.builder(restClient).build();
 It is important to close the `Sniffer` so that its background thread gets
 properly shutdown and all of its resources are released. The `Sniffer`
 object should have the same lifecycle as the `RestClient` and get closed
-right before the client is:
+right before the client:
 
 [source,java]
 --------------------------------------------------
@@ -44,7 +51,7 @@ restClient.close();
 --------------------------------------------------
 
 The Elasticsearch Nodes Info api doesn't return the protocol to use when
-connecting to the nodes but only their host:port key-pair, hence `http`
+connecting to the nodes but only their `host:port` key-pair, hence `http`
 is used by default. In case `https` should be used instead, the
 `ElasticsearchHostsSniffer` object has to be manually created and provided
 as follows:
@@ -67,7 +74,7 @@ cluster, the ones that have responsed until then.
 Also, a custom `HostsSniffer` implementation can be provided for advanced
 use-cases that may require fetching the hosts from external sources.
 
-The `Sniffer` updates the nodes by default every 5 minutes. Said interval can
+The `Sniffer` updates the nodes by default every 5 minutes. This interval can
 be customized by providing it (in milliseconds) as follows:
 
 [source,java]
@@ -77,7 +84,7 @@ Sniffer sniffer = Sniffer.builder(restClient)
 --------------------------------------------------
 
 It is also possible to enable sniffing on failure, meaning that after each
-failure the nodes get updated straightaway rather than at the following
+failure the nodes list gets updated straightaway rather than at the following
 ordinary sniffing round. In this case a `SniffOnFailureListener` needs to
 be created at first and provided at `RestClient` creation. Also once the
 `Sniffer` is later created, it needs to be associated with that same

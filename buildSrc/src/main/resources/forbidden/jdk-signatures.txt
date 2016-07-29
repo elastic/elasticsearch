@@ -86,6 +86,12 @@ java.lang.reflect.AccessibleObject#setAccessible(java.lang.reflect.AccessibleObj
 @defaultMessage this method needs special permission
 java.lang.Thread#getAllStackTraces()
 
+@defaultMessage Stopping threads explicitly leads to inconsistent states. Use interrupt() instead.
+java.lang.Thread#stop()
+java.lang.Thread#stop(java.lang.Throwable)
+
+java.lang.Thread#interrupted() @ Checks and also clears the interrupted flag as a side effect. Please ensure that you want this instead of Thread#isInterrupted().
+
 @defaultMessage Please do not terminate the application
 java.lang.System#exit(int)
 java.lang.Runtime#exit(int)

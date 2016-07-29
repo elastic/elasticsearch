@@ -1,0 +1,113 @@
+== Common configuration
+
+The `RestClientBuilder` supports providing both a `RequestConfigCallback` and
+an `HttpClientConfigCallback` which allow for any customization that the Apache
+Async Http Client exposes. Those callbacks make it possible to modify some
+specific behaviour of the client without overriding every other default
+configuration that the `RestClient` is initialized with. This section
+describes some common scenarios that require additional configuration for the
+low-level Java REST Client.
+
+=== Timeouts
+
+Configuring requests timeouts can be done by providing an instance of
+`RequestConfigCallback` while building the `RestClient` through its builder.
+The interface has one method that receives an instance of
+https://hc.apache.org/httpcomponents-client-ga/httpclient/apidocs/org/apache/http/client/config/RequestConfig.Builder.html[`org.apache.http.client.config.RequestConfig.Builder`]
+ as an argument and has the same return type. The request config builder can
+be modified and then returned. In the following example we increase the
+connect timeout (defaults to 1 second) and the socket timeout (defaults to 10
+seconds). Also we adjust the max retry timeout accordingly (defaults to 10
+seconds too).
+
+[source,java]
+--------------------------------------------------
+RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
+        .setRequestConfigCallback(new RestClientBuilder.RequestConfigCallback() {
+            @Override
+            public RequestConfig.Builder customizeRequestConfig(RequestConfig.Builder requestConfigBuilder) {
+                return requestConfigBuilder.setConnectTimeout(5000)
+                        .setSocketTimeout(30000);
+            }
+        })
+        .setMaxRetryTimeoutMillis(30000)
+        .build();
+--------------------------------------------------
+
+=== Number of threads
+
+The Apache Http Async Client starts by default one dispatcher thread, and a
+number of worker threads used by the connection manager, as many as the number
+of locally detected processors (depending on what
+`Runtime.getRuntime().availableProcessors()` returns). The number of threads
+can be modified as follows:
+
+[source,java]
+--------------------------------------------------
+RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
+        .setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
+            @Override
+            public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+                return httpClientBuilder.setDefaultIOReactorConfig(
+                        IOReactorConfig.custom().setIoThreadCount(1).build());
+            }
+        })
+        .build();
+--------------------------------------------------
+
+=== Basic authentication
+
+Configuring basic authentication can be done by providing an
+`HttpClientConfigCallback` while building the `RestClient` through its builder.
+The interface has one method that receives an instance of
+https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
+ as an argument and has the same return type. The http client builder can be
+modified and then returned. In the following example we set a default
+credentials provider that requires basic authentication.
+
+[source,java]
+--------------------------------------------------
+final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+credentialsProvider.setCredentials(AuthScope.ANY,
+        new UsernamePasswordCredentials("user", "password"));
+
+RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
+        .setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
+            @Override
+            public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+                return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
+            }
+        })
+        .build();
+--------------------------------------------------
+
+=== Encrypted communication
+
+Encrypted communication can also be configured through the
+`HttpClientConfigCallback`. The
+https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
+ received as an argument exposes multiple methods to configure encrypted
+ communication: `setSSLContext`, `setSSLSessionStrategy` and
+ `setConnectionManager`, in order of precedence from the least important.
+ The following is an example:
+
+[source,java]
+--------------------------------------------------
+KeyStore keyStore = KeyStore.getInstance("jks");
+try (InputStream is = Files.newInputStream(keyStorePath)) {
+    keyStore.load(is, keyStorePass.toCharArray());
+}
+RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
+        .setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
+            @Override
+            public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+                return httpClientBuilder.setSSLContext(sslcontext);
+            }
+        })
+        .build();
+--------------------------------------------------
+
+=== Others
+
+For any other required configuration needed, the Apache HttpAsyncClient docs
+should be consulted: https://hc.apache.org/httpcomponents-asyncclient-4.1.x/ .

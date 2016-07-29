@@ -1,0 +1,12 @@
+[[java-rest]]
+= Java REST Client
+
+:version: 5.0.0-alpha4
+
+include::overview.asciidoc[]
+
+include::usage.asciidoc[]
+
+include::configuration.asciidoc[]
+
+include::sniffer.asciidoc[]

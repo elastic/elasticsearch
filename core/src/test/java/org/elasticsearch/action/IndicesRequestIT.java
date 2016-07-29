@@ -264,7 +264,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id")
                 .script(new Script("ctx.op='delete'", ScriptService.ScriptType.INLINE, CustomScriptPlugin.NAME, Collections.emptyMap()));
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
-        assertThat(updateResponse.getOperation(), equalTo(DocWriteResponse.Operation.INDEX));
+        assertThat(updateResponse.getOperation(), equalTo(DocWriteResponse.Operation.DELETE));
 
         clearInterceptedActions();
         assertSameIndices(updateRequest, updateShardActions);

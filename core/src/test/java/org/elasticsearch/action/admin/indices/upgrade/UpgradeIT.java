@@ -43,6 +43,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.test.OldIndexBackwardsCompatibilityUtils.assertNotUpgraded;
+import static org.elasticsearch.test.OldIndexBackwardsCompatibilityUtils.getUpgradeStatus;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
@@ -152,29 +154,7 @@ public class UpgradeIT extends ESBackcompatTestCase {
         assertUpgraded(client());
     }
 
-    public static void assertNotUpgraded(Client client, String... index) throws Exception {
-        for (IndexUpgradeStatus status : getUpgradeStatus(client, index)) {
-            assertTrue("index " + status.getIndex() + " should not be zero sized", status.getTotalBytes() != 0);
-            // TODO: it would be better for this to be strictly greater, but sometimes an extra flush
-            // mysteriously happens after the second round of docs are indexed
-            assertTrue("index " + status.getIndex() + " should have recovered some segments from transaction log",
-                       status.getTotalBytes() >= status.getToUpgradeBytes());
-            assertTrue("index " + status.getIndex() + " should need upgrading", status.getToUpgradeBytes() != 0);
-        }
-    }
 
-    public static void assertNoAncientSegments(Client client, String... index) throws Exception {
-        for (IndexUpgradeStatus status : getUpgradeStatus(client, index)) {
-            assertTrue("index " + status.getIndex() + " should not be zero sized", status.getTotalBytes() != 0);
-            // TODO: it would be better for this to be strictly greater, but sometimes an extra flush
-            // mysteriously happens after the second round of docs are indexed
-            assertTrue("index " + status.getIndex() + " should not have any ancient segments",
-                       status.getToUpgradeBytesAncient() == 0);
-            assertTrue("index " + status.getIndex() + " should have recovered some segments from transaction log",
-                       status.getTotalBytes() >= status.getToUpgradeBytes());
-            assertTrue("index " + status.getIndex() + " should need upgrading", status.getToUpgradeBytes() != 0);
-        }
-    }
 
     /** Returns true if there are any ancient segments. */
     public static boolean hasAncientSegments(Client client, String index) throws Exception {
@@ -249,10 +229,5 @@ public class UpgradeIT extends ESBackcompatTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    static Collection<IndexUpgradeStatus> getUpgradeStatus(Client client, String... indices) throws Exception {
-        UpgradeStatusResponse upgradeStatusResponse = client.admin().indices().prepareUpgradeStatus(indices).get();
-        assertNoFailures(upgradeStatusResponse);
-        return upgradeStatusResponse.getIndices().values();
-    }
+
 }

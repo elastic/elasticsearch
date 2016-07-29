@@ -39,6 +39,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.shard.ShardStateMetaData;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.OldIndexBackwardsCompatibilityUtils;
 
 import java.io.BufferedWriter;
 import java.io.FileNotFoundException;
@@ -215,7 +216,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
             assertTrue("[" + path + "] missing index dir: " + src.toString(), Files.exists(src));
             final Path indicesPath = randomFrom(nodeEnvironment.nodePaths()).indicesPath;
             logger.info("--> injecting index [{}] into [{}]", indexName, indicesPath);
-            OldIndexBackwardsCompatibilityIT.copyIndex(logger, src, indexName, indicesPath);
+            OldIndexBackwardsCompatibilityUtils.copyIndex(logger, src, indexName, indicesPath);
             IndexFolderUpgrader.upgradeIndicesIfNeeded(Settings.EMPTY, nodeEnvironment);
 
             // ensure old index folder is deleted

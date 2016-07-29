@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.transport.actions.put;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -62,7 +63,8 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
         try {
             IndexResponse indexResponse = watcherService.putWatch(request.getId(), request.getSource(), request.masterNodeTimeout(),
                     request.isActive());
-            listener.onResponse(new PutWatchResponse(indexResponse.getId(), indexResponse.getVersion(), indexResponse.isCreated()));
+            boolean created = indexResponse.getOperation() == DocWriteResponse.Operation.CREATE;
+            listener.onResponse(new PutWatchResponse(indexResponse.getId(), indexResponse.getVersion(), created));
         } catch (Exception e) {
             listener.onFailure(e);
         }

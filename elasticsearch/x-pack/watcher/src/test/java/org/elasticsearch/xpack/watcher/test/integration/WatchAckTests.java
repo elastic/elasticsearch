@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -58,7 +59,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         IndexResponse eventIndexResponse = client().prepareIndex("events", "event")
                 .setSource("level", "error")
                 .get();
-        assertThat(eventIndexResponse.isCreated(), is(true));
+        assertEquals(DocWriteResponse.Operation.CREATE, eventIndexResponse.getOperation());
         refresh();
         return eventIndexResponse;
     }
@@ -114,7 +115,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
 
         // Now delete the event and the ack states should change to AWAITS_EXECUTION
         DeleteResponse response = client().prepareDelete("events", "event", eventIndexResponse.getId()).get();
-        assertThat(response.isFound(), is(true));
+        assertEquals(DocWriteResponse.Operation.DELETE, response.getOperation());
         refresh();
 
         if (timeWarped()) {
@@ -196,7 +197,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
 
         // Now delete the event and the ack states should change to AWAITS_EXECUTION
         DeleteResponse response = client().prepareDelete("events", "event", eventIndexResponse.getId()).get();
-        assertThat(response.isFound(), is(true));
+        assertEquals(DocWriteResponse.Operation.DELETE, response.getOperation());
         refresh();
 
         if (timeWarped()) {

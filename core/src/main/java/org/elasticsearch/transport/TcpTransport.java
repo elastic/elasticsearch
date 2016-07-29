@@ -93,7 +93,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -470,11 +469,13 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     }
 
     protected Channel nodeChannel(DiscoveryNode node, TransportRequestOptions options) throws ConnectTransportException {
-        NodeChannels nodeChannels = connectedNodes.get(node);
-        if (nodeChannels == null) {
-            throw new NodeNotConnectedException(node, "Node not connected");
+        try (Releasable ignored = connectionLock.acquire(node.getId())) {
+            NodeChannels nodeChannels = connectedNodes.get(node);
+            if (nodeChannels == null) {
+                throw new NodeNotConnectedException(node, "Node not connected");
+            }
+            return nodeChannels.channel(options.type());
         }
-        return nodeChannels.channel(options.type());
     }
 
     @Override
@@ -768,18 +769,18 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         threadPool.generic().execute(() -> {
             globalLock.writeLock().lock();
             try {
-                for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext(); ) {
-                    NodeChannels nodeChannels = it.next();
-                    it.remove();
-                    IOUtils.closeWhileHandlingException(nodeChannels);
-                }
-
                 for (Map.Entry<String, List<Channel>> entry : serverChannels.entrySet()) {
                     try {
                         closeChannels(entry.getValue());
                     } catch (Exception e) {
                         logger.debug("Error closing serverChannel for profile [{}]", e, entry.getKey());
                     }
+                }
+
+                for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext(); ) {
+                    NodeChannels nodeChannels = it.next();
+                    it.remove();
+                    IOUtils.closeWhileHandlingException(nodeChannels);
                 }
                 try {
                     stopInternal();
@@ -800,7 +801,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         try {
             latch.await(30, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
-            Thread.interrupted();
+            Thread.currentThread().interrupt();
             // ignore
         }
     }
@@ -885,7 +886,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     @Override
     public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request,
                             TransportRequestOptions options) throws IOException, TransportException {
-        Channel targetChannel = nodeChannel(node, options);
         if (compress) {
             options = TransportRequestOptions.builder(options).withCompress(true).build();
         }
@@ -919,6 +919,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions);
                 }
             };
+            Channel targetChannel = nodeChannel(node, options);
             addedReleaseListener = internalSendMessage(targetChannel, message, onRequestSent);
         } finally {
             IOUtils.close(stream);

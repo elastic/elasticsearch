@@ -330,7 +330,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
             builders.add(client().prepareIndex("test", "child", childId).setSource("c_field", childId).setParent(previousParentId));
 
             if (!parentToChildren.containsKey(previousParentId)) {
-                parentToChildren.put(previousParentId, new HashSet<String>());
+                parentToChildren.put(previousParentId, new HashSet<>());
             }
             assertThat(parentToChildren.get(previousParentId).add(childId), is(true));
         }
@@ -1896,7 +1896,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "parent-id");
     }
 
-    public void testHighlighersIgnoreParentChild() {
+    public void testHighlightersIgnoreParentChild() {
         assertAcked(prepareCreate("test")
                 .addMapping("parent-type", "searchText", "type=text,term_vector=with_positions_offsets,index_options=offsets")
                 .addMapping("child-type", "_parent", "type=parent-type", "searchText",

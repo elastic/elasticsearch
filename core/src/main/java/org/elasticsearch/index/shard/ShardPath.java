@@ -187,7 +187,7 @@ public final class ShardPath {
             // TODO - do we need something more extensible? Yet, this does the job for now...
             final NodeEnvironment.NodePath[] paths = env.nodePaths();
             NodeEnvironment.NodePath bestPath = null;
-            BigInteger maxUsableBytes = BigInteger.valueOf(-1);
+            BigInteger maxUsableBytes = BigInteger.valueOf(Long.MIN_VALUE);
             for (NodeEnvironment.NodePath nodePath : paths) {
                 FileStore fileStore = nodePath.fileStore;
 
@@ -199,7 +199,7 @@ public final class ShardPath {
                 if (count != null) {
                     usableBytes = usableBytes.subtract(estShardSizeInBytes.multiply(BigInteger.valueOf(count)));
                 }
-                if (usableBytes.compareTo(maxUsableBytes) > 0) {
+                if (bestPath == null || usableBytes.compareTo(maxUsableBytes) > 0) {
                     maxUsableBytes = usableBytes;
                     bestPath = nodePath;
                 }

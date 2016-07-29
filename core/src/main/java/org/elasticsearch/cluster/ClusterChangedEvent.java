@@ -206,7 +206,7 @@ public class ClusterChangedEvent {
      * UUID from the previous cluster), which will happen when a master node is
      * elected that has never been part of the cluster before.
      */
-    private boolean isNewCluster() {
+    public boolean isNewCluster() {
         final String prevClusterUUID = previousState.metaData().clusterUUID();
         final String currClusterUUID = state.metaData().clusterUUID();
         return prevClusterUUID.equals(currClusterUUID) == false;

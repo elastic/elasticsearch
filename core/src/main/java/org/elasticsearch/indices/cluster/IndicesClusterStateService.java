@@ -177,7 +177,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         deleteIndices(event); // also deletes shards of deleted indices
 
-        removeUnallocatedIndices(state); // also removes shards of removed indices
+        removeUnallocatedIndices(event); // also removes shards of removed indices
 
         failMissingShards(state);
 
@@ -292,9 +292,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      * Removes indices that have no shards allocated to this node. This does not delete the shard data as we wait for enough
      * shard copies to exist in the cluster before deleting shard data (triggered by {@link org.elasticsearch.indices.store.IndicesStore}).
      *
-     * @param state new cluster state
+     * @param event the cluster changed event
      */
-    private void removeUnallocatedIndices(final ClusterState state) {
+    private void removeUnallocatedIndices(final ClusterChangedEvent event) {
+        final ClusterState state = event.state();
         final String localNodeId = state.nodes().getLocalNodeId();
         assert localNodeId != null;
 
@@ -309,6 +310,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         for (AllocatedIndex<? extends Shard> indexService : indicesService) {
             Index index = indexService.index();
             if (indicesWithShards.contains(index) == false) {
+                assert state.metaData().index(index) != null || event.isNewCluster() :
+                    "if the index does not exist in the cluster state, it should either " +
+                    "have been deleted or the cluster must be new";
                 logger.debug("{} removing index, no shards allocated", index);
                 indicesService.removeIndex(index, "removing index (no shards allocated)");
             }

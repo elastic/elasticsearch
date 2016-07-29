@@ -43,6 +43,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.recovery.RecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -113,7 +114,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         CreateIndexRequest request = new CreateIndexRequest(name, Settings.builder()
                                                                       .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
                                                                       .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                                                                      .build()).waitForActiveShards(ActiveShardCount.ALL);
+                                                                      .build());
         ClusterState state = cluster.createIndex(previousState, request);
         assertTrue(state.metaData().hasIndex(name));
 
@@ -136,9 +137,13 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             indicesClusterStateService.clusterChanged(
                 new ClusterChangedEvent("simulated change 2", localState, previousLocalState));
 
-            // check that in memory data structures have been removed with the new cluster
+            // check that in memory data structures have been removed with the new cluster,
+            // but the persistent data is still there
+            RecordingIndicesService indicesService = (RecordingIndicesService) indicesClusterStateService.indicesService;
             for (ObjectCursor<IndexMetaData> indexMetaData : state.metaData().getIndices().values()) {
-                assertNull(indicesClusterStateService.indicesService.indexService(indexMetaData.value.getIndex()));
+                Index index = indexMetaData.value.getIndex();
+                assertNull(indicesClusterStateService.indicesService.indexService(index));
+                assertFalse(indicesService.isDeleted(index));
             }
         }
     }
@@ -313,7 +318,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final ThreadPool threadPool = mock(ThreadPool.class);
         final Executor executor = mock(Executor.class);
         when(threadPool.generic()).thenReturn(executor);
-        final MockIndicesService indicesService = new MockIndicesService();
+        final MockIndicesService indicesService = new RecordingIndicesService();
         final TransportService transportService = new TransportService(Settings.EMPTY, null, threadPool);
         final ClusterService clusterService = mock(ClusterService.class);
         final RepositoriesService repositoriesService = new RepositoriesService(Settings.EMPTY, clusterService,
@@ -323,6 +328,22 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final ShardStateAction shardStateAction = mock(ShardStateAction.class);
         return new IndicesClusterStateService(Settings.EMPTY, indicesService, clusterService,
             threadPool, recoveryTargetService, shardStateAction, null, repositoriesService, null, null, null, null, null);
+    }
+
+    private class RecordingIndicesService extends MockIndicesService {
+        private Set<Index> deletedIndices = Collections.emptySet();
+
+        @Override
+        public synchronized void deleteIndex(Index index, String reason) {
+            super.deleteIndex(index, reason);
+            Set<Index> newSet = Sets.newHashSet(deletedIndices);
+            newSet.add(index);
+            deletedIndices = Collections.unmodifiableSet(newSet);
+        }
+
+        public synchronized boolean isDeleted(Index index) {
+            return deletedIndices.contains(index);
+        }
     }
 
 }

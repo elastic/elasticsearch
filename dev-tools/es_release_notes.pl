@@ -28,13 +28,13 @@ my $User_Repo  = 'elastic/elasticsearch/';
 my $Issue_URL  = "http://github.com/${User_Repo}issues/";
 
 my @Groups = (
-    "breaking", "breaking java", "deprecation", "feature",
+    "breaking", "breaking-java", "deprecation", "feature",
     "enhancement", "bug", "regression", "upgrade", "non-issue", "build",
-    "docs", "test"
+    "docs",        "test"
 );
 my %Group_Labels = (
     breaking        => 'Breaking changes',
-    'breaking java' => 'Breaking Java changes',
+    'breaking-java' => 'Breaking Java changes',
     build           => 'Build',
     deprecation     => 'Deprecations',
     docs            => 'Docs',

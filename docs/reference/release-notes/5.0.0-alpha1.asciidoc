@@ -13,19 +13,12 @@ IMPORTANT: This is an alpha release and is intended for _testing purposes only_.
 [float]
 === Breaking changes
 
-Aggregations::
-* getKeyAsString and key_as_string should be the same for terms aggregation on boolean field {pull}15393[#15393]
-
 Aliases::
 * make get alias expand to open and closed indices by default {pull}15954[#15954] (issue: {issue}14982[#14982])
 * Remove deprecated indices.get_aliases {pull}13906[#13906]
 
 Allocation::
-* Simplify shard balancer interface {pull}17028[#17028] (issue: {issue}8954[#8954])
 * Remove DisableAllocationDecider {pull}13313[#13313]
-
-Analysis::
-* Simplify Analysis registration and configuration {pull}14355[#14355]
 
 CAT API::
 * Add raw recovery progress to cat recovery API {pull}17064[#17064] (issue: {issue}17022[#17022])
@@ -36,9 +29,7 @@ CRUD::
 * Remove object notation for core types. {pull}15684[#15684] (issue: {issue}15388[#15388])
 
 Cache::
-* Refactor IndicesRequestCache to make it testable. {pull}16610[#16610]
 * Remove deprecated query cache settings {pull}15592[#15592]
-* Fold IndexCacheModule into IndexModule {pull}14293[#14293]
 
 Cluster::
 * Remove memory section {pull}17278[#17278] (issues: {issue}12049[#12049], {issue}16756[#16756])
@@ -47,11 +38,7 @@ Core::
 * Bootstrap does not set system properties {pull}17088[#17088] (issues: {issue}16579[#16579], {issue}16791[#16791])
 * Add max number of processes check {pull}16919[#16919]
 * Add mlockall bootstrap check {pull}16909[#16909]
-* Remove es.useLinkedTransferQueue {pull}16786[#16786]
 * One log {pull}16703[#16703] (issue: {issue}16585[#16585])
-
-Discovery::
-* Include pings from client nodes in master election {pull}17329[#17329] (issue: {issue}17325[#17325])
 
 Engine::
 * Remove `index.compound_on_flush` setting and default to `true` {pull}15594[#15594] (issue: {issue}10778[#10778])
@@ -64,56 +51,28 @@ Index APIs::
 * Remove /_optimize REST API endpoint {pull}14226[#14226] (issue: {issue}13778[#13778])
 
 Internal::
-* Remove duplicate getters from DiscoveryNode and DiscoveryNodes {pull}17410[#17410] (issue: {issue}16963[#16963])
-* Cli: Switch to jopt-simple {pull}17024[#17024] (issue: {issue}11564[#11564])
-* Replace ContextAndHeaders with a ThreadPool based ThreadLocal implementation {pull}15776[#15776]
-* Remove NodeBuilder {pull}15354[#15354]
-* Fix IndexSearcherWrapper interface to not depend on the EngineConfig {pull}14654[#14654]
-* Cleanup query parsing and remove IndexQueryParserService {pull}14452[#14452]
-* Remove circular dependency between IndicesService and IndicesStore {pull}14285[#14285]
-* Remove guice injection from IndexStore and friends {pull}14279[#14279]
-* Replace IndicesLifecycle with a per-index IndexEventListener {pull}14217[#14217] (issue: {issue}13259[#13259])
-* Simplify similarity module and friends {pull}13942[#13942]
-* Refactor SearchRequest to be parsed on the coordinating node {pull}13859[#13859]
 * Remove support for pre 2.0 indices {pull}13799[#13799]
-
-Java API::
-* Remove the count api {pull}14166[#14166] (issue: {issue}13928[#13928])
-* IdsQueryBuilder to accept only non null ids and types {pull}13937[#13937]
 
 Mapping::
 * Change the field mapping index time boost into a query time boost. {pull}16900[#16900]
 * Deprecate string in favor of text/keyword. {pull}16877[#16877]
 * Term vector APIs should no longer update mappings {pull}16285[#16285]
-* [Mapping] Several MappingService cleanups {pull}16133[#16133] (issue: {issue}15924[#15924])
 * Remove the `format` option of the `_source` field. {pull}15398[#15398]
 * Remove transform {pull}13657[#13657] (issue: {issue}12674[#12674])
 
-Network::
-* Remove ability to disable Netty gathering writes {pull}16774[#16774] (issue: {issue}7811[#7811])
-
 Parent/Child::
 * Removed `total` score mode in favour for `sum` score mode. {pull}17174[#17174] (issues: {issue}13470[#13470], {issue}17083[#17083])
-* Cleanup ParentFieldMapper {pull}16045[#16045]
-* Several other parent/child cleanups {pull}13470[#13470]
 * Removed pre 2.x parent child implementation {pull}13376[#13376]
 
 Percolator::
 * Change the percolate api to not dynamically add fields to mapping {pull}16077[#16077] (issue: {issue}15751[#15751])
 
 Plugins::
-* Enforce isolated mode for all plugins {pull}17276[#17276]
 * Rename bin/plugin in bin/elasticsearch-plugin {pull}16454[#16454]
-* Change the inner structure of the plugins zip {pull}16453[#16453]
 * Remove multicast plugin {pull}16326[#16326] (issue: {issue}16310[#16310])
 * Plugins: Remove site plugins {pull}16038[#16038]
-* Don't use guice for QueryParsers {pull}15761[#15761]
-* Remove guice from the index level {pull}14518[#14518]
-* Remove shard-level injector {pull}13881[#13881]
 
 Query DSL::
-* Remove the MissingQueryBuilder which was deprecated in 2.2.0. {pull}15364[#15364] (issue: {issue}14112[#14112])
-* Remove NotQueryBuilder {pull}14204[#14204] (issue: {issue}13761[#13761])
 * Function score query: remove deprecated support for boost_factor {pull}13510[#13510]
 * Remove support for deprecated queries. {pull}13418[#13418] (issue: {issue}13326[#13326])
 
@@ -124,14 +83,9 @@ Search::
 * Remove deprecated reverse option from sorting {pull}17282[#17282] (issue: {issue}17047[#17047])
 * Remove some deprecations {pull}14331[#14331]
 * Remove search exists api {pull}13911[#13911] (issues: {issue}13682[#13682], {issue}13910[#13910])
-* Query refactoring: split parse phase into fromXContent and toQuery for all queries {pull}13788[#13788] (issue: {issue}10217[#10217])
 * Remove the scan and count search types. {pull}13310[#13310]
 
 Search Refactoring::
-* Refactored inner hits parsing and intoduced InnerHitBuilder {pull}17291[#17291]
-* Remove deprecated parameter from field sort builder. {pull}16573[#16573] (issue: {issue}16127[#16127])
-* Remove support for query_binary and filter_binary {pull}14433[#14433] (issue: {issue}14308[#14308])
-* Validate query api: move query parsing to the coordinating node {pull}14384[#14384]
 * Remove "query" query and fix related parsing bugs {pull}14304[#14304] (issue: {issue}13326[#13326])
 
 Settings::
@@ -141,14 +95,12 @@ Settings::
 * Remove support for node.client setting {pull}16963[#16963] (issue: {issue}16565[#16565])
 * Remove es.max-open-files flag {pull}16757[#16757] (issues: {issue}16506[#16506], {issue}483[#483])
 * Enforce node level limits if node is started in production env {pull}16733[#16733] (issue: {issue}16727[#16727])
-* Move remaining settings in NettyHttpServerTransport to the new infra {pull}16531[#16531]
 * Make settings validation strict {pull}16365[#16365]
 * Remove the ability to fsync on every operation and only schedule fsync task if really needed {pull}16257[#16257] (issue: {issue}16152[#16152])
 * Script settings {pull}16197[#16197]
 * Remove index.flush_on_close entirely {pull}15977[#15977]
 * Restore chunksize of 512kb on recovery and remove configurability {pull}15235[#15235] (issue: {issue}15161[#15161])
 * Remove ancient deprecated and alternative recovery settings {pull}15234[#15234]
-* Replace IndexSettings annotation with a full-fledged class {pull}14251[#14251]
 * Fix ping timeout settings inconsistencies {pull}13701[#13701] (issue: {issue}6579[#6579])
 
 Similarities::
@@ -162,13 +114,6 @@ Stats::
 * Reintroduce five-minute and fifteen-minute load averages on Linux {pull}15907[#15907] (issues: {issue}12049[#12049], {issue}14741[#14741])
 * Add system CPU percent to OS stats {pull}14741[#14741]
 
-Store::
-* Standardize state format type for global and index level metadata {pull}17123[#17123]
-
-Suggesters::
-* Remove suggest threadpool {pull}17304[#17304] (issue: {issue}17198[#17198])
-* Remove suggest transport action {pull}17198[#17198] (issue: {issue}10217[#10217])
-
 Term Vectors::
 * Remove DFS support from TermVector API {pull}16452[#16452]
 
@@ -179,7 +124,86 @@ Translog::
 Warmers::
 * Remove query warmers and the warmer API. {pull}15614[#15614] (issue: {issue}15607[#15607])
 
+[[breaking-java-5.0.0-alpha1]]
+[float]
+=== Breaking Java changes
 
+Aggregations::
+* getKeyAsString and key_as_string should be the same for terms aggregation on boolean field {pull}15393[#15393]
+
+Allocation::
+* Simplify shard balancer interface {pull}17028[#17028] (issue: {issue}8954[#8954])
+
+Analysis::
+* Simplify Analysis registration and configuration {pull}14355[#14355]
+
+Cache::
+* Refactor IndicesRequestCache to make it testable. {pull}16610[#16610]
+* Fold IndexCacheModule into IndexModule {pull}14293[#14293]
+
+Core::
+* Remove es.useLinkedTransferQueue {pull}16786[#16786]
+
+Discovery::
+* Include pings from client nodes in master election {pull}17329[#17329] (issue: {issue}17325[#17325])
+
+Internal::
+* Remove duplicate getters from DiscoveryNode and DiscoveryNodes {pull}17410[#17410] (issue: {issue}16963[#16963])
+* Cli: Switch to jopt-simple {pull}17024[#17024] (issue: {issue}11564[#11564])
+* Replace ContextAndHeaders with a ThreadPool based ThreadLocal implementation {pull}15776[#15776]
+* Remove NodeBuilder {pull}15354[#15354]
+* Fix IndexSearcherWrapper interface to not depend on the EngineConfig {pull}14654[#14654]
+* Cleanup query parsing and remove IndexQueryParserService {pull}14452[#14452]
+* Remove circular dependency between IndicesService and IndicesStore {pull}14285[#14285]
+* Remove guice injection from IndexStore and friends {pull}14279[#14279]
+* Replace IndicesLifecycle with a per-index IndexEventListener {pull}14217[#14217] (issue: {issue}13259[#13259])
+* Simplify similarity module and friends {pull}13942[#13942]
+* Refactor SearchRequest to be parsed on the coordinating node {pull}13859[#13859]
+
+Java API::
+* Remove the count api {pull}14166[#14166] (issue: {issue}13928[#13928])
+* IdsQueryBuilder to accept only non null ids and types {pull}13937[#13937]
+
+Mapping::
+* [Mapping] Several MappingService cleanups {pull}16133[#16133] (issue: {issue}15924[#15924])
+
+Network::
+* Remove ability to disable Netty gathering writes {pull}16774[#16774] (issue: {issue}7811[#7811])
+
+Parent/Child::
+* Cleanup ParentFieldMapper {pull}16045[#16045]
+* Several other parent/child cleanups {pull}13470[#13470]
+
+Plugins::
+* Enforce isolated mode for all plugins {pull}17276[#17276]
+* Change the inner structure of the plugins zip {pull}16453[#16453]
+* Don't use guice for QueryParsers {pull}15761[#15761]
+* Remove guice from the index level {pull}14518[#14518]
+* Remove shard-level injector {pull}13881[#13881]
+
+Query DSL::
+* Remove the MissingQueryBuilder which was deprecated in 2.2.0. {pull}15364[#15364] (issue: {issue}14112[#14112])
+* Remove NotQueryBuilder {pull}14204[#14204] (issue: {issue}13761[#13761])
+
+Search::
+* Query refactoring: split parse phase into fromXContent and toQuery for all queries {pull}13788[#13788] (issue: {issue}10217[#10217])
+
+Search Refactoring::
+* Refactored inner hits parsing and intoduced InnerHitBuilder {pull}17291[#17291]
+* Remove deprecated parameter from field sort builder. {pull}16573[#16573] (issue: {issue}16127[#16127])
+* Remove support for query_binary and filter_binary {pull}14433[#14433] (issue: {issue}14308[#14308])
+* Validate query api: move query parsing to the coordinating node {pull}14384[#14384]
+
+Settings::
+* Move remaining settings in NettyHttpServerTransport to the new infra {pull}16531[#16531]
+* Replace IndexSettings annotation with a full-fledged class {pull}14251[#14251]
+
+Store::
+* Standardize state format type for global and index level metadata {pull}17123[#17123]
+
+Suggesters::
+* Remove suggest threadpool {pull}17304[#17304] (issue: {issue}17198[#17198])
+* Remove suggest transport action {pull}17198[#17198] (issue: {issue}10217[#10217])
 
 [[deprecation-5.0.0-alpha1]]
 [float]

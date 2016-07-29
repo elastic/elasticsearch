@@ -16,39 +16,18 @@ CRUD::
 * Wait for changes to be visible by search {pull}17986[#17986] (issue: {issue}1063[#1063])
 
 Core::
-* Register thread pool settings {pull}18674[#18674] (issues: {issue}18613[#18613], {issue}9216[#9216])
 * Remove cluster name from data path {pull}18554[#18554] (issue: {issue}17810[#17810])
-
-Highlighting::
-* Register Highlighter instances instead of classes {pull}18859[#18859]
 
 Inner Hits::
 * Also do not serialize `_index` key in search response for parent/child inner hits {pull}19011[#19011]
 * Don't include `_id`, `_type` and `_index` keys in search response for inner hits {pull}18995[#18995] (issue: {issue}18091[#18091])
 * Nested inner hits shouldn't use relative paths {pull}18567[#18567] (issue: {issue}16653[#16653])
 
-Internal::
-* Cleanup ClusterService dependencies and detached from Guice {pull}18941[#18941]
-* Simplify SubFetchPhase interface {pull}18881[#18881]
-* Simplify FetchSubPhase registration and detach it from Guice {pull}18862[#18862]
-
-Java API::
-* Remove setRefresh {pull}18752[#18752] (issue: {issue}1063[#1063])
-
 Mapping::
 * Remove `_timestamp` and `_ttl` on 5.x indices. {pull}18980[#18980] (issue: {issue}18280[#18280])
 
 Packaging::
 * Remove allow running as root {pull}18694[#18694] (issue: {issue}18688[#18688])
-
-Plugins::
-* Fail to start if plugin tries broken onModule {pull}19025[#19025]
-* Simplify ScriptModule and script registration {pull}18903[#18903]
-* Cut over settings registration to a pull model {pull}18890[#18890]
-* Plugins cleanup {pull}18594[#18594] (issue: {issue}18588[#18588])
-
-Scripting::
-* Move search template to lang-mustache module {pull}18765[#18765] (issue: {issue}17906[#17906])
 
 Search::
 * Remove only node preference {pull}18875[#18875] (issue: {issue}18822[#18822])
@@ -59,6 +38,35 @@ Settings::
 
 Snapshot/Restore::
 * Change the default of `include_global_state` from true to false for snapshot restores {pull}18773[#18773] (issue: {issue}18569[#18569])
+
+
+
+[[breaking java-5.0.0-alpha4]]
+[float]
+=== Breaking Java changes
+
+Core::
+* Register thread pool settings {pull}18674[#18674] (issues: {issue}18613[#18613], {issue}9216[#9216])
+
+Highlighting::
+* Register Highlighter instances instead of classes {pull}18859[#18859]
+
+Internal::
+* Cleanup ClusterService dependencies and detached from Guice {pull}18941[#18941]
+* Simplify SubFetchPhase interface {pull}18881[#18881]
+* Simplify FetchSubPhase registration and detach it from Guice {pull}18862[#18862]
+
+Java API::
+* Remove setRefresh {pull}18752[#18752] (issue: {issue}1063[#1063])
+
+Plugins::
+* Fail to start if plugin tries broken onModule {pull}19025[#19025]
+* Simplify ScriptModule and script registration {pull}18903[#18903]
+* Cut over settings registration to a pull model {pull}18890[#18890]
+* Plugins cleanup {pull}18594[#18594] (issue: {issue}18588[#18588])
+
+Scripting::
+* Move search template to lang-mustache module {pull}18765[#18765] (issue: {issue}17906[#17906])
 
 
 
@@ -73,11 +81,11 @@ Aggregations::
 Index APIs::
 * Add rollover API to switch index aliases given some predicates {pull}18732[#18732] (issue: {issue}18647[#18647])
 
+Java REST Client::
+* Low level Rest Client {pull}18735[#18735] (issue: {issue}7743[#7743])
+
 Mapping::
 * Expose half-floats. {pull}18887[#18887]
-
-REST::
-* Low level Rest Client {pull}18735[#18735] (issue: {issue}7743[#7743])
 
 Scroll::
 * Add the ability to partition a scroll in multiple slices. {pull}18237[#18237] (issue: {issue}13494[#13494])

@@ -1435,12 +1435,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
-                Store.MetadataSnapshot recoveryTargetMetadata = null;
+                Store.MetadataSnapshot recoveryTargetMetadata;
                 try {
                     recoveryTargetMetadata = targetShard.snapshotStore();
                 } catch (IndexNotFoundException e) {
                     // happens when restore to an empty shard, not a big deal
                     logger.trace("[{}] [{}] restoring from to an empty shard", shardId, snapshotId);
+                    recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
                 } catch (IOException e) {
                     logger.warn("{} Can't read metadata from store, will not reuse any local file while restoring", e, shardId);
                     recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;

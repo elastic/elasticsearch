@@ -21,6 +21,7 @@ package org.elasticsearch.discovery;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -490,7 +491,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                                 logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
                                 IndexResponse response =
                                         client.prepareIndex("test", "type", id).setSource("{}").setTimeout(timeout).get(timeout);
-                                assertTrue("doc [" + id + "] should have been created", response.isCreated());
+                                assertEquals(DocWriteResponse.Operation.CREATE, response.getOperation());
                                 ackedDocs.put(id, node);
                                 logger.trace("[{}] indexed id [{}] through node [{}]", name, id, node);
                             } catch (ElasticsearchException e) {

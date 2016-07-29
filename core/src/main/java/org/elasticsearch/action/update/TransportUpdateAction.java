@@ -179,7 +179,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         final IndexShard indexShard = indexService.getShard(shardId.getId());
         final UpdateHelper.Result result = updateHelper.prepare(request, indexShard);
         switch (result.operation()) {
-            case UPSERT:
+            case CREATE:
                 IndexRequest upsertRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
@@ -277,7 +277,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     }
                 });
                 break;
-            case NONE:
+            case NOOP:
                 UpdateResponse update = result.action();
                 IndexService indexServiceOrNull = indicesService.indexService(shardId.getIndex());
                 if (indexServiceOrNull !=  null) {

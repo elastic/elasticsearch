@@ -24,6 +24,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -107,7 +108,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             try {
                 IndexResponse indexResponse = client().prepareIndex("test", "type", "" + i).setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", English.intToEnglish(i)).get();
-                if (indexResponse.isCreated()) {
+                if (indexResponse.getOperation() == DocWriteResponse.Operation.CREATE) {
                     numCreated++;
                     added[i] = true;
                 }

@@ -76,6 +76,9 @@ public class ParentConstantScoreQuery extends IndexCacheableQuery {
 
     @Override
     public Weight doCreateWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+        if (searcher.getIndexReader().numDocs() == 0) {
+            return new BooleanQuery.Builder().build().createWeight(searcher, needsScores);
+        }
         IndexParentChildFieldData globalIfd = parentChildIndexFieldData.loadGlobal((DirectoryReader)searcher.getIndexReader());
 
         final long maxOrd;

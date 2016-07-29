@@ -17,13 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.action.quality;
+package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.rankeval.EvalQueryQuality;
 import org.elasticsearch.index.rankeval.PrecisionAtN.Rating;
-import org.elasticsearch.index.rankeval.RatedDocument;
-import org.elasticsearch.index.rankeval.ReciprocalRank;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.test.ESTestCase;
@@ -31,6 +28,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Vector;
+
+import static java.util.Collections.emptyList;
 
 public class ReciprocalRankTests extends ESTestCase {
 
@@ -84,6 +84,15 @@ public class ReciprocalRankTests extends ESTestCase {
 
         EvalQueryQuality evaluation = reciprocalRank.evaluate(hits, ratedDocs);
         assertEquals(1.0 / (relevantAt + 1), evaluation.getQualityLevel(), Double.MIN_VALUE);
+    }
+
+    public void testCombine() {
+        ReciprocalRank reciprocalRank = new ReciprocalRank();
+        Vector<EvalQueryQuality> partialResults = new Vector<>(3);
+        partialResults.add(new EvalQueryQuality(0.5, emptyList()));
+        partialResults.add(new EvalQueryQuality(1.0, emptyList()));
+        partialResults.add(new EvalQueryQuality(0.75, emptyList()));
+        assertEquals(0.75, reciprocalRank.combine(partialResults), Double.MIN_VALUE);
     }
 
     public void testEvaluationNoRelevantInResults() {

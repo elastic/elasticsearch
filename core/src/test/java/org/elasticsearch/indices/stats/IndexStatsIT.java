@@ -1037,8 +1037,8 @@ public class IndexStatsIT extends ESIntegTestCase {
             assertThat(stats.getTotal().queryCache.getCacheSize(), greaterThan(0L));
         });
 
-        assertThat(client().prepareDelete("index", "type", "1").get().getOperation(), equalTo(DocWriteResponse.Operation.DELETE));
-        assertThat(client().prepareDelete("index", "type", "2").get().getOperation(), equalTo(DocWriteResponse.Operation.DELETE));
+        assertEquals(DocWriteResponse.Operation.DELETE, client().prepareDelete("index", "type", "1").get().getOperation());
+        assertEquals(DocWriteResponse.Operation.DELETE, client().prepareDelete("index", "type", "2").get().getOperation());
         refresh();
         response = client().admin().indices().prepareStats("index").setQueryCache(true).get();
         assertCumulativeQueryCacheStats(response);

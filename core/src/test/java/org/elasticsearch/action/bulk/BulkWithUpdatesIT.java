@@ -207,11 +207,11 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                 .add(client().prepareIndex("test", "type", "2").setCreate(true).setSource("field", "1"))
                 .add(client().prepareIndex("test", "type", "1").setSource("field", "2")).get();
 
-        assertThat(bulkResponse.getItems()[0].getResponse().getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
+        assertEquals(DocWriteResponse.Operation.CREATE, bulkResponse.getItems()[0].getResponse().getOperation());
         assertThat(bulkResponse.getItems()[0].getResponse().getVersion(), equalTo(1L));
-        assertThat(bulkResponse.getItems()[1].getResponse().getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
+        assertEquals(DocWriteResponse.Operation.CREATE, bulkResponse.getItems()[1].getResponse().getOperation());
         assertThat(bulkResponse.getItems()[1].getResponse().getVersion(), equalTo(1L));
-        assertThat(bulkResponse.getItems()[2].getResponse().getOperation(), equalTo(DocWriteResponse.Operation.INDEX));
+        assertEquals(DocWriteResponse.Operation.INDEX, bulkResponse.getItems()[2].getResponse().getOperation());
         assertThat(bulkResponse.getItems()[2].getResponse().getVersion(), equalTo(2L));
 
         bulkResponse = client().prepareBulk()
@@ -232,11 +232,11 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                         .setSource("field", "2").setVersion(12).setVersionType(VersionType.EXTERNAL))
                 .get();
 
-        assertThat(bulkResponse.getItems()[0].getResponse().getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
+        assertEquals(DocWriteResponse.Operation.CREATE, bulkResponse.getItems()[0].getResponse().getOperation());
         assertThat(bulkResponse.getItems()[0].getResponse().getVersion(), equalTo(10L));
-        assertThat(bulkResponse.getItems()[1].getResponse().getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
+        assertEquals(DocWriteResponse.Operation.CREATE, bulkResponse.getItems()[1].getResponse().getOperation());
         assertThat(bulkResponse.getItems()[1].getResponse().getVersion(), equalTo(10L));
-        assertThat(bulkResponse.getItems()[2].getResponse().getOperation(), equalTo(DocWriteResponse.Operation.INDEX));
+        assertEquals(DocWriteResponse.Operation.INDEX, bulkResponse.getItems()[2].getResponse().getOperation());
         assertThat(bulkResponse.getItems()[2].getResponse().getVersion(), equalTo(12L));
 
         bulkResponse = client().prepareBulk()

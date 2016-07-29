@@ -106,14 +106,14 @@ public class SimpleTTLIT extends ESIntegTestCase {
         long now = System.currentTimeMillis();
         IndexResponse indexResponse = client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
                 .setTimestamp(String.valueOf(now)).setTTL(providedTTLValue).setRefreshPolicy(IMMEDIATE).get();
-        assertThat(indexResponse.getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
+        assertEquals(DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
         indexResponse = client().prepareIndex("test", "type1", "with_routing").setSource("field1", "value1")
                 .setTimestamp(String.valueOf(now)).setTTL(providedTTLValue).setRouting("routing").setRefreshPolicy(IMMEDIATE).get();
-        assertThat(indexResponse.getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
+        assertEquals(DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
         indexResponse = client().prepareIndex("test", "type1", "no_ttl").setSource("field1", "value1").get();
-        assertThat(indexResponse.getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
+        assertEquals(DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
         indexResponse = client().prepareIndex("test", "type2", "default_ttl").setSource("field1", "value1").get();
-        assertThat(indexResponse.getOperation(), equalTo(DocWriteResponse.Operation.CREATE));
+        assertEquals(DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
 
         // realtime get check
         long currentTime = System.currentTimeMillis();

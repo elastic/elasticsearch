@@ -519,28 +519,28 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         newShard.updateRoutingEntry(routing);
         DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
 
-        Store.MetadataSnapshot snapshot = newShard.snapshotStore();
+        Store.MetadataSnapshot snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
 
         newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode,
             localNode));
 
-        snapshot = newShard.snapshotStore();
+        snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
 
         assertTrue(newShard.recoverFromStore());
 
-        snapshot = newShard.snapshotStore();
+        snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
 
         newShard.updateRoutingEntry(getInitializingShardRouting(routing).moveToStarted());
 
-        snapshot = newShard.snapshotStore();
+        snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
 
         newShard.close("test", false);
 
-        snapshot = newShard.snapshotStore();
+        snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
     }
 

@@ -124,7 +124,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                 IndexShard indexShard = indexService.getShardOrNull(shardId.id());
                 if (indexShard != null) {
                     exists = true;
-                    return new StoreFilesMetaData(shardId, indexShard.snapshotStore());
+                    return new StoreFilesMetaData(shardId, indexShard.snapshotStoreMetadata());
                 }
             }
             // try and see if we an list unallocated

@@ -309,7 +309,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
 
         private Store.MetadataSnapshot getMetadataSnapshotOrEmpty(IndexShard replica) throws IOException {
             try {
-                return replica.snapshotStore();
+                return replica.snapshotStoreMetadata();
             } catch (IndexNotFoundException e) {
                 // OK!
                 return Store.MetadataSnapshot.EMPTY;

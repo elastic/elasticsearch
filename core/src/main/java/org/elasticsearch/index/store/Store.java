@@ -217,7 +217,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * no concurrent file changes are happening. If in doubt, you probably want to use one of the following:
      *
      * {@link #readMetadataSnapshot(Path, ShardId, NodeEnvironment.ShardLocker, ESLogger)} to read a meta data while locking
-     * {@link IndexShard#snapshotStore()} to safely read from an existing shard
+     * {@link IndexShard#snapshotStoreMetadata()} to safely read from an existing shard
      * {@link IndexShard#acquireIndexCommit(boolean)} to get an {@link IndexCommit} which is safe to use but has to be freed
      *
      * @throws CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum mismatch or an

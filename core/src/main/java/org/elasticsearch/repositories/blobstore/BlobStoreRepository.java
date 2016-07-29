@@ -1437,7 +1437,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
                 Store.MetadataSnapshot recoveryTargetMetadata;
                 try {
-                    recoveryTargetMetadata = targetShard.snapshotStore();
+                    recoveryTargetMetadata = targetShard.snapshotStoreMetadata();
                 } catch (IndexNotFoundException e) {
                     // happens when restore to an empty shard, not a big deal
                     logger.trace("[{}] [{}] restoring from to an empty shard", shardId, snapshotId);

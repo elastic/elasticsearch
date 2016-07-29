@@ -831,7 +831,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws FileNotFoundException      if one or more files referenced by a commit are not present.
      * @throws NoSuchFileException        if one or more files referenced by a commit are not present.
      */
-    public Store.MetadataSnapshot snapshotStore() throws IOException {
+    public Store.MetadataSnapshot snapshotStoreMetadata() throws IOException {
         synchronized (mutex) {
             // if the engine is not running, we can access the store directly, but we need to make sure no one starts
             // the engine on us. If the engine is running, we can get a snapshot via the deletion policy which is initialized.
@@ -1357,7 +1357,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if ("checksum".equals(checkIndexOnStartup)) {
             // physical verification only: verify all checksums for the latest commit
             IOException corrupt = null;
-            MetadataSnapshot metadata = snapshotStore();
+            MetadataSnapshot metadata = snapshotStoreMetadata();
             for (Map.Entry<String, StoreFileMetaData> entry : metadata.asMap().entrySet()) {
                 try {
                     Store.checkIntegrity(entry.getValue(), store.directory());

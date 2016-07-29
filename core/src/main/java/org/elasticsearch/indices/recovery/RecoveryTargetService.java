@@ -172,7 +172,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
                 // into concurrency issues with the primary changing files underneath us.
                 metadataSnapshot = Store.MetadataSnapshot.EMPTY;
             } else {
-                metadataSnapshot = recoveryTarget.indexShard().snapshotStore();
+                metadataSnapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
             }
         } catch (IOException e) {
             logger.warn("error while listing local files, recover as if there are none", e);

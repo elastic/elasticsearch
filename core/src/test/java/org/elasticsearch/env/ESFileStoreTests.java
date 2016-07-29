@@ -25,69 +25,17 @@ import java.nio.file.FileStore;
 import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 public class ESFileStoreTests extends ESTestCase {
-    static class MockFileStore extends FileStore {
-
-        public long usableSpace = -1;
-
-        @Override
-        public String type() {
-            return "mock";
-        }
-
-        @Override
-        public String name() {
-            return "mock";
-        }
-
-        @Override
-        public String toString() {
-            return "mock";
-        }
-
-        @Override
-        public boolean isReadOnly() {
-            return false;
-        }
-
-        @Override
-        public long getTotalSpace() throws IOException {
-            return usableSpace*3;
-        }
-
-        @Override
-        public long getUsableSpace() throws IOException {
-            return usableSpace;
-        }
-
-        @Override
-        public long getUnallocatedSpace() throws IOException {
-            return usableSpace*2;
-        }
-
-        @Override
-        public boolean supportsFileAttributeView(Class<? extends FileAttributeView> type) {
-            return false;
-        }
-
-        @Override
-        public boolean supportsFileAttributeView(String name) {
-            return false;
-        }
-
-        @Override
-        public <V extends FileStoreAttributeView> V getFileStoreAttributeView(Class<V> type) {
-            return null;
-        }
-
-        @Override
-        public Object getAttribute(String attribute) throws IOException {
-            return null;
-        }
-    }
-
     public void testNegativeSpace() throws Exception {
-        FileStore store = new ESFileStore(new MockFileStore());
+        FileStore mocked = mock(FileStore.class);
+        when(mocked.getUsableSpace()).thenReturn(-1L);
+        when(mocked.getTotalSpace()).thenReturn(-1L);
+        when(mocked.getUnallocatedSpace()).thenReturn(-1L);
+        assertEquals(-1, mocked.getUsableSpace());
+        FileStore store = new ESFileStore(mocked);
         assertEquals(Long.MAX_VALUE, store.getUsableSpace());
         assertEquals(Long.MAX_VALUE, store.getTotalSpace());
         assertEquals(Long.MAX_VALUE, store.getUnallocatedSpace());

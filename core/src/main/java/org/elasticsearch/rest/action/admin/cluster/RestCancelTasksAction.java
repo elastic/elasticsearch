@@ -17,12 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -35,28 +37,36 @@ import org.elasticsearch.tasks.TaskId;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.nodeSettingListener;
 
-public class RestRethrottleAction extends BaseRestHandler {
+
+public class RestCancelTasksAction extends BaseRestHandler {
     private final ClusterService clusterService;
 
     @Inject
-    public RestRethrottleAction(Settings settings, RestController controller, ClusterService clusterService) {
+    public RestCancelTasksAction(Settings settings, RestController controller, ClusterService clusterService) {
         super(settings);
         this.clusterService = clusterService;
-        controller.registerHandler(POST, "/_update_by_query/{taskId}/_rethrottle", this);
-        controller.registerHandler(POST, "/_delete_by_query/{taskId}/_rethrottle", this);
-        controller.registerHandler(POST, "/_reindex/{taskId}/_rethrottle", this);
+        controller.registerHandler(POST, "/_tasks/_cancel", this);
+        controller.registerHandler(POST, "/_tasks/{taskId}/_cancel", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
-        RethrottleRequest internalRequest = new RethrottleRequest();
-        internalRequest.setTaskId(new TaskId(request.param("taskId")));
-        Float requestsPerSecond = AbstractBaseReindexRestHandler.parseRequestsPerSecond(request);
-        if (requestsPerSecond == null) {
-            throw new IllegalArgumentException("requests_per_second is a required parameter");
-        }
-        internalRequest.setRequestsPerSecond(requestsPerSecond);
-        ActionListener<ListTasksResponse> listener = nodeSettingListener(clusterService, new RestToXContentListener<>(channel));
-        client.execute(RethrottleAction.INSTANCE, internalRequest, listener);
+        String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
+        TaskId taskId = new TaskId(request.param("taskId"));
+        String[] actions = Strings.splitStringByCommaToArray(request.param("actions"));
+        TaskId parentTaskId = new TaskId(request.param("parent_task_id"));
+
+        CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+        cancelTasksRequest.setTaskId(taskId);
+        cancelTasksRequest.setNodesIds(nodesIds);
+        cancelTasksRequest.setActions(actions);
+        cancelTasksRequest.setParentTaskId(parentTaskId);
+        ActionListener<CancelTasksResponse> listener = nodeSettingListener(clusterService, new RestToXContentListener<>(channel));
+        client.admin().cluster().cancelTasks(cancelTasksRequest, listener);
+    }
+
+    @Override
+    public boolean canTripCircuitBreaker() {
+        return false;
     }
 }

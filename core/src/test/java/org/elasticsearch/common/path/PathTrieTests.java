@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.path;
 
-import org.elasticsearch.rest.support.RestUtils;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;

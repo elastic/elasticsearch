@@ -44,9 +44,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.startsWith;
 
-/**
- *
- */
 @ClusterScope(scope = Scope.SUITE)
 public class ChildQuerySearchBwcIT extends ChildQuerySearchIT {
 

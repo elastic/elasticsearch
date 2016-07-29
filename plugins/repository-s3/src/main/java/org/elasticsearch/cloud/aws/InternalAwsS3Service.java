@@ -22,11 +22,8 @@ package org.elasticsearch.cloud.aws;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSCredentialsProviderChain;
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
-import com.amazonaws.auth.InstanceProfileCredentialsProvider;
-import com.amazonaws.auth.SystemPropertiesCredentialsProvider;
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
@@ -36,7 +33,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 
@@ -122,19 +118,12 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
 
     public static AWSCredentialsProvider buildCredentials(ESLogger logger, String key, String secret) {
         AWSCredentialsProvider credentials;
-
         if (key.isEmpty() && secret.isEmpty()) {
             logger.debug("Using either environment variables, system properties or instance profile credentials");
-            credentials = new AWSCredentialsProviderChain(
-                new EnvironmentVariableCredentialsProvider(),
-                new SystemPropertiesCredentialsProvider(),
-                new InstanceProfileCredentialsProvider()
-            );
+            credentials = new DefaultAWSCredentialsProviderChain();
         } else {
             logger.debug("Using basic key/secret credentials");
-            credentials = new AWSCredentialsProviderChain(
-                new StaticCredentialsProvider(new BasicAWSCredentials(key, secret))
-            );
+            credentials = new StaticCredentialsProvider(new BasicAWSCredentials(key, secret));
         }
 
         return credentials;

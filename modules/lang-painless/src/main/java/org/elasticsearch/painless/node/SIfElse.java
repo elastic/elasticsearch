@@ -21,23 +21,23 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
+import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
 import java.util.Set;
-
-import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents an if/else block.
  */
 public final class SIfElse extends AStatement {
 
-    AExpression condition;
-    final SBlock ifblock;
-    final SBlock elseblock;
+    private AExpression condition;
+    private final SBlock ifblock;
+    private final SBlock elseblock;
 
     public SIfElse(Location location, AExpression condition, SBlock ifblock, SBlock elseblock) {
         super(location);
@@ -46,13 +46,15 @@ public final class SIfElse extends AStatement {
         this.ifblock = ifblock;
         this.elseblock = elseblock;
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         condition.extractVariables(variables);
+
         if (ifblock != null) {
             ifblock.extractVariables(variables);
         }
+
         if (elseblock != null) {
             elseblock.extractVariables(variables);
         }
@@ -104,11 +106,11 @@ public final class SIfElse extends AStatement {
     void write(MethodWriter writer, Globals globals) {
         writer.writeStatementOffset(location);
 
+        Label fals = new Label();
         Label end = new Label();
-        Label fals = elseblock != null ? new Label() : end;
 
-        condition.fals = fals;
         condition.write(writer, globals);
+        writer.ifZCmp(Opcodes.IFEQ, fals);
 
         ifblock.continu = continu;
         ifblock.brake = brake;

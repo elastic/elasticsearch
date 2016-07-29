@@ -23,29 +23,29 @@ import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
-
-import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
 
 import java.lang.invoke.LambdaMetafactory;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.painless.WriterConstants.LAMBDA_BOOTSTRAP_HANDLE;
+
 /**
  * Represents a capturing function reference.
  */
-public class ECapturingFunctionRef extends AExpression implements ILambda {
-    public final String variable;
-    public final String call;
-    
+public final class ECapturingFunctionRef extends AExpression implements ILambda {
+    private final String variable;
+    private final String call;
+
     private FunctionRef ref;
-    Variable captured;
-    String defPointer;
+    private Variable captured;
+    private String defPointer;
 
     public ECapturingFunctionRef(Location location, String variable, String call) {
         super(location);
@@ -53,7 +53,7 @@ public class ECapturingFunctionRef extends AExpression implements ILambda {
         this.variable = Objects.requireNonNull(variable);
         this.call = Objects.requireNonNull(call);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         variables.add(variable);
@@ -106,27 +106,27 @@ public class ECapturingFunctionRef extends AExpression implements ILambda {
             Type samMethodType = Type.getMethodType(ref.samMethodType.toMethodDescriptorString());
             Type interfaceType = Type.getMethodType(ref.interfaceMethodType.toMethodDescriptorString());
             if (ref.needsBridges()) {
-                writer.invokeDynamic(ref.invokedName, 
-                                     invokedType, 
-                                     LAMBDA_BOOTSTRAP_HANDLE, 
-                                     samMethodType, 
-                                     ref.implMethodASM, 
-                                     samMethodType, 
-                                     LambdaMetafactory.FLAG_BRIDGES, 
-                                     1, 
+                writer.invokeDynamic(ref.invokedName,
+                                     invokedType,
+                                     LAMBDA_BOOTSTRAP_HANDLE,
+                                     samMethodType,
+                                     ref.implMethodASM,
+                                     samMethodType,
+                                     LambdaMetafactory.FLAG_BRIDGES,
+                                     1,
                                      interfaceType);
             } else {
-                writer.invokeDynamic(ref.invokedName, 
-                                     invokedType, 
-                                     LAMBDA_BOOTSTRAP_HANDLE, 
-                                     samMethodType, 
-                                     ref.implMethodASM, 
-                                     samMethodType, 
+                writer.invokeDynamic(ref.invokedName,
+                                     invokedType,
+                                     LAMBDA_BOOTSTRAP_HANDLE,
+                                     samMethodType,
+                                     ref.implMethodASM,
+                                     samMethodType,
                                      0);
             }
         }
     }
-    
+
     @Override
     public String getPointer() {
         return defPointer;

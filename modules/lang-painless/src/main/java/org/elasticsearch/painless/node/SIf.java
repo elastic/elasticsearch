@@ -21,14 +21,14 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
+import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
 import java.util.Set;
-
-import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents an if block.
@@ -44,10 +44,11 @@ public final class SIf extends AStatement {
         this.condition = Objects.requireNonNull(condition);
         this.ifblock = ifblock;
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         condition.extractVariables(variables);
+
         if (ifblock != null) {
             ifblock.extractVariables(variables);
         }
@@ -84,8 +85,8 @@ public final class SIf extends AStatement {
 
         Label fals = new Label();
 
-        condition.fals = fals;
         condition.write(writer, globals);
+        writer.ifZCmp(Opcodes.IFEQ, fals);
 
         ifblock.continu = continu;
         ifblock.brake = brake;

@@ -35,6 +35,7 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
@@ -158,9 +159,9 @@ public class TransportRolloverActionTests extends ESTestCase {
         final String indexPrefix = randomAsciiOfLength(10);
         String indexEndingInNumbers = indexPrefix + "-" + num;
         assertThat(TransportRolloverAction.generateRolloverIndexName(indexEndingInNumbers),
-            equalTo(indexPrefix + "-" + (num + 1)));
-        assertThat(TransportRolloverAction.generateRolloverIndexName("index-name-1"), equalTo("index-name-2"));
-        assertThat(TransportRolloverAction.generateRolloverIndexName("index-name-2"), equalTo("index-name-3"));
+            equalTo(indexPrefix + "-" + String.format(Locale.ROOT, "%06d", num + 1)));
+        assertThat(TransportRolloverAction.generateRolloverIndexName("index-name-1"), equalTo("index-name-000002"));
+        assertThat(TransportRolloverAction.generateRolloverIndexName("index-name-2"), equalTo("index-name-000003"));
     }
 
     public void testCreateIndexRequest() throws Exception {

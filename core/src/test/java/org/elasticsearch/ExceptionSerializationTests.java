@@ -792,6 +792,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(142, ShardStateAction.NoLongerPrimaryShardException.class);
         ids.put(143, org.elasticsearch.script.ScriptException.class);
         ids.put(144, org.elasticsearch.cluster.NotMasterException.class);
+        ids.put(145, org.elasticsearch.ElasticsearchStatusException.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {
@@ -841,5 +842,12 @@ public class ExceptionSerializationTests extends ESTestCase {
                 assertEquals(serialize.getClass().toString(), "c", serialize.getReason());
             }
         }
+    }
+
+    public void testElasticsearchRemoteException() throws IOException {
+        ElasticsearchStatusException ex = new ElasticsearchStatusException("something", RestStatus.TOO_MANY_REQUESTS);
+        ElasticsearchStatusException e = serialize(ex);
+        assertEquals(ex.status(), e.status());
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, e.status());
     }
 }

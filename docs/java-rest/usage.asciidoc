@@ -1,0 +1,227 @@
+== Getting started
+
+=== Maven Repository
+
+The low-level Java REST client is hosted on
+http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.elasticsearch.client%22[Maven
+Central]. The minimum Java version required is `1.7`.
+
+Here is how you can configure the dependency using maven as a dependency manager.
+Add the following to your `pom.xml` file:
+
+["source","xml",subs="attributes"]
+--------------------------------------------------
+<dependency>
+    <groupId>org.elasticsearch.client</groupId>
+    <artifactId>rest</artifactId>
+    <version>{version}</version>
+</dependency>
+--------------------------------------------------
+
+The low-level REST client is subject to the same release cycle as
+elasticsearch. Replace `${es.version}` with the desired client version, first
+released with `5.0.0-alpha4`. There  is no relation between the client version
+and the elasticsearch version that the client can communicate with. The
+low-level REST client is compatible with all elasticsearch versions.
+
+=== Dependencies
+
+The low-level Java REST client internally uses the
+http://hc.apache.org/httpcomponents-asyncclient-dev/[Apache Http Async Client]
+ to send http requests. It depends on the following artifacts, namely the async
+ http client and its own transitive dependencies:
+
+- org.apache.httpcomponents:httpasyncclient
+- org.apache.httpcomponents:httpcore-nio
+- org.apache.httpcomponents:httpclient
+- org.apache.httpcomponents:httpcore
+- commons-codec:commons-codec
+- commons-logging:commons-logging
+
+
+=== Initialization
+
+A `RestClient` instance can be built through the corresponding
+`RestClientBuilder` class, created via `RestClient#builder(HttpHost...)`
+static method. The only required argument is one or more hosts that the
+client will communicate with, provided as instances of
+https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/HttpHost.html[HttpHost]
+ as follows:
+
+[source,java]
+--------------------------------------------------
+RestClient restClient = RestClient.builder(
+        new HttpHost("http", "localhost", 9200),
+        new HttpHost("http", "localhost", 9201)).build();
+--------------------------------------------------
+
+The `RestClient` class is thread-safe and ideally has the same lifecycle as
+the application that uses it. It is important that it gets closed when no
+longer needed so that all the resources used by it get properly released,
+as well as the underlying http client instance and its threads:
+
+[source,java]
+--------------------------------------------------
+restClient.close();
+--------------------------------------------------
+
+`RestClientBuilder` also allows to optionally set the following configuration
+parameters while building the `RestClient` instance:
+
+`setDefaultHeaders`:: default headers that need to be sent with each request,
+to prevent having to specify them with each single request
+`setMaxRetryTimeoutMillis`:: the timeout that should be honoured in case
+multiple attempts are made for the same request. The default value is 10
+seconds, same as the default socket timeout. In case the socket timeout is
+customized, the maximum retry timeout should be adjusted accordingly
+`setFailureListener`:: a listener that gets notified every time a node
+fails,  in case actions need to be taken. Used internally when sniffing on
+failure is enabled
+`setRequestConfigCallback`:: callback that allows to modify the default
+request configuration (e.g. request timeouts, authentication, or anything that
+the https://hc.apache.org/httpcomponents-client-ga/httpclient/apidocs/org/apache/http/client/config/RequestConfig.Builder.html[`org.apache.http.client.config.RequestConfig.Builder`]
+ allows to set)
+`setHttpClientConfigCallback`:: callback that allows to modify the http client
+ configuration (e.g. encrypted communication over ssl, or anything that the
+http://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/apache/http/impl/nio/client/HttpAsyncClientBuilder.html[`org.apache.http.impl.nio.client.HttpAsyncClientBuilder`]
+ allows to set)
+
+
+=== Performing requests
+
+Once the `RestClient` has been created, requests can be sent by calling one of
+the available `performRequest` method variants. The ones that return the
+`Response` are executed synchronously, meaning that the client will block and
+wait for a response to be returned. The `performRequest` variants that return
+`void` accept a `ResponseListener` as an argument and are executed
+asynchronously. The provided listener will be notified upon completion or
+failure. The following are the arguments accepted by the different
+`performRequest` methods:
+
+`method`:: the http method or verb
+`endpoint`:: the request path, which identifies the Elasticsearch api to
+call (e.g. `/_cluster/health`)
+`params`:: the optional parameters to be sent as querystring parameters
+`entity`:: the optional request body enclosed in an
+`org.apache.http.HttpEntity` object
+`responseConsumer`:: the optional
+http://hc.apache.org/httpcomponents-core-ga/httpcore-nio/apidocs/org/apache/http/nio/protocol/HttpAsyncResponseConsumer.html[`org.apache.http.nio.protocol.HttpAsyncResponseConsumer`]
+ callback. Controls how the response body gets streamed from a non-blocking
+HTTP connection on the client side. When not provided, the default
+implementation is used which buffers the whole response body in heap memory
+`responseListener`:: the listener to be notified upon request success or failure
+whenever the async `performRequest` method variants are used
+`headers`:: optional request headers
+
+=== Reading responses
+
+The `Response` object, either returned by the sync `performRequest` methods or
+ received as an argument in `ResponseListener#onSucces(Response)`, wraps the
+response object returned by the http client and exposes the following information:
+
+`getRequestLine`:: information about the performed request
+`getHost`:: the host that returned the response
+`getStatusLine`:: the response status line
+`getHeaders`:: the response headers, which can also be retrieved by name
+though `getHeader(String)`
+`getEntity`:: the response body enclosed in an
+https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/HttpEntity.html[`org.apache.http.HttpEntity`]
+ object
+
+When performing a request, an exception is thrown (or received as an argument
+ in `ResponseListener#onSucces(Exception)` in the following scenarios:
+
+`IOException`:: communication problem (e.g. SocketTimeoutException etc.)
+`ResponseException`:: a response was returned, but its status code indicated
+an error (either `4xx` or `5xx`). A `ResponseException` originates from a valid
+http response, hence it exposes its corresponding `Response` object which gives
+access to the returned response.
+
+
+=== Example requests
+
+Here are a couple of examples:
+
+[source,java]
+--------------------------------------------------
+Response response = restClient.performRequest("GET", "/",
+        Collections.singletonMap("pretty", "true"));
+System.out.println(EntityUtils.toString(response.getEntity()));
+
+//index a document
+HttpEntity entity = new NStringEntity(
+        "{\n" +
+        "    \"user\" : \"kimchy\",\n" +
+        "    \"post_date\" : \"2009-11-15T14:12:12\",\n" +
+        "    \"message\" : \"trying out Elasticsearch\"\n" +
+        "}", ContentType.APPLICATION_JSON);
+Response indexResponse = restClient.performRequest(
+        "PUT",
+        "/twitter/tweet/1",
+        Collections.<String, String>emptyMap(),
+        entity);
+
+
+--------------------------------------------------
+
+Note that the low-level client doesn't expose any helper for json marshalling
+and un-marshalling. Users are free to use the library that they prefer for that
+purpose.
+The underlying Apache Async Http Client ships with different
+https://hc.apache.org/httpcomponents-core-ga/httpcore/apidocs/org/apache/http/HttpEntity.html[`org.apache.http.HttpEntity`]
+ implementations that allow to provide the request body in different formats
+(stream, byte array, string etc.). As for reading the response body, the
+`HttpEntity#getContent` method comes handy which returns an `InputStream`
+reading from the previously buffered response body. As an alternative, it is
+possible to provide a custom
+http://hc.apache.org/httpcomponents-core-ga/httpcore-nio/apidocs/org/apache/http/nio/protocol/HttpAsyncResponseConsumer.html[`org.apache.http.nio.protocol.HttpAsyncResponseConsumer`]
+ that controls how bytes are read and buffered.
+
+The following is a basic example of how async requests can be sent:
+
+[source,java]
+--------------------------------------------------
+int numRequests = 10;
+final CountDownLatch latch = new CountDownLatch(numRequests);
+for (int i = 0; i < numRequests; i++) {
+    restClient.performRequest(
+        "PUT",
+        "/twitter/tweet/" + i,
+        Collections.<String, String>emptyMap(),
+        //assume that the documents are stored in an entities array
+        entities[i],
+        new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                System.out.println(response);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                latch.countDown();
+            }
+        }
+    );
+}
+//wait for all requests to be completed
+latch.await();
+
+--------------------------------------------------
+
+=== Logging
+
+The Java REST client uses the same logging library that the Apache Async Http
+Client uses: https://commons.apache.org/proper/commons-logging/[Apache Commons Logging],
+ which comes with support for a number of popular logging implementations. The
+java packages to enable logging for are `org.elasticsearch.client` for the
+client itself and `org.elasticsearch.client.sniffer` for the sniffer.
+
+The request tracer logging can also be enabled to log every request and
+corresponding response in curl format. That comes handy when debugging, for
+instance in case a request needs to be manually executed to check whether it
+still yields the same response as it did. Enable trace logging for the `tracer`
+package to have such log lines printed out. Do note that this type of logging is
+expensive and should not be enabled at all times in production environments,
+but rather temporarily used only when needed.
+

@@ -91,43 +91,47 @@ public final class Definition {
     public static final Type MATCHER_TYPE = getType("Matcher");
 
     public enum Sort {
-        VOID(       void.class      , 0 , true  , false , false , false ),
-        BOOL(       boolean.class   , 1 , true  , true  , false , true  ),
-        BYTE(       byte.class      , 1 , true  , false , true  , true  ),
-        SHORT(      short.class     , 1 , true  , false , true  , true  ),
-        CHAR(       char.class      , 1 , true  , false , true  , true  ),
-        INT(        int.class       , 1 , true  , false , true  , true  ),
-        LONG(       long.class      , 2 , true  , false , true  , true  ),
-        FLOAT(      float.class     , 1 , true  , false , true  , true  ),
-        DOUBLE(     double.class    , 2 , true  , false , true  , true  ),
+        VOID(       void.class      , Void.class      , null          , 0 , true  , false , false , false ),
+        BOOL(       boolean.class   , Boolean.class   , null          , 1 , true  , true  , false , true  ),
+        BYTE(       byte.class      , Byte.class      , null          , 1 , true  , false , true  , true  ),
+        SHORT(      short.class     , Short.class     , null          , 1 , true  , false , true  , true  ),
+        CHAR(       char.class      , Character.class , null          , 1 , true  , false , true  , true  ),
+        INT(        int.class       , Integer.class   , null          , 1 , true  , false , true  , true  ),
+        LONG(       long.class      , Long.class      , null          , 2 , true  , false , true  , true  ),
+        FLOAT(      float.class     , Float.class     , null          , 1 , true  , false , true  , true  ),
+        DOUBLE(     double.class    , Double.class    , null          , 2 , true  , false , true  , true  ),
 
-        VOID_OBJ(   Void.class      , 1 , true  , false , false , false ),
-        BOOL_OBJ(   Boolean.class   , 1 , false , true  , false , false ),
-        BYTE_OBJ(   Byte.class      , 1 , false , false , true  , false ),
-        SHORT_OBJ(  Short.class     , 1 , false , false , true  , false ),
-        CHAR_OBJ(   Character.class , 1 , false , false , true  , false ),
-        INT_OBJ(    Integer.class   , 1 , false , false , true  , false ),
-        LONG_OBJ(   Long.class      , 1 , false , false , true  , false ),
-        FLOAT_OBJ(  Float.class     , 1 , false , false , true  , false ),
-        DOUBLE_OBJ( Double.class    , 1 , false , false , true  , false ),
+        VOID_OBJ(   Void.class      , null            , void.class    , 1 , true  , false , false , false ),
+        BOOL_OBJ(   Boolean.class   , null            , boolean.class , 1 , false , true  , false , false ),
+        BYTE_OBJ(   Byte.class      , null            , byte.class    , 1 , false , false , true  , false ),
+        SHORT_OBJ(  Short.class     , null            , short.class   , 1 , false , false , true  , false ),
+        CHAR_OBJ(   Character.class , null            , char.class    , 1 , false , false , true  , false ),
+        INT_OBJ(    Integer.class   , null            , int.class     , 1 , false , false , true  , false ),
+        LONG_OBJ(   Long.class      , null            , long.class    , 1 , false , false , true  , false ),
+        FLOAT_OBJ(  Float.class     , null            , float.class   , 1 , false , false , true  , false ),
+        DOUBLE_OBJ( Double.class    , null            , double.class  , 1 , false , false , true  , false ),
 
-        NUMBER(     Number.class    , 1 , false , false , false , false ),
-        STRING(     String.class    , 1 , false , false , false , true  ),
+        NUMBER(     Number.class    , null            , null          , 1 , false , false , false , false ),
+        STRING(     String.class    , null            , null          , 1 , false , false , false , true  ),
 
-        OBJECT(     null            , 1 , false , false , false , false ),
-        DEF(        null            , 1 , false , false , false , false ),
-        ARRAY(      null            , 1 , false , false , false , false );
+        OBJECT(     null            , null            , null          , 1 , false , false , false , false ),
+        DEF(        null            , null            , null          , 1 , false , false , false , false ),
+        ARRAY(      null            , null            , null          , 1 , false , false , false , false );
 
         public final Class<?> clazz;
+        public final Class<?> boxed;
+        public final Class<?> unboxed;
         public final int size;
         public final boolean primitive;
         public final boolean bool;
         public final boolean numeric;
         public final boolean constant;
 
-        Sort(final Class<?> clazz, final int size, final boolean primitive,
-             final boolean bool, final boolean numeric, final boolean constant) {
+        Sort(final Class<?> clazz, final Class<?> boxed, final Class<?> unboxed, final int size,
+             final boolean primitive, final boolean bool, final boolean numeric, final boolean constant) {
             this.clazz = clazz;
+            this.boxed = boxed;
+            this.unboxed = unboxed;
             this.size = size;
             this.bool = bool;
             this.primitive = primitive;
@@ -204,8 +208,8 @@ public final class Definition {
             this.modifiers = modifiers;
             this.handle = handle;
         }
-        
-        /** 
+
+        /**
          * Returns MethodType for this method.
          * <p>
          * This works even for user-defined Methods (where the MethodHandle is null).
@@ -252,7 +256,7 @@ public final class Definition {
             }
             return MethodType.methodType(returnValue, params);
         }
-        
+
         public void write(MethodWriter writer) {
             final org.objectweb.asm.Type type;
             if (augmentation) {
@@ -803,7 +807,7 @@ public final class Definition {
 
         final Class<?> implClass;
         final Class<?>[] params;
-        
+
         if (augmentation == false) {
             implClass = owner.clazz;
             params = new Class<?>[args.length];
@@ -818,7 +822,7 @@ public final class Definition {
                 params[count+1] = args[count].clazz;
             }
         }
-        
+
         final java.lang.reflect.Method reflect;
 
         try {

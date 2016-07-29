@@ -95,80 +95,95 @@ delimiter
     | EOF
     ;
 
-// Note we return the boolean s.  This is returned as true
-// if secondaries (postfixes) are allowed, otherwise, false.
-// This prevents illegal secondaries from being appended to
-// expressions using precedence that aren't variable/method chains.
-expression returns [boolean s = true]
-    :               u = unary[false]                                       { $s = $u.s; }           # single
-    |               expression ( MUL | DIV | REM ) expression              { $s = false; }          # binary
-    |               expression ( ADD | SUB ) expression                    { $s = false; }          # binary
-    |               expression ( FIND | MATCH ) expression                 { $s = false; }          # binary
-    |               expression ( LSH | RSH | USH ) expression              { $s = false; }          # binary
-    |               expression ( LT | LTE | GT | GTE ) expression          { $s = false; }          # comp
-    |               expression INSTANCEOF decltype                         { $s = false; }          # instanceof
-    |               expression ( EQ | EQR | NE | NER ) expression          { $s = false; }          # comp
-    |               expression BWAND expression                            { $s = false; }          # binary
-    |               expression XOR expression                              { $s = false; }          # binary
-    |               expression BWOR expression                             { $s = false; }          # binary
-    |               expression BOOLAND expression                          { $s = false; }          # bool
-    |               expression BOOLOR expression                           { $s = false; }          # bool
-    | <assoc=right> expression COND e0 = expression COLON e1 = expression  { $s = $e0.s && $e1.s; } # conditional
-    // TODO: Should we allow crazy syntax like (x = 5).call()?
-    //       Other crazy syntaxes work, but this one requires
-    //       a complete restructure of the rules as EChain isn't
-    //       designed to handle more postfixes after an assignment.
-    | <assoc=right> chain[true] ( ASSIGN | AADD | ASUB | AMUL |
-                                  ADIV   | AREM | AAND | AXOR |
-                                  AOR    | ALSH | ARSH | AUSH ) expression { $s = false; }         # assignment
+expression
+    :               unary                                                 # single
+    |               expression ( MUL | DIV | REM ) expression             # binary
+    |               expression ( ADD | SUB ) expression                   # binary
+    |               expression ( FIND | MATCH ) expression                # binary
+    |               expression ( LSH | RSH | USH ) expression             # binary
+    |               expression ( LT | LTE | GT | GTE ) expression         # comp
+    |               expression INSTANCEOF decltype                        # instanceof
+    |               expression ( EQ | EQR | NE | NER ) expression         # comp
+    |               expression BWAND expression                           # binary
+    |               expression XOR expression                             # binary
+    |               expression BWOR expression                            # binary
+    |               expression BOOLAND expression                         # bool
+    |               expression BOOLOR expression                          # bool
+    | <assoc=right> expression COND expression COLON expression           # conditional
+    | <assoc=right> expression ( ASSIGN | AADD | ASUB | AMUL |
+                                 ADIV   | AREM | AAND | AXOR |
+                                 AOR    | ALSH | ARSH | AUSH ) expression # assignment
     ;
 
-// Note we take in the boolean c.  This is used to indicate
-// whether or not this rule was called when we are already
-// processing a variable/method chain.  This prevents the chain
-// from being applied to rules where it wouldn't be allowed.
-unary[boolean c] returns [boolean s = true]
-    : { !$c }? ( INCR | DECR ) chain[true]                                   # pre
-    | { !$c }? chain[true] (INCR | DECR )                                    # post
-    | { !$c }? chain[false]                                                  # read
-    | { !$c }? ( OCTAL | HEX | INTEGER | DECIMAL )           { $s = false; } # numeric
-    | { !$c }? TRUE                                          { $s = false; } # true
-    | { !$c }? FALSE                                         { $s = false; } # false
-    | { !$c }? NULL                                          { $s = false; } # null
-    | { !$c }? listinitializer                               { $s = false; } # listinit
-    | { !$c }? mapinitializer                                { $s = false; } # mapinit
-    | { !$c }? ( BOOLNOT | BWNOT | ADD | SUB ) unary[false]                  # operator
-    |          LP decltype RP unary[$c]                                      # cast
+unary
+    :  ( INCR | DECR ) chain                 # pre
+    |  chain (INCR | DECR )                  # post
+    |  chain                                 # read
+    |  ( BOOLNOT | BWNOT | ADD | SUB ) unary # operator
+    |  LP decltype RP unary                  # cast
     ;
 
-chain[boolean c]
-    : p = primary[$c] secondary[$p.s]* # dynamic
-    | decltype dot secondary[true]*    # static
-    | arrayinitializer                 # newarray
+chain
+    : primary postfix*          # dynamic
+    | decltype postdot postfix* # static
+    | arrayinitializer          # newarray
     ;
 
-primary[boolean c] returns [boolean s = true]
-    : { !$c }? LP e = expression RP { $s = $e.s; } # exprprec
-    | { $c }?  LP unary[true] RP                   # chainprec
-    |          STRING                              # string
-    |          REGEX                               # regex
-    |          ID                                  # variable
-    |          ID arguments                        # calllocal
-    |          NEW TYPE arguments                  # newobject
+primary
+    : LP expression RP                    # precedence
+    | ( OCTAL | HEX | INTEGER | DECIMAL ) # numeric
+    | TRUE                                # true
+    | FALSE                               # false
+    | NULL                                # null
+    | STRING                              # string
+    | REGEX                               # regex
+    | listinitializer                     # listinit
+    | mapinitializer                      # mapinit
+    | ID                                  # variable
+    | ID arguments                        # calllocal
+    | NEW TYPE arguments                  # newobject
     ;
 
-secondary[boolean s]
-    : { $s }? dot
-    | { $s }? brace
+postfix
+    : callinvoke
+    | fieldaccess
+    | braceaccess
     ;
 
-dot
-    : DOT DOTID arguments        # callinvoke
-    | DOT ( DOTID | DOTINTEGER ) # fieldaccess
+postdot
+    : callinvoke
+    | fieldaccess
     ;
 
-brace
-    : LBRACE expression RBRACE # braceaccess
+callinvoke
+    : DOT DOTID arguments
+    ;
+
+fieldaccess
+    : DOT ( DOTID | DOTINTEGER )
+    ;
+
+braceaccess
+    : LBRACE expression RBRACE
+    ;
+
+arrayinitializer
+    : NEW TYPE ( LBRACE expression RBRACE )+ ( postdot postfix* )?                                   # newstandardarray
+    | NEW TYPE LBRACE RBRACE LBRACK ( expression ( COMMA expression )* )? SEMICOLON? RBRACK postfix* # newinitializedarray
+    ;
+
+listinitializer
+    : LBRACE expression ( COMMA expression)* RBRACE
+    | LBRACE RBRACE
+    ;
+
+mapinitializer
+    : LBRACE maptoken ( COMMA maptoken )* RBRACE
+    | LBRACE COLON RBRACE
+    ;
+
+maptoken
+    : expression COLON expression
     ;
 
 arguments
@@ -190,49 +205,10 @@ lamtype
     ;
 
 funcref
-    : classFuncref
-    | constructorFuncref
-    | capturingFuncref
-    | localFuncref
-    ;
-
-// reference to a static or instance method, e.g. ArrayList::size or Integer::compare
-classFuncref
-    : TYPE REF ID
-    ;
-
-// reference to a constructor, e.g. ArrayList::new
-// currently limited to simple non-array types
-constructorFuncref
-    : decltype REF NEW
-    ;
-
-// reference to an instance method, e.g. object::toString
-// currently limited to capture of a simple variable (id).
-capturingFuncref
-    : ID REF ID
-    ;
-
-// reference to a local function, e.g. this::myfunc
-localFuncref
-    : THIS REF ID
-    ;
-
-arrayinitializer
-    : NEW TYPE (LBRACE expression RBRACE)+ (dot secondary[true]*)?                          # newstandardarray
-    | NEW TYPE LBRACE RBRACE LBRACK ( expression ( COMMA expression )* )? SEMICOLON? RBRACK # newinitializedarray
-    ;
-
-listinitializer
-    : LBRACE expression ( COMMA expression)* RBRACE
-    | LBRACE RBRACE
-    ;
-
-mapinitializer
-    : LBRACE maptoken ( COMMA maptoken )* RBRACE
-    | LBRACE COLON RBRACE
-    ;
-
-maptoken
-    : expression COLON expression
+    : TYPE REF ID      # classfuncref       // reference to a static or instance method,
+                                            // e.g. ArrayList::size or Integer::compare
+    | decltype REF NEW # constructorfuncref // reference to a constructor, e.g. ArrayList::new
+    | ID REF ID        # capturingfuncref   // reference to an instance method, e.g. object::toString
+                                            // currently limited to capture of a simple variable (id).
+    | THIS REF ID      # localfuncref       // reference to a local function, e.g. this::myfunc
     ;

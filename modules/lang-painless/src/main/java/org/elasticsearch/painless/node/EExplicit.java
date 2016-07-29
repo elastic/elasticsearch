@@ -33,8 +33,8 @@ import java.util.Set;
  */
 public final class EExplicit extends AExpression {
 
-    final String type;
-    AExpression child;
+    private final String type;
+    private AExpression child;
 
     public EExplicit(Location location, String type, AExpression child) {
         super(location);
@@ -42,7 +42,7 @@ public final class EExplicit extends AExpression {
         this.type = Objects.requireNonNull(type);
         this.child = Objects.requireNonNull(child);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         child.extractVariables(variables);

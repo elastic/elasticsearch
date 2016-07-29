@@ -39,6 +39,7 @@ public class SimulatePipelineResponseTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         boolean isVerbose = randomBoolean();
+        String id = randomBoolean() ? randomAsciiOfLengthBetween(1, 10) : null;
         int numResults = randomIntBetween(1, 10);
         List<SimulateDocumentResult> results = new ArrayList<>(numResults);
         for (int i = 0; i < numResults; i++) {
@@ -70,7 +71,7 @@ public class SimulatePipelineResponseTests extends ESTestCase {
             }
         }
 
-        SimulatePipelineResponse response = new SimulatePipelineResponse(randomAsciiOfLengthBetween(1, 10), isVerbose, results);
+        SimulatePipelineResponse response = new SimulatePipelineResponse(id, isVerbose, results);
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         StreamInput streamInput = out.bytes().streamInput();

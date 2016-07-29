@@ -20,7 +20,7 @@ package org.elasticsearch.test.rest.yaml.restspec;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.rest.yaml.support.FileUtils;
+import org.elasticsearch.test.rest.yaml.FileUtils;
 
 import java.io.IOException;
 import java.io.InputStream;

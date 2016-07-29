@@ -47,6 +47,7 @@ import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -171,7 +172,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             int numberIndex = sourceIndexName.lastIndexOf("-");
             assert numberIndex != -1 : "no separator '-' found";
             int counter = Integer.parseInt(sourceIndexName.substring(numberIndex + 1));
-            return String.join("-", sourceIndexName.substring(0, numberIndex), String.valueOf(++counter));
+            return String.join("-", sourceIndexName.substring(0, numberIndex), String.format(Locale.ROOT, "%06d", ++counter));
         } else {
             throw new IllegalArgumentException("index name [" + sourceIndexName + "] does not match pattern '^.*-(\\d)+$'");
         }

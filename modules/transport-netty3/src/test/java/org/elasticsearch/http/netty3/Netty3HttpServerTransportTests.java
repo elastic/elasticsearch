@@ -34,6 +34,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -55,7 +56,7 @@ public class Netty3HttpServerTransportTests extends ESTestCase {
 
     @Before
     public void setup() throws Exception {
-        networkService = new NetworkService(Settings.EMPTY);
+        networkService = new NetworkService(Settings.EMPTY, Collections.emptyList());
         threadPool = new TestThreadPool("test");
         bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
     }

@@ -26,7 +26,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
+import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
 
 public class RemoteInfo implements Writeable {
@@ -36,14 +39,17 @@ public class RemoteInfo implements Writeable {
     private final BytesReference query;
     private final String username;
     private final String password;
+    private final Map<String, String> headers;
 
-    public RemoteInfo(String scheme, String host, int port, BytesReference query, String username, String password) {
+    public RemoteInfo(String scheme, String host, int port, BytesReference query, String username, String password,
+            Map<String, String> headers) {
         this.scheme = requireNonNull(scheme, "[scheme] must be specified to reindex from a remote cluster");
         this.host = requireNonNull(host, "[host] must be specified to reindex from a remote cluster");
         this.port = port;
         this.query = requireNonNull(query, "[query] must be specified to reindex from a remote cluster");
         this.username = username;
         this.password = password;
+        this.headers = unmodifiableMap(requireNonNull(headers, "[headers] is required"));
     }
 
     /**
@@ -56,6 +62,12 @@ public class RemoteInfo implements Writeable {
         query = in.readBytesReference();
         username = in.readOptionalString();
         password = in.readOptionalString();
+        int headersLength = in.readVInt();
+        Map<String, String> headers = new HashMap<>(headersLength);
+        for (int i = 0; i < headersLength; i++) {
+            headers.put(in.readString(), in.readString());
+        }
+        this.headers = unmodifiableMap(headers);
     }
 
     @Override
@@ -66,6 +78,11 @@ public class RemoteInfo implements Writeable {
         out.writeBytesReference(query);
         out.writeOptionalString(username);
         out.writeOptionalString(password);
+        out.writeVInt(headers.size());
+        for (Map.Entry<String, String> header : headers.entrySet()) {
+            out.writeString(header.getKey());
+            out.writeString(header.getValue());
+        }
     }
 
     public String getScheme() {
@@ -92,6 +109,10 @@ public class RemoteInfo implements Writeable {
     @Nullable
     public String getPassword() {
         return password;
+    }
+
+    public Map<String, String> getHeaders() {
+        return headers;
     }
 
     @Override

@@ -19,7 +19,13 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.http.Header;
 import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BackoffPolicy;
@@ -31,6 +37,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -178,16 +185,27 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         @Override
         protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy) {
             if (mainRequest.getRemoteInfo() != null) {
-                // NORELEASE track 500-level retries that are builtin to the client
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
-                if (remoteInfo.getUsername() != null) {
-                    // NORELEASE support auth
-                    throw new UnsupportedOperationException("Auth is unsupported");
+                Header[] clientHeaders = new Header[remoteInfo.getHeaders().size()];
+                int i = 0;
+                for (Map.Entry<String, String> header : remoteInfo.getHeaders().entrySet()) {
+                    clientHeaders[i] = new BasicHeader(header.getKey(), header.getValue());
                 }
-                RestClient restClient = RestClient.builder(
-                        new HttpHost(remoteInfo.getHost(), remoteInfo.getPort(), remoteInfo.getScheme())).build();
-                return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, task::countSearchRetry,
-                        this::finishHim, restClient, remoteInfo.getQuery(), mainRequest.getSearchRequest());
+                RestClientBuilder restClient = RestClient
+                        .builder(new HttpHost(remoteInfo.getHost(), remoteInfo.getPort(), remoteInfo.getScheme()))
+                        .setDefaultHeaders(clientHeaders);
+                if (remoteInfo.getUsername() != null) {
+                    restClient.setHttpClientConfigCallback(c -> {
+                        UsernamePasswordCredentials creds = new UsernamePasswordCredentials(remoteInfo.getUsername(),
+                                remoteInfo.getPassword());
+                        CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+                        credentialsProvider.setCredentials(AuthScope.ANY, creds);
+                        c.setDefaultCredentialsProvider(credentialsProvider);
+                        return c;
+                    });
+                }
+                return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, task::countSearchRetry, this::finishHim,
+                        restClient.build(), remoteInfo.getQuery(), mainRequest.getSearchRequest());
             }
             return super.buildScrollableResultSource(backoffPolicy);
         }

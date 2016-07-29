@@ -36,6 +36,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -63,7 +64,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
                         BigArrays.NON_RECYCLING_INSTANCE,
                         new NoneCircuitBreakerService(),
                         new NamedWriteableRegistry(),
-                        new NetworkService(settings));
+                        new NetworkService(settings, Collections.emptyList()));
         TransportService transportService = new MockTransportService(settings, transport, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();

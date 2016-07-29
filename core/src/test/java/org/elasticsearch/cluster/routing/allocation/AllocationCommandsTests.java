@@ -51,7 +51,10 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.test.ESAllocationTestCase;
+
+import java.util.Collections;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -481,7 +484,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         parser.nextToken();
         parser.nextToken();
         AllocationCommandRegistry registry = new NetworkModule(null, Settings.EMPTY, true, new NamedWriteableRegistry())
-                .getAllocationCommandRegistry();
+            .getAllocationCommandRegistry();
         AllocationCommands sCommands = AllocationCommands.fromXContent(parser, ParseFieldMatcher.STRICT, registry);
 
         assertThat(sCommands.commands().size(), equalTo(5));

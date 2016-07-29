@@ -33,14 +33,14 @@ import java.util.Set;
  */
 public final class SBlock extends AStatement {
 
-    final List<AStatement> statements;
+    private final List<AStatement> statements;
 
     public SBlock(Location location, List<AStatement> statements) {
         super(location);
 
         this.statements = Collections.unmodifiableList(statements);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         for (AStatement statement : statements) {

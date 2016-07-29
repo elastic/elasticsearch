@@ -20,7 +20,6 @@
 package org.elasticsearch.common.network;
 
 import org.elasticsearch.action.support.replication.ReplicationTask;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
@@ -75,13 +74,13 @@ public class NetworkModule extends AbstractModule {
 
     /**
      * Creates a network module that custom networking classes can be plugged into.
-     *
-     * @param networkService A constructed network service object to bind.
+     *  @param networkService A constructed network service object to bind.
      * @param settings The settings for the node
      * @param transportClient True if only transport classes should be allowed to be registered, false otherwise.
      * @param namedWriteableRegistry registry for named writeables for use during streaming
      */
-    public NetworkModule(NetworkService networkService, Settings settings, boolean transportClient, NamedWriteableRegistry namedWriteableRegistry) {
+    public NetworkModule(NetworkService networkService, Settings settings, boolean transportClient,
+                         NamedWriteableRegistry namedWriteableRegistry) {
         this.networkService = networkService;
         this.settings = settings;
         this.transportClient = transportClient;

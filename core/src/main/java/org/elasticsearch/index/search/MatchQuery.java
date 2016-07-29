@@ -37,6 +37,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -353,6 +354,9 @@ public class MatchQuery {
                     Query query = fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions);
                     if (query instanceof FuzzyQuery) {
                         QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
+                    }
+                    if (query == null) {
+                        return new MatchNoDocsQuery("could not create fuzzy query for field type " + fieldType.name());
                     }
                     return query;
                 } catch (RuntimeException e) {

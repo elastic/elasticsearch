@@ -23,14 +23,15 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -72,14 +73,14 @@ public class MultiMatchQuery extends MatchQuery {
     }
 
     public Query parse(MultiMatchQueryBuilder.Type type, Map<String, Float> fieldNames, Object value, String minimumShouldMatch) throws IOException {
+        Query result;
         if (fieldNames.size() == 1) {
             Map.Entry<String, Float> fieldBoost = fieldNames.entrySet().iterator().next();
             Float boostValue = fieldBoost.getValue();
-            return parseAndApply(type.matchQueryType(), fieldBoost.getKey(), value, minimumShouldMatch, boostValue);
-        }
-
-        final float tieBreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
-        switch (type) {
+            result = parseAndApply(type.matchQueryType(), fieldBoost.getKey(), value, minimumShouldMatch, boostValue);
+        } else {
+            final float tieBreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
+            switch (type) {
             case PHRASE:
             case PHRASE_PREFIX:
             case BEST_FIELDS:
@@ -91,9 +92,12 @@ public class MultiMatchQuery extends MatchQuery {
                 break;
             default:
                 throw new IllegalStateException("No such type: " + type);
+            }
+            final List<? extends Query> queries = queryBuilder.buildGroupedQueries(type, fieldNames, value, minimumShouldMatch);
+            result = queryBuilder.combineGrouped(queries);
         }
-        final List<? extends Query> queries = queryBuilder.buildGroupedQueries(type, fieldNames, value, minimumShouldMatch);
-        return queryBuilder.combineGrouped(queries);
+        assert result != null;
+        return result;
     }
 
     private QueryBuilder queryBuilder;
@@ -127,9 +131,9 @@ public class MultiMatchQuery extends MatchQuery {
             return parseAndApply(type, field, value, minimumShouldMatch, boostValue);
         }
 
-        public Query combineGrouped(List<? extends Query> groupQuery) {
+        private Query combineGrouped(List<? extends Query> groupQuery) {
             if (groupQuery == null || groupQuery.isEmpty()) {
-                return null;
+                return  new MatchNoDocsQuery("[multi_match] list of group queries was empty");
             }
             if (groupQuery.size() == 1) {
                 return groupQuery.get(0);

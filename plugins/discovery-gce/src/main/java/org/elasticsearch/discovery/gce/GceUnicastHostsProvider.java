@@ -23,7 +23,7 @@ import com.google.api.services.compute.model.AccessConfig;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.NetworkInterface;
 import org.elasticsearch.Version;
-import org.elasticsearch.cloud.gce.GceComputeService;
+import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -64,7 +64,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         private static final String TERMINATED = "TERMINATED";
     }
 
-    private final GceComputeService gceComputeService;
+    private final GceInstancesService gceInstancesService;
     private TransportService transportService;
     private NetworkService networkService;
 
@@ -77,17 +77,17 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
     private List<DiscoveryNode> cachedDiscoNodes;
 
     @Inject
-    public GceUnicastHostsProvider(Settings settings, GceComputeService gceComputeService,
+    public GceUnicastHostsProvider(Settings settings, GceInstancesService gceInstancesService,
             TransportService transportService,
             NetworkService networkService) {
         super(settings);
-        this.gceComputeService = gceComputeService;
+        this.gceInstancesService = gceInstancesService;
         this.transportService = transportService;
         this.networkService = networkService;
 
-        this.refreshInterval = GceComputeService.REFRESH_SETTING.get(settings);
-        this.project = GceComputeService.PROJECT_SETTING.get(settings);
-        this.zones = GceComputeService.ZONE_SETTING.get(settings);
+        this.refreshInterval = GceInstancesService.REFRESH_SETTING.get(settings);
+        this.project = GceInstancesService.PROJECT_SETTING.get(settings);
+        this.zones = GceInstancesService.ZONE_SETTING.get(settings);
 
         this.tags = TAGS_SETTING.get(settings);
         if (logger.isDebugEnabled()) {
@@ -104,8 +104,8 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         // We check that needed properties have been set
         if (this.project == null || this.project.isEmpty() || this.zones == null || this.zones.isEmpty()) {
             throw new IllegalArgumentException("one or more gce discovery settings are missing. " +
-                "Check elasticsearch.yml file. Should have [" + GceComputeService.PROJECT_SETTING.getKey() +
-                "] and [" + GceComputeService.ZONE_SETTING.getKey() + "].");
+                "Check elasticsearch.yml file. Should have [" + GceInstancesService.PROJECT_SETTING.getKey() +
+                "] and [" + GceInstancesService.ZONE_SETTING.getKey() + "].");
         }
 
         if (refreshInterval.millis() != 0) {
@@ -131,7 +131,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         }
 
         try {
-            Collection<Instance> instances = gceComputeService.instances();
+            Collection<Instance> instances = gceInstancesService.instances();
 
             if (instances == null) {
                 logger.trace("no instance found for project [{}], zones [{}].", this.project, this.zones);

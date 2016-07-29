@@ -33,14 +33,14 @@ import java.util.Set;
  */
 public final class SDeclBlock extends AStatement {
 
-    final List<SDeclaration> declarations;
+    private final List<SDeclaration> declarations;
 
     public SDeclBlock(Location location, List<SDeclaration> declarations) {
         super(location);
 
         this.declarations = Collections.unmodifiableList(declarations);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         for (SDeclaration declaration : declarations) {

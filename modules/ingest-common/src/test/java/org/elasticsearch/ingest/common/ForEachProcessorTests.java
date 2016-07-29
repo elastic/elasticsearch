@@ -203,7 +203,7 @@ public class ForEachProcessorTests extends ESTestCase {
         ));
         processor.execute(ingestDocument);
 
-        List<String> result = ingestDocument.getFieldValue("values", List.class);
+        List<Object> result = ingestDocument.getFieldValue("values", List.class);
         assertThat(result.get(0), equalTo("STRING"));
         assertThat(result.get(1), equalTo(1));
         assertThat(result.get(2), equalTo(null));

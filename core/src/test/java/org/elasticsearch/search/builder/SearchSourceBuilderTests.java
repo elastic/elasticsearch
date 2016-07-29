@@ -545,6 +545,41 @@ public class SearchSourceBuilderTests extends ESTestCase {
         }
     }
 
+    public void testAggsParsing() throws IOException {
+        {
+            String restContent = "{\n" + "    " + 
+                    "\"aggs\": {" + 
+                    "        \"test_agg\": {\n" + 
+                    "            " + "\"terms\" : {\n" + 
+                    "                \"field\": \"foo\"\n" + 
+                    "            }\n" + 
+                    "        }\n" + 
+                    "    }\n" + 
+                    "}\n";
+            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser), aggParsers,
+                        suggesters);
+                assertEquals(1, searchSourceBuilder.aggregations().count());
+            }
+        }
+        {
+            String restContent = "{\n" + 
+                    "    \"aggregations\": {" + 
+                    "        \"test_agg\": {\n" + 
+                    "            \"terms\" : {\n" + 
+                    "                \"field\": \"foo\"\n" + 
+                    "            }\n" + 
+                    "        }\n" + 
+                    "    }\n" + 
+                    "}\n";
+            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser), aggParsers,
+                        suggesters);
+                assertEquals(1, searchSourceBuilder.aggregations().count());
+            }
+        }
+    }
+
     /**
      * test that we can parse the `rescore` element either as single object or as array
      */

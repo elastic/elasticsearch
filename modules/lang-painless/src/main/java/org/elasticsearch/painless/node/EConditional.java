@@ -31,15 +31,16 @@ import java.util.Objects;
 import java.util.Set;
 
 import org.elasticsearch.painless.MethodWriter;
+import org.objectweb.asm.Opcodes;
 
 /**
  * Respresents a conditional expression.
  */
 public final class EConditional extends AExpression {
 
-    AExpression condition;
-    AExpression left;
-    AExpression right;
+    private AExpression condition;
+    private AExpression left;
+    private AExpression right;
 
     public EConditional(Location location, AExpression condition, AExpression left, AExpression right) {
         super(location);
@@ -48,7 +49,7 @@ public final class EConditional extends AExpression {
         this.left = Objects.requireNonNull(left);
         this.right = Objects.requireNonNull(right);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         condition.extractVariables(variables);
@@ -93,17 +94,15 @@ public final class EConditional extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        Label localfals = new Label();
+        Label fals = new Label();
         Label end = new Label();
 
-        condition.fals = localfals;
-        left.tru = right.tru = tru;
-        left.fals = right.fals = fals;
-
         condition.write(writer, globals);
+        writer.ifZCmp(Opcodes.IFEQ, fals);
+
         left.write(writer, globals);
         writer.goTo(end);
-        writer.mark(localfals);
+        writer.mark(fals);
         right.write(writer, globals);
         writer.mark(end);
     }

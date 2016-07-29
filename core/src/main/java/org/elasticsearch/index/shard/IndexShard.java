@@ -21,7 +21,11 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
@@ -29,6 +33,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Lock;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
@@ -116,10 +121,12 @@ import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.search.suggest.completion2x.Completion090PostingsFormat;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -814,7 +821,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * gets a {@link Store.MetadataSnapshot} for the current directory. This method is safe to call in all lifecycle of the index shard,
-     * without having to worry about the current state of the engine and concurrent flushes
+     * without having to worry about the current state of the engine and concurrent flushes.
+     *
+     * @throws org.apache.lucene.index.IndexNotFoundException     if no index is found in the current directory
+     * @throws CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum mismatch or an
+     *                                    unexpected exception when opening the index reading the segments file.
+     * @throws IndexFormatTooOldException if the lucene index is too old to be opened.
+     * @throws IndexFormatTooNewException if the lucene index is too new to be opened.
+     * @throws FileNotFoundException      if one or more files referenced by a commit are not present.
+     * @throws NoSuchFileException        if one or more files referenced by a commit are not present.
      */
     public Store.MetadataSnapshot snapshotStore() throws IOException {
         synchronized (mutex) {
@@ -823,7 +838,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // That can be done out of mutex, since the engine can be closed half way.
             Engine engine = getEngineOrNull();
             if (engine == null) {
-                return store.getMetadata(null);
+                store.incRef();
+                try (Lock ignored = store.directory().obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
+                    return store.getMetadata(null);
+                } finally {
+                    store.decRef();
+                }
             }
         }
         IndexCommit indexCommit = null;
@@ -1337,7 +1357,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if ("checksum".equals(checkIndexOnStartup)) {
             // physical verification only: verify all checksums for the latest commit
             IOException corrupt = null;
-            MetadataSnapshot metadata = store.getMetadata();
+            MetadataSnapshot metadata = snapshotStore();
             for (Map.Entry<String, StoreFileMetaData> entry : metadata.asMap().entrySet()) {
                 try {
                     Store.checkIntegrity(entry.getValue(), store.directory());

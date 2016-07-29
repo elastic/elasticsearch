@@ -19,6 +19,7 @@
 package org.elasticsearch.index.replication;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -29,8 +30,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
-import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
@@ -81,8 +80,6 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -302,12 +299,24 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
             replica.prepareForIndexRecovery();
             RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
             StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), pNode, rNode,
-                replica.store().getMetadataOrEmpty(), RecoveryState.Type.REPLICA, 0);
+                getMetadataSnapshotOrEmpty(replica), RecoveryState.Type.REPLICA, 0);
             RecoverySourceHandler recovery = new RecoverySourceHandler(primary, recoveryTarget, request, () -> 0L, e -> () -> {},
                 (int) ByteSizeUnit.MB.toKB(1), logger);
             recovery.recoverToTarget();
             recoveryTarget.markAsDone();
             replica.updateRoutingEntry(ShardRoutingHelper.moveToStarted(replica.routingEntry()));
+        }
+
+        private Store.MetadataSnapshot getMetadataSnapshotOrEmpty(IndexShard replica) throws IOException {
+            try {
+                return replica.snapshotStore();
+            } catch (IndexNotFoundException e) {
+                // OK!
+                return Store.MetadataSnapshot.EMPTY;
+            } catch (IOException e) {
+                logger.warn("{} failed read store, treating as empty", e);
+                return Store.MetadataSnapshot.EMPTY;
+            }
         }
 
         public synchronized DiscoveryNode getPrimaryNode() {

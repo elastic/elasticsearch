@@ -99,7 +99,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         writer.commit();
         writer.close();
 
-        Store.MetadataSnapshot metadata = store.getMetadata();
+        Store.MetadataSnapshot metadata = store.getMetadata(null);
         List<StoreFileMetaData> metas = new ArrayList<>();
         for (StoreFileMetaData md : metadata) {
             metas.add(md);
@@ -118,7 +118,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 throw new RuntimeException(e);
             }
         });
-        Store.MetadataSnapshot targetStoreMetadata = targetStore.getMetadata();
+        Store.MetadataSnapshot targetStoreMetadata = targetStore.getMetadata(null);
         Store.RecoveryDiff recoveryDiff = targetStoreMetadata.recoveryDiff(metadata);
         assertEquals(metas.size(), recoveryDiff.identical.size());
         assertEquals(0, recoveryDiff.different.size());
@@ -159,7 +159,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         writer.commit();
         writer.close();
 
-        Store.MetadataSnapshot metadata = store.getMetadata();
+        Store.MetadataSnapshot metadata = store.getMetadata(null);
         List<StoreFileMetaData> metas = new ArrayList<>();
         for (StoreFileMetaData md : metadata) {
             metas.add(md);
@@ -223,7 +223,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         writer.commit();
         writer.close();
 
-        Store.MetadataSnapshot metadata = store.getMetadata();
+        Store.MetadataSnapshot metadata = store.getMetadata(null);
         List<StoreFileMetaData> metas = new ArrayList<>();
         for (StoreFileMetaData md : metadata) {
             metas.add(md);

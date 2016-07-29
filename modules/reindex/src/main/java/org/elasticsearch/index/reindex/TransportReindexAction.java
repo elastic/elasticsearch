@@ -52,6 +52,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServer;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
@@ -232,6 +233,15 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         }
 
         @Override
+        protected boolean needsSourceDocumentVersions() {
+            /*
+             * We only need the source version if we're going to use it when write and we only do that when the destination request uses
+             * external versioning.
+             */
+            return mainRequest.getDestination().versionType() != VersionType.INTERNAL;
+        }
+
+        @Override
         protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy) {
             if (mainRequest.getRemoteInfo() != null) {
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
@@ -284,6 +294,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
              */
             index.versionType(mainRequest.getDestination().versionType());
             if (index.versionType() == INTERNAL) {
+                assert doc.getVersion() == -1 : "fetched version when we didn't have to";
                 index.version(mainRequest.getDestination().version());
             } else {
                 index.version(doc.getVersion());

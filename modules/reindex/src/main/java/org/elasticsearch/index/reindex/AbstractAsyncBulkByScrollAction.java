@@ -101,7 +101,13 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         if (sorts == null || sorts.isEmpty()) {
             mainRequest.getSearchRequest().source().sort(fieldSort("_doc"));
         }
+        mainRequest.getSearchRequest().source().version(needsSourceDocumentVersions());
     }
+
+    /**
+     * Does this operation need the versions of the source documents?
+     */
+    protected abstract boolean needsSourceDocumentVersions();
 
     protected abstract BulkRequest buildBulk(Iterable<? extends ScrollableHitSource.Hit> docs);
 

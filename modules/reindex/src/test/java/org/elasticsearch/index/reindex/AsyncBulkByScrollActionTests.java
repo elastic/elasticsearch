@@ -660,6 +660,11 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
 
         @Override
+        protected boolean needsSourceDocumentVersions() {
+            return randomBoolean();
+        }
+
+        @Override
         protected BulkRequest buildBulk(Iterable<? extends ScrollableHitSource.Hit> docs) {
             return new BulkRequest();
         }

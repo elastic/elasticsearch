@@ -65,7 +65,7 @@ public class CancellableThreads {
         throw e;
     }
 
-    @SuppressForbidden(reason = "We really want to use Thread.interrupted() here")
+    @SuppressForbidden(reason = "Use Thread.interrupted() to implement this class' interruption policy (forbid external interrupts).")
     private synchronized boolean add() {
         checkForCancel();
         threads.add(Thread.currentThread());
@@ -94,7 +94,7 @@ public class CancellableThreads {
      *
      * @param interruptable code to run
      */
-    @SuppressForbidden(reason = "We really want to use Thread.interrupted() here")
+    @SuppressForbidden(reason = "Use Thread.interrupted() to implement this class' interruption policy (forbid external interrupts).")
     public void executeIO(IOInterruptable interruptable) throws IOException {
         boolean wasInterrupted = add();
         RuntimeException runtimeException = null;

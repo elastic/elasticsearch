@@ -6,8 +6,6 @@ setup:
         id:    testing_document
         body:
             "text" : "The quick brown fox is brown."
-  - do:
-      indices.refresh: {}
 
 ---
 "Filtering the cluster state by blocks should return the blocks field even if the response is empty":
@@ -104,9 +102,6 @@ setup:
         id:    testing_document
         body:
             "text" : "The quick brown fox is brown."
-
-  - do:
-      indices.refresh: {}
 
   - do:
       cluster.state:

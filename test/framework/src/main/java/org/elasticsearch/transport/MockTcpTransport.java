@@ -262,7 +262,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         private final Closeable onClose;
 
         /**
-         * Constructs a new MockChannel instance intended as client.
+         * Constructs a new MockChannel instance intended for handling the actual incoming / outgoing traffic.
          *
          * @param socket The client socket. Mut not be null.
          * @param localAddress Address associated with the corresponding local server socket. Must not be null.
@@ -278,7 +278,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         }
 
         /**
-         * Constructs a new MockChannel instance intended for serving requests.
+         * Constructs a new MockChannel instance intended for accepting requests.
          *
          * @param serverSocket The associated server socket. Must not be null.
          * @param profile The associated profile name.
@@ -293,17 +293,26 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
 
         public void accept(Executor executor) throws IOException {
             while (isOpen.get()) {
-                Socket accept = serverSocket.accept();
-                configureSocket(accept);
-                MockChannel mockChannel = new MockChannel(accept, localAddress, profile, workerChannels::remove);
-                //establish a happens-before edge between closing and accepting a new connection
-                synchronized (this) {
-                    if (isOpen.get()) {
-                        workerChannels.put(mockChannel, Boolean.TRUE);
-                        mockChannel.loopRead(executor);
-                    } else {
-                        IOUtils.closeWhileHandlingException(accept);
+                Socket incomingSocket = serverSocket.accept();
+                MockChannel incomingChannel = null;
+                try {
+                    configureSocket(incomingSocket);
+                    incomingChannel = new MockChannel(incomingSocket, localAddress, profile, workerChannels::remove);
+                    //establish a happens-before edge between closing and accepting a new connection
+                    synchronized (this) {
+                        if (isOpen.get()) {
+                            workerChannels.put(incomingChannel, Boolean.TRUE);
+                            // this spawns a new thread immediately, so OK under lock
+                            incomingChannel.loopRead(executor);
+                            // the channel is properly registered and will be cleared by the close code.
+                            incomingSocket = null;
+                            incomingChannel = null;
+                        }
                     }
+                } finally {
+                    // ensure we don't leak sockets and channels in the failure case. Note that we null both
+                    // if there are no exceptions so this becomes a no op.
+                    IOUtils.closeWhileHandlingException(incomingSocket, incomingChannel);
                 }
             }
         }
@@ -324,7 +333,9 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
                 @Override
                 protected void doRun() throws Exception {
                     StreamInput input = new InputStreamStreamInput(new BufferedInputStream(activeChannel.getInputStream()));
-                    while (isOpen.get() && !Thread.currentThread().isInterrupted()) {
+                    // as per interruption policy of CancellableThreads we don't need to check for interrupts.
+                    // the only possibility to ever exit this loop is that #close() is invoked.
+                    while (isOpen.get()) {
                         cancellableThreads.executeIO(() -> readMessage(MockChannel.this, input));
                     }
                 }

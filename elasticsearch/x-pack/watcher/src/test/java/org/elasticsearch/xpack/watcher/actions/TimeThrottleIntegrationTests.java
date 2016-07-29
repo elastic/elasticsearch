@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
@@ -43,7 +44,7 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
         IndexResponse eventIndexResponse = client().prepareIndex("events", "event")
                 .setSource("level", "error")
                 .get();
-        assertThat(eventIndexResponse.isCreated(), is(true));
+        assertEquals(DocWriteResponse.Operation.CREATE, eventIndexResponse.getOperation());
         refresh();
         return eventIndexResponse;
     }

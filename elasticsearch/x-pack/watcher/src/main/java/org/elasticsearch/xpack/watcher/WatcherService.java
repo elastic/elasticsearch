@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher;
 
 
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -15,7 +16,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.xpack.common.stats.Counters;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.support.clock.Clock;
@@ -29,7 +29,6 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.PeriodType;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -122,7 +121,7 @@ public class WatcherService extends AbstractComponent {
         }
         try {
             WatchStore.WatchDelete delete = watchStore.delete(id, force);
-            if (delete.deleteResponse().isFound()) {
+            if (delete.deleteResponse().getOperation() == DocWriteResponse.Operation.DELETE) {
                 triggerService.remove(id);
             }
             return delete;

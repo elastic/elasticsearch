@@ -9,7 +9,7 @@ Central]. The minimum Java version required is `1.7`.
 Here is how you can configure the dependency using maven as a dependency manager.
 Add the following to your `pom.xml` file:
 
-[source,xml]
+["source","xml",subs="attributes"]
 --------------------------------------------------
 <dependency>
     <groupId>org.elasticsearch.client</groupId>

@@ -81,17 +81,17 @@ public class MultiMatchQuery extends MatchQuery {
         } else {
             final float tieBreaker = groupTieBreaker == null ? type.tieBreaker() : groupTieBreaker;
             switch (type) {
-            case PHRASE:
-            case PHRASE_PREFIX:
-            case BEST_FIELDS:
-            case MOST_FIELDS:
-                queryBuilder = new QueryBuilder(tieBreaker);
-                break;
-            case CROSS_FIELDS:
-                queryBuilder = new CrossFieldsQueryBuilder(tieBreaker);
-                break;
-            default:
-                throw new IllegalStateException("No such type: " + type);
+                case PHRASE:
+                case PHRASE_PREFIX:
+                case BEST_FIELDS:
+                case MOST_FIELDS:
+                    queryBuilder = new QueryBuilder(tieBreaker);
+                    break;
+                case CROSS_FIELDS:
+                    queryBuilder = new CrossFieldsQueryBuilder(tieBreaker);
+                    break;
+                default:
+                    throw new IllegalStateException("No such type: " + type);
             }
             final List<? extends Query> queries = queryBuilder.buildGroupedQueries(type, fieldNames, value, minimumShouldMatch);
             result = queryBuilder.combineGrouped(queries);

@@ -60,6 +60,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -73,7 +74,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     public void testRandomClusterStateUpdates() {
         // we have an IndicesClusterStateService per node in the cluster
         final Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap = new HashMap<>();
-        ClusterState state = randomInitialClusterState(clusterStateServiceMap);
+        ClusterState state = randomInitialClusterState(clusterStateServiceMap, MockIndicesService::new);
 
         // each of the following iterations represents a new cluster state update processed on all nodes
         for (int i = 0; i < 30; i++) {
@@ -82,7 +83,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
             // calculate new cluster state
             for (int j = 0; j < randomInt(3); j++) { // multiple iterations to simulate batching of cluster states
-                state = randomlyUpdateClusterState(state, clusterStateServiceMap);
+                state = randomlyUpdateClusterState(state, clusterStateServiceMap, MockIndicesService::new);
             }
 
             // apply cluster state to nodes (incl. master)
@@ -101,10 +102,22 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         logger.info("Final cluster state: {}", state.prettyPrint());
     }
 
-    public void testSimulateMasterDataDirectoryWiped() {
+    /**
+     * This test ensures that when a node joins a brand new cluster (different cluster UUID),
+     * different from the cluster it was previously a part of, the in-memory index data structures
+     * are all removed but the on disk contents of those indices remain so that they can later be
+     * imported as dangling indices.  Normally, the first cluster state update that the node
+     * receives from the new cluster would contain a cluster block that would cause all in-memory
+     * structures to be removed (see {@link IndicesClusterStateService#clusterChanged(ClusterChangedEvent)}),
+     * but in the case where the node joined and was a few cluster state updates behind, it would
+     * not have received the cluster block, in which case we still need to remove the in-memory
+     * structures while ensuring the data remains on disk.  This test executes this particular
+     * scenario.
+     */
+    public void testJoiningNewClusterOnlyRemovesInMemoryIndexStructures() {
         // we have an IndicesClusterStateService per node in the cluster
         final Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap = new HashMap<>();
-        ClusterState previousState = randomInitialClusterState(clusterStateServiceMap);
+        ClusterState previousState = randomInitialClusterState(clusterStateServiceMap, RecordingIndicesService::new);
         ClusterState newClusterState = ClusterState.builder(previousState)
                                            .metaData(MetaData.builder(previousState.metaData()).clusterUUID(UUIDs.randomBase64UUID()))
                                            .build();
@@ -118,37 +131,42 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         ClusterState state = cluster.createIndex(previousState, request);
         assertTrue(state.metaData().hasIndex(name));
 
-        // apply cluster state to nodes (incl. master)
-        for (DiscoveryNode node : state.nodes()) {
-            IndicesClusterStateService indicesClusterStateService = clusterStateServiceMap.get(node);
-            ClusterState localState = adaptClusterStateToLocalNode(state, node);
-            ClusterState previousLocalState = adaptClusterStateToLocalNode(previousState, node);
-            indicesClusterStateService.clusterChanged(
-                new ClusterChangedEvent("simulated change 1", localState, previousLocalState));
-
-            // check that cluster state has been properly applied to node
-            assertClusterStateMatchesNodeState(localState, indicesClusterStateService);
-        }
-
-        for (DiscoveryNode node : newClusterState.nodes()) {
-            IndicesClusterStateService indicesClusterStateService = clusterStateServiceMap.get(node);
-            ClusterState localState = adaptClusterStateToLocalNode(newClusterState, node);
-            ClusterState previousLocalState = adaptClusterStateToLocalNode(state, node);
-            indicesClusterStateService.clusterChanged(
-                new ClusterChangedEvent("simulated change 2", localState, previousLocalState));
-
-            // check that in memory data structures have been removed with the new cluster,
-            // but the persistent data is still there
-            RecordingIndicesService indicesService = (RecordingIndicesService) indicesClusterStateService.indicesService;
-            for (ObjectCursor<IndexMetaData> indexMetaData : state.metaData().getIndices().values()) {
-                Index index = indexMetaData.value.getIndex();
-                assertNull(indicesClusterStateService.indicesService.indexService(index));
-                assertFalse(indicesService.isDeleted(index));
+        // pick a data node to simulate the cluster state change on
+        DiscoveryNode node = null;
+        for (DiscoveryNode discoveryNode : clusterStateServiceMap.keySet()) {
+            if (discoveryNode.isDataNode()) {
+                node = discoveryNode;
+                break;
             }
+        }
+        assertNotNull(node);
+        IndicesClusterStateService indicesClusterStateService = clusterStateServiceMap.get(node);
+        ClusterState localState = adaptClusterStateToLocalNode(state, node);
+        ClusterState previousLocalState = adaptClusterStateToLocalNode(previousState, node);
+        indicesClusterStateService.clusterChanged(
+            new ClusterChangedEvent("simulated change 1", localState, previousLocalState));
+
+        // check that cluster state has been properly applied to node
+        assertClusterStateMatchesNodeState(localState, indicesClusterStateService);
+
+        indicesClusterStateService = clusterStateServiceMap.get(node);
+        localState = adaptClusterStateToLocalNode(newClusterState, node);
+        previousLocalState = adaptClusterStateToLocalNode(state, node);
+        indicesClusterStateService.clusterChanged(
+            new ClusterChangedEvent("simulated change 2", localState, previousLocalState));
+
+        // check that in memory data structures have been removed with the new cluster,
+        // but the persistent data is still there
+        RecordingIndicesService indicesService = (RecordingIndicesService) indicesClusterStateService.indicesService;
+        for (ObjectCursor<IndexMetaData> indexMetaData : state.metaData().getIndices().values()) {
+            Index index = indexMetaData.value.getIndex();
+            assertNull(indicesClusterStateService.indicesService.indexService(index));
+            assertFalse(indicesService.isDeleted(index));
         }
     }
 
-    public ClusterState randomInitialClusterState(Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap) {
+    public ClusterState randomInitialClusterState(Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap,
+                                                  Supplier<MockIndicesService> indicesServiceSupplier) {
         List<DiscoveryNode> allNodes = new ArrayList<>();
         DiscoveryNode localNode = createNode(DiscoveryNode.Role.MASTER); // local node is the master
         allNodes.add(localNode);
@@ -160,14 +178,15 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         }
         ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[allNodes.size()]));
         // add nodes to clusterStateServiceMap
-        updateNodes(state, clusterStateServiceMap);
+        updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
         return state;
     }
 
-    private void updateNodes(ClusterState state, Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap) {
+    private void updateNodes(ClusterState state, Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap,
+                             Supplier<MockIndicesService> indicesServiceSupplier) {
         for (DiscoveryNode node : state.nodes()) {
             clusterStateServiceMap.computeIfAbsent(node, discoveryNode -> {
-                IndicesClusterStateService ics = createIndicesClusterStateService();
+                IndicesClusterStateService ics = createIndicesClusterStateService(indicesServiceSupplier);
                 ics.start();
                 return ics;
             });
@@ -182,7 +201,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     }
 
     public ClusterState randomlyUpdateClusterState(ClusterState state,
-                                                   Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap) {
+                                                   Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap,
+                                                   Supplier<MockIndicesService> indicesServiceSupplier) {
         // randomly create new indices (until we have 200 max)
         for (int i = 0; i < randomInt(5); i++) {
             if (state.metaData().indices().size() > 200) {
@@ -280,7 +300,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                     DiscoveryNodes newNodes = DiscoveryNodes.builder(state.nodes()).put(createNode()).build();
                     state = ClusterState.builder(state).nodes(newNodes).build();
                     state = cluster.reroute(state, new ClusterRerouteRequest()); // always reroute after node leave
-                    updateNodes(state, clusterStateServiceMap);
+                    updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                 }
             } else {
                 // remove node
@@ -290,7 +310,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                         DiscoveryNodes newNodes = DiscoveryNodes.builder(state.nodes()).remove(discoveryNode.getId()).build();
                         state = ClusterState.builder(state).nodes(newNodes).build();
                         state = cluster.reroute(state, new ClusterRerouteRequest()); // always reroute after node join
-                        updateNodes(state, clusterStateServiceMap);
+                        updateNodes(state, clusterStateServiceMap, indicesServiceSupplier);
                     }
                 }
             }
@@ -314,11 +334,11 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         return ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(node.getId())).build();
     }
 
-    private IndicesClusterStateService createIndicesClusterStateService() {
+    private IndicesClusterStateService createIndicesClusterStateService(final Supplier<MockIndicesService> indicesServiceSupplier) {
         final ThreadPool threadPool = mock(ThreadPool.class);
         final Executor executor = mock(Executor.class);
         when(threadPool.generic()).thenReturn(executor);
-        final MockIndicesService indicesService = new RecordingIndicesService();
+        final MockIndicesService indicesService = indicesServiceSupplier.get();
         final TransportService transportService = new TransportService(Settings.EMPTY, null, threadPool);
         final ClusterService clusterService = mock(ClusterService.class);
         final RepositoriesService repositoriesService = new RepositoriesService(Settings.EMPTY, clusterService,

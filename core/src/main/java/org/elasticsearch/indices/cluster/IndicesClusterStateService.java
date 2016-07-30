@@ -310,8 +310,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         for (AllocatedIndex<? extends Shard> indexService : indicesService) {
             Index index = indexService.index();
             if (indicesWithShards.contains(index) == false) {
+                // if the cluster change indicates a brand new cluster, we only want
+                // to remove the in-memory structures for the index and not delete the
+                // contents on disk because the index will later be re-imported as a
+                // dangling index
                 assert state.metaData().index(index) != null || event.isNewCluster() :
-                    "if the index does not exist in the cluster state, it should either " +
+                    "index " + index + " does not exist in the cluster state, it should either " +
                     "have been deleted or the cluster must be new";
                 logger.debug("{} removing index, no shards allocated", index);
                 indicesService.removeIndex(index, "removing index (no shards allocated)");

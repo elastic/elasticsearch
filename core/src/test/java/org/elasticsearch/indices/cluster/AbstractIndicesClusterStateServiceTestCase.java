@@ -242,7 +242,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
         private final IndexSettings indexSettings;
 
-        protected MockIndexService(IndexSettings indexSettings) {
+        public MockIndexService(IndexSettings indexSettings) {
             this.indexSettings = indexSettings;
         }
 

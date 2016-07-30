@@ -213,17 +213,32 @@ class ESFileStore extends FileStore {
 
     @Override
     public long getTotalSpace() throws IOException {
-        return in.getTotalSpace();
+        long result = in.getTotalSpace();
+        if (result < 0) {
+            // see https://bugs.openjdk.java.net/browse/JDK-8162520:
+            result = Long.MAX_VALUE;
+        }
+        return result;
     }
 
     @Override
     public long getUsableSpace() throws IOException {
-        return in.getUsableSpace();
+        long result = in.getUsableSpace();
+        if (result < 0) {
+            // see https://bugs.openjdk.java.net/browse/JDK-8162520:
+            result = Long.MAX_VALUE;
+        }
+        return result;
     }
 
     @Override
     public long getUnallocatedSpace() throws IOException {
-        return in.getUnallocatedSpace();
+        long result = in.getUnallocatedSpace();
+        if (result < 0) {
+            // see https://bugs.openjdk.java.net/browse/JDK-8162520:
+            result = Long.MAX_VALUE;
+        }
+        return result;
     }
 
     @Override

@@ -28,11 +28,11 @@ import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
-import org.elasticsearch.search.fetch.docvalues.DocValueFieldsContext;
-import org.elasticsearch.search.fetch.docvalues.DocValueFieldsContext.DocValueField;
-import org.elasticsearch.search.fetch.docvalues.DocValueFieldsFetchSubPhase;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
-import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.DocValueField;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -107,7 +107,7 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
             for (ScriptField field : scriptFields) {
                 SearchScript searchScript = subSearchContext.scriptService().search(subSearchContext.lookup(), field.script(),
                         ScriptContext.Standard.SEARCH, Collections.emptyMap());
-                subSearchContext.scriptFields().add(new org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField(
+                subSearchContext.scriptFields().add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                         field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }

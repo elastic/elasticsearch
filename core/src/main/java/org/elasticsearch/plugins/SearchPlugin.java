@@ -37,7 +37,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.highlight.Highlighter;
+import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.suggest.Suggester;
 
 import java.util.List;

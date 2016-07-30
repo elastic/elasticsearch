@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.fetch;
 
-import org.elasticsearch.search.fetch.docvalues.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 
 /**
  * All configuration and context needed by the FetchSubPhase to execute on hits.

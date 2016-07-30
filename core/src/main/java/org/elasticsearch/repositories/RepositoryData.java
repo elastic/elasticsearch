@@ -58,26 +58,17 @@ public final class RepositoryData implements ToXContent {
      * The snapshots that each index belongs to.
      */
     private final Map<IndexId, Set<SnapshotId>> indexSnapshots;
-    /**
-     * Whether the repository data is in the legacy (pre 5.0) format
-     */
-    private final boolean legacyFormat;
 
-    private RepositoryData(List<SnapshotId> snapshotIds, Map<IndexId, Set<SnapshotId>> indexSnapshots, boolean legacyFormat) {
+    public RepositoryData(List<SnapshotId> snapshotIds, Map<IndexId, Set<SnapshotId>> indexSnapshots) {
         this.snapshotIds = Collections.unmodifiableList(snapshotIds);
         this.indices = Collections.unmodifiableMap(indexSnapshots.keySet()
                                                        .stream()
                                                        .collect(Collectors.toMap(IndexId::getName, Function.identity())));
         this.indexSnapshots = Collections.unmodifiableMap(indexSnapshots);
-        this.legacyFormat = legacyFormat;
-    }
-
-    public RepositoryData(List<SnapshotId> snapshotIds, Map<IndexId, Set<SnapshotId>> indexSnapshots) {
-        this(snapshotIds, indexSnapshots, false);
     }
 
     protected RepositoryData copy() {
-        return new RepositoryData(snapshotIds, indexSnapshots, legacyFormat);
+        return new RepositoryData(snapshotIds, indexSnapshots);
     }
 
     /**
@@ -92,13 +83,6 @@ public final class RepositoryData implements ToXContent {
      */
     public Map<String, IndexId> getIndices() {
         return indices;
-    }
-
-    /**
-     * Returns whether the repository data format is in the legacy (pre 5.0) format or not
-     */
-    public boolean isLegacyFormat() {
-        return legacyFormat;
     }
 
     /**
@@ -272,7 +256,7 @@ public final class RepositoryData implements ToXContent {
         return builder;
     }
 
-    public static RepositoryData fromXContent(final XContentParser parser, boolean legacyFormat) throws IOException {
+    public static RepositoryData fromXContent(final XContentParser parser) throws IOException {
         List<SnapshotId> snapshots = new ArrayList<>();
         Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
@@ -321,7 +305,7 @@ public final class RepositoryData implements ToXContent {
         } else {
             throw new ElasticsearchParseException("start object expected");
         }
-        return new RepositoryData(snapshots, indexSnapshots, legacyFormat);
+        return new RepositoryData(snapshots, indexSnapshots);
     }
 
 }

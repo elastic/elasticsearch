@@ -103,7 +103,18 @@ public class EquivalenceIT extends ESIntegTestCase {
             }
         }
 
-        createIndex("idx");
+        prepareCreate("idx")
+                .addMapping("type", jsonBuilder()
+                        .startObject()
+                            .startObject("type")
+                                .startObject("properties")
+                                    .startObject("values")
+                                        .field("type", "double")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()).execute().actionGet();
+
         for (int i = 0; i < docs.length; ++i) {
             XContentBuilder source = jsonBuilder()
                     .startObject()

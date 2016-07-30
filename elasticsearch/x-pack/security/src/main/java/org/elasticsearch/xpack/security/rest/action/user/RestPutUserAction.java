@@ -16,7 +16,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;

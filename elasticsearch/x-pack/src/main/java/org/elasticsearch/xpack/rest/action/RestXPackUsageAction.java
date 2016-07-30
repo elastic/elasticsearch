@@ -14,7 +14,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.action.XPackUsageRequestBuilder;

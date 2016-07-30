@@ -21,14 +21,13 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 
 import java.io.IOException;
 
 /**
- *
+ * Explains the scoring calculations for the top hits.
  */
 public final class ExplainFetchSubPhase implements FetchSubPhase {
 
@@ -47,7 +46,8 @@ public final class ExplainFetchSubPhase implements FetchSubPhase {
             // we use the top level doc id, since we work with the top level searcher
             hitContext.hit().explanation(explanation);
         } catch (IOException e) {
-            throw new FetchPhaseExecutionException(context, "Failed to explain doc [" + hitContext.hit().type() + "#" + hitContext.hit().id() + "]", e);
+            throw new FetchPhaseExecutionException(context, "Failed to explain doc [" + hitContext.hit().type() + "#" 
+                    + hitContext.hit().id() + "]", e);
         } finally {
             context.clearReleasables(SearchContext.Lifetime.COLLECTION);
         }

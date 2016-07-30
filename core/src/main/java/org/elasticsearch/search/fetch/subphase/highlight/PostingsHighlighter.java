@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils.Encoders;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -53,7 +54,8 @@ public class PostingsHighlighter implements Highlighter {
         FieldMapper fieldMapper = highlighterContext.mapper;
         SearchContextHighlight.Field field = highlighterContext.field;
         if (canHighlight(fieldMapper) == false) {
-            throw new IllegalArgumentException("the field [" + highlighterContext.fieldName + "] should be indexed with positions and offsets in the postings list to be used with postings highlighter");
+            throw new IllegalArgumentException("the field [" + highlighterContext.fieldName
+                    + "] should be indexed with positions and offsets in the postings list to be used with postings highlighter");
         }
 
         SearchContext context = highlighterContext.context;
@@ -67,8 +69,9 @@ public class PostingsHighlighter implements Highlighter {
         MapperHighlighterEntry mapperHighlighterEntry = highlighterEntry.mappers.get(fieldMapper);
 
         if (mapperHighlighterEntry == null) {
-            Encoder encoder = field.fieldOptions().encoder().equals("html") ? HighlightUtils.Encoders.HTML : HighlightUtils.Encoders.DEFAULT;
-            CustomPassageFormatter passageFormatter = new CustomPassageFormatter(field.fieldOptions().preTags()[0], field.fieldOptions().postTags()[0], encoder);
+            Encoder encoder = field.fieldOptions().encoder().equals("html") ? Encoders.HTML : Encoders.DEFAULT;
+            CustomPassageFormatter passageFormatter = new CustomPassageFormatter(
+                    field.fieldOptions().preTags()[0], field.fieldOptions().postTags()[0], encoder);
             mapperHighlighterEntry = new MapperHighlighterEntry(passageFormatter);
         }
 
@@ -83,17 +86,20 @@ public class PostingsHighlighter implements Highlighter {
                 //so we don't lose the distinction between the different values of a field and we get back a snippet per value
                 String fieldValue = mergeFieldValues(fieldValues, HighlightUtils.NULL_SEPARATOR);
                 CustomSeparatorBreakIterator breakIterator = new CustomSeparatorBreakIterator(HighlightUtils.NULL_SEPARATOR);
-                highlighter = new CustomPostingsHighlighter(analyzer, mapperHighlighterEntry.passageFormatter, breakIterator, fieldValue, field.fieldOptions().noMatchSize() > 0);
+                highlighter = new CustomPostingsHighlighter(analyzer, mapperHighlighterEntry.passageFormatter, breakIterator,
+                        fieldValue, field.fieldOptions().noMatchSize() > 0);
                 numberOfFragments = fieldValues.size(); //we are highlighting the whole content, one snippet per value
             } else {
                 //using paragraph separator we make sure that each field value holds a discrete passage for highlighting
                 String fieldValue = mergeFieldValues(fieldValues, HighlightUtils.PARAGRAPH_SEPARATOR);
-                highlighter = new CustomPostingsHighlighter(analyzer, mapperHighlighterEntry.passageFormatter, fieldValue, field.fieldOptions().noMatchSize() > 0);
+                highlighter = new CustomPostingsHighlighter(analyzer, mapperHighlighterEntry.passageFormatter,
+                        fieldValue, field.fieldOptions().noMatchSize() > 0);
                 numberOfFragments = field.fieldOptions().numberOfFragments();
             }
 
             IndexSearcher searcher = new IndexSearcher(hitContext.reader());
-            Snippet[] fieldSnippets = highlighter.highlightField(fieldMapper.fieldType().name(), highlighterContext.query, searcher, hitContext.docId(), numberOfFragments);
+            Snippet[] fieldSnippets = highlighter.highlightField(fieldMapper.fieldType().name(), highlighterContext.query, searcher,
+                    hitContext.docId(), numberOfFragments);
             for (Snippet fieldSnippet : fieldSnippets) {
                 if (Strings.hasText(fieldSnippet.getText())) {
                     snippets.add(fieldSnippet);

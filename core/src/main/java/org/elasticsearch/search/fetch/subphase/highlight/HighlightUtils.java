@@ -43,7 +43,11 @@ public final class HighlightUtils {
 
     }
 
-    static List<Object> loadFieldValues(SearchContextHighlight.Field field, FieldMapper mapper, SearchContext searchContext, FetchSubPhase.HitContext hitContext) throws IOException {
+    /**
+     * Load field values for highlighting.
+     */
+    public static List<Object> loadFieldValues(SearchContextHighlight.Field field, FieldMapper mapper, SearchContext searchContext,
+            FetchSubPhase.HitContext hitContext) throws IOException {
         //percolator needs to always load from source, thus it sets the global force source to true
         boolean forceSource = searchContext.highlight().forceSource(field);
         List<Object> textsToHighlight;
@@ -65,7 +69,7 @@ public final class HighlightUtils {
     }
 
     static class Encoders {
-        static Encoder DEFAULT = new DefaultEncoder();
-        static Encoder HTML = new SimpleHTMLEncoder();
+        static final Encoder DEFAULT = new DefaultEncoder();
+        static final Encoder HTML = new SimpleHTMLEncoder();
     }
 }

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.matchedqueries;
+package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -69,8 +69,10 @@ public class MatchedQueriesIT extends ESIntegTestCase {
             }
         }
 
-        searchResponse = client().prepareSearch()
-                .setQuery(boolQuery().should(rangeQuery("number").lte(2).queryName("test1")).should(rangeQuery("number").gt(2).queryName("test2"))).get();
+        searchResponse = client().prepareSearch().setQuery(
+                boolQuery()
+                    .should(rangeQuery("number").lte(2).queryName("test1"))
+                    .should(rangeQuery("number").gt(2).queryName("test2"))).get();
         assertHitCount(searchResponse, 3L);
         for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2")) {

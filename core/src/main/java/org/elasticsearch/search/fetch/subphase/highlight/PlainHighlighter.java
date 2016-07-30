@@ -68,11 +68,13 @@ public class PlainHighlighter implements Highlighter {
             hitContext.cache().put(CACHE_KEY, mappers);
         }
         @SuppressWarnings("unchecked")
-        Map<FieldMapper, org.apache.lucene.search.highlight.Highlighter> cache = (Map<FieldMapper, org.apache.lucene.search.highlight.Highlighter>) hitContext.cache().get(CACHE_KEY);
+        Map<FieldMapper, org.apache.lucene.search.highlight.Highlighter> cache =
+            (Map<FieldMapper, org.apache.lucene.search.highlight.Highlighter>) hitContext.cache().get(CACHE_KEY);
 
         org.apache.lucene.search.highlight.Highlighter entry = cache.get(mapper);
         if (entry == null) {
-            QueryScorer queryScorer = new CustomQueryScorer(highlighterContext.query, field.fieldOptions().requireFieldMatch() ? mapper.fieldType().name() : null);
+            QueryScorer queryScorer = new CustomQueryScorer(highlighterContext.query,
+                    field.fieldOptions().requireFieldMatch() ? mapper.fieldType().name() : null);
             queryScorer.setExpandMultiTermQuery(true);
             Fragmenter fragmenter;
             if (field.fieldOptions().numberOfFragments() == 0) {
@@ -84,7 +86,8 @@ public class PlainHighlighter implements Highlighter {
             } else if ("span".equals(field.fieldOptions().fragmenter())) {
                 fragmenter = new SimpleSpanFragmenter(queryScorer, field.fieldOptions().fragmentCharSize());
             } else {
-                throw new IllegalArgumentException("unknown fragmenter option [" + field.fieldOptions().fragmenter() + "] for the field [" + highlighterContext.fieldName + "]");
+                throw new IllegalArgumentException("unknown fragmenter option [" + field.fieldOptions().fragmenter()
+                        + "] for the field [" + highlighterContext.fieldName + "]");
             }
             Formatter formatter = new SimpleHTMLFormatter(field.fieldOptions().preTags()[0], field.fieldOptions().postTags()[0]);
 
@@ -181,7 +184,8 @@ public class PlainHighlighter implements Highlighter {
         return true;
     }
 
-    private static int findGoodEndForNoHighlightExcerpt(int noMatchSize, Analyzer analyzer, String fieldName, String contents) throws IOException {
+    private static int findGoodEndForNoHighlightExcerpt(int noMatchSize, Analyzer analyzer, String fieldName, String contents)
+            throws IOException {
         try (TokenStream tokenStream = analyzer.tokenStream(fieldName, contents)) {
             if (!tokenStream.hasAttribute(OffsetAttribute.class)) {
                 // Can't split on term boundaries without offsets

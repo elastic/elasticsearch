@@ -18,8 +18,8 @@
  */
 
 /**
- * Search phase that fetches the top resutls from the shards after the results of the query phase have been merged. Pluggable by
- * implementing {@link org.elasticsearch.search.fetch.FetchSubPhase} and
+ * Search phase that fetches the top hits from the shards after the results of the query phase have been merged. Pluggable by implementing
+ * {@link org.elasticsearch.search.fetch.FetchSubPhase} and
  * {@link org.elasticsearch.plugins.SearchPlugin#getFetchSubPhases(org.elasticsearch.plugins.SearchPlugin.FetchPhaseConstructionContext)}.
  */
 package org.elasticsearch.search.fetch;

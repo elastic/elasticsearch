@@ -38,6 +38,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
+ * Context used to fetch the {@code _source}.
  */
 public class FetchSourceContext implements Streamable, ToXContent {
 
@@ -175,8 +176,8 @@ public class FetchSourceContext implements Streamable, ToXContent {
                             if (token == XContentParser.Token.VALUE_STRING) {
                                 includesList.add(parser.text());
                             } else {
-                                throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                                        parser.getTokenLocation());
+                                throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token
+                                        + " in [" + currentFieldName + "].", parser.getTokenLocation());
                             }
                         }
                         includes = includesList.toArray(new String[includesList.size()]);
@@ -186,14 +187,14 @@ public class FetchSourceContext implements Streamable, ToXContent {
                             if (token == XContentParser.Token.VALUE_STRING) {
                                 excludesList.add(parser.text());
                             } else {
-                                throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                                        parser.getTokenLocation());
+                                throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token
+                                        + " in [" + currentFieldName + "].", parser.getTokenLocation());
                             }
                         }
                         excludes = excludesList.toArray(new String[excludesList.size()]);
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                                parser.getTokenLocation());
+                        throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token
+                                + " in [" + currentFieldName + "].", parser.getTokenLocation());
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if (context.getParseFieldMatcher().match(currentFieldName, INCLUDES_FIELD)) {

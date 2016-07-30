@@ -67,7 +67,8 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
             if (context.highlight().forceSource(field)) {
                 SourceFieldMapper sourceFieldMapper = context.mapperService().documentMapper(hitContext.hit().type()).sourceMapper();
                 if (!sourceFieldMapper.enabled()) {
-                    throw new IllegalArgumentException("source is forced for fields " +  fieldNamesToHighlight + " but type [" + hitContext.hit().type() + "] has disabled _source");
+                    throw new IllegalArgumentException("source is forced for fields " +  fieldNamesToHighlight
+                            + " but type [" + hitContext.hit().type() + "] has disabled _source");
                 }
             }
 
@@ -105,11 +106,16 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                 }
                 Highlighter highlighter = highlighters.get(highlighterType);
                 if (highlighter == null) {
-                    throw new IllegalArgumentException("unknown highlighter type [" + highlighterType + "] for the field [" + fieldName + "]");
+                    throw new IllegalArgumentException("unknown highlighter type [" + highlighterType
+                            + "] for the field [" + fieldName + "]");
                 }
 
-                Query highlightQuery = field.fieldOptions().highlightQuery() == null ? context.parsedQuery().query() : field.fieldOptions().highlightQuery();
-                HighlighterContext highlighterContext = new HighlighterContext(fieldName, field, fieldMapper, context, hitContext, highlightQuery);
+                Query highlightQuery = field.fieldOptions().highlightQuery();
+                if (highlightQuery == null) {
+                    highlightQuery = context.parsedQuery().query();
+                }
+                HighlighterContext highlighterContext = new HighlighterContext(fieldName, field, fieldMapper, context,
+                        hitContext, highlightQuery);
 
                 if ((highlighter.canHighlight(fieldMapper) == false) && fieldNameContainsWildcards) {
                     // if several fieldnames matched the wildcard then we want to skip those that we cannot highlight

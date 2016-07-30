@@ -240,8 +240,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     location = locationToSync(location, updateResult.writeResult.getLocation());
                 }
                 switch (updateResult.result.operation()) {
-                    case CREATE:
-                    case INDEX:
+                    case CREATED:
+                    case UPDATED:
                         @SuppressWarnings("unchecked")
                         WriteResult<IndexResponse> result = updateResult.writeResult;
                         IndexRequest indexRequest = updateResult.request();
@@ -256,7 +256,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         item = request.items()[requestIndex] = new BulkItemRequest(request.items()[requestIndex].id(), indexRequest);
                         setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_UPDATE, updateResponse));
                         break;
-                    case DELETE:
+                    case DELETED:
                         @SuppressWarnings("unchecked")
                         WriteResult<DeleteResponse> writeResult = updateResult.writeResult;
                         DeleteResponse response = writeResult.getResponse();
@@ -271,6 +271,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_UPDATE, updateResult.noopResult));
                         item.setIgnoreOnReplica(); // no need to go to the replica
                         break;
+                    default:
+                        throw new IllegalStateException("Illegal operation " + updateResult.result.operation());
                 }
                 // NOTE: Breaking out of the retry_on_conflict loop!
                 break;
@@ -300,19 +302,21 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_UPDATE, new BulkItemResponse.Failure(request.index(), updateRequest.type(), updateRequest.id(), e)));
                     } else {
                         switch (updateResult.result.operation()) {
-                            case CREATE:
-                            case INDEX:
+                            case CREATED:
+                            case UPDATED:
                                 IndexRequest indexRequest = updateResult.request();
                                 logFailure(e, "index", request.shardId(), indexRequest);
                                 setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_UPDATE,
                                     new BulkItemResponse.Failure(request.index(), indexRequest.type(), indexRequest.id(), e)));
                                 break;
-                            case DELETE:
+                            case DELETED:
                                 DeleteRequest deleteRequest = updateResult.request();
                                 logFailure(e, "delete", request.shardId(), deleteRequest);
                                 setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_DELETE,
                                     new BulkItemResponse.Failure(request.index(), deleteRequest.type(), deleteRequest.id(), e)));
                                 break;
+                            default:
+                                throw new IllegalStateException("Illegal operation " + updateResult.result.operation());
                         }
                     }
                     // NOTE: Breaking out of the retry_on_conflict loop!
@@ -400,8 +404,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     private UpdateResult shardUpdateOperation(IndexMetaData metaData, BulkShardRequest bulkShardRequest, UpdateRequest updateRequest, IndexShard indexShard) {
         UpdateHelper.Result translate = updateHelper.prepare(updateRequest, indexShard);
         switch (translate.operation()) {
-            case CREATE:
-            case INDEX:
+            case CREATED:
+            case UPDATED:
                 IndexRequest indexRequest = translate.action();
                 try {
                     WriteResult result = shardIndexOperation(bulkShardRequest, indexRequest, metaData, indexShard, false);
@@ -414,7 +418,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     }
                     return new UpdateResult(translate, indexRequest, retry, cause, null);
                 }
-            case DELETE:
+            case DELETED:
                 DeleteRequest deleteRequest = translate.action();
                 try {
                     WriteResult<DeleteResponse> result = TransportDeleteAction.executeDeleteRequestOnPrimary(deleteRequest, indexShard);

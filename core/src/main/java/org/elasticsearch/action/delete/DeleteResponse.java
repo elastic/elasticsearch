@@ -39,17 +39,17 @@ public class DeleteResponse extends DocWriteResponse {
     }
 
     public DeleteResponse(ShardId shardId, String type, String id, long version, boolean found) {
-        super(shardId, type, id, version, found ? Operation.DELETE : Operation.NOOP);
+        super(shardId, type, id, version, found ? Operation.DELETED : Operation.NOT_FOUND);
     }
 
     @Override
     public RestStatus status() {
-        return operation == Operation.DELETE ? super.status() : RestStatus.NOT_FOUND;
+        return operation == Operation.DELETED ? super.status() : RestStatus.NOT_FOUND;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("found", operation == Operation.DELETE);
+        builder.field("found", operation == Operation.DELETED);
         super.toXContent(builder, params);
         return builder;
     }

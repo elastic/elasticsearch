@@ -39,12 +39,12 @@ public class IndexResponse extends DocWriteResponse {
     }
 
     public IndexResponse(ShardId shardId, String type, String id, long version, boolean created) {
-        super(shardId, type, id, version, created ? Operation.CREATE : Operation.INDEX);
+        super(shardId, type, id, version, created ? Operation.CREATED : Operation.UPDATED);
     }
 
     @Override
     public RestStatus status() {
-        return operation == Operation.CREATE ? RestStatus.CREATED : super.status();
+        return operation == Operation.CREATED ? RestStatus.CREATED : super.status();
     }
 
     @Override
@@ -63,7 +63,7 @@ public class IndexResponse extends DocWriteResponse {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         super.toXContent(builder, params);
-        builder.field("created", operation == Operation.CREATE);
+        builder.field("created", operation == Operation.CREATED);
         return builder;
     }
 }

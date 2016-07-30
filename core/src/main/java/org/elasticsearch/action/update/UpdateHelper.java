@@ -136,7 +136,7 @@ public class UpdateHelper extends AbstractComponent {
                 // in all but the internal versioning mode, we want to create the new document using the given version.
                 indexRequest.version(request.version()).versionType(request.versionType());
             }
-            return new Result(indexRequest, DocWriteResponse.Operation.CREATE, null, null);
+            return new Result(indexRequest, DocWriteResponse.Operation.CREATED, null, null);
         }
 
         long updateVersion = getResult.getVersion();
@@ -227,13 +227,13 @@ public class UpdateHelper extends AbstractComponent {
                     .consistencyLevel(request.consistencyLevel())
                     .timestamp(timestamp).ttl(ttl)
                     .setRefreshPolicy(request.getRefreshPolicy());
-            return new Result(indexRequest, DocWriteResponse.Operation.INDEX, updatedSourceAsMap, updateSourceContentType);
+            return new Result(indexRequest, DocWriteResponse.Operation.UPDATED, updatedSourceAsMap, updateSourceContentType);
         } else if ("delete".equals(operation)) {
             DeleteRequest deleteRequest = Requests.deleteRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .version(updateVersion).versionType(request.versionType())
                     .consistencyLevel(request.consistencyLevel())
                     .setRefreshPolicy(request.getRefreshPolicy());
-            return new Result(deleteRequest, DocWriteResponse.Operation.DELETE, updatedSourceAsMap, updateSourceContentType);
+            return new Result(deleteRequest, DocWriteResponse.Operation.DELETED, updatedSourceAsMap, updateSourceContentType);
         } else if ("none".equals(operation)) {
             UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(), getResult.getVersion(), DocWriteResponse.Operation.NOOP);
             update.setGetResult(extractGetResult(request, request.index(), getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));

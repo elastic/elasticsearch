@@ -60,7 +60,7 @@ public class UpdateResponse extends DocWriteResponse {
 
     @Override
     public RestStatus status() {
-        return this.operation == Operation.CREATE ? RestStatus.CREATED : super.status();
+        return this.operation == Operation.CREATED ? RestStatus.CREATED : super.status();
     }
 
     @Override

@@ -94,15 +94,15 @@ public class IndexActionIT extends ESIntegTestCase {
         ensureGreen();
 
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
-        assertEquals(DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
+        assertEquals(DocWriteResponse.Operation.CREATED, indexResponse.getOperation());
 
         indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").execute().actionGet();
-        assertEquals(DocWriteResponse.Operation.INDEX, indexResponse.getOperation());
+        assertEquals(DocWriteResponse.Operation.UPDATED, indexResponse.getOperation());
 
         client().prepareDelete("test", "type", "1").execute().actionGet();
 
         indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").execute().actionGet();
-        assertEquals(DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
+        assertEquals(DocWriteResponse.Operation.CREATED, indexResponse.getOperation());
 
     }
 
@@ -111,14 +111,14 @@ public class IndexActionIT extends ESIntegTestCase {
         ensureGreen();
 
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
-        assertEquals(DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
+        assertEquals(DocWriteResponse.Operation.CREATED, indexResponse.getOperation());
 
         client().prepareDelete("test", "type", "1").execute().actionGet();
 
         flush();
 
         indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_2").execute().actionGet();
-        assertEquals(DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
+        assertEquals(DocWriteResponse.Operation.CREATED, indexResponse.getOperation());
     }
 
     public void testCreatedFlagParallelExecution() throws Exception {
@@ -139,7 +139,7 @@ public class IndexActionIT extends ESIntegTestCase {
                 public Void call() throws Exception {
                     int docId = random.nextInt(docCount);
                     IndexResponse indexResponse = index("test", "type", Integer.toString(docId), "field1", "value");
-                    if (indexResponse.getOperation() == DocWriteResponse.Operation.CREATE) {
+                    if (indexResponse.getOperation() == DocWriteResponse.Operation.CREATED) {
                         createdCounts.incrementAndGet(docId);
                     }
                     return null;
@@ -161,7 +161,7 @@ public class IndexActionIT extends ESIntegTestCase {
 
         IndexResponse indexResponse = client().prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(123)
                                               .setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        assertEquals(DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
+        assertEquals(DocWriteResponse.Operation.CREATED, indexResponse.getOperation());
     }
 
     public void testCreateFlagWithBulk() {
@@ -172,7 +172,7 @@ public class IndexActionIT extends ESIntegTestCase {
         assertThat(bulkResponse.hasFailures(), equalTo(false));
         assertThat(bulkResponse.getItems().length, equalTo(1));
         IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();
-        assertEquals(DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
+        assertEquals(DocWriteResponse.Operation.CREATED, indexResponse.getOperation());
     }
 
     public void testCreateIndexWithLongName() {

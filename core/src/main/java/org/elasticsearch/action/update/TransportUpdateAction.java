@@ -22,7 +22,6 @@ package org.elasticsearch.action.update;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -179,7 +178,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         final IndexShard indexShard = indexService.getShard(shardId.getId());
         final UpdateHelper.Result result = updateHelper.prepare(request, indexShard);
         switch (result.operation()) {
-            case CREATE:
+            case CREATED:
                 IndexRequest upsertRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
@@ -217,7 +216,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     }
                 });
                 break;
-            case INDEX:
+            case UPDATED:
                 IndexRequest indexRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
@@ -248,7 +247,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     }
                 });
                 break;
-            case DELETE:
+            case DELETED:
                 DeleteRequest deleteRequest = result.action();
                 deleteAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
                     @Override

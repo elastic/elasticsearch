@@ -41,10 +41,11 @@ import java.util.Locale;
 public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, StatusToXContent {
 
     public enum Operation implements Writeable {
-        CREATE(0),
-        INDEX(1),
-        DELETE(2),
-        NOOP(3);
+        CREATED(0),
+        UPDATED(1),
+        DELETED(2),
+        NOT_FOUND(3),
+        NOOP(4);
 
         private final byte op;
         private final String lowercase;
@@ -66,12 +67,14 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             Byte opcode = in.readByte();
             switch(opcode){
                 case 0:
-                    return CREATE;
+                    return CREATED;
                 case 1:
-                    return INDEX;
+                    return UPDATED;
                 case 2:
-                    return DELETE;
+                    return DELETED;
                 case 3:
+                    return NOT_FOUND;
+                case 4:
                     return NOOP;
                 default:
                     throw new IllegalArgumentException("Unknown operation code: " + opcode);
@@ -219,7 +222,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             .field("_type", type)
             .field("_id", id)
             .field("_version", version)
-            .field("_operation", getOperation().getLowercase());
+            .field("result", getOperation().getLowercase());
         if (forcedRefresh) {
             builder.field("forced_refresh", forcedRefresh);
         }

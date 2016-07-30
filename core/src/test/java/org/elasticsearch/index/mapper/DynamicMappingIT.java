@@ -100,7 +100,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 public void run() {
                     try {
                         startLatch.await();
-                        assertEquals(DocWriteResponse.Operation.CREATE, client().prepareIndex("index", "type", id)
+                        assertEquals(DocWriteResponse.Operation.CREATED, client().prepareIndex("index", "type", id)
                             .setSource("field" + id, "bar").get().getOperation());
                     } catch (Exception e) {
                         error.compareAndSet(null, e);

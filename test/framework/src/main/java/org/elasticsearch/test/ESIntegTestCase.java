@@ -1382,7 +1382,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
             for (Tuple<String, String> doc : bogusIds) {
                 assertEquals("failed to delete a dummy doc [" + doc.v1() + "][" + doc.v2() + "]",
-                    DocWriteResponse.Operation.DELETE,
+                    DocWriteResponse.Operation.DELETED,
                     client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get().getOperation());
             }
         }

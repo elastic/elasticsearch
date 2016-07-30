@@ -149,7 +149,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
         // check delete, so all is gone...
         DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "2").execute().actionGet();
-        assertEquals(DocWriteResponse.Operation.DELETE, deleteResponse.getOperation());
+        assertEquals(DocWriteResponse.Operation.DELETED, deleteResponse.getOperation());
 
         // flush, so we fetch it from the index (as see that we filter nested docs)
         flush();

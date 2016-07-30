@@ -51,7 +51,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     private static final Comparator<Option> COMPARATOR = new Comparator<Suggest.Suggestion.Entry.Option>() {
         @Override
         public int compare(Option first, Option second) {
-            int cmp = Float.compare(second.getScore(), first.getScore());
+            int cmp = Double.compare(second.getScore(), first.getScore());
             if (cmp != 0) {
                 return cmp;
             }
@@ -531,10 +531,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
                 private Text text;
                 private Text highlighted;
-                private float score;
+                private double score;
                 private Boolean collateMatch;
 
-                public Option(Text text, Text highlighted, float score, Boolean collateMatch) {
+                public Option(Text text, Text highlighted, double score, Boolean collateMatch) {
                     this.text = text;
                     this.highlighted = highlighted;
                     this.score = score;
@@ -570,7 +570,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                  * @return The score based on the edit distance difference between the suggested term and the
                  *         term in the suggest text.
                  */
-                public float getScore() {
+                public double getScore() {
                     return score;
                 }
 
@@ -582,14 +582,14 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                     return (collateMatch != null) ? collateMatch : true;
                 }
 
-                protected void setScore(float score) {
+                protected void setScore(double score) {
                     this.score = score;
                 }
 
                 @Override
                 public void readFrom(StreamInput in) throws IOException {
                     text = in.readText();
-                    score = in.readFloat();
+                    score = in.readDouble();
                     highlighted = in.readOptionalText();
                     collateMatch = in.readOptionalBoolean();
                 }
@@ -597,7 +597,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
                     out.writeText(text);
-                    out.writeFloat(score);
+                    out.writeDouble(score);
                     out.writeOptionalText(highlighted);
                     out.writeOptionalBoolean(collateMatch);
                 }

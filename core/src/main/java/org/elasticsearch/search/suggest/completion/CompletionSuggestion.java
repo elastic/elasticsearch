@@ -172,7 +172,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             }
 
             @Override
-            public void setScore(float score) {
+            public void setScore(double score) {
                 super.setScore(score);
             }
 

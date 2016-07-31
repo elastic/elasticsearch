@@ -117,8 +117,8 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
 
     static void indexResponseToXContent(XContentBuilder builder, IndexResponse response) throws IOException {
         builder.startObject()
-                .field("created", response.getOperation() == DocWriteResponse.Operation.CREATE)
-                .field("operation", response.getOperation().getLowercase())
+                .field("created", response.getResult() == DocWriteResponse.Result.CREATED)
+                .field("result", response.getResult().getLowercase())
                 .field("id", response.getId())
                 .field("version", response.getVersion())
                 .field("type", response.getType())

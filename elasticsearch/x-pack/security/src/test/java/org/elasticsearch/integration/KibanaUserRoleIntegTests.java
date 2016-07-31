@@ -187,13 +187,13 @@ public class KibanaUserRoleIntegTests extends SecurityIntegTestCase {
                 .setSource("foo", "bar")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
-        assertEquals(DocWriteResponse.Operation.CREATE, response.getOperation());
+        assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
 
         DeleteResponse deleteResponse = client()
                 .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
                 .prepareDelete(index, "dashboard", response.getId())
                 .get();
-        assertEquals(DocWriteResponse.Operation.DELETE, deleteResponse.getOperation());
+        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
     }
 
     // TODO: When we have an XPackIntegTestCase, this should test that we can send MonitoringBulkActions

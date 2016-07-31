@@ -80,7 +80,7 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
         try (TransportClient client = createTransportClient(settings)) {
             client.addTransportAddress(randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses()));
             IndexResponse response = client.prepareIndex("foo", "bar").setSource("pki", "auth").get();
-            assertEquals(DocWriteResponse.Operation.CREATE, response.getOperation());
+            assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
         }
     }
 

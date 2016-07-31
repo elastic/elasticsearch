@@ -134,7 +134,7 @@ public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase
                 .execute().actionGet();
 
         assertEquals("user " + user + " should have write access to index " + index,
-                DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
+                DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         refresh();
 

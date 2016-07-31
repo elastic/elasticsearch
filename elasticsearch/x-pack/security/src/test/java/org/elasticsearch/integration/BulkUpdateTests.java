@@ -41,8 +41,8 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
     }
 
     public void testThatBulkUpdateDoesNotLoseFields() {
-        assertEquals(DocWriteResponse.Operation.CREATE,
-                client().prepareIndex("index1", "type").setSource("{\"test\": \"test\"}").setId("1").get().getOperation());
+        assertEquals(DocWriteResponse.Result.CREATED,
+                client().prepareIndex("index1", "type").setSource("{\"test\": \"test\"}").setId("1").get().getResult());
         GetResponse getResponse = internalCluster().transportClient().prepareGet("index1", "type", "1").setFields("test").get();
         assertThat(getResponse.getField("test").getValue(), equalTo("test"));
 
@@ -51,8 +51,8 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         }
 
         // update with a new field
-        assertEquals(DocWriteResponse.Operation.INDEX, internalCluster().transportClient().prepareUpdate("index1", "type", "1")
-                .setDoc("{\"not test\": \"not test\"}").get().getOperation());
+        assertEquals(DocWriteResponse.Result.UPDATED, internalCluster().transportClient().prepareUpdate("index1", "type", "1")
+                .setDoc("{\"not test\": \"not test\"}").get().getResult());
         getResponse = internalCluster().transportClient().prepareGet("index1", "type", "1").setFields("test", "not test").get();
         assertThat(getResponse.getField("test").getValue(), equalTo("test"));
         assertThat(getResponse.getField("not test").getValue(), equalTo("not test"));
@@ -64,7 +64,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         // do it in a bulk
         BulkResponse response = internalCluster().transportClient().prepareBulk().add(client().prepareUpdate("index1", "type", "1")
                 .setDoc("{\"bulk updated\": \"bulk updated\"}")).get();
-        assertEquals(DocWriteResponse.Operation.INDEX, response.getItems()[0].getResponse().getOperation());
+        assertEquals(DocWriteResponse.Result.UPDATED, response.getItems()[0].getResponse().getResult());
         getResponse = internalCluster().transportClient().prepareGet("index1", "type", "1").
                 setFields("test", "not test", "bulk updated").get();
         assertThat(getResponse.getField("test").getValue(), equalTo("test"));

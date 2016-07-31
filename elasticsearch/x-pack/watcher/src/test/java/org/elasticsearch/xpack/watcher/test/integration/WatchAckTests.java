@@ -59,7 +59,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         IndexResponse eventIndexResponse = client().prepareIndex("events", "event")
                 .setSource("level", "error")
                 .get();
-        assertEquals(DocWriteResponse.Operation.CREATE, eventIndexResponse.getOperation());
+        assertEquals(DocWriteResponse.Result.CREATED, eventIndexResponse.getResult());
         refresh();
         return eventIndexResponse;
     }
@@ -115,7 +115,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
 
         // Now delete the event and the ack states should change to AWAITS_EXECUTION
         DeleteResponse response = client().prepareDelete("events", "event", eventIndexResponse.getId()).get();
-        assertEquals(DocWriteResponse.Operation.DELETE, response.getOperation());
+        assertEquals(DocWriteResponse.Result.DELETED, response.getResult());
         refresh();
 
         if (timeWarped()) {
@@ -197,7 +197,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
 
         // Now delete the event and the ack states should change to AWAITS_EXECUTION
         DeleteResponse response = client().prepareDelete("events", "event", eventIndexResponse.getId()).get();
-        assertEquals(DocWriteResponse.Operation.DELETE, response.getOperation());
+        assertEquals(DocWriteResponse.Result.DELETED, response.getResult());
         refresh();
 
         if (timeWarped()) {

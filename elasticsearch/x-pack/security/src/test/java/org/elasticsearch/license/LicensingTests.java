@@ -115,14 +115,14 @@ public class LicensingTests extends SecurityIntegTestCase {
             .startObject()
             .field("name", "value")
             .endObject());
-        assertEquals(DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
 
         indexResponse = index("test1", "type", jsonBuilder()
             .startObject()
             .field("name", "value1")
             .endObject());
-        assertEquals(DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         refresh();
 

@@ -274,7 +274,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
             client.delete(request, new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {
-                    clearRoleCache(deleteRoleRequest.name(), listener, deleteResponse.getOperation() == DocWriteResponse.Operation.DELETE);
+                    clearRoleCache(deleteRoleRequest.name(), listener, deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
                 }
 
                 @Override
@@ -304,7 +304,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
                     .execute(new ActionListener<IndexResponse>() {
                         @Override
                         public void onResponse(IndexResponse indexResponse) {
-                            boolean created = indexResponse.getOperation() == DocWriteResponse.Operation.CREATE;
+                            boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
                             if (created) {
                                 listener.onResponse(true);
                                 return;

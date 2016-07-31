@@ -44,7 +44,7 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
         IndexResponse eventIndexResponse = client().prepareIndex("events", "event")
                 .setSource("level", "error")
                 .get();
-        assertEquals(DocWriteResponse.Operation.CREATE, eventIndexResponse.getOperation());
+        assertEquals(DocWriteResponse.Result.CREATED, eventIndexResponse.getResult());
         refresh();
         return eventIndexResponse;
     }

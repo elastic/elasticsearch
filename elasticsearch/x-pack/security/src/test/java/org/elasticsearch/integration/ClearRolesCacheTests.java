@@ -120,7 +120,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
                     .setDoc("run_as", new String[] { role })
                     .setRefreshPolicy(refresh ? IMMEDIATE : NONE)
                     .get();
-            assertEquals(DocWriteResponse.Operation.INDEX, response.getOperation());
+            assertEquals(DocWriteResponse.Result.UPDATED, response.getResult());
             logger.debug("--> updated role [{}] with run_as", role);
         }
 
@@ -162,7 +162,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
                 .prepareDelete(SecurityTemplateService.SECURITY_INDEX_NAME, NativeRolesStore.ROLE_DOC_TYPE, role)
                 .setRefreshPolicy(refresh ? IMMEDIATE : NONE)
                 .get();
-        assertEquals(DocWriteResponse.Operation.DELETE, response.getOperation());
+        assertEquals(DocWriteResponse.Result.DELETED, response.getResult());
 
         assertBusy(new Runnable() {
             @Override

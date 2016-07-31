@@ -57,7 +57,7 @@ public class TransportDeleteWatchAction extends WatcherTransportAction<DeleteWat
         try {
             DeleteResponse deleteResponse = watcherService.deleteWatch(request.getId(), request.masterNodeTimeout(), request.isForce())
                     .deleteResponse();
-            boolean deleted = deleteResponse.getOperation() == DocWriteResponse.Operation.DELETE;
+            boolean deleted = deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
             DeleteWatchResponse response = new DeleteWatchResponse(deleteResponse.getId(), deleteResponse.getVersion(), deleted);
             listener.onResponse(response);
         } catch (Exception e) {

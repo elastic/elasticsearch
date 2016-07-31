@@ -121,7 +121,7 @@ public class WatcherService extends AbstractComponent {
         }
         try {
             WatchStore.WatchDelete delete = watchStore.delete(id, force);
-            if (delete.deleteResponse().getOperation() == DocWriteResponse.Operation.DELETE) {
+            if (delete.deleteResponse().getResult() == DocWriteResponse.Result.DELETED) {
                 triggerService.remove(id);
             }
             return delete;

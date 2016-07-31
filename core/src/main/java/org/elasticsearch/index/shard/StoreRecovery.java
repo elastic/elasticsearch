@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 
 import java.io.IOException;
@@ -394,10 +395,12 @@ final class StoreRecovery {
             translogState.totalOperationsOnStart(0);
             indexShard.prepareForIndexRecovery();
             ShardId snapshotShardId = shardId;
-            if (!shardId.getIndexName().equals(restoreSource.index())) {
-                snapshotShardId = new ShardId(restoreSource.index(), IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
+            final String indexName = restoreSource.index();
+            if (!shardId.getIndexName().equals(indexName)) {
+                snapshotShardId = new ShardId(indexName, IndexMetaData.INDEX_UUID_NA_VALUE, shardId.id());
             }
-            repository.restoreShard(indexShard, restoreSource.snapshot().getSnapshotId(), restoreSource.version(), snapshotShardId, indexShard.recoveryState());
+            final IndexId indexId = repository.getRepositoryData().resolveIndexId(indexName);
+            repository.restoreShard(indexShard, restoreSource.snapshot().getSnapshotId(), restoreSource.version(), indexId, snapshotShardId, indexShard.recoveryState());
             indexShard.skipTranslogRecovery();
             indexShard.finalizeRecovery();
             indexShard.postRecovery("restore done");

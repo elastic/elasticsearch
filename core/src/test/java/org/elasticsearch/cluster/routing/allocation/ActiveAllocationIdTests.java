@@ -55,8 +55,8 @@ public class ActiveAllocationIdTests extends ESAllocationTestCase {
             .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("adding three nodes and performing rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(
-                newNode("node1")).put(newNode("node2")).put(newNode("node3"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(
+                newNode("node1")).add(newNode("node2")).add(newNode("node3"))).build();
         RoutingAllocation.Result rerouteResult = allocation.reroute(clusterState, "reroute");
         clusterState = ClusterState.builder(clusterState).routingResult(rerouteResult).build();
 

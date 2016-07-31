@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ESTestCase;
@@ -56,13 +55,13 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         final DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         final int nodes = randomIntBetween(2, 16);
         for (int i = 0; i < nodes; i++) {
-            builder.put(node(i));
+            builder.add(node(i));
         }
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(builder).build();
 
         final DiscoveryNodes.Builder removeBuilder = DiscoveryNodes.builder();
         for (int i = nodes; i < nodes + randomIntBetween(1, 16); i++) {
-            removeBuilder.put(node(i));
+            removeBuilder.add(node(i));
         }
         final List<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> tasks =
                 StreamSupport
@@ -106,7 +105,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         boolean first = true;
         for (int i = 0; i < nodes; i++) {
             final DiscoveryNode node = node(i);
-            builder.put(node);
+            builder.add(node);
             if (first || randomBoolean()) {
                 tasks.add(new ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task(node, randomBoolean() ? "left" : "failed"));
             }
@@ -158,7 +157,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         boolean first = true;
         for (int i = 0; i < nodes; i++) {
             final DiscoveryNode node = node(i);
-            builder.put(node);
+            builder.add(node);
             if (first || randomBoolean()) {
                 tasks.add(new ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task(node, randomBoolean() ? "left" : "failed"));
             }

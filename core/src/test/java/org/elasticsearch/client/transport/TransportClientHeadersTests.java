@@ -131,7 +131,7 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                 ClusterName cluster1 = new ClusterName("cluster1");
                 ClusterState.Builder builder = ClusterState.builder(cluster1);
                 //the sniffer detects only data nodes
-                builder.nodes(DiscoveryNodes.builder().put(new DiscoveryNode("node_id", address, Collections.emptyMap(),
+                builder.nodes(DiscoveryNodes.builder().add(new DiscoveryNode("node_id", address, Collections.emptyMap(),
                         Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT)));
                 ((TransportResponseHandler<ClusterStateResponse>) handler)
                         .handleResponse(new ClusterStateResponse(cluster1, builder.build()));

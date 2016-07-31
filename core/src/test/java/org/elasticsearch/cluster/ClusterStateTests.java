@@ -35,7 +35,7 @@ public class ClusterStateTests extends ESTestCase {
         final Version version = Version.CURRENT;
         final DiscoveryNode node1 = new DiscoveryNode("node1", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), version);
         final DiscoveryNode node2 = new DiscoveryNode("node2", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), version);
-        final DiscoveryNodes nodes = DiscoveryNodes.builder().put(node1).put(node2).build();
+        final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).build();
         ClusterName name = ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY);
         ClusterState noMaster1 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();
         ClusterState noMaster2 = ClusterState.builder(name).version(randomInt(5)).nodes(nodes).build();

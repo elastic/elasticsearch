@@ -61,7 +61,7 @@ public class PrimaryNotRelocatedWhileBeingRecoveredTests extends ESAllocationTes
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("Adding two nodes and performing rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
@@ -73,7 +73,7 @@ public class PrimaryNotRelocatedWhileBeingRecoveredTests extends ESAllocationTes
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(5));
 
         logger.info("start another node, replica will start recovering form primary");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
@@ -81,7 +81,7 @@ public class PrimaryNotRelocatedWhileBeingRecoveredTests extends ESAllocationTes
         assertThat(routingTable.shardsWithState(INITIALIZING).size(), equalTo(5));
 
         logger.info("start another node, make sure the primary is not relocated");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node3"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 

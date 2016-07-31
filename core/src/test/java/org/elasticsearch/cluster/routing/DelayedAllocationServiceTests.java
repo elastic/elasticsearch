@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -30,12 +29,9 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -45,8 +41,6 @@ import org.junit.Before;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singleton;
@@ -96,7 +90,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .metaData(metaData)
             .routingTable(RoutingTable.builder().addAsNew(metaData.index("test")).build()).build();
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")).localNodeId("node1").masterNodeId("node1"))
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).localNodeId("node1").masterNodeId("node1"))
             .build();
         clusterState = ClusterState.builder(clusterState).routingResult(allocationService.reroute(clusterState, "reroute")).build();
         // starting primaries
@@ -113,7 +107,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes()).remove("node2");
         boolean nodeAvailableForAllocation = randomBoolean();
         if (nodeAvailableForAllocation) {
-            nodes.put(newNode("node3"));
+            nodes.add(newNode("node3"));
         }
         clusterState = ClusterState.builder(clusterState).nodes(nodes).build();
         clusterState = ClusterState.builder(clusterState).routingResult(allocationService.reroute(clusterState, "reroute")).build();
@@ -142,7 +136,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .metaData(metaData)
             .routingTable(RoutingTable.builder().addAsNew(metaData.index("test")).build()).build();
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")).localNodeId("node1").masterNodeId("node1"))
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).localNodeId("node1").masterNodeId("node1"))
             .build();
         final long baseTimestampNanos = System.nanoTime();
         allocationService.setNanoTimeOverride(baseTimestampNanos);
@@ -239,8 +233,8 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData)
             .routingTable(RoutingTable.builder().addAsNew(metaData.index("short_delay")).addAsNew(metaData.index("long_delay")).build())
             .nodes(DiscoveryNodes.builder()
-                .put(newNode("node0", singleton(DiscoveryNode.Role.MASTER))).localNodeId("node0").masterNodeId("node0")
-                .put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).put(newNode("node4"))).build();
+                .add(newNode("node0", singleton(DiscoveryNode.Role.MASTER))).localNodeId("node0").masterNodeId("node0")
+                .add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).add(newNode("node4"))).build();
         // allocate shards
         clusterState = ClusterState.builder(clusterState).routingResult(allocationService.reroute(clusterState, "reroute")).build();
         // start primaries
@@ -398,7 +392,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
                 .build()).build();
         clusterState = ClusterState.builder(clusterState)
             .nodes(DiscoveryNodes.builder()
-                .put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).put(newNode("node4"))
+                .add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).add(newNode("node4"))
                 .localNodeId("node1").masterNodeId("node1"))
             .build();
         final long nodeLeftTimestampNanos = System.nanoTime();

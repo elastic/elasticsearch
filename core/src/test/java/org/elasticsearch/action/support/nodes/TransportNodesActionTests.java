@@ -190,7 +190,7 @@ public class TransportNodesActionTests extends ESTestCase {
                 attributes.put("custom", randomBoolean() ? "match" : randomAsciiOfLengthBetween(3, 5));
             }
             final DiscoveryNode node = newNode(i, attributes, roles);
-            discoBuilder = discoBuilder.put(node);
+            discoBuilder = discoBuilder.add(node);
             discoveryNodes.add(node);
         }
         discoBuilder.localNodeId(randomFrom(discoveryNodes).getId());

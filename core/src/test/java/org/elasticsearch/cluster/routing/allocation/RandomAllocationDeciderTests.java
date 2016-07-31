@@ -93,7 +93,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
                 int numNodes = scaledRandomIntBetween(1, 3);
                 for (int j = 0; j < numNodes; j++) {
                     logger.info("adding node [{}]", nodeIdCounter);
-                    newNodesBuilder.put(newNode("NODE_" + (nodeIdCounter++)));
+                    newNodesBuilder.add(newNode("NODE_" + (nodeIdCounter++)));
                 }
             }
 
@@ -119,7 +119,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             DiscoveryNodes.Builder newNodesBuilder = DiscoveryNodes.builder(clusterState.nodes());
             for (int j = 0; j < (maxNumReplicas - clusterState.nodes().getSize()); j++) {
                 logger.info("adding node [{}]", nodeIdCounter);
-                newNodesBuilder.put(newNode("NODE_" + (nodeIdCounter++)));
+                newNodesBuilder.add(newNode("NODE_" + (nodeIdCounter++)));
             }
             stateBuilder.nodes(newNodesBuilder.build());
             clusterState = stateBuilder.build();

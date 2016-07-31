@@ -220,7 +220,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         int totalIndexShards = 0;
         for (int i = 0; i < numberOfNodes; i++) {
             final DiscoveryNode node = newNode(i);
-            discoBuilder = discoBuilder.put(node);
+            discoBuilder = discoBuilder.add(node);
             int numberOfShards = randomIntBetween(1, 10);
             totalIndexShards += numberOfShards;
             for (int j = 0; j < numberOfShards; j++) {

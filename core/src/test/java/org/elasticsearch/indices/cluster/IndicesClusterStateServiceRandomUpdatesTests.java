@@ -226,7 +226,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             if (randomBoolean()) {
                 // add node
                 if (state.nodes().getSize() < 10) {
-                    DiscoveryNodes newNodes = DiscoveryNodes.builder(state.nodes()).put(createNode()).build();
+                    DiscoveryNodes newNodes = DiscoveryNodes.builder(state.nodes()).add(createNode()).build();
                     state = ClusterState.builder(state).nodes(newNodes).build();
                     state = cluster.reroute(state, new ClusterRerouteRequest()); // always reroute after node leave
                     updateNodes(state, clusterStateServiceMap);

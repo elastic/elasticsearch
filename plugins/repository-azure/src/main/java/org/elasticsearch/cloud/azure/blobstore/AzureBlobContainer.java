@@ -119,7 +119,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         logger.trace("deleteBlob({})", blobName);
 
         if (!blobExists(blobName)) {
-            throw new IOException("Blob [" + blobName + "] does not exist");
+            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
         }
 
         try {

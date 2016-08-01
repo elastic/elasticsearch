@@ -79,14 +79,15 @@ public class JvmStats implements Streamable, ToXContent {
                 MemoryUsage usage = memoryPoolMXBean.getUsage();
                 MemoryUsage peakUsage = memoryPoolMXBean.getPeakUsage();
                 String name = GcNames.getByMemoryPoolName(memoryPoolMXBean.getName(), null);
-                if (name == null) { // if we can't resolve it, its not interesting.... (Per Gen, Code Cache)
-                    continue;
+                if (name == null) { // if we can't resolve it, its not GC related.... (Metaspace, Code Cache)
+                    name = memoryPoolMXBean.getName();
                 }
+                // MemoryUsage.getMax() can be -1, indicating the maximum is undefined (e.g. metaspace max)
                 pools.add(new MemoryPool(name,
-                        usage.getUsed() < 0 ? 0 : usage.getUsed(),
-                        usage.getMax() < 0 ? 0 : usage.getMax(),
-                        peakUsage.getUsed() < 0 ? 0 : peakUsage.getUsed(),
-                        peakUsage.getMax() < 0 ? 0 : peakUsage.getMax()
+                        usage.getUsed(),
+                        usage.getMax() == -1 ? Long.MAX_VALUE : usage.getMax(),
+                        peakUsage.getUsed(),
+                        peakUsage.getMax() == -1 ? Long.MAX_VALUE : peakUsage.getMax()
                 ));
             } catch (Exception ex) {
                 /* ignore some JVMs might barf here with:

@@ -2,8 +2,8 @@
 === Inner hits
 
 The <<mapping-parent-field, parent/child>> and <<nested, nested>> features allow the return of documents that
-have matches in a different scope. In the parent/child case, parent document are returned based on matches in child
-documents or child document are returned based on matches in parent documents. In the nested case, documents are returned
+have matches in a different scope. In the parent/child case, parent documents are returned based on matches in child
+documents or child documents are returned based on matches in parent documents. In the nested case, documents are returned
 based on matches in nested inner objects.
 
 In both cases, the actual matches in the different scopes that caused a document to be returned is hidden. In many cases,
@@ -84,18 +84,20 @@ The example below assumes that there is a nested object field defined with the n
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "query" : {
         "nested" : {
             "path" : "comments",
             "query" : {
-                "match" : {"comments.message" : "[actual query]"}
+                "match" : {"comments.message" : "some message"}
             },
             "inner_hits" : {} <1>
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 <1> The inner hit definition in the nested query. No other options need to be defined.
 
@@ -157,16 +159,20 @@ with the root hits then the following path can be defined:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
    "query" : {
       "nested" : {
          "path" : "comments.votes",
-         "query" : { ... },
+         "query" : {
+            "match": { "name": "kimchy" }
+         },
          "inner_hits" : {}
       }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 This indirect referencing is only supported for nested inner hits.
 
@@ -179,18 +185,20 @@ The examples below assumes that there is a `_parent` field mapping in the `comme
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "query" : {
         "has_child" : {
             "type" : "comment",
             "query" : {
-                "match" : {"message" : "[actual query]"}
+                "match" : {"message" : "some message"}
             },
             "inner_hits" : {} <1>
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 <1> The inner hit definition like in the nested example.
 

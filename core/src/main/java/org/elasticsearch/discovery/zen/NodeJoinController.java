@@ -432,6 +432,7 @@ public class NodeJoinController extends AbstractComponent {
             }
 
             DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
+
             assert nodesBuilder.isLocalNodeElectedMaster();
 
             // processing any joins

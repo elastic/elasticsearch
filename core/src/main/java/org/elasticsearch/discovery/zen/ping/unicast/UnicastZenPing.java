@@ -217,7 +217,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
         temporalResponses.clear();
     }
 
-    public PingResponse[] pingAndWait(TimeValue duration) {
+    /** For testing purpose **/
+    PingResponse[] pingAndWait(TimeValue duration) {
         final AtomicReference<PingResponse[]> response = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
         ping(pings -> {

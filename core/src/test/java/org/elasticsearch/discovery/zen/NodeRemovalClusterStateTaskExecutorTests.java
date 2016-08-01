@@ -133,7 +133,8 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         when(electMasterService.hasEnoughMasterNodes(any(Iterable.class))).thenReturn(true);
 
         final AllocationService allocationService = mock(AllocationService.class);
-        when(allocationService.reroute(any(ClusterState.class), any(String.class))).thenReturn(mock(RoutingAllocation.Result.class));
+        when(allocationService.deassociateDeadNodes(any(ClusterState.class), eq(true), any(String.class)))
+            .thenReturn(mock(RoutingAllocation.Result.class));
 
         final BiFunction<ClusterState, String, ClusterState> rejoin = (cs, r) -> {
             fail("rejoin should not be invoked");
@@ -170,7 +171,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         verify(electMasterService).hasEnoughMasterNodes(eq(remainingNodesClusterState.get().nodes()));
         verifyNoMoreInteractions(electMasterService);
 
-        verify(allocationService).reroute(eq(remainingNodesClusterState.get()), any(String.class));
+        verify(allocationService).deassociateDeadNodes(eq(remainingNodesClusterState.get()), eq(true), any(String.class));
 
         for (final ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task task : tasks) {
             assertNull(result.resultingState.nodes().get(task.node().getId()));

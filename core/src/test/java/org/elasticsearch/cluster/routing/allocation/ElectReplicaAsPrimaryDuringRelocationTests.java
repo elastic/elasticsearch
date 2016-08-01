@@ -100,7 +100,7 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
             logger.info("kill the node [{}] of the primary shard for the relocating replica", indexShardRoutingTable.primaryShard().currentNodeId());
             clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(indexShardRoutingTable.primaryShard().currentNodeId())).build();
             prevRoutingTable = routingTable;
-            routingTable = strategy.reroute(clusterState, "reroute").routingTable();
+            routingTable = strategy.deassociateDeadNodes(clusterState, true, "reroute").routingTable();
             clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
             logger.info("make sure all the primary shards are active");

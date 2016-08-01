@@ -46,6 +46,7 @@ import org.hamcrest.Matchers;
 
 import java.util.HashMap;
 import java.util.Map;
+
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 
@@ -191,11 +192,18 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         logger.info("Removing half the nodes (" + (numberOfNodes + 1) / 2 + ")");
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
 
+        boolean removed = false;
         for (int i = (numberOfNodes + 1) / 2; i <= numberOfNodes; i++) {
             nodes.remove("node" + i);
+            removed = true;
         }
 
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
+        if (removed) {
+            clusterState = ClusterState.builder(clusterState).routingResult(
+                strategy.deassociateDeadNodes(clusterState, randomBoolean(), "removed nodes")
+            ).build();
+        }
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
         logger.info("start all the primary shards, replicas will start initializing");

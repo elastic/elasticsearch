@@ -87,7 +87,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
                 .add(newNode(nodeIdRemaining))
         ).build();
 
-        rerouteResult = allocation.reroute(clusterState, "reroute");
+        rerouteResult = allocation.deassociateDeadNodes(clusterState, true, "reroute");
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
 
         assertThat(clusterState.getRoutingNodes().node(nodeIdRemaining).iterator().next().primary(), equalTo(true));
@@ -161,7 +161,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
                 .add(newNode(origPrimaryNodeId))
                 .add(newNode(origReplicaNodeId))
         ).build();
-        rerouteResult = allocation.reroute(clusterState, "reroute");
+        rerouteResult = allocation.deassociateDeadNodes(clusterState, true, "reroute");
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
 
         assertThat(clusterState.getRoutingNodes().node(origPrimaryNodeId).iterator().next().state(), equalTo(STARTED));
@@ -235,7 +235,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
                 .add(newNode("node3"))
                 .add(newNode(origReplicaNodeId))
         ).build();
-        rerouteResult = allocation.reroute(clusterState, "reroute");
+        rerouteResult = allocation.deassociateDeadNodes(clusterState, true, "reroute");
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
 
         assertThat(clusterState.getRoutingNodes().node(origReplicaNodeId).iterator().next().state(), equalTo(STARTED));

@@ -157,18 +157,43 @@ public abstract class ScrollableHitSource implements Closeable {
      * methods.
      */
     public interface Hit {
+        /**
+         * The index in which the hit is stored.
+         */
         String getIndex();
+        /**
+         * The type that the hit has.
+         */
         String getType();
+        /**
+         * The document id of the hit.
+         */
         String getId();
+        /**
+         * The version of the match or {@code -1} if the version wasn't requested. The {@code -1} keeps it inline with Elasticsearch's
+         * internal APIs.
+         */
         long getVersion();
         /**
          * The source of the hit. Returns null if the source didn't come back from the search, usually because it source wasn't stored at
          * all.
          */
         @Nullable BytesReference getSource();
+        /**
+         * The document id of the parent of the hit if there is a parent or null if there isn't.
+         */
         @Nullable String getParent();
+        /**
+         * The routing on the hit if there is any or null if there isn't.
+         */
         @Nullable String getRouting();
+        /**
+         * The {@code _timestamp} on the hit if one was stored with the hit or null if one wasn't.
+         */
         @Nullable Long getTimestamp();
+        /**
+         * The {@code _ttl} on the hit if one was set on it or null one wasn't.
+         */
         @Nullable Long getTTL();
     }
 

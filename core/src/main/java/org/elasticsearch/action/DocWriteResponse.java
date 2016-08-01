@@ -219,8 +219,10 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             .field("_type", type)
             .field("_id", id)
             .field("_version", version)
-            .field("_operation", getOperation().getLowercase())
-            .field("forced_refresh", forcedRefresh);
+            .field("_operation", getOperation().getLowercase());
+        if (forcedRefresh) {
+            builder.field("forced_refresh", forcedRefresh);
+        }
         shardInfo.toXContent(builder, params);
         return builder;
     }

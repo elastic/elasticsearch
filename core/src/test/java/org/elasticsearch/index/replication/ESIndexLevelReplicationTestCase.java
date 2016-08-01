@@ -28,6 +28,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
@@ -256,7 +257,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
                 final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", Integer.toString(docId.incrementAndGet()))
                     .source("{}");
                 final IndexResponse response = index(indexRequest);
-                assertThat(response.isCreated(), equalTo(true));
+                assertEquals(DocWriteResponse.Operation.CREATE, response.getOperation());
             }
             return numOfDoc;
         }

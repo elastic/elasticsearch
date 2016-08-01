@@ -31,7 +31,6 @@ import java.net.UnknownHostException;
 import java.util.HashSet;
 import java.util.Set;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.index.reindex.TransportReindexAction.checkRemoteWhitelist;

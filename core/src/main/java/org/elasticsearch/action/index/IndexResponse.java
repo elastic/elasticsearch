@@ -20,8 +20,6 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -44,16 +42,9 @@ public class IndexResponse extends DocWriteResponse {
         super(shardId, type, id, version, created ? Operation.CREATE : Operation.INDEX);
     }
 
-    /**
-     * Returns true if the document was created, false if updated.
-     */
-    public boolean isCreated() {
-        return this.operation == Operation.CREATE;
-    }
-
     @Override
     public RestStatus status() {
-        return isCreated() ? RestStatus.CREATED : super.status();
+        return operation == Operation.CREATE ? RestStatus.CREATED : super.status();
     }
 
     @Override
@@ -72,7 +63,7 @@ public class IndexResponse extends DocWriteResponse {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         super.toXContent(builder, params);
-        builder.field("created", isCreated());
+        builder.field("created", operation == Operation.CREATE);
         return builder;
     }
 }

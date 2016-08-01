@@ -22,7 +22,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestPutStoredScriptAction;
+import org.elasticsearch.rest.action.admin.cluster.RestPutStoredScriptAction;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;

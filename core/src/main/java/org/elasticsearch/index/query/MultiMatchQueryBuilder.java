@@ -745,11 +745,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
 
         Map<String, Float> newFieldsBoosts = handleFieldsMatchPattern(context.getMapperService(), fieldsBoosts);
 
-        Query query = multiMatchQuery.parse(type, newFieldsBoosts, value, minimumShouldMatch);
-        if (query == null) {
-            return null;
-        }
-        return query;
+        return multiMatchQuery.parse(type, newFieldsBoosts, value, minimumShouldMatch);
     }
 
     private static Map<String, Float> handleFieldsMatchPattern(MapperService mapperService, Map<String, Float> fieldsBoosts) {

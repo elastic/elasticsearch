@@ -25,7 +25,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.support.RestUtils;
+import org.elasticsearch.rest.RestUtils;
+
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpMethod;
 

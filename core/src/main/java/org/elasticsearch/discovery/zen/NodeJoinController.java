@@ -474,23 +474,20 @@ public class NodeJoinController extends AbstractComponent {
             nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
             ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks())
                 .removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
-            boolean nodeRemoved = false;
-            for (final DiscoveryNode joiningNode: joiningNodes) {
+            for (final DiscoveryNode joiningNode : joiningNodes) {
                 final DiscoveryNode existingNode = nodesBuilder.get(joiningNode.getId());
                 if (existingNode != null && existingNode.equals(joiningNode) == false) {
                     logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", existingNode, joiningNode);
                     nodesBuilder.remove(existingNode.getId());
-                    nodeRemoved = true;
                 }
             }
-            if (nodeRemoved) {
-                ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).blocks(clusterBlocks).build();
-                RoutingAllocation.Result result = allocationService.deassociateDeadNodes(tmpState, false,
-                    "removing conflicting nodes on election");
-                return ClusterState.builder(tmpState).routingResult(result);
-            } else {
-                return ClusterState.builder(currentState).nodes(nodesBuilder).blocks(clusterBlocks);
-            }
+
+            // now trim any left over dead nodes - either left there when the previous master stepped down
+            // or removed by us above
+            ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).blocks(clusterBlocks).build();
+            RoutingAllocation.Result result = allocationService.deassociateDeadNodes(tmpState, false,
+                "removed dead nodes on election");
+            return ClusterState.builder(tmpState).routingResult(result);
         }
 
         @Override

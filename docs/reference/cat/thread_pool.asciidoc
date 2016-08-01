@@ -73,8 +73,8 @@ active queue rejected
      0     0        0
 --------------------------------------------------
 
-The cat thread pool API accepts a `thread_pools` URL parameter for specifying regular expressions to
-match thread pool names.
+The cat thread pool API accepts a `thread_pool_patterns` URL parameter for specifying a
+comma-separated list of regular expressions to match thread pool names.
 
 [source,sh]
 --------------------------------------------------

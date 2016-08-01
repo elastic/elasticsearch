@@ -29,7 +29,7 @@
 
   - do:
       cat.thread_pool:
-          thread_pools: bulk,management,flush,index,generic,force_merge
+          thread_pool_patterns: bulk,management,flush,index,generic,force_merge
           h: id,name,active
           v: true
 
@@ -45,7 +45,7 @@
 
   - do:
       cat.thread_pool:
-          thread_pools: bulk
+          thread_pool_patterns: bulk
           h: id,name,type,active,size,queue,queue_size,rejected,largest,completed,min,max,keep_alive
           v: true
 
@@ -56,7 +56,7 @@
 
   - do:
       cat.thread_pool:
-          thread_pools: fetch*
+          thread_pool_patterns: fetch*
           h: id,name,type,active,size,queue,queue_size,rejected,largest,completed,min,max,keep_alive
           v: true
 
@@ -68,7 +68,7 @@
 
   - do:
       cat.thread_pool:
-          thread_pools: bulk,index,search
+          thread_pool_patterns: bulk,index,search
           size: ""
 
   - match:

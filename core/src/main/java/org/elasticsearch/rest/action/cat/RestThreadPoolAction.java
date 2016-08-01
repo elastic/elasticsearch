@@ -47,7 +47,9 @@ import org.elasticsearch.threadpool.ThreadPoolStats;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -124,9 +126,25 @@ public class RestThreadPoolAction extends AbstractCatAction {
     }
 
     private Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, NodesStatsResponse nodesStats) {
-        final String[] threadPools = req.paramAsStringArray("thread_pools", new String[] { "*" });
+        final String[] threadPools = req.paramAsStringArray("thread_pool_patterns", new String[] { "*" });
         final DiscoveryNodes nodes = state.getState().nodes();
         final Table table = getTableWithHeader(req);
+
+        // collect all thread pool names that we see across the nodes
+        final Set<String> candidates = new HashSet<>();
+        for (final NodeStats nodeStats : nodesStats.getNodes()) {
+            for (final ThreadPoolStats.Stats threadPoolStats : nodeStats.getThreadPool()) {
+                candidates.add(threadPoolStats.getName());
+            }
+        }
+
+        // collect all thread pool names that match the specified thread pool patterns
+        final Set<String> included = new HashSet<>();
+        for (final String candidate : candidates) {
+            if (Regex.simpleMatch(threadPools, candidate)) {
+                included.add(candidate);
+            }
+        }
 
         for (final DiscoveryNode node : nodes) {
             final NodeInfo info = nodesInfo.getNodesMap().get(node.getId());
@@ -155,13 +173,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
             }
             for (Map.Entry<String, ThreadPoolStats.Stats> entry : poolThreadStats.entrySet()) {
 
-                boolean matches = false;
-                for (final String threadPool : threadPools) {
-                    matches = Regex.simpleMatch(threadPool, entry.getKey());
-                    if (matches) break;
-                }
-
-                if (!matches) continue;
+                if (!included.contains(entry.getKey())) continue;
 
                 table.startRow();
 

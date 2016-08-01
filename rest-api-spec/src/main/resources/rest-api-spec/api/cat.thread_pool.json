@@ -39,7 +39,7 @@
           "description": "Verbose mode. Display column headers",
           "default": false
         },
-        "thread_pools": {
+        "thread_pool_patterns": {
           "type": "list",
           "description": "A comma-separated list of regular-expressions to filter the thread pools in the output"
         }

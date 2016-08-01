@@ -422,7 +422,8 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         // remove node that has replica and reroute
         clusterState = ClusterState.builder(clusterState).nodes(
             DiscoveryNodes.builder(clusterState.nodes()).remove(nodeIdOfFooReplica)).build();
-        clusterState = ClusterState.builder(clusterState).routingResult(allocationService.deassociateDeadNodes(clusterState, true, "fake node left")).build();
+        clusterState = ClusterState.builder(clusterState).routingResult(
+            allocationService.deassociateDeadNodes(clusterState, true, "fake node left")).build();
         ClusterState stateWithDelayedShard = clusterState;
         // make sure the replica is marked as delayed (i.e. not reallocated)
         assertEquals(1, UnassignedInfo.getNumberOfDelayedUnassigned(stateWithDelayedShard));

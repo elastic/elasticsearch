@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 
 import java.io.IOException;
@@ -70,12 +71,12 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
         private final boolean includeGlobalState;
         private final boolean partial;
         private final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards;
-        private final List<String> indices;
+        private final List<IndexId> indices;
         private final ImmutableOpenMap<String, List<ShardId>> waitingIndices;
         private final long startTime;
 
-        public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<String> indices, long startTime,
-                     ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
+        public Entry(Snapshot snapshot, boolean includeGlobalState, boolean partial, State state, List<IndexId> indices,
+                     long startTime, ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards) {
             this.state = state;
             this.snapshot = snapshot;
             this.includeGlobalState = includeGlobalState;
@@ -111,7 +112,7 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
             return state;
         }
 
-        public List<String> indices() {
+        public List<IndexId> indices() {
             return indices;
         }
 
@@ -377,9 +378,9 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
             boolean partial = in.readBoolean();
             State state = State.fromValue(in.readByte());
             int indices = in.readVInt();
-            List<String> indexBuilder = new ArrayList<>();
+            List<IndexId> indexBuilder = new ArrayList<>();
             for (int j = 0; j < indices; j++) {
-                indexBuilder.add(in.readString());
+                indexBuilder.add(new IndexId(in.readString(), in.readString()));
             }
             long startTime = in.readLong();
             ImmutableOpenMap.Builder<ShardId, ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
@@ -410,8 +411,8 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
             out.writeBoolean(entry.partial());
             out.writeByte(entry.state().value());
             out.writeVInt(entry.indices().size());
-            for (String index : entry.indices()) {
-                out.writeString(index);
+            for (IndexId index : entry.indices()) {
+                index.writeTo(out);
             }
             out.writeLong(entry.startTime());
             out.writeVInt(entry.shards().size());
@@ -458,8 +459,8 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
         builder.field(STATE, entry.state());
         builder.startArray(INDICES);
         {
-            for (String index : entry.indices()) {
-                builder.value(index);
+            for (IndexId index : entry.indices()) {
+                index.toXContent(builder, params);
             }
         }
         builder.endArray();

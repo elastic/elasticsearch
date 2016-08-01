@@ -17,35 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.common.blobstore.support;
+package org.elasticsearch.cloud.aws.blobstore;
 
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
 
 import java.io.IOException;
-import java.io.InputStream;
+import java.util.Locale;
 
-/**
- * A base abstract blob container that implements higher level container methods.
- */
-public abstract class AbstractBlobContainer implements BlobContainer {
+public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
+    protected BlobStore newBlobStore() throws IOException {
+        MockAmazonS3 client = new MockAmazonS3();
+        String bucket = randomAsciiOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
 
-    private final BlobPath path;
-
-    protected AbstractBlobContainer(BlobPath path) {
-        this.path = path;
-    }
-
-    @Override
-    public BlobPath path() {
-        return this.path;
-    }
-
-    @Override
-    public void writeBlob(String blobName, BytesReference bytes) throws IOException {
-        try (InputStream stream = bytes.streamInput()) {
-            writeBlob(blobName, stream, bytes.length());
-        }
+        return new S3BlobStore(Settings.EMPTY, client, bucket, null, false,
+            new ByteSizeValue(10, ByteSizeUnit.MB), 5, "public-read-write", "standard");
     }
 }

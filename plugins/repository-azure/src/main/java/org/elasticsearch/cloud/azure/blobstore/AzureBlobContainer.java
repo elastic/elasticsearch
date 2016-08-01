@@ -30,12 +30,12 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.repositories.RepositoryException;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URISyntaxException;
+import java.nio.file.NoSuchFileException;
 import java.util.Map;
 
 /**
@@ -70,11 +70,12 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     @Override
     public InputStream readBlob(String blobName) throws IOException {
         logger.trace("readBlob({})", blobName);
+
         try {
             return blobStore.getInputStream(blobStore.container(), buildKey(blobName));
         } catch (StorageException e) {
             if (e.getHttpStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
-                throw new FileNotFoundException(e.getMessage());
+                throw new NoSuchFileException(e.getMessage());
             }
             throw new IOException(e);
         } catch (URISyntaxException e) {
@@ -103,7 +104,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
             return new AzureOutputStream(blobStore.getOutputStream(blobStore.container(), buildKey(blobName)));
         } catch (StorageException e) {
             if (e.getHttpStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
-                throw new FileNotFoundException(e.getMessage());
+                throw new NoSuchFileException(e.getMessage());
             }
             throw new IOException(e);
         } catch (URISyntaxException e) {
@@ -116,6 +117,11 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     @Override
     public void deleteBlob(String blobName) throws IOException {
         logger.trace("deleteBlob({})", blobName);
+
+        if (!blobExists(blobName)) {
+            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
+        }
+
         try {
             blobStore.deleteBlob(blobStore.container(), buildKey(blobName));
         } catch (URISyntaxException | StorageException e) {

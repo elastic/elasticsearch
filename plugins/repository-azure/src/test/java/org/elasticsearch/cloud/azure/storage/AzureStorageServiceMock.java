@@ -21,22 +21,19 @@ package org.elasticsearch.cloud.azure.storage;
 
 import com.microsoft.azure.storage.LocationMode;
 import com.microsoft.azure.storage.StorageException;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URISyntaxException;
+import java.nio.file.NoSuchFileException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -82,7 +79,7 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
     @Override
     public InputStream getInputStream(String account, LocationMode mode, String container, String blob) throws IOException {
         if (!blobExists(account, mode, container, blob)) {
-            throw new FileNotFoundException("missing blob [" + blob + "]");
+            throw new NoSuchFileException("missing blob [" + blob + "]");
         }
         return new ByteArrayInputStream(blobs.get(blob).toByteArray());
     }
@@ -99,13 +96,13 @@ public class AzureStorageServiceMock extends AbstractComponent implements AzureS
         MapBuilder<String, BlobMetaData> blobsBuilder = MapBuilder.newMapBuilder();
         for (String blobName : blobs.keySet()) {
             final String checkBlob;
-            if (keyPath != null) {
+            if (keyPath != null && !keyPath.isEmpty()) {
                 // strip off key path from the beginning of the blob name
                 checkBlob = blobName.replace(keyPath, "");
             } else {
                 checkBlob = blobName;
             }
-            if (startsWithIgnoreCase(checkBlob, prefix)) {
+            if (prefix == null || startsWithIgnoreCase(checkBlob, prefix)) {
                 blobsBuilder.put(blobName, new PlainBlobMetaData(checkBlob, blobs.get(blobName).size()));
             }
         }

@@ -137,7 +137,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             added[i] = false;
             try {
                 IndexResponse indexResponse = client().prepareIndex("test", "type", Integer.toString(i)).setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", English.intToEnglish(i)).get();
-                if (indexResponse.getOperation() == DocWriteResponse.Operation.CREATE) {
+                if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
                     numCreated++;
                     added[i] = true;
                 }

@@ -33,7 +33,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
@@ -108,7 +107,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             try {
                 IndexResponse indexResponse = client().prepareIndex("test", "type", "" + i).setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", English.intToEnglish(i)).get();
-                if (indexResponse.getOperation() == DocWriteResponse.Operation.CREATE) {
+                if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
                     numCreated++;
                     added[i] = true;
                 }

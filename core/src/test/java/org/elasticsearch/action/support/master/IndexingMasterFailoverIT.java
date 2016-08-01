@@ -98,7 +98,7 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
                 for (int i = 0; i < 10; i++) {
                     // index data with mapping changes
                     IndexResponse response = client(dataNode).prepareIndex("myindex", "mytype").setSource("field_" + i, "val").get();
-                    assertEquals(DocWriteResponse.Operation.CREATE, response.getOperation());
+                    assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
                 }
             }
         });

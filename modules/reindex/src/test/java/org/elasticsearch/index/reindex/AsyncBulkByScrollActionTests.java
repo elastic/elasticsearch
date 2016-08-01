@@ -778,7 +778,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                         UpdateRequest update = (UpdateRequest) item;
                         opType = "update";
                         response = new UpdateResponse(shardId, update.type(), update.id(),
-                                randomIntBetween(0, Integer.MAX_VALUE), DocWriteResponse.Operation.CREATE);
+                                randomIntBetween(0, Integer.MAX_VALUE), DocWriteResponse.Result.CREATED);
                     } else if (item instanceof DeleteRequest) {
                         DeleteRequest delete = (DeleteRequest) item;
                         opType = "delete";

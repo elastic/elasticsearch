@@ -76,7 +76,7 @@ public class ReplicationOperationTests extends ESTestCase {
             // simulate execution of the replication phase on the relocation target node after relocation source was marked as relocated
             state = ClusterState.builder(state)
                 .nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(primaryShard.relocatingNodeId())).build();
-            primaryShard = primaryShard.buildTargetRelocatingShard();
+            primaryShard = primaryShard.getTargetRelocatingShard();
         }
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, state);
@@ -161,7 +161,7 @@ public class ReplicationOperationTests extends ESTestCase {
             // simulate execution of the replication phase on the relocation target node after relocation source was marked as relocated
             state = ClusterState.builder(state)
                 .nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(primaryShard.relocatingNodeId())).build();
-            primaryShard = primaryShard.buildTargetRelocatingShard();
+            primaryShard = primaryShard.getTargetRelocatingShard();
         }
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, state);
@@ -175,7 +175,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final ClusterState finalState = state;
         final TestReplicaProxy replicasProxy = new TestReplicaProxy(expectedFailures) {
             @Override
-            public void failShard(ShardRouting replica, ShardRouting primary, String message, Exception exception,
+            public void failShard(ShardRouting replica, long primaryTerm, String message, Exception exception,
                                   Runnable onSuccess, Consumer<Exception> onPrimaryDemoted,
                                   Consumer<Exception> onIgnoredFailure) {
                 assertThat(replica, equalTo(failedReplica));
@@ -311,7 +311,7 @@ public class ReplicationOperationTests extends ESTestCase {
                 }
 
                 if (shardRouting.relocating() && localNodeId.equals(shardRouting.relocatingNodeId()) == false) {
-                    expectedReplicas.add(shardRouting.buildTargetRelocatingShard());
+                    expectedReplicas.add(shardRouting.getTargetRelocatingShard());
                 }
             }
         }
@@ -422,7 +422,7 @@ public class ReplicationOperationTests extends ESTestCase {
         }
 
         @Override
-        public void failShard(ShardRouting replica, ShardRouting primary, String message, Exception exception, Runnable onSuccess,
+        public void failShard(ShardRouting replica, long primaryTerm, String message, Exception exception, Runnable onSuccess,
                               Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
             if (failedReplicas.add(replica) == false) {
                 fail("replica [" + replica + "] was failed twice");

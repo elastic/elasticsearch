@@ -474,14 +474,23 @@ public class NodeJoinController extends AbstractComponent {
             nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
             ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks())
                 .removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
+            boolean nodeRemoved = false;
             for (final DiscoveryNode joiningNode: joiningNodes) {
                 final DiscoveryNode existingNode = nodesBuilder.get(joiningNode.getId());
                 if (existingNode != null && existingNode.equals(joiningNode) == false) {
                     logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", existingNode, joiningNode);
                     nodesBuilder.remove(existingNode.getId());
+                    nodeRemoved = true;
                 }
             }
-            return ClusterState.builder(currentState).nodes(nodesBuilder).blocks(clusterBlocks);
+            if (nodeRemoved) {
+                ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).blocks(clusterBlocks).build();
+                RoutingAllocation.Result result = allocationService.deassociateDeadNodes(tmpState, false,
+                    "removing conflicting nodes on election");
+                return ClusterState.builder(tmpState).routingResult(result);
+            } else {
+                return ClusterState.builder(currentState).nodes(nodesBuilder).blocks(clusterBlocks);
+            }
         }
 
         @Override

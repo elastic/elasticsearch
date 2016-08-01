@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.discovery.zen;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -32,6 +33,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -582,7 +584,7 @@ public class NodeJoinControllerTests extends ESTestCase {
      */
     public void testElectionBasedOnConflictingNodes() throws InterruptedException, ExecutionException {
         final DiscoveryNode masterNode = clusterService.localNode();
-        final DiscoveryNode otherNode  = new DiscoveryNode("other_node", LocalTransportAddress.buildUnique(), emptyMap(),
+        final DiscoveryNode otherNode = new DiscoveryNode("other_node", LocalTransportAddress.buildUnique(), emptyMap(),
             EnumSet.allOf(DiscoveryNode.Role.class), Version.CURRENT);
         // simulate master going down with stale nodes in it's cluster state (for example when min master nodes is set to 2)
         // also add some shards to that node
@@ -606,13 +608,16 @@ public class NodeJoinControllerTests extends ESTestCase {
             final DiscoveryNode replicaNode = primaryNode.equals(masterNode) ? otherNode : masterNode;
             final boolean primaryStarted = randomBoolean();
             indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, primaryNode.getId(), null, null, true,
-                primaryStarted ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING, null));
+                primaryStarted ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING,
+                primaryStarted ? null : new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, "getting there")));
             if (primaryStarted) {
+                boolean replicaStared = randomBoolean();
                 indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, replicaNode.getId(), null, null, false,
-                    randomBoolean() ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING, null));
+                    replicaStared ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING,
+                    replicaStared ? null : new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "getting there")));
             } else {
                 indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting("test", 0, null, null, null, false,
-                    ShardRoutingState.UNASSIGNED, null));
+                    ShardRoutingState.UNASSIGNED, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "life sucks")));
             }
             indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
             stateBuilder.routingTable(RoutingTable.builder().add(indexRoutingTableBuilder.build()).build());
@@ -652,7 +657,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         assertThat(finalNodes.get(restartedNode.getId()), equalTo(restartedNode));
         List<ShardRouting> activeShardsOnRestartedNode =
             StreamSupport.stream(finalState.getRoutingNodes().node(restartedNode.getId()).spliterator(), false)
-            .filter(ShardRouting::active).collect(Collectors.toList());
+                .filter(ShardRouting::active).collect(Collectors.toList());
         assertThat(activeShardsOnRestartedNode, empty());
     }
 

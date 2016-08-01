@@ -238,7 +238,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                     if (discoveryNode.equals(state.nodes().getMasterNode()) == false) {
                         DiscoveryNodes newNodes = DiscoveryNodes.builder(state.nodes()).remove(discoveryNode.getId()).build();
                         state = ClusterState.builder(state).nodes(newNodes).build();
-                        state = cluster.reroute(state, new ClusterRerouteRequest()); // always reroute after node join
+                        state = cluster.deassociateDeadNodes(state, true, "removed and added a node");
                         updateNodes(state, clusterStateServiceMap);
                     }
                 }

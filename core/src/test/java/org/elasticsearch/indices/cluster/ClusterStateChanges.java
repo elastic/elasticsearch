@@ -198,6 +198,11 @@ public class ClusterStateChanges {
         return execute(transportClusterRerouteAction, request, state);
     }
 
+    public ClusterState deassociateDeadNodes(ClusterState clusterState, boolean reroute, String reason) {
+    RoutingAllocation.Result rerouteResult = allocationService.deassociateDeadNodes(clusterState, reroute, reason);
+        return ClusterState.builder(clusterState).routingResult(rerouteResult).build();
+    }
+
     public ClusterState applyFailedShards(ClusterState clusterState, List<FailedRerouteAllocation.FailedShard> failedShards) {
         RoutingAllocation.Result rerouteResult = allocationService.applyFailedShards(clusterState, failedShards);
         return ClusterState.builder(clusterState).routingResult(rerouteResult).build();

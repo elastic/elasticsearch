@@ -480,7 +480,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     /**
      * This test ensures that index creation adheres to the {@link IndexMetaData#SETTING_WAIT_FOR_ACTIVE_SHARDS}.
      */
-    public void testChangeWaitForActiveShardsSetting() throws Exception {
+    public void testDefaultWaitForActiveShardsUsesIndexSetting() throws Exception {
         final String indexName = "test";
         final int numReplicas = internalCluster().numDataNodes();
         Settings settings = Settings.builder()

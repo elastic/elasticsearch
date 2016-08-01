@@ -683,16 +683,21 @@ public class TransportReplicationActionTests extends ESTestCase {
      * This test ensures that replication operations adhere to the {@link IndexMetaData#SETTING_WAIT_FOR_ACTIVE_SHARDS} setting
      * when the request is using the default value for waitForActiveShards.
      */
-    public void testChangeWaitForActiveShardsSetting() throws Exception {
+    public void testDefaultWaitForActiveShardsUsesIndexSetting() throws Exception {
         final String indexName = "test";
         final ShardId shardId = new ShardId(indexName, "_na_", 0);
 
         // test wait_for_active_shards index setting used when the default is set on the request
         int numReplicas = randomIntBetween(0, 5);
         int idxSettingWaitForActiveShards = randomIntBetween(0, numReplicas + 1);
-        ClusterState state = changeWaitForActiveShardsSetting(indexName,
-            stateWithActivePrimary(indexName, randomBoolean(), numReplicas),
-            idxSettingWaitForActiveShards);
+        ClusterState state = stateWithActivePrimary(indexName, randomBoolean(), numReplicas);
+        IndexMetaData indexMetaData = state.metaData().index(indexName);
+        Settings indexSettings = Settings.builder().put(indexMetaData.getSettings())
+                                     .put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(idxSettingWaitForActiveShards))
+                                     .build();
+        MetaData.Builder metaDataBuilder = MetaData.builder(state.metaData())
+                                               .put(IndexMetaData.builder(indexMetaData).settings(indexSettings).build(), true);
+        state = ClusterState.builder(state).metaData(metaDataBuilder).build();
         setState(clusterService, state);
         Request request = new Request(shardId).waitForActiveShards(ActiveShardCount.DEFAULT); // set to default so index settings are used
         action.resolveRequest(state.metaData(), state.metaData().index(indexName), request);
@@ -703,16 +708,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         request = new Request(shardId).waitForActiveShards(ActiveShardCount.from(requestWaitForActiveShards));
         action.resolveRequest(state.metaData(), state.metaData().index(indexName), request);
         assertEquals(ActiveShardCount.from(requestWaitForActiveShards), request.waitForActiveShards());
-    }
-
-    private ClusterState changeWaitForActiveShardsSetting(String indexName, ClusterState state, int waitForActiveShards) {
-        IndexMetaData indexMetaData = state.metaData().index(indexName);
-        Settings indexSettings = Settings.builder().put(indexMetaData.getSettings())
-                                     .put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(waitForActiveShards))
-                                     .build();
-        MetaData.Builder metaDataBuilder = MetaData.builder(state.metaData())
-                                               .put(IndexMetaData.builder(indexMetaData).settings(indexSettings).build(), true);
-        return ClusterState.builder(state).metaData(metaDataBuilder).build();
     }
 
     private void assertIndexShardCounter(int expected) {

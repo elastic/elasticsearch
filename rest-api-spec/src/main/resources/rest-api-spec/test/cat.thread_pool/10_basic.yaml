@@ -56,7 +56,7 @@
 
   - do:
       cat.thread_pool:
-          thread_pools: fetch.*
+          thread_pools: fetch*
           h: id,name,type,active,size,queue,queue_size,rejected,largest,completed,min,max,keep_alive
           v: true
 

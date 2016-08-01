@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.rest.RestChannel;
@@ -123,7 +124,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
     }
 
     private Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, NodesStatsResponse nodesStats) {
-        final String[] threadPools = req.paramAsStringArray("thread_pools", new String[] { ".*" });
+        final String[] threadPools = req.paramAsStringArray("thread_pools", new String[] { "*" });
         final DiscoveryNodes nodes = state.getState().nodes();
         final Table table = getTableWithHeader(req);
 
@@ -156,7 +157,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
 
                 boolean matches = false;
                 for (final String threadPool : threadPools) {
-                    matches = entry.getKey().matches(threadPool);
+                    matches = Regex.simpleMatch(threadPool, entry.getKey());
                     if (matches) break;
                 }
 

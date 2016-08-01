@@ -21,11 +21,7 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Nullable;
-<<<<<<< HEAD
-import org.elasticsearch.common.Strings;
-=======
 import org.elasticsearch.common.bytes.BytesArray;
->>>>>>> elastic/master
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
@@ -44,7 +40,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
-import static org.elasticsearch.rest.RestStatus.METHOD_NOT_ALLOWED;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
@@ -249,44 +244,12 @@ public class RestController extends AbstractLifecycleComponent {
         if (handler != null) {
             handler.handleRequest(request, channel, client);
         } else {
-<<<<<<< HEAD
-            HashSet<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(request);
-            if (request.method() == RestRequest.Method.OPTIONS && validMethodSet.size() == 0) {
-                /*
-                 * when we have an OPTIONS request and no valid handlers, simply
-                 * send OK by default (with the Access Control Origin header
-                 * which gets automatically added)
-                 */
-                channel.sendResponse(new BytesRestResponse(OK));
-            } else if (request.method() == RestRequest.Method.OPTIONS && validMethodSet.size() > 0) {
-                /*
-                 * when we have an OPTIONS request against a valid handler,
-                 * return a list of valid methods for the handler per the HTTP
-                 * spec
-                 */
-                BytesRestResponse bytesRestResponse = new BytesRestResponse(OK);
-                bytesRestResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
-                channel.sendResponse(bytesRestResponse);
-            } else if (validMethodSet.size() > 0) {
-                /*
-                 * when we have a request to a valid handler with an unsupported
-                 * method, return a list of valid methods for the handler per
-                 * the HTTP spec
-                 */
-                BytesRestResponse bytesRestResponse = new BytesRestResponse(METHOD_NOT_ALLOWED);
-                bytesRestResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
-                channel.sendResponse(bytesRestResponse);
-            } else {
-                channel.sendResponse(new BytesRestResponse(BAD_REQUEST,
-                        "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
-=======
             if (request.method() == RestRequest.Method.OPTIONS) {
                 // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
                 channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
             } else {
                 final String msg = "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]";
                 channel.sendResponse(new BytesRestResponse(BAD_REQUEST, msg));
->>>>>>> elastic/master
             }
         }
     }
@@ -317,30 +280,6 @@ public class RestController extends AbstractLifecycleComponent {
         } else {
             return null;
         }
-    }
-
-    private HashSet<RestRequest.Method> getValidHandlerMethodSet(RestRequest request) {
-        String path = getPath(request);
-        HashSet<RestRequest.Method> validMethodSet = new HashSet<RestRequest.Method>();
-        if (getHandlers.retrieve(path, request.params()) != null) {
-            validMethodSet.add(RestRequest.Method.GET);
-        }
-        if (postHandlers.retrieve(path, request.params()) != null) {
-            validMethodSet.add(RestRequest.Method.POST);
-        }
-        if (putHandlers.retrieve(path, request.params()) != null) {
-            validMethodSet.add(RestRequest.Method.PUT);
-        }
-        if (deleteHandlers.retrieve(path, request.params()) != null) {
-            validMethodSet.add(RestRequest.Method.DELETE);
-        }
-        if (headHandlers.retrieve(path, request.params()) != null) {
-            validMethodSet.add(RestRequest.Method.HEAD);
-        }
-        if (optionsHandlers.retrieve(path, request.params()) != null) {
-            validMethodSet.add(RestRequest.Method.OPTIONS);
-        }
-        return validMethodSet;
     }
 
     private String getPath(RestRequest request) {

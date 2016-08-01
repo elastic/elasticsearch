@@ -36,12 +36,12 @@
   - match:
       $body: |
                /^  id \s+ name        \s+ active \n
-                   \S+\s+ bulk        \s+ \d+    \n
+                  (\S+\s+ bulk        \s+ \d+    \n
                    \S+\s+ flush       \s+ \d+    \n
                    \S+\s+ force_merge \s+ \d+    \n
                    \S+\s+ generic     \s+ \d+    \n
                    \S+\s+ index       \s+ \d+    \n
-                   \S+\s+ management  \s+ \d+    \n  $/
+                   \S+\s+ management  \s+ \d+    \n)+  $/
 
   - do:
       cat.thread_pool:
@@ -63,8 +63,8 @@
   - match:
       $body: |
                /^  id  \s+ name                \s+ type    \s+ active \s+ size \s+ queue \s+ queue_size \s+ rejected \s+ largest \s+ completed \s+ min \s+ max \s+ keep_alive \n
-                  (\S+ \s+ fetch_shard_started \s+ scaling \s+ \d+    \s+ \d+  \s+ \d+   \s+ \d*        \s+ \d+      \s+ \d+     \s+ \d+       \s+ \d* \s+ \d* \s+ \S*        \n)+
-                  (\S+ \s+ fetch_shard_store   \s+ scaling \s+ \d+    \s+ \d+  \s+ \d+   \s+ \d*        \s+ \d+      \s+ \d+     \s+ \d+       \s+ \d* \s+ \d* \s+ \S*        \n)+  $/
+                  (\S+ \s+ fetch_shard_started \s+ scaling \s+ \d+    \s+ \d+  \s+ \d+   \s+ \d*        \s+ \d+      \s+ \d+     \s+ \d+       \s+ \d* \s+ \d* \s+ \S*        \n
+                   \S+ \s+ fetch_shard_store   \s+ scaling \s+ \d+    \s+ \d+  \s+ \d+   \s+ \d*        \s+ \d+      \s+ \d+     \s+ \d+       \s+ \d* \s+ \d* \s+ \S*        \n)+  $/
 
   - do:
       cat.thread_pool:
@@ -74,7 +74,7 @@
   - match:
       $body: |
                /  #node_name     name       active     queue     rejected
-               ^  (\S+       \s+ bulk   \s+ \d+    \s+ \d+   \s+ \d+      \n)+
-                  (\S+       \s+ index  \s+ \d+    \s+ \d+   \s+ \d+      \n)+
-                  (\S+       \s+ search \s+ \d+    \s+ \d+   \s+ \d+      \n)+  $/
+               ^  (\S+       \s+ bulk   \s+ \d+    \s+ \d+   \s+ \d+      \n
+                   \S+       \s+ index  \s+ \d+    \s+ \d+   \s+ \d+      \n
+                   \S+       \s+ search \s+ \d+    \s+ \d+   \s+ \d+      \n)+  $/
 

@@ -137,6 +137,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 poolThreadStats = Collections.emptyMap();
                 poolThreadInfo = Collections.emptyMap();
             } else {
+                // we use a sorted map to ensure that thread pools are sorted by name
                 poolThreadStats = new TreeMap<>();
                 poolThreadInfo = new TreeMap<>();
 

@@ -79,7 +79,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         logger.info("Adding third node and reroute and kill first node");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3")).remove("node1")).build();
         RoutingTable prevRoutingTable = clusterState.routingTable();
-        result = strategy.reroute(clusterState, "reroute");
+        result = strategy.deassociateDeadNodes(clusterState, true, "reroute");
         clusterState = ClusterState.builder(clusterState).routingResult(result).build();
         routingNodes = clusterState.getRoutingNodes();
         routingTable = clusterState.routingTable();
@@ -133,7 +133,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .add(newNode(nodeIdRemaining))
         ).build();
-        rerouteResult = allocation.reroute(clusterState, "reroute");
+        rerouteResult = allocation.deassociateDeadNodes(clusterState, true, "reroute");
         clusterState = ClusterState.builder(clusterState).routingResult(rerouteResult).build();
         routingNodes = clusterState.getRoutingNodes();
 

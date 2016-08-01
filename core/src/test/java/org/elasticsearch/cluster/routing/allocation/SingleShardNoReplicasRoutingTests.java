@@ -128,7 +128,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node1")).build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
+        routingTable = strategy.deassociateDeadNodes(clusterState, true, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable != prevRoutingTable, equalTo(true));

@@ -97,15 +97,21 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
                 }
             }
 
+            boolean nodesRemoved = false;
             if (nodeIdCounter > 1 && rarely()) {
                 int nodeId = scaledRandomIntBetween(0, nodeIdCounter - 2);
                 logger.info("removing node [{}]", nodeId);
                 newNodesBuilder.remove("NODE_" + nodeId);
+                nodesRemoved = true;
             }
 
             stateBuilder.nodes(newNodesBuilder.build());
             clusterState = stateBuilder.build();
-            routingTable = strategy.reroute(clusterState, "reroute").routingTable();
+            if (nodesRemoved) {
+                routingTable = strategy.deassociateDeadNodes(clusterState, true, "reroute").routingTable();
+            } else {
+                routingTable = strategy.reroute(clusterState, "reroute").routingTable();
+            }
             clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
             if (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size() > 0) {
                 routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))

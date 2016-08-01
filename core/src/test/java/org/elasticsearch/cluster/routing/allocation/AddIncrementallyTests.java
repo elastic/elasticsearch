@@ -388,8 +388,10 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
         ArrayList<DiscoveryNode> discoveryNodes = CollectionUtils.iterableAsArrayList(clusterState.nodes());
         Collections.shuffle(discoveryNodes, random());
+        boolean removed = false;
         for (DiscoveryNode node : discoveryNodes) {
             nodes.remove(node.getId());
+            removed = true;
             numNodes--;
             if (numNodes <= 0) {
                 break;
@@ -397,6 +399,10 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         }
 
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
+        if (removed) {
+            clusterState = ClusterState.builder(clusterState)
+                .routingResult(service.deassociateDeadNodes(clusterState, true, "reroute")).build();
+        }
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
         logger.info("start all the primary shards, replicas will start initializing");

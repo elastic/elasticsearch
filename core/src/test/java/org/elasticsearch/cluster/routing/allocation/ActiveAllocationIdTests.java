@@ -83,7 +83,7 @@ public class ActiveAllocationIdTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .remove("node1"))
                 .build();
-        rerouteResult = allocation.reroute(clusterState, "reroute");
+        rerouteResult = allocation.deassociateDeadNodes(clusterState, true, "reroute");
         clusterState = ClusterState.builder(clusterState).routingResult(rerouteResult).build();
 
         assertThat(clusterState.metaData().index("test").activeAllocationIds(0).size(), equalTo(2));
@@ -92,7 +92,7 @@ public class ActiveAllocationIdTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .remove("node2").remove("node3"))
                 .build();
-        rerouteResult = allocation.reroute(clusterState, "reroute");
+        rerouteResult = allocation.deassociateDeadNodes(clusterState, true, "reroute");
         clusterState = ClusterState.builder(clusterState).routingResult(rerouteResult).build();
 
         // active allocation ids should not be updated

@@ -371,7 +371,7 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         logger.info("kill one node");
         IndexShardRoutingTable indexShardRoutingTable = routingTable.index("test").shard(0);
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(indexShardRoutingTable.primaryShard().currentNodeId())).build();
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
+        routingTable = strategy.deassociateDeadNodes(clusterState, true, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
 

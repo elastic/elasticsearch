@@ -90,7 +90,7 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
         )
                 .build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
+        routingTable = strategy.deassociateDeadNodes(clusterState, true, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
 

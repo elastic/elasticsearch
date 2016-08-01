@@ -154,12 +154,11 @@ public class RareClusterStateIT extends ESIntegTestCase {
         clusterService.submitStateUpdateTask("test-remove-injected-node", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                // inject a node
                 ClusterState.Builder builder = ClusterState.builder(currentState);
                 builder.nodes(DiscoveryNodes.builder(currentState.nodes()).remove("_non_existent"));
 
                 currentState = builder.build();
-                RoutingAllocation.Result result = allocationService.reroute(currentState, "reroute");
+                RoutingAllocation.Result result = allocationService.deassociateDeadNodes(currentState, true, "reroute");
                 return ClusterState.builder(currentState).routingResult(result).build();
 
             }

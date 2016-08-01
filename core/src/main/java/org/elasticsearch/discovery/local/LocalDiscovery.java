@@ -231,8 +231,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                         }
                         // reroute here, so we eagerly remove dead nodes from the routing
                         ClusterState updatedState = ClusterState.builder(currentState).nodes(newNodes).build();
-                        RoutingAllocation.Result routingResult = master.allocationService.reroute(
-                                ClusterState.builder(updatedState).build(), "elected as master");
+                        RoutingAllocation.Result routingResult = master.allocationService.deassociateDeadNodes(
+                                ClusterState.builder(updatedState).build(), true, "node stopped");
                         return ClusterState.builder(updatedState).routingResult(routingResult).build();
                     }
 

@@ -45,6 +45,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -139,7 +140,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
             } else {
                 // we use a sorted map to ensure that thread pools are sorted by name
                 poolThreadStats = new TreeMap<>();
-                poolThreadInfo = new TreeMap<>();
+                poolThreadInfo = new HashMap<>();
 
                 ThreadPoolStats threadPoolStats = stats.getThreadPool();
                 for (ThreadPoolStats.Stats threadPoolStat : threadPoolStats) {

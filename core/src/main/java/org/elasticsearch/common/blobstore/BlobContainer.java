@@ -47,7 +47,10 @@ public interface BlobContainer {
 
     /**
      * Writes bytes to the blob
+     *
+     * @deprecated Use {@link #writeBlob(String, InputStream, long)} instead.
      */
+    @Deprecated
     void writeBlob(String blobName, BytesReference bytes) throws IOException;
 
     /**
@@ -61,12 +64,19 @@ public interface BlobContainer {
      * Deletes blobs with giving names.
      *
      * If a blob exists but cannot be deleted an exception has to be thrown.
+     * @deprecated Removing this method in 5.0 in favor of using {@link #deleteBlob(String)} as the there are no atomic guarantees
+     * to deleting multiple blobs in the same call and the corresponding exception handling is best left to the invoker.
      */
+    @Deprecated
     void deleteBlobs(Collection<String> blobNames) throws IOException;
 
     /**
      * Deletes all blobs in the container that match the specified prefix.
+     *
+     * @deprecated Removing this method in 5.0 in favor of using {@link #deleteBlob(String)} as the there are no atomic guarantees
+     * to deleting multiple blobs in the same call and the corresponding exception handling is best left to the invoker.
      */
+    @Deprecated
     void deleteBlobsByPrefix(String blobNamePrefix) throws IOException;
 
     /**

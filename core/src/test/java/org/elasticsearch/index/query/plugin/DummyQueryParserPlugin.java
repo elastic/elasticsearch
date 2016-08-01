@@ -23,91 +23,26 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.plugins.SearchPlugin;
 
 import java.io.IOException;
+import java.util.List;
 
-public class DummyQueryParserPlugin extends Plugin {
+import static java.util.Collections.singletonList;
 
-    @Override
-    public String name() {
-        return "dummy";
-    }
+public class DummyQueryParserPlugin extends Plugin implements SearchPlugin {
 
     @Override
-    public String description() {
-        return "dummy query";
-    }
-
-    public void onModule(SearchModule module) {
-        module.registerQuery(DummyQueryBuilder::new, DummyQueryBuilder::fromXContent, DummyQueryBuilder.QUERY_NAME_FIELD);
-    }
-
-    public static class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {
-        private static final String NAME = "dummy";
-        private static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
-
-        public DummyQueryBuilder() {
-        }
-
-        /**
-         * Read from a stream.
-         */
-        public DummyQueryBuilder(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
-            // only the superclass has state
-        }
-
-        @Override
-        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(NAME).endObject();
-        }
-
-        public static DummyQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-            XContentParser.Token token = parseContext.parser().nextToken();
-            assert token == XContentParser.Token.END_OBJECT;
-            return new DummyQueryBuilder();
-        }
-
-        @Override
-        protected Query doToQuery(QueryShardContext context) throws IOException {
-            return new DummyQuery(context.isFilter());
-        }
-
-        @Override
-        protected int doHashCode() {
-            return 0;
-        }
-
-        @Override
-        protected boolean doEquals(DummyQueryBuilder other) {
-            return true;
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
+    public List<QuerySpec<?>> getQueries() {
+        return singletonList(new QuerySpec<>(DummyQueryBuilder.NAME, DummyQueryBuilder::new, DummyQueryBuilder::fromXContent));
     }
 
     public static class DummyQuery extends Query {
         public final boolean isFilter;
         private final Query matchAllDocsQuery = new MatchAllDocsQuery();
 
-        private DummyQuery(boolean isFilter) {
+        public DummyQuery(boolean isFilter) {
             this.isFilter = isFilter;
         }
 
@@ -119,6 +54,16 @@ public class DummyQueryParserPlugin extends Plugin {
         @Override
         public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
             return matchAllDocsQuery.createWeight(searcher, needsScores);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return sameClassAs(obj);
+        }
+
+        @Override
+        public int hashCode() {
+            return classHash();
         }
     }
 }

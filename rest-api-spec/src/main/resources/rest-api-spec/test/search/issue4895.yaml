@@ -31,6 +31,6 @@ setup:
                   term:
                       data: some
                   preference: _local
-              fields: [user,amount]
+              stored_fields: [user,amount]
 
 

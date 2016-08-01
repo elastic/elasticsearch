@@ -48,11 +48,8 @@ public final class SettingsLoaderFactory {
             return new JsonSettingsLoader(false);
         } else if (resourceName.endsWith(".yml") || resourceName.endsWith(".yaml")) {
             return new YamlSettingsLoader(false);
-        } else if (resourceName.endsWith(".properties")) {
-            return new PropertiesSettingsLoader();
         } else {
-            // lets default to the json one
-            return new JsonSettingsLoader(false);
+            throw new IllegalArgumentException("unable to detect content type from resource name [" + resourceName + "]");
         }
     }
 
@@ -72,11 +69,11 @@ public final class SettingsLoaderFactory {
     public static SettingsLoader loaderFromSource(String source) {
         if (source.indexOf('{') != -1 && source.indexOf('}') != -1) {
             return new JsonSettingsLoader(true);
-        }
-        if (source.indexOf(':') != -1) {
+        } else if (source.indexOf(':') != -1) {
             return new YamlSettingsLoader(true);
+        } else {
+            throw new IllegalArgumentException("unable to detect content type from source [" + source + "]");
         }
-        return new PropertiesSettingsLoader();
     }
 
 }

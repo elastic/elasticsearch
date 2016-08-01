@@ -31,7 +31,7 @@ import java.util.Map;
  */
 public abstract class MetadataFieldMapper extends FieldMapper {
 
-    public static interface TypeParser extends Mapper.TypeParser {
+    public interface TypeParser extends Mapper.TypeParser {
 
         @Override
         MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;

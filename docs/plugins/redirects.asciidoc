@@ -24,7 +24,7 @@ The `cloud-aws` plugin has been split into two separate plugins:
 
 The `cloud-azure` plugin has been split into two separate plugins:
 
-*  <<discovery-azure>> (`discovery-azure`)
+*  <<discovery-azure-classic>> (`discovery-azure-classic`)
 *  <<repository-azure>> (`repository-azure`)
 
 
@@ -32,6 +32,13 @@ The `cloud-azure` plugin has been split into two separate plugins:
 === GCE Cloud Plugin
 
 The `cloud-gce` plugin has been renamed to <<discovery-gce>> (`discovery-gce`).
+
+[role="exclude",id="plugins-delete-by-query"]
+=== Delete-By-Query plugin removed
+
+The Delete-By-Query plugin has been removed in favor of a new {ref}/docs-delete-by-query.html[Delete By Query API]
+implementation in core.
+
 
 
 

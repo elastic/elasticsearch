@@ -92,7 +92,7 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     taskManager.unregister(task);
                     listener.onFailure(e);
                 }
@@ -101,6 +101,10 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
         return task;
     }
 
+    /**
+     * Execute the transport action on the local node, returning the {@link Task} used to track its execution and accepting a
+     * {@link TaskListener} which listens for the completion of the action.
+     */
     public final Task execute(Request request, TaskListener<Response> listener) {
         Task task = taskManager.register("transport", actionName, request);
         execute(task, request, new ActionListener<Response>() {
@@ -113,7 +117,7 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 if (task != null) {
                     taskManager.unregister(task);
                 }
@@ -133,12 +137,16 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
             return;
         }
 
+        if (task != null && request.getShouldPersistResult()) {
+            listener = new PersistentActionListener<>(taskManager, task, listener);
+        }
+
         if (filters.length == 0) {
             try {
                 doExecute(task, request, listener);
-            } catch(Throwable t) {
-                logger.trace("Error during transport action execution.", t);
-                listener.onFailure(t);
+            } catch(Exception e) {
+                logger.trace("Error during transport action execution.", e);
+                listener.onFailure(e);
             }
         } else {
             RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
@@ -171,14 +179,14 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
                 if (i < this.action.filters.length) {
                     this.action.filters[i].apply(task, actionName, request, listener, this);
                 } else if (i == this.action.filters.length) {
-                    this.action.doExecute(task, request, new FilteredActionListener<Response>(actionName, listener,
+                    this.action.doExecute(task, request, new FilteredActionListener<>(actionName, listener,
                             new ResponseFilterChain<>(this.action.filters, logger)));
                 } else {
                     listener.onFailure(new IllegalStateException("proceed was called too many times"));
                 }
-            } catch(Throwable t) {
-                logger.trace("Error during transport action execution.", t);
-                listener.onFailure(t);
+            } catch(Exception e) {
+                logger.trace("Error during transport action execution.", e);
+                listener.onFailure(e);
             }
         }
 
@@ -217,9 +225,9 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
                 } else {
                     listener.onFailure(new IllegalStateException("proceed was called too many times"));
                 }
-            } catch (Throwable t) {
-                logger.trace("Error during transport action execution.", t);
-                listener.onFailure(t);
+            } catch (Exception e) {
+                logger.trace("Error during transport action execution.", e);
+                listener.onFailure(e);
             }
         }
     }
@@ -242,8 +250,42 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
         }
 
         @Override
-        public void onFailure(Throwable e) {
+        public void onFailure(Exception e) {
             listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Wrapper for an action listener that persists the result at the end of the execution
+     */
+    private static class PersistentActionListener<Response extends ActionResponse> implements ActionListener<Response> {
+        private final ActionListener<Response> delegate;
+        private final Task task;
+        private final TaskManager taskManager;
+
+        private  PersistentActionListener(TaskManager taskManager, Task task, ActionListener<Response> delegate) {
+            this.taskManager = taskManager;
+            this.task = task;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void onResponse(Response response) {
+            try {
+                taskManager.persistResult(task, response, delegate);
+            } catch (Exception e) {
+                delegate.onFailure(e);
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            try {
+                taskManager.persistResult(task, e, delegate);
+            } catch (Exception inner) {
+                inner.addSuppressed(e);
+                delegate.onFailure(inner);
+            }
         }
     }
 }

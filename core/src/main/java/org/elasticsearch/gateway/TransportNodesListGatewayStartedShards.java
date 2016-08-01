@@ -29,7 +29,6 @@ import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -44,13 +43,12 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.shard.ShardStateMetaData;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
  * This transport action is used to fetch the shard version from each node during primary allocation in {@link GatewayAllocator}.
@@ -63,35 +61,30 @@ public class TransportNodesListGatewayStartedShards extends
         TransportNodesListGatewayStartedShards.NodeRequest,
         TransportNodesListGatewayStartedShards.NodeGatewayStartedShards>
     implements
-    AsyncShardFetch.List<TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
+    AsyncShardFetch.Lister<TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
         TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
     private final NodeEnvironment nodeEnv;
-
+    private final IndicesService indicesService;
 
     @Inject
-    public TransportNodesListGatewayStartedShards(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+    public TransportNodesListGatewayStartedShards(Settings settings, ThreadPool threadPool,
                                                   ClusterService clusterService, TransportService transportService,
                                                   ActionFilters actionFilters,
                                                   IndexNameExpressionResolver indexNameExpressionResolver,
-                                                  NodeEnvironment env) {
-        super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-            indexNameExpressionResolver, Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STARTED);
+                                                  NodeEnvironment env, IndicesService indicesService) {
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
+              indexNameExpressionResolver, Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STARTED,
+              NodeGatewayStartedShards.class);
         this.nodeEnv = env;
+        this.indicesService = indicesService;
     }
 
     @Override
-    public void list(ShardId shardId, String[] nodesIds,
+    public void list(ShardId shardId, DiscoveryNode[] nodes,
                      ActionListener<NodesGatewayStartedShards> listener) {
-        execute(new Request(shardId, nodesIds), listener);
-    }
-
-    @Override
-    protected String[] resolveNodes(Request request, ClusterState clusterState) {
-        // default implementation may filter out non existent nodes. it's important to keep exactly the ids
-        // we were given for accounting on the caller
-        return request.nodesIds();
+        execute(new Request(shardId, nodes), listener);
     }
 
     @Override
@@ -110,23 +103,9 @@ public class TransportNodesListGatewayStartedShards extends
     }
 
     @Override
-    protected NodesGatewayStartedShards newResponse(Request request, AtomicReferenceArray responses) {
-        final List<NodeGatewayStartedShards> nodesList = new ArrayList<>();
-        final List<FailedNodeException> failures = new ArrayList<>();
-        for (int i = 0; i < responses.length(); i++) {
-            Object resp = responses.get(i);
-            if (resp instanceof NodeGatewayStartedShards) { // will also filter out null response for unallocated ones
-                nodesList.add((NodeGatewayStartedShards) resp);
-            } else if (resp instanceof FailedNodeException) {
-                failures.add((FailedNodeException) resp);
-            } else {
-                logger.warn("unknown response type [{}], expected NodeLocalGatewayStartedShards or FailedNodeException",
-                    resp);
-            }
-        }
-        return new NodesGatewayStartedShards(clusterName,
-            nodesList.toArray(new NodeGatewayStartedShards[nodesList.size()]),
-            failures.toArray(new FailedNodeException[failures.size()]));
+    protected NodesGatewayStartedShards newResponse(Request request,
+                                                    List<NodeGatewayStartedShards> responses, List<FailedNodeException> failures) {
+        return new NodesGatewayStartedShards(clusterService.getClusterName(), responses, failures);
     }
 
     @Override
@@ -150,21 +129,24 @@ public class TransportNodesListGatewayStartedShards extends
                     throw e;
                 }
 
-                ShardPath shardPath = null;
-                try {
-                    IndexSettings indexSettings = new IndexSettings(metaData, settings);
-                    shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
-                    if (shardPath == null) {
-                        throw new IllegalStateException(shardId + " no shard path found");
+                if (indicesService.getShardOrNull(shardId) == null) {
+                    // we don't have an open shard on the store, validate the files on disk are openable
+                    ShardPath shardPath = null;
+                    try {
+                        IndexSettings indexSettings = new IndexSettings(metaData, settings);
+                        shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
+                        if (shardPath == null) {
+                            throw new IllegalStateException(shardId + " no shard path found");
+                        }
+                        Store.tryOpenIndex(shardPath.resolveIndex(), shardId, nodeEnv::shardLock, logger);
+                    } catch (Exception exception) {
+                        logger.trace("{} can't open index for shard [{}] in path [{}]", exception, shardId,
+                            shardStateMetaData, (shardPath != null) ? shardPath.resolveIndex() : "");
+                        String allocationId = shardStateMetaData.allocationId != null ?
+                            shardStateMetaData.allocationId.getId() : null;
+                        return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.legacyVersion,
+                            allocationId, shardStateMetaData.primary, exception);
                     }
-                    Store.tryOpenIndex(shardPath.resolveIndex(), shardId, logger);
-                } catch (Exception exception) {
-                    logger.trace("{} can't open index for shard [{}] in path [{}]", exception, shardId,
-                        shardStateMetaData, (shardPath != null) ? shardPath.resolveIndex() : "");
-                    String allocationId = shardStateMetaData.allocationId != null ?
-                        shardStateMetaData.allocationId.getId() : null;
-                    return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.legacyVersion,
-                        allocationId, shardStateMetaData.primary, exception);
                 }
 
                 logger.debug("{} shard state info found: [{}]", shardId, shardStateMetaData);
@@ -192,8 +174,8 @@ public class TransportNodesListGatewayStartedShards extends
         public Request() {
         }
 
-        public Request(ShardId shardId, String[] nodesIds) {
-            super(nodesIds);
+        public Request(ShardId shardId, DiscoveryNode[] nodes) {
+            super(nodes);
             this.shardId = shardId;
         }
 
@@ -217,36 +199,19 @@ public class TransportNodesListGatewayStartedShards extends
 
     public static class NodesGatewayStartedShards extends BaseNodesResponse<NodeGatewayStartedShards> {
 
-        private FailedNodeException[] failures;
-
-        public NodesGatewayStartedShards(ClusterName clusterName, NodeGatewayStartedShards[] nodes,
-                                         FailedNodeException[] failures) {
-            super(clusterName, nodes);
-            this.failures = failures;
+        public NodesGatewayStartedShards(ClusterName clusterName, List<NodeGatewayStartedShards> nodes,
+                                         List<FailedNodeException> failures) {
+            super(clusterName, nodes, failures);
         }
 
         @Override
-        public FailedNodeException[] failures() {
-            return failures;
+        protected List<NodeGatewayStartedShards> readNodesFrom(StreamInput in) throws IOException {
+            return in.readStreamableList(NodeGatewayStartedShards::new);
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            nodes = new NodeGatewayStartedShards[in.readVInt()];
-            for (int i = 0; i < nodes.length; i++) {
-                nodes[i] = new NodeGatewayStartedShards();
-                nodes[i].readFrom(in);
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeVInt(nodes.length);
-            for (NodeGatewayStartedShards response : nodes) {
-                response.writeTo(out);
-            }
+        protected void writeNodesTo(StreamOutput out, List<NodeGatewayStartedShards> nodes) throws IOException {
+            out.writeStreamableList(nodes);
         }
     }
 
@@ -258,7 +223,7 @@ public class TransportNodesListGatewayStartedShards extends
         public NodeRequest() {
         }
 
-        NodeRequest(String nodeId, Request request) {
+        public NodeRequest(String nodeId, Request request) {
             super(nodeId);
             this.shardId = request.shardId();
         }
@@ -285,7 +250,7 @@ public class TransportNodesListGatewayStartedShards extends
         private long legacyVersion = ShardStateMetaData.NO_VERSION; // for pre-3.0 shards that have not yet been active
         private String allocationId = null;
         private boolean primary = false;
-        private Throwable storeException = null;
+        private Exception storeException = null;
 
         public NodeGatewayStartedShards() {
         }
@@ -295,7 +260,7 @@ public class TransportNodesListGatewayStartedShards extends
         }
 
         public NodeGatewayStartedShards(DiscoveryNode node, long legacyVersion, String allocationId, boolean primary,
-                                        Throwable storeException) {
+                                        Exception storeException) {
             super(node);
             this.legacyVersion = legacyVersion;
             this.allocationId = allocationId;
@@ -315,7 +280,7 @@ public class TransportNodesListGatewayStartedShards extends
             return this.primary;
         }
 
-        public Throwable storeException() {
+        public Exception storeException() {
             return this.storeException;
         }
 
@@ -326,7 +291,7 @@ public class TransportNodesListGatewayStartedShards extends
             allocationId = in.readOptionalString();
             primary = in.readBoolean();
             if (in.readBoolean()) {
-                storeException = in.readThrowable();
+                storeException = in.readException();
             }
         }
 
@@ -338,7 +303,7 @@ public class TransportNodesListGatewayStartedShards extends
             out.writeBoolean(primary);
             if (storeException != null) {
                 out.writeBoolean(true);
-                out.writeThrowable(storeException);
+                out.writeException(storeException);
             } else {
                 out.writeBoolean(false);
             }
@@ -375,6 +340,20 @@ public class TransportNodesListGatewayStartedShards extends
             result = 31 * result + (primary ? 1 : 0);
             result = 31 * result + (storeException != null ? storeException.hashCode() : 0);
             return result;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder buf = new StringBuilder();
+            buf.append("NodeGatewayStartedShards[")
+               .append("allocationId=").append(allocationId)
+               .append(",primary=").append(primary)
+               .append(",legacyVersion=").append(legacyVersion);
+            if (storeException != null) {
+                buf.append(",storeException=").append(storeException);
+            }
+            buf.append("]");
+            return buf.toString();
         }
     }
 }

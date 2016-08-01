@@ -38,9 +38,9 @@ public class DiversifiedSamplerParser extends AnyValuesSourceParser {
     }
 
     @Override
-    protected DiversifiedAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        DiversifiedAggregatorBuilder factory = new DiversifiedAggregatorBuilder(aggregationName);
+    protected DiversifiedAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                          ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        DiversifiedAggregationBuilder factory = new DiversifiedAggregationBuilder(aggregationName);
         Integer shardSize = (Integer) otherOptions.get(SamplerAggregator.SHARD_SIZE_FIELD);
         if (shardSize != null) {
             factory.shardSize(shardSize);

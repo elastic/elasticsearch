@@ -38,7 +38,7 @@ public class FilterAggregatorFactory extends AggregatorFactory<FilterAggregatorF
 
     private final Weight weight;
 
-    public FilterAggregatorFactory(String name, Type type, QueryBuilder<?> filterBuilder, AggregationContext context,
+    public FilterAggregatorFactory(String name, Type type, QueryBuilder filterBuilder, AggregationContext context,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, type, context, parent, subFactoriesBuilder, metaData);
         IndexSearcher contextSearcher = context.searchContext().searcher();

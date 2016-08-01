@@ -27,6 +27,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.TimeUnit;
@@ -34,7 +35,7 @@ import java.util.concurrent.TimeUnit;
 public class NoOpClient extends AbstractClient {
 
     public NoOpClient(String testName) {
-        super(Settings.EMPTY, new ThreadPool(testName));
+        super(Settings.EMPTY, new TestThreadPool(testName));
     }
 
     @Override
@@ -49,8 +50,8 @@ public class NoOpClient extends AbstractClient {
     public void close() {
         try {
             ThreadPool.terminate(threadPool(), 10, TimeUnit.SECONDS);
-        } catch (Throwable t) {
-            throw new ElasticsearchException(t.getMessage(), t);
+        } catch (Exception e) {
+            throw new ElasticsearchException(e.getMessage(), e);
         }
     }
 }

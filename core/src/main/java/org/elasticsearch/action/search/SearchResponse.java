@@ -21,12 +21,12 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.StatusToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.search.SearchHits;
@@ -36,7 +36,6 @@ import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
@@ -167,9 +166,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
      * If profiling was enabled, this returns an object containing the profile results from
      * each shard.  If profiling was not enabled, this will return null
      *
-     * @return The profile results or null
+     * @return The profile results or an empty map
      */
-    public @Nullable Map<String, List<ProfileShardResult>> getProfileResults() {
+    @Nullable public Map<String, ProfileShardResult> getProfileResults() {
         return internalResponse.profile();
     }
 
@@ -232,14 +231,6 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return builder.string();
-        } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
-        }
+        return Strings.toString(this, true);
     }
 }

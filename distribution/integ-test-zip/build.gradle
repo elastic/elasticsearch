@@ -27,5 +27,12 @@ artifacts {
   archives buildZip
 }
 
-integTest.dependsOn buildZip
+publishing {
+  publications {
+    nebula {
+      artifact buildZip
+    }
+  }
+}
 
+integTest.dependsOn buildZip

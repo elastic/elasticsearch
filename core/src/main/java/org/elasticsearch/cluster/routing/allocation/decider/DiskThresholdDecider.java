@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -44,6 +45,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Set;
 
@@ -303,26 +306,23 @@ public class DiskThresholdDecider extends AllocationDecider {
      * If subtractShardsMovingAway is set then the size of shards moving away is subtracted from the total size
      * of all shards
      */
-    public static long sizeOfRelocatingShards(RoutingNode node, ClusterInfo clusterInfo,
+    public static long sizeOfRelocatingShards(RoutingNode node, RoutingAllocation allocation,
                                               boolean subtractShardsMovingAway, String dataPath) {
+        ClusterInfo clusterInfo = allocation.clusterInfo();
         long totalSize = 0;
         for (ShardRouting routing : node.shardsWithState(ShardRoutingState.RELOCATING, ShardRoutingState.INITIALIZING)) {
             String actualPath = clusterInfo.getDataPath(routing);
             if (dataPath.equals(actualPath)) {
                 if (routing.initializing() && routing.relocatingNodeId() != null) {
-                    totalSize += getShardSize(routing, clusterInfo);
+                    totalSize += getExpectedShardSize(routing, allocation, 0);
                 } else if (subtractShardsMovingAway && routing.relocating()) {
-                    totalSize -= getShardSize(routing, clusterInfo);
+                    totalSize -= getExpectedShardSize(routing, allocation, 0);
                 }
             }
         }
         return totalSize;
     }
 
-    static long getShardSize(ShardRouting routing, ClusterInfo clusterInfo) {
-        Long shardSize = clusterInfo.getShardSize(routing);
-        return shardSize == null ? 0 : shardSize;
-    }
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -426,7 +426,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         // Secondly, check that allocating the shard to this node doesn't put it above the high watermark
-        final long shardSize = getShardSize(shardRouting, allocation.clusterInfo());
+        final long shardSize = getExpectedShardSize(shardRouting, allocation, 0);
         double freeSpaceAfterShard = freeDiskPercentageAfterShardAssigned(usage, shardSize);
         long freeBytesAfterShard = freeBytes - shardSize;
         if (freeBytesAfterShard < freeBytesThresholdHigh.bytes()) {
@@ -505,7 +505,6 @@ public class DiskThresholdDecider extends AllocationDecider {
     }
 
     private DiskUsage getDiskUsage(RoutingNode node, RoutingAllocation allocation, ImmutableOpenMap<String, DiskUsage> usages) {
-        ClusterInfo clusterInfo = allocation.clusterInfo();
         DiskUsage usage = usages.get(node.nodeId());
         if (usage == null) {
             // If there is no usage, and we have other nodes in the cluster,
@@ -518,7 +517,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         if (includeRelocations) {
-            long relocatingShardsSize = sizeOfRelocatingShards(node, clusterInfo, true, usage.getPath());
+            long relocatingShardsSize = sizeOfRelocatingShards(node, allocation, true, usage.getPath());
             DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), node.node().getName(), usage.getPath(),
                     usage.getTotalBytes(), usage.getFreeBytes() - relocatingShardsSize);
             if (logger.isTraceEnabled()) {
@@ -642,5 +641,31 @@ public class DiskThresholdDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "disk usages are unavailable");
         }
         return null;
+    }
+
+    /**
+     * Returns the expected shard size for the given shard or the default value provided if not enough information are available
+     * to estimate the shards size.
+     */
+    public static final long getExpectedShardSize(ShardRouting shard, RoutingAllocation allocation, long defaultValue) {
+        final IndexMetaData metaData = allocation.metaData().getIndexSafe(shard.index());
+        final ClusterInfo info = allocation.clusterInfo();
+        if (metaData.getMergeSourceIndex() != null && shard.allocatedPostIndexCreate(metaData) == false) {
+            // in the shrink index case we sum up the source index shards since we basically make a copy of the shard in
+            // the worst case
+            long targetShardSize = 0;
+            final Index mergeSourceIndex = metaData.getMergeSourceIndex();
+            final IndexMetaData sourceIndexMeta = allocation.metaData().getIndexSafe(metaData.getMergeSourceIndex());
+            final Set<ShardId> shardIds = IndexMetaData.selectShrinkShards(shard.id(), sourceIndexMeta, metaData.getNumberOfShards());
+            for (IndexShardRoutingTable shardRoutingTable : allocation.routingTable().index(mergeSourceIndex.getName())) {
+                if (shardIds.contains(shardRoutingTable.shardId())) {
+                    targetShardSize += info.getShardSize(shardRoutingTable.primaryShard(), 0);
+                }
+            }
+            return targetShardSize == 0 ? defaultValue : targetShardSize;
+        } else {
+            return info.getShardSize(shard, defaultValue);
+        }
+
     }
 }

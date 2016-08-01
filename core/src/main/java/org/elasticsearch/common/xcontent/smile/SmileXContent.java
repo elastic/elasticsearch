@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent.smile;
 
 import com.fasterxml.jackson.core.JsonEncoding;
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 import com.fasterxml.jackson.dataformat.smile.SmileGenerator;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -44,13 +45,15 @@ public class SmileXContent implements XContent {
         return XContentBuilder.builder(smileXContent);
     }
 
-    final static SmileFactory smileFactory;
-    public final static SmileXContent smileXContent;
+    static final SmileFactory smileFactory;
+    public static final SmileXContent smileXContent;
 
     static {
         smileFactory = new SmileFactory();
         smileFactory.configure(SmileGenerator.Feature.ENCODE_BINARY_AS_7BIT, false); // for now, this is an overhead, might make sense for web sockets
         smileFactory.configure(SmileFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
+        // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.smile.SmileGenerator#close() method
+        smileFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         smileXContent = new SmileXContent();
     }
 
@@ -94,9 +97,6 @@ public class SmileXContent implements XContent {
 
     @Override
     public XContentParser createParser(BytesReference bytes) throws IOException {
-        if (bytes.hasArray()) {
-            return createParser(bytes.array(), bytes.arrayOffset(), bytes.length());
-        }
         return createParser(bytes.streamInput());
     }
 

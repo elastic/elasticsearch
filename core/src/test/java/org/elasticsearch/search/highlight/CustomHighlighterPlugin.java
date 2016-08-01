@@ -20,21 +20,15 @@
 package org.elasticsearch.search.highlight;
 
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.plugins.SearchPlugin;
 
-public class CustomHighlighterPlugin extends Plugin {
+import java.util.Map;
 
+import static java.util.Collections.singletonMap;
+
+public class CustomHighlighterPlugin extends Plugin implements SearchPlugin {
     @Override
-    public String name() {
-        return "test-plugin-custom-highlighter";
-    }
-
-    @Override
-    public String description() {
-        return "Custom highlighter to test pluggable implementation";
-    }
-
-    public void onModule(SearchModule highlightModule) {
-        highlightModule.registerHighlighter("test-custom", CustomHighlighter.class);
+    public Map<String, Highlighter> getHighlighters() {
+        return singletonMap("test-custom", new CustomHighlighter());
     }
 }

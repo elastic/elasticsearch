@@ -45,6 +45,7 @@ import org.elasticsearch.indices.mapper.MapperRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -74,6 +75,14 @@ public final class IndexModule {
 
     public static final Setting<String> INDEX_STORE_TYPE_SETTING =
         new Setting<>("index.store.type", "", Function.identity(), Property.IndexScope, Property.NodeScope);
+
+    /** On which extensions to load data into the file-system cache upon opening of files.
+     *  This only works with the mmap directory, and even in that case is still
+     *  best-effort only. */
+    public static final Setting<List<String>> INDEX_STORE_PRE_LOAD_SETTING =
+            Setting.listSetting("index.store.preload", Collections.emptyList(), Function.identity(),
+                    Property.IndexScope, Property.NodeScope);
+
     public static final String SIMILARITY_SETTINGS_PREFIX = "index.similarity";
 
     // whether to use the query cache
@@ -115,6 +124,17 @@ public final class IndexModule {
             throw new IllegalArgumentException("setting must not be null");
         }
         indexSettings.getScopedSettings().addSettingsUpdateConsumer(setting, consumer);
+    }
+
+    /**
+     * Adds a Setting, it's consumer and validator for this index.
+     */
+    public <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer, Consumer<T> validator) {
+        ensureNotFrozen();
+        if (setting == null) {
+            throw new IllegalArgumentException("setting must not be null");
+        }
+        indexSettings.getScopedSettings().addSettingsUpdateConsumer(setting, consumer, validator);
     }
 
     /**

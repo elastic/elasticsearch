@@ -61,7 +61,7 @@ class Checkpoint {
         Channels.writeToChannel(buffer, channel);
     }
 
-    private void write(DataOutput out) throws IOException {
+    void write(DataOutput out) throws IOException {
         out.writeLong(offset);
         out.writeInt(numOps);
         out.writeLong(generation);
@@ -82,8 +82,8 @@ class Checkpoint {
         }
     }
 
-    public static void write(Path checkpointFile, Checkpoint checkpoint, OpenOption... options) throws IOException {
-        try (FileChannel channel = FileChannel.open(checkpointFile, options)) {
+    public static void write(ChannelFactory factory, Path checkpointFile, Checkpoint checkpoint, OpenOption... options) throws IOException {
+        try (FileChannel channel = factory.open(checkpointFile, options)) {
             checkpoint.write(channel);
             channel.force(false);
         }

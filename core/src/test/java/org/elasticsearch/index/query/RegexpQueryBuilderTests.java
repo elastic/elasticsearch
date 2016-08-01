@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -84,15 +85,15 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"regexp\" : {\n" + 
-                "    \"name.first\" : {\n" + 
-                "      \"value\" : \"s.*y\",\n" + 
-                "      \"flags_value\" : 7,\n" + 
-                "      \"max_determinized_states\" : 20000,\n" + 
-                "      \"boost\" : 1.0\n" + 
-                "    }\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"regexp\" : {\n" +
+                "    \"name.first\" : {\n" +
+                "      \"value\" : \"s.*y\",\n" +
+                "      \"flags_value\" : 7,\n" +
+                "      \"max_determinized_states\" : 20000,\n" +
+                "      \"boost\" : 1.0\n" +
+                "    }\n" +
+                "  }\n" +
                 "}";
 
         RegexpQueryBuilder parsed = (RegexpQueryBuilder) parseQuery(json);
@@ -100,5 +101,15 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
 
         assertEquals(json, "s.*y", parsed.value());
         assertEquals(json, 20000, parsed.maxDeterminizedStates());
+    }
+
+    public void testNumeric() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        RegexpQueryBuilder query = new RegexpQueryBuilder(INT_FIELD_NAME, "12");
+        QueryShardContext context = createShardContext();
+        QueryShardException e = expectThrows(QueryShardException.class,
+                () -> query.toQuery(context));
+        assertEquals("Can only use regexp queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
+                e.getMessage());
     }
 }

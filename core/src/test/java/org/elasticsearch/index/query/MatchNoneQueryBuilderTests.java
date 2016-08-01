@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class MatchNoneQueryBuilderTests extends AbstractQueryTestCase<MatchNoneQueryBuilder> {
@@ -36,17 +36,15 @@ public class MatchNoneQueryBuilderTests extends AbstractQueryTestCase<MatchNoneQ
 
     @Override
     protected void doAssertLuceneQuery(MatchNoneQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, instanceOf(BooleanQuery.class));
-        BooleanQuery booleanQuery = (BooleanQuery) query;
-        assertThat(booleanQuery.clauses().size(), equalTo(0));
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
     }
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"match_none\" : {\n" + 
-                "    \"boost\" : 1.2\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"match_none\" : {\n" +
+                "    \"boost\" : 1.2\n" +
+                "  }\n" +
                 "}";
         MatchNoneQueryBuilder parsed = (MatchNoneQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

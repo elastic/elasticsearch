@@ -28,20 +28,18 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@ClusterScope(scope = Scope.TEST, numClientNodes = 0)
+@ClusterScope(scope = Scope.TEST, numClientNodes = 0, supportsDedicatedMasters = false)
 public class TransportClientRetryIT extends ESIntegTestCase {
     public void testRetry() throws IOException, ExecutionException, InterruptedException {
         Iterable<TransportService> instances = internalCluster().getInstances(TransportService.class);
@@ -53,14 +51,12 @@ public class TransportClientRetryIT extends ESIntegTestCase {
 
         Settings.Builder builder = Settings.builder().put("client.transport.nodes_sampler_interval", "1s")
                 .put("node.name", "transport_client_retry_test")
-                .put(Node.NODE_MODE_SETTING.getKey(), internalCluster().getNodeMode())
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), internalCluster().getClusterName())
-                .put(InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING.getKey(), true)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir());
 
-        try (TransportClient client = TransportClient.builder().settings(builder.build()).build()) {
+        try (TransportClient client = new MockTransportClient(builder.build())) {
             client.addTransportAddresses(addresses);
-            assertThat(client.connectedNodes().size(), equalTo(internalCluster().size()));
+            assertEquals(client.connectedNodes().size(), internalCluster().size());
 
             int size = cluster().size();
             //kill all nodes one by one, leaving a single master/data node at the end of the loop

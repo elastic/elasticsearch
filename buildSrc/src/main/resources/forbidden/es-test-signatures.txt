@@ -21,5 +21,7 @@ com.carrotsearch.randomizedtesting.annotations.Repeat @ Don't commit hardcoded r
 org.apache.lucene.codecs.Codec#setDefault(org.apache.lucene.codecs.Codec) @ Use the SuppressCodecs("*") annotation instead
 org.apache.lucene.util.LuceneTestCase$Slow @ Don't write slow tests
 org.junit.Ignore @ Use AwaitsFix instead
+org.apache.lucene.util.LuceneTestCase$Nightly @ We don't run nightly tests at this point!
+com.carrotsearch.randomizedtesting.annotations.Nightly @ We don't run nightly tests at this point!
 
 org.junit.Test @defaultMessage Just name your test method testFooBar

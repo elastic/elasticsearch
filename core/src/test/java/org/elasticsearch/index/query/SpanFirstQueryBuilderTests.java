@@ -24,6 +24,7 @@ import org.apache.lucene.search.spans.SpanFirstQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
@@ -81,19 +82,19 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"span_first\" : {\n" + 
-                "    \"match\" : {\n" + 
-                "      \"span_term\" : {\n" + 
-                "        \"user\" : {\n" + 
-                "          \"value\" : \"kimchy\",\n" + 
-                "          \"boost\" : 1.0\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    },\n" + 
-                "    \"end\" : 3,\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"span_first\" : {\n" +
+                "    \"match\" : {\n" +
+                "      \"span_term\" : {\n" +
+                "        \"user\" : {\n" +
+                "          \"value\" : \"kimchy\",\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"end\" : 3,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
 
         SpanFirstQueryBuilder parsed = (SpanFirstQueryBuilder) parseQuery(json);

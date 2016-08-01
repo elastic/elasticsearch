@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -35,9 +36,9 @@ public class TransportModuleTests extends ModuleTestCase {
 
     static class FakeTransport extends AssertingLocalTransport {
         @Inject
-        public FakeTransport(Settings settings, CircuitBreakerService circuitBreakerService, ThreadPool threadPool, Version version,
+        public FakeTransport(Settings settings, CircuitBreakerService circuitBreakerService, ThreadPool threadPool,
                              NamedWriteableRegistry namedWriteableRegistry) {
-            super(settings, circuitBreakerService, threadPool, version, namedWriteableRegistry);
+            super(settings, circuitBreakerService, threadPool, namedWriteableRegistry);
         }
     }
 

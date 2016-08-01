@@ -4,6 +4,30 @@
 [[breaking_50_java_api_changes]]
 === Java API changes
 
+==== Transport client  has been moved
+
+The Java transport client has been moved to its own module which can be referenced using:
+
+[source,xml]
+-----
+<dependency>
+    <groupId>org.elasticsearch.client</groupId>
+    <artifactId>transport</artifactId>
+    <version>5.0.0-alpha5</version>
+</dependency>
+-----
+
+The transport client is now created using the following snippet:
+
+[source,java]
+-----
+TransportClient client = new PreBuiltTransportClient(Settings.EMPTY)
+        .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("host1"), 9300))
+        .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("host2"), 9300));
+-----
+
+For more information please see the {javaclient}java-api.html[Java client documentation]
+
 ==== Count api has been removed
 
 The deprecated count api has been removed from the Java api, use the search api instead and set size to 0.
@@ -84,12 +108,14 @@ static factory methods in QueryBuilders accordingly.
 
 Making sure that query contains at least one clause by making initial clause mandatory
 in constructor.
+Renaming method to add clauses from `clause(SpanQueryBuilder)` to `addClause(SpanQueryBuilder)`.
 
 ===== SpanNearQueryBuilder
 
 Removed setter for mandatory slop parameter, needs to be set in constructor now. Also
 making sure that query contains at least one clause by making initial clause mandatory
 in constructor. Updated the static factory methods in QueryBuilders accordingly.
+Renaming method to add clauses from `clause(SpanQueryBuilder)` to `addClause(SpanQueryBuilder)`.
 
 ===== SpanNotQueryBuilder
 
@@ -263,12 +289,17 @@ The `setTemplateSource(String)` and `setTemplateSource(BytesReference)` methods 
 
 ==== SearchRequest
 
-All `template` methods have been removed in favor of a single `template(Template)` method.
-
 All `source` methods have been removed in favor of a single `source(SearchSourceBuilder)` method. This means that all search requests can now be validated
 at call time which results in much clearer errors.
 
 All `extraSource` methods have been removed.
+
+All `template` methods have been removed in favor of a new Search Template API. A new `SearchTemplateRequest` now accepts a template and
+a `SearchRequest` and must be executed using the new `SearchTemplateAction` action.
+
+==== SearchResponse
+
+Sort values for `string` fields are now return as `java.lang.String` objects rather than `org.elasticsearch.common.text.Text`.
 
 ==== AggregationBuilder
 
@@ -279,22 +310,50 @@ requests can now be validated at call time which results in much clearer errors.
 ==== ValidateQueryRequest
 
 `source(QuerySourceBuilder)`, `source(Map)`, `source(XContentBuilder)`, `source(String)`, `source(byte[])`, `source(byte[], int, int)`,
-`source(BytesReference)` and `source()` have been removed in favor of using `query(QueryBuilder<?>)` and `query()`
+`source(BytesReference)` and `source()` have been removed in favor of using `query(QueryBuilder)` and `query()`
 
 ==== ValidateQueryRequestBuilder
 
-`setSource()` methods have been removed in favor of using `setQuery(QueryBuilder<?>)`
+`setSource()` methods have been removed in favor of using `setQuery(QueryBuilder)`
 
 ==== ExplainRequest
 
 `source(QuerySourceBuilder)`, `source(Map)`, `source(BytesReference)` and `source()` have been removed in favor of using
-`query(QueryBuilder<?>)` and `query()`
+`query(QueryBuilder)` and `query()`
 
 ==== ExplainRequestBuilder
 
-The `setQuery(BytesReference)` method have been removed in favor of using `setQuery(QueryBuilder<?>)`
+The `setQuery(BytesReference)` method have been removed in favor of using `setQuery(QueryBuilder)`
 
-=== ClusterStatsResponse
+==== ClusterStatsResponse
 
 Removed the `getMemoryAvailable` method from `OsStats`, which could be previously accessed calling
 `clusterStatsResponse.getNodesStats().getOs().getMemoryAvailable()`.
+
+==== setRefresh(boolean) has been removed
+
+`setRefresh(boolean)` has been removed in favor of `setRefreshPolicy(RefreshPolicy)` because there
+are now three options (NONE, IMMEDIATE, and WAIT_FOR). `setRefresh(IMMEDIATE)` has the same behavior
+as `setRefresh(true)` used to have. See `setRefreshPolicy`'s javadoc for more.
+
+==== Remove properties support
+
+Some Java APIs (e.g., `IndicesAdminClient#setSettings`) would support Java properties syntax
+(line-delimited key=value pairs). This support has been removed.
+
+=== Render Search Template Java API has been removed
+
+The Render Search Template Java API including `RenderSearchTemplateAction`, `RenderSearchTemplateRequest` and
+`RenderSearchTemplateResponse` has been removed in favor of a new `simulate` option in the Search Template Java API.
+ This Search Template API is now included in the `lang-mustache` module and the `simulate` flag must be set on the
+ `SearchTemplateRequest` object.
+
+==== AnalyzeRequest
+
+The `tokenFilters(String...)` and `charFilters(String...)` methods have been removed
+in favor of using `addTokenFilter(String)`/`addTokenFilter(Map)` and `addCharFilter(String)`/`addCharFilter(Map)` each filters
+
+==== AnalyzeRequestBuilder
+
+The `setTokenFilters(String...)` and `setCharFilters(String...)` methods have been removed
+in favor of using `addTokenFilter(String)`/`addTokenFilter(Map)` and `addCharFilter(String)`/`addCharFilter(Map)` each filters

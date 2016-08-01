@@ -125,7 +125,7 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
         DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
             .startObject("foo.bar").field("type", "text").endObject()
-            .endObject().endObject().string();
+            .endObject().endObject().endObject().string();
         try {
             mapperParser.parse("type", new CompressedXContent(mapping));
             fail("Mapping parse should have failed");

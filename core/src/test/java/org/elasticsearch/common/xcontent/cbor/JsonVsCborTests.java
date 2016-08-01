@@ -63,7 +63,8 @@ public class JsonVsCborTests extends ESTestCase {
         xsonGen.close();
         jsonGen.close();
 
-        verifySameTokens(XContentFactory.xContent(XContentType.JSON).createParser(jsonOs.bytes().toBytes()), XContentFactory.xContent(XContentType.CBOR).createParser(xsonOs.bytes().toBytes()));
+        verifySameTokens(XContentFactory.xContent(XContentType.JSON).createParser(jsonOs.bytes()),
+            XContentFactory.xContent(XContentType.CBOR).createParser(xsonOs.bytes()));
     }
 
     private void verifySameTokens(XContentParser parser1, XContentParser parser2) throws IOException {

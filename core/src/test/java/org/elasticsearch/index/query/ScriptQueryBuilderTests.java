@@ -23,6 +23,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -47,23 +48,37 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
         expectThrows(IllegalArgumentException.class, () -> new ScriptQueryBuilder((Script) null));
     }
 
-    public void testFromJson() throws IOException {
+    public void testFromJsonVerbose() throws IOException {
         String json =
-                "{\n" + 
-                "  \"script\" : {\n" + 
-                "    \"script\" : {\n" + 
-                "      \"inline\" : \"5\",\n" + 
-                "      \"lang\" : \"mockscript\",\n" + 
-                "      \"params\" : { }\n" + 
-                "    },\n" + 
-                "    \"boost\" : 1.0,\n" + 
-                "    \"_name\" : \"PcKdEyPOmR\"\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"script\" : {\n" +
+                "    \"script\" : {\n" +
+                "      \"inline\" : \"5\",\n" +
+                "      \"lang\" : \"mockscript\",\n" +
+                "      \"params\" : { }\n" +
+                "    },\n" +
+                "    \"boost\" : 1.0,\n" +
+                "    \"_name\" : \"PcKdEyPOmR\"\n" +
+                "  }\n" +
                 "}";
 
         ScriptQueryBuilder parsed = (ScriptQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
 
         assertEquals(json, "mockscript", parsed.script().getLang());
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" +
+                        "  \"script\" : {\n" +
+                        "    \"script\" : \"5\"," +
+                        "    \"boost\" : 1.0,\n" +
+                        "    \"_name\" : \"PcKdEyPOmR\"\n" +
+                        "  }\n" +
+                        "}";
+
+        ScriptQueryBuilder parsed = (ScriptQueryBuilder) parseQuery(json);
+        assertEquals(json, "5", parsed.script().getScript());
     }
 }

@@ -24,6 +24,7 @@ import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -44,7 +45,9 @@ import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
@@ -105,7 +108,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             try {
                 IndexResponse indexResponse = client().prepareIndex("test", "type", "" + i).setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", English.intToEnglish(i)).get();
-                if (indexResponse.isCreated()) {
+                if (indexResponse.getOperation() == DocWriteResponse.Operation.CREATE) {
                     numCreated++;
                     added[i] = true;
                 }
@@ -157,16 +160,8 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
             public static final Setting<Double> EXCEPTION_LOW_LEVEL_RATIO_SETTING =
                 Setting.doubleSetting(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
             @Override
-            public String name() {
-                return "random-exception-reader-wrapper";
-            }
-            public void onModule(SettingsModule module) {
-                module.registerSetting(EXCEPTION_TOP_LEVEL_RATIO_SETTING);
-                module.registerSetting(EXCEPTION_LOW_LEVEL_RATIO_SETTING);
-            }
-            @Override
-            public String description() {
-                return "a mock reader wrapper that throws random exceptions for testing";
+            public List<Setting<?>> getSettings() {
+                return Arrays.asList(EXCEPTION_TOP_LEVEL_RATIO_SETTING, EXCEPTION_LOW_LEVEL_RATIO_SETTING);
             }
             public void onModule(MockEngineFactoryPlugin.MockEngineReaderModule module) {
                 module.setReaderClass(RandomExceptionDirectoryReaderWrapper.class);

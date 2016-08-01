@@ -279,7 +279,7 @@ public class DocumentMapper implements ToXContent {
     }
 
     public ParsedDocument parse(String index, String type, String id, BytesReference source) throws MapperParsingException {
-        return parse(SourceToParse.source(source).index(index).type(type).id(id));
+        return parse(SourceToParse.source(index, type, id, source));
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {

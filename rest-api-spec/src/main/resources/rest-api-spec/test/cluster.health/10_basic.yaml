@@ -46,7 +46,6 @@
         index: test_index
   - do:
       cluster.health:
-        wait_for_status: yellow
         level: indices
 
   - is_true: indices

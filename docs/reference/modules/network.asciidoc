@@ -115,7 +115,7 @@ The publish host is the single interface that the node advertises to other
 nodes in the cluster, so that those nodes can connect to it.   Currently an
 elasticsearch node may be bound to multiple addresses, but only publishes one.
 If not specified, this defaults to the ``best'' address from
-`network.bind_host`, sorted by IPv4/IPv6 stack preference, then by
+`network.host`, sorted by IPv4/IPv6 stack preference, then by
 reachability.
 
 Both of the above settings can be configured just like `network.host` -- they

@@ -159,7 +159,7 @@ public class TestMergeMapperTests extends ESSingleNodeTestCase {
         final AtomicBoolean stopped = new AtomicBoolean(false);
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final AtomicReference<String> lastIntroducedFieldName = new AtomicReference<>();
-        final AtomicReference<Throwable> error = new AtomicReference<>();
+        final AtomicReference<Exception> error = new AtomicReference<>();
         final Thread updater = new Thread() {
             @Override
             public void run() {
@@ -173,8 +173,8 @@ public class TestMergeMapperTests extends ESSingleNodeTestCase {
                         lastIntroducedFieldName.set(fieldName);
                         mapperService.merge("test", new CompressedXContent(update.toString()), MapperService.MergeReason.MAPPING_UPDATE, false);
                     }
-                } catch (Throwable t) {
-                    error.set(t);
+                } catch (Exception e) {
+                    error.set(e);
                 } finally {
                     stopped.set(true);
                 }

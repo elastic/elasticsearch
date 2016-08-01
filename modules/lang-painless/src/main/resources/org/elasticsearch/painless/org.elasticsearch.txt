@@ -1,0 +1,129 @@
+#
+# Licensed to Elasticsearch under one or more contributor
+# license agreements. See the NOTICE file distributed with
+# this work for additional information regarding copyright
+# ownership. Elasticsearch licenses this file to you under
+# the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+#
+# Painless definition file. This defines the hierarchy of classes,
+# what methods and fields they have, etc.
+#
+
+#### Primitive types
+
+class void -> void {
+}
+
+class boolean -> boolean {
+}
+
+class byte -> byte {
+}
+
+class short -> short {
+}
+
+class char -> char {
+}
+
+class int -> int {
+}
+
+class long -> long {
+}
+
+class float -> float {
+}
+
+class double -> double {
+}
+
+class def -> java.lang.Object {
+  boolean equals(Object)
+  int hashCode()
+  String toString()
+}
+
+#### ES Scripting API
+
+class org.elasticsearch.common.geo.GeoPoint -> org.elasticsearch.common.geo.GeoPoint extends Object {
+  double getLat()
+  double getLon()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues.Strings -> org.elasticsearch.index.fielddata.ScriptDocValues$Strings extends List,Collection,Iterable,Object {
+  String get(int)
+  String getValue()
+  List getValues()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues.Longs -> org.elasticsearch.index.fielddata.ScriptDocValues$Longs extends List,Collection,Iterable,Object {
+  Long get(int)
+  long getValue()
+  List getValues()
+  org.joda.time.ReadableDateTime getDate()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues.Doubles -> org.elasticsearch.index.fielddata.ScriptDocValues$Doubles extends List,Collection,Iterable,Object {
+  Double get(int)
+  double getValue()
+  List getValues()
+}
+
+class org.elasticsearch.index.fielddata.ScriptDocValues.GeoPoints -> org.elasticsearch.index.fielddata.ScriptDocValues$GeoPoints extends List,Collection,Iterable,Object {
+  org.elasticsearch.common.geo.GeoPoint get(int)
+  org.elasticsearch.common.geo.GeoPoint getValue()
+  List getValues()
+  double getLat()
+  double getLon()
+  double[] getLats()
+  double[] getLons()
+
+  # geo distance functions... so many...
+  double factorDistance(double,double)
+  double factorDistanceWithDefault(double,double,double)
+  double factorDistance02(double,double)
+  double factorDistance13(double,double)
+  double arcDistance(double,double)
+  double arcDistanceWithDefault(double,double,double)
+  double arcDistanceInKm(double,double)
+  double arcDistanceInKmWithDefault(double,double,double)
+  double arcDistanceInMiles(double,double)
+  double arcDistanceInMilesWithDefault(double,double,double)
+  double distance(double,double)
+  double distanceWithDefault(double,double,double)
+  double distanceInKm(double,double)
+  double distanceInKmWithDefault(double,double,double)
+  double distanceInMiles(double,double)
+  double distanceInMilesWithDefault(double,double,double)
+  double geohashDistance(String)
+  double geohashDistanceInKm(String)
+  double geohashDistanceInMiles(String)
+}
+
+# for testing.
+# currently FeatureTest exposes overloaded constructor, field load store, and overloaded static methods
+class org.elasticsearch.painless.FeatureTest -> org.elasticsearch.painless.FeatureTest extends Object {
+  org.elasticsearch.painless.FeatureTest <init>()
+  org.elasticsearch.painless.FeatureTest <init>(int,int)
+  int getX()
+  int getY()
+  void setX(int)
+  void setY(int)
+  boolean overloadedStatic()
+  boolean overloadedStatic(boolean)
+  Object twoFunctionsOfX(Function,Function)
+}

@@ -33,7 +33,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 
 [[ip-params]]
@@ -104,6 +104,23 @@ GET my_index/_search
   "query": {
     "term": {
       "ip_addr": "2001:db8::/48"
+    }
+  }
+}
+--------------------------------------------------
+
+Also beware that colons are special characters to the
+<<query-dsl-query-string-query,`query_string`>> query, so ipv6 addresses will
+need to be escaped. The easiest way to do so is to put quotes around the
+searched value:
+
+[source,js]
+--------------------------------------------------
+GET t/_search
+{
+  "query": {
+    "query_string" : {
+      "query": "ip_addr:\"2001:db8::/48\""
     }
   }
 }

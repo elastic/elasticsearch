@@ -29,6 +29,6 @@ dependencies {
 integTest {
   cluster {
     setting 'script.inline', 'true'
-    setting 'script.indexed', 'true'
+    setting 'script.stored', 'true'
   }
 }

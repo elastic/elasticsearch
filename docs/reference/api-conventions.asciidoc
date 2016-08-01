@@ -171,8 +171,18 @@ one or more maths expressions:
 * `-1d` - subtract one day
 * `/d`  - round down to the nearest day
 
-The supported <<time-units,time units>> are: `y` (year), `M` (month), `w` (week),
-`d` (day), `h` (hour), `m` (minute), and `s` (second).
+The supported time units differ than those supported by <<time-units, time units>> for durations.
+The supported units are:
+
+[horizontal]
+`y`:: years
+`M`:: months
+`w`:: weeks
+`d`:: days
+`h`:: hours
+`H`:: hours
+`m`:: minutes
+`s`:: seconds
 
 Some examples are:
 
@@ -348,25 +358,23 @@ of supporting the native JSON number types.
 [float]
 === Time units
 
-Whenever durations need to be specified, eg for a `timeout` parameter, the
-duration must specify the unit, like `2d` for 2 days.  The supported units
-are:
+Whenever durations need to be specified, e.g. for a `timeout` parameter, the duration must specify
+the unit, like `2d` for 2 days.  The supported units are:
 
 [horizontal]
-`y`::   Year
-`M`::   Month
-`w`::   Week
-`d`::   Day
-`h`::   Hour
-`m`::   Minute
-`s`::   Second
-`ms`::  Milli-second
+`d`::       days
+`h`::       hours
+`m`::       minutes
+`s`::       seconds
+`ms`::      milliseconds
+`micros`::  microseconds
+`nanos`::   nanoseconds
 
-[[size-units]]
+[[byte-units]]
 [float]
-=== Data size units
+=== Byte size units
 
-Whenever the size of data needs to be specified, eg when setting a buffer size
+Whenever the byte size of data needs to be specified, eg when setting a buffer size
 parameter, the value must specify the unit, like `10kb` for 10 kilobytes.  The
 supported units are:
 
@@ -377,6 +385,23 @@ supported units are:
 `gb`::  Gigabytes
 `tb`::  Terabytes
 `pb`::  Petabytes
+
+[[size-units]]
+[float]
+=== Unit-less quantities
+
+Unit-less quantities means that they don't have a "unit" like "bytes" or "Hertz" or "meter" or "long tonne".
+
+If one of these quantities is large we'll print it out like 10m for 10,000,000 or 7k for 7,000. We'll still print 87
+when we mean 87 though. These are the supported multipliers:
+
+[horizontal]
+``::   Single
+`k`::  Kilo
+`m`::  Mega
+`g`::  Giga
+`t`::  Tera
+`p`::  Peta
 
 [[distance-units]]
 [float]
@@ -409,27 +434,9 @@ precision is interpreted as the length of the geohash.
 === Fuzziness
 
 Some queries and APIs support parameters to allow inexact _fuzzy_ matching,
-using the `fuzziness` parameter. The `fuzziness` parameter is context
-sensitive which means that it depends on the type of the field being queried:
+using the `fuzziness` parameter.
 
-[float]
-==== Numeric, date and IPv4 fields
-
-When querying numeric, date and IPv4 fields, `fuzziness` is interpreted as a
-`+/-` margin. It behaves like a <<query-dsl-range-query>> where:
-
-    -fuzziness <= field value <= +fuzziness
-
-The `fuzziness` parameter should be set to a numeric value, eg `2` or `2.0`. A
-`date` field interprets a long as milliseconds, but also accepts a string
-containing a time value -- `"1h"` -- as explained in <<time-units>>. An `ip`
-field accepts a long or another IPv4 address (which will be converted into a
-long).
-
-[float]
-==== String fields
-
-When querying `string` fields, `fuzziness` is interpreted as a
+When querying `text` or `keyword` fields, `fuzziness` is interpreted as a
 http://en.wikipedia.org/wiki/Levenshtein_distance[Levenshtein Edit Distance]
 -- the number of one character changes that need to be made to one string to
 make it the same as another string.

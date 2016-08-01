@@ -21,7 +21,7 @@ package org.elasticsearch.search.highlight;
 import org.elasticsearch.index.mapper.FieldMapper;
 
 /**
- *
+ * Highlights a search result.
  */
 public interface Highlighter {
 

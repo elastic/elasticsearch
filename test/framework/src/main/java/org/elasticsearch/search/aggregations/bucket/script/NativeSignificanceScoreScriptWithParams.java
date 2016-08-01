@@ -24,6 +24,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
 
 import java.util.Map;
+import java.util.Objects;
 
 public class NativeSignificanceScoreScriptWithParams extends TestScript {
 
@@ -41,6 +42,11 @@ public class NativeSignificanceScoreScriptWithParams extends TestScript {
         public boolean needsScores() {
             return false;
         }
+
+        @Override
+        public String getName() {
+            return NATIVE_SIGNIFICANCE_SCORE_SCRIPT_WITH_PARAMS;
+        }
     }
 
     private NativeSignificanceScoreScriptWithParams(Map<String, Object> params) {
@@ -49,6 +55,8 @@ public class NativeSignificanceScoreScriptWithParams extends TestScript {
 
     @Override
     public Object run() {
+        checkParams();
+        Objects.requireNonNull(factor, "factor");
         return factor * (_subset_freq.longValue() + _subset_size.longValue() + _superset_freq.longValue() + _superset_size.longValue()) / factor;
     }
 

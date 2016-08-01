@@ -42,7 +42,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 
@@ -82,6 +81,11 @@ public class MetaDataMappingService extends AbstractComponent {
         RefreshTask(String index, final String indexUUID) {
             this.index = index;
             this.indexUUID = indexUUID;
+        }
+
+        @Override
+        public String toString() {
+            return "[" + index + "][" + indexUUID + "]";
         }
     }
 
@@ -188,8 +192,8 @@ public class MetaDataMappingService extends AbstractComponent {
                     builder.putMapping(new MappingMetaData(mapper));
                 }
             }
-        } catch (Throwable t) {
-            logger.warn("[{}] failed to refresh-mapping in cluster state", t, index);
+        } catch (Exception e) {
+            logger.warn("[{}] failed to refresh-mapping in cluster state", e, index);
         }
         return dirty;
     }
@@ -199,11 +203,11 @@ public class MetaDataMappingService extends AbstractComponent {
      */
     public void refreshMapping(final String index, final String indexUUID) {
         final RefreshTask refreshTask = new RefreshTask(index, indexUUID);
-        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "]",
+        clusterService.submitStateUpdateTask("refresh-mapping",
             refreshTask,
             ClusterStateTaskConfig.build(Priority.HIGH),
             refreshExecutor,
-            (source, t) -> logger.warn("failure during [{}]", t, source)
+            (source, e) -> logger.warn("failure during [{}]", e, source)
         );
     }
 
@@ -234,8 +238,8 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                         currentState = applyRequest(currentState, request);
                         builder.success(request);
-                    } catch (Throwable t) {
-                        builder.failure(request, t);
+                    } catch (Exception e) {
+                        builder.failure(request, e);
                     }
                 }
                 return builder.build(currentState);
@@ -281,8 +285,11 @@ public class MetaDataMappingService extends AbstractComponent {
                         // Also the order of the mappings may be backwards.
                         if (newMapper.parentFieldMapper().active()) {
                             for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
-                                if (newMapper.parentFieldMapper().type().equals(mapping.value.type())) {
-                                    throw new IllegalArgumentException("can't add a _parent field that points to an already existing type");
+                                String parentType = newMapper.parentFieldMapper().type();
+                                if (parentType.equals(mapping.value.type()) &&
+                                        indexService.mapperService().getParentTypes().contains(parentType) == false) {
+                                    throw new IllegalArgumentException("can't add a _parent field that points to an " +
+                                            "already existing type, that isn't already a parent");
                                 }
                             }
                         }
@@ -297,7 +304,7 @@ public class MetaDataMappingService extends AbstractComponent {
             assert mappingType != null;
 
             if (!MapperService.DEFAULT_MAPPING.equals(mappingType) && mappingType.charAt(0) == '_') {
-                throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
+                throw new InvalidTypeNameException("Document mapping type name can't start with '_', found: [" + mappingType + "]");
             }
             MetaData.Builder builder = MetaData.builder(metaData);
             for (Tuple<IndexService, IndexMetaData> toUpdate : updateList) {
@@ -345,18 +352,23 @@ public class MetaDataMappingService extends AbstractComponent {
 
             return ClusterState.builder(currentState).metaData(builder).build();
         }
+
+        @Override
+        public String describeTasks(List<PutMappingClusterStateUpdateRequest> tasks) {
+            return tasks.stream().map(PutMappingClusterStateUpdateRequest::type).reduce((s1, s2) -> s1 + ", " + s2).orElse("");
+        }
     }
 
     public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-        clusterService.submitStateUpdateTask("put-mapping [" + request.type() + "]",
+        clusterService.submitStateUpdateTask("put-mapping",
                 request,
                 ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
                 putMappingExecutor,
                 new AckedClusterStateTaskListener() {
 
                     @Override
-                    public void onFailure(String source, Throwable t) {
-                        listener.onFailure(t);
+                    public void onFailure(String source, Exception e) {
+                        listener.onFailure(e);
                     }
 
                     @Override
@@ -365,7 +377,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     }
 
                     @Override
-                    public void onAllNodesAcked(@Nullable Throwable t) {
+                    public void onAllNodesAcked(@Nullable Exception e) {
                         listener.onResponse(new ClusterStateUpdateResponse(true));
                     }
 

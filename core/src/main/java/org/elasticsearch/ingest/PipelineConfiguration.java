@@ -40,12 +40,12 @@ import java.util.function.BiFunction;
  */
 public final class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration> implements ToXContent {
 
-    final static PipelineConfiguration PROTOTYPE = new PipelineConfiguration(null, null);
+    static final PipelineConfiguration PROTOTYPE = new PipelineConfiguration(null, null);
 
     public static PipelineConfiguration readPipelineConfiguration(StreamInput in) throws IOException {
         return PROTOTYPE.readFrom(in);
     }
-    private final static ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("pipeline_config", Builder::new);
+    private static final ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("pipeline_config", Builder::new);
     static {
         PARSER.declareString(Builder::setId, new ParseField("id"));
         PARSER.declareField((parser, builder, aVoid) -> {

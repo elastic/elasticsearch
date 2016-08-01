@@ -1,0 +1,120 @@
+---
+"Test script processor with inline script":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "field" : "bytes_total",
+                  "lang" : "painless",
+                  "inline": "return ctx.bytes_in + ctx.bytes_out"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: { bytes_in: 1234, bytes_out: 4321 }
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.bytes_in: 1234 }
+  - match: { _source.bytes_out: 4321 }
+  - match: { _source.bytes_total: 5555 }
+
+---
+"Test script processor with file script":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "field" : "bytes_total",
+                  "lang" : "painless",
+                  "file": "master"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: { bytes_in: 1234, bytes_out: 4321 }
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.bytes_in: 1234 }
+  - match: { _source.bytes_out: 4321 }
+  - match: { _source.bytes_total: 5555 }
+
+---
+"Test script processor with stored script":
+  - do:
+      put_script:
+        id: "sum_bytes"
+        lang: "painless"
+        body: >
+          {
+            "script" : "return ctx.bytes_in + ctx.bytes_out"
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "field" : "bytes_total",
+                  "lang" : "painless",
+                  "id" : "sum_bytes"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: { bytes_in: 1234, bytes_out: 4321 }
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.bytes_in: 1234 }
+  - match: { _source.bytes_out: 4321 }
+  - match: { _source.bytes_total: 5555 }

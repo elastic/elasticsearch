@@ -30,12 +30,11 @@ PUT my_index/_mapping/my_type
   }
 }
 ------------
-// AUTOSENSE
+// CONSOLE
+// TEST[s/^/PUT my_index\n/]
 
 NOTE: Norms will not be removed instantly, but will be removed as old segments
 are merged into new segments as you continue indexing new documents. Any score
 computation on a field that has had norms removed might return inconsistent
 results since some documents won't have norms anymore while other documents
 might still have norms.
-
-

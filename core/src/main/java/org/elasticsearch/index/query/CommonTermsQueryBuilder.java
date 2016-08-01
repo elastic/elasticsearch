@@ -40,6 +40,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * CommonTermsQuery query is a query that executes high-frequency terms in a
@@ -59,7 +60,6 @@ import java.util.Objects;
 public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQueryBuilder> {
 
     public static final String NAME = "common";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     public static final float DEFAULT_CUTOFF_FREQ = 0.01f;
     public static final Operator DEFAULT_HIGH_FREQ_OCCUR = Operator.OR;
@@ -263,7 +263,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         builder.endObject();
     }
 
-    public static CommonTermsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<CommonTermsQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
@@ -352,7 +352,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         if (text == null) {
             throw new ParsingException(parser.getTokenLocation(), "No text specified for text query");
         }
-        return new CommonTermsQueryBuilder(fieldName, text)
+        return Optional.of(new CommonTermsQueryBuilder(fieldName, text)
                 .lowFreqMinimumShouldMatch(lowFreqMinimumShouldMatch)
                 .highFreqMinimumShouldMatch(highFreqMinimumShouldMatch)
                 .analyzer(analyzer)
@@ -361,7 +361,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
                 .disableCoord(disableCoord)
                 .cutoffFrequency(cutoffFrequency)
                 .boost(boost)
-                .queryName(queryName);
+                .queryName(queryName));
     }
 
     @Override
@@ -401,10 +401,9 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         return parseQueryString(commonsQuery, text, field, analyzerObj, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
     }
 
-    static Query parseQueryString(ExtendedCommonTermsQuery query, Object queryString, String field, Analyzer analyzer,
+    private static Query parseQueryString(ExtendedCommonTermsQuery query, Object queryString, String field, Analyzer analyzer,
                                          String lowFreqMinimumShouldMatch, String highFreqMinimumShouldMatch) throws IOException {
         // Logic similar to QueryParser#getFieldQuery
-        int count = 0;
         try (TokenStream source = analyzer.tokenStream(field, queryString.toString())) {
             source.reset();
             CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
@@ -413,13 +412,9 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
                 // UTF-8
                 builder.copyChars(termAtt);
                 query.add(new Term(field, builder.toBytesRef()));
-                count++;
             }
         }
 
-        if (count == 0) {
-            return null;
-        }
         query.setLowFreqMinimumNumberShouldMatch(lowFreqMinimumShouldMatch);
         query.setHighFreqMinimumNumberShouldMatch(highFreqMinimumShouldMatch);
         return query;

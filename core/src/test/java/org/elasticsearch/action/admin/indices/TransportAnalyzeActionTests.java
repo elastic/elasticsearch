@@ -29,11 +29,14 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.List;
+
+import static java.util.Collections.emptyList;
 
 public class TransportAnalyzeActionTests extends ESTestCase {
 
@@ -56,7 +59,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 .putArray("index.analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter").build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
         environment = new Environment(settings);
-        registry = new AnalysisRegistry(null, environment);
+        registry = new AnalysisModule(environment, emptyList()).getAnalysisRegistry();
         analysisService = registry.build(idxSettings);
     }
 
@@ -70,7 +73,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
         request.analyzer(null);
         request.tokenizer("whitespace");
-        request.tokenFilters("lowercase", "word_delimiter");
+        request.addTokenFilter("lowercase");
+        request.addTokenFilter("word_delimiter");
         request.text("the qu1ck brown fox");
         analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, randomBoolean() ? analysisService : null, registry, environment);
         tokens = analyze.getTokens();
@@ -81,8 +85,9 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
         request.analyzer(null);
         request.tokenizer("whitespace");
-        request.charFilters("html_strip");
-        request.tokenFilters("lowercase", "word_delimiter");
+        request.addCharFilter("html_strip");
+        request.addTokenFilter("lowercase");
+        request.addTokenFilter("word_delimiter");
         request.text("<p>the qu1ck brown fox</p>");
         analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, randomBoolean() ? analysisService : null, registry, environment);
         tokens = analyze.getTokens();
@@ -152,7 +157,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
         request.analyzer(null);
         request.tokenizer("whitespace");
-        request.tokenFilters("lowercase", "wordDelimiter");
+        request.addTokenFilter("lowercase");
+        request.addTokenFilter("wordDelimiter");
         request.text("the qu1ck brown fox-dog");
         analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, analysisService, registry, environment);
         tokens = analyze.getTokens();
@@ -208,7 +214,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         try {
             AnalyzeRequest request = new AnalyzeRequest();
             request.tokenizer("whitespace");
-            request.tokenFilters("foobar");
+            request.addTokenFilter("foobar");
             request.text("the qu1ck brown fox");
             TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, notGlobal ? analysisService : null, registry, environment);
             fail("no such analyzer");
@@ -223,8 +229,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         try {
             AnalyzeRequest request = new AnalyzeRequest();
             request.tokenizer("whitespace");
-            request.tokenFilters("lowercase");
-            request.charFilters("foobar");
+            request.addTokenFilter("lowercase");
+            request.addCharFilter("foobar");
             request.text("the qu1ck brown fox");
             TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, notGlobal ? analysisService : null, registry, environment);
             fail("no such analyzer");

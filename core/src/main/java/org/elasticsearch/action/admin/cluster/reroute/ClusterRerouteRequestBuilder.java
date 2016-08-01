@@ -22,13 +22,12 @@ package org.elasticsearch.action.admin.cluster.reroute;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
-import org.elasticsearch.common.bytes.BytesReference;
 
 /**
  * Builder for a cluster reroute request
  */
-public class ClusterRerouteRequestBuilder extends AcknowledgedRequestBuilder<ClusterRerouteRequest, ClusterRerouteResponse, ClusterRerouteRequestBuilder> {
-
+public class ClusterRerouteRequestBuilder
+        extends AcknowledgedRequestBuilder<ClusterRerouteRequest, ClusterRerouteResponse, ClusterRerouteRequestBuilder> {
     public ClusterRerouteRequestBuilder(ElasticsearchClient client, ClusterRerouteAction action) {
         super(client, action, new ClusterRerouteRequest());
     }
@@ -61,10 +60,11 @@ public class ClusterRerouteRequestBuilder extends AcknowledgedRequestBuilder<Clu
     }
 
     /**
-     * Sets the commands for the request to execute.
+     * Sets the retry failed flag (defaults to <tt>false</tt>). If true, the
+     * request will retry allocating shards that can't currently be allocated due to too many allocation failures.
      */
-    public ClusterRerouteRequestBuilder setCommands(AllocationCommand... commands) throws Exception {
-        request.commands(commands);
+    public ClusterRerouteRequestBuilder setRetryFailed(boolean retryFailed) {
+        request.setRetryFailed(retryFailed);
         return this;
     }
 }

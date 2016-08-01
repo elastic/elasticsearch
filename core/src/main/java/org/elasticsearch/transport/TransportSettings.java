@@ -34,7 +34,7 @@ import static org.elasticsearch.common.settings.Setting.listSetting;
  * a collection of settings related to transport components, which are also needed in org.elasticsearch.bootstrap.Security
  * This class should only contain static code which is *safe* to load before the security manager is enforced.
  */
-final public class TransportSettings {
+public final class TransportSettings {
 
     public static final Setting<List<String>> HOST =
         listSetting("transport.host", emptyList(), Function.identity(), Property.NodeScope);

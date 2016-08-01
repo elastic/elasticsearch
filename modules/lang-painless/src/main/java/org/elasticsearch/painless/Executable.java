@@ -19,19 +19,25 @@
 
 package org.elasticsearch.painless;
 
+import org.apache.lucene.search.Scorer;
+import org.elasticsearch.search.lookup.LeafDocLookup;
+
+import java.util.BitSet;
 import java.util.Map;
 
+/**
+ * The superclass used to build all Painless scripts on top of.
+ */
 public abstract class Executable {
-    protected final Definition definition;
 
     private final String name;
     private final String source;
+    private final BitSet statements;
 
-    public Executable(final Definition definition, final String name, final String source) {
-        this.definition = definition;
-
+    public Executable(String name, String source, BitSet statements) {
         this.name = name;
         this.source = source;
+        this.statements = statements;
     }
 
     public String getName() {
@@ -42,9 +48,24 @@ public abstract class Executable {
         return source;
     }
 
-    public Definition getDefinition() {
-        return definition;
+    /** 
+     * Finds the start of the first statement boundary that is
+     * on or before {@code offset}. If one is not found, {@code -1}
+     * is returned.
+     */
+    public int getPreviousStatement(int offset) {
+        return statements.previousSetBit(offset);
+    }
+    
+    /** 
+     * Finds the start of the first statement boundary that is
+     * after {@code offset}. If one is not found, {@code -1}
+     * is returned.
+     */
+    public int getNextStatement(int offset) {
+        return statements.nextSetBit(offset+1);
     }
 
-    public abstract Object execute(Map<String, Object> input);
+    public abstract Object execute(
+        final Map<String, Object> params, final Scorer scorer, final LeafDocLookup doc, final Object value);
 }

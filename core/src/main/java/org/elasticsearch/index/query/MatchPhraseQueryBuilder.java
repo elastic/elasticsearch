@@ -27,17 +27,17 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.search.MatchQuery;
+
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Match query is a query that analyzes the text and constructs a phrase query
  * as the result of the analysis.
  */
 public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQueryBuilder> {
-
     public static final String NAME = "match_phrase";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
     public static final ParseField SLOP_FIELD = new ParseField("slop", "phrase_slop");
 
     private final String fieldName;
@@ -161,7 +161,7 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         return Objects.hash(fieldName, value, analyzer, slop);
     }
 
-    public static MatchPhraseQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<MatchPhraseQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token = parser.nextToken();
@@ -223,6 +223,6 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         matchQuery.slop(slop);
         matchQuery.queryName(queryName);
         matchQuery.boost(boost);
-        return matchQuery;
+        return Optional.of(matchQuery);
     }
 }

@@ -26,13 +26,11 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.joda.time.DateTime;
 
@@ -47,31 +45,12 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class MovAvgPipelineAggregator extends PipelineAggregator {
-
-    public final static Type TYPE = new Type("moving_avg");
-
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
-        @Override
-        public MovAvgPipelineAggregator readResult(StreamInput in) throws IOException {
-            MovAvgPipelineAggregator result = new MovAvgPipelineAggregator();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    private DocValueFormat formatter;
-    private GapPolicy gapPolicy;
-    private int window;
+    private final DocValueFormat formatter;
+    private final GapPolicy gapPolicy;
+    private final int window;
     private MovAvgModel model;
-    private int predict;
-    private boolean minimize;
-
-    public MovAvgPipelineAggregator() {
-    }
+    private final int predict;
+    private final boolean minimize;
 
     public MovAvgPipelineAggregator(String name, String[] bucketsPaths, DocValueFormat formatter, GapPolicy gapPolicy,
                          int window, int predict, MovAvgModel model, boolean minimize, Map<String, Object> metadata) {
@@ -84,9 +63,32 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         this.minimize = minimize;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public MovAvgPipelineAggregator(StreamInput in) throws IOException {
+        super(in);
+        formatter = in.readNamedWriteable(DocValueFormat.class);
+        gapPolicy = GapPolicy.readFrom(in);
+        window = in.readVInt();
+        predict = in.readVInt();
+        model = in.readNamedWriteable(MovAvgModel.class);
+        minimize = in.readBoolean();
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    public void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(formatter);
+        gapPolicy.writeTo(out);
+        out.writeVInt(window);
+        out.writeVInt(predict);
+        out.writeNamedWriteable(model);
+        out.writeBoolean(minimize);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return MovAvgPipelineAggregationBuilder.NAME;
     }
 
     @Override
@@ -245,27 +247,5 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         }
 
         return SimulatedAnealingMinimizer.minimize(model, values, test);
-    }
-
-    @Override
-    public void doReadFrom(StreamInput in) throws IOException {
-        formatter = in.readNamedWriteable(DocValueFormat.class);
-        gapPolicy = GapPolicy.readFrom(in);
-        window = in.readVInt();
-        predict = in.readVInt();
-        model = in.readNamedWriteable(MovAvgModel.class);
-        minimize = in.readBoolean();
-
-    }
-
-    @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(formatter);
-        gapPolicy.writeTo(out);
-        out.writeVInt(window);
-        out.writeVInt(predict);
-        out.writeNamedWriteable(model);
-        out.writeBoolean(minimize);
-
     }
 }

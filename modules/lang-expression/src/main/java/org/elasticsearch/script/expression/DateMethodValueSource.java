@@ -20,20 +20,25 @@
 package org.elasticsearch.script.expression;
 
 import java.io.IOException;
+import java.util.Calendar;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TimeZone;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queries.function.FunctionValues;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.apache.lucene.queries.function.docvalues.DoubleDocValues;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.MultiValueMode;
 
+/** Extracts a portion of a date field with {@code Calendar.get()} */
 class DateMethodValueSource extends FieldDataValueSource {
 
-    protected final String methodName;
-    protected final int calendarType;
+    final String methodName;
+    final int calendarType;
 
     DateMethodValueSource(IndexFieldData<?> indexFieldData, MultiValueMode multiValueMode, String methodName, int calendarType) {
         super(indexFieldData, multiValueMode);
@@ -47,10 +52,17 @@ class DateMethodValueSource extends FieldDataValueSource {
     @Override
     @SuppressWarnings("rawtypes") // ValueSource uses a rawtype
     public FunctionValues getValues(Map context, LeafReaderContext leaf) throws IOException {
-        AtomicFieldData leafData = fieldData.load(leaf);
-        assert(leafData instanceof AtomicNumericFieldData);
-
-        return new DateMethodFunctionValues(this, multiValueMode, (AtomicNumericFieldData)leafData, calendarType);
+        AtomicNumericFieldData leafData = (AtomicNumericFieldData) fieldData.load(leaf);
+        final Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+        NumericDoubleValues docValues = multiValueMode.select(leafData.getDoubleValues(), 0d);
+        return new DoubleDocValues(this) {
+          @Override
+          public double doubleVal(int docId) {
+            long millis = (long)docValues.get(docId);
+            calendar.setTimeInMillis(millis);
+            return calendar.get(calendarType);
+          }
+        };
     }
 
     @Override

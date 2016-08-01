@@ -51,9 +51,9 @@ public class BooleansTests extends ESTestCase {
         assertThat(Booleans.parseBoolean(null, false), is(false));
         assertThat(Booleans.parseBoolean(null, true), is(true));
 
-        assertThat(Booleans.parseBoolean(randomFrom("true", "on", "yes", "1"), randomFrom(null, Boolean.TRUE, Boolean.FALSE)), is(true));
-        assertThat(Booleans.parseBoolean(randomFrom("false", "off", "no", "0"), randomFrom(null, Boolean.TRUE, Boolean.FALSE)), is(false));
-        assertThat(Booleans.parseBoolean(randomFrom("true", "on", "yes").toUpperCase(Locale.ROOT),randomFrom(null, Boolean.TRUE, Boolean.FALSE)), is(true));
+        assertThat(Booleans.parseBoolean(randomFrom("true", "on", "yes", "1"), randomFrom(Boolean.TRUE, Boolean.FALSE, null)), is(true));
+        assertThat(Booleans.parseBoolean(randomFrom("false", "off", "no", "0"), randomFrom(Boolean.TRUE, Boolean.FALSE, null)), is(false));
+        assertThat(Booleans.parseBoolean(randomFrom("true", "on", "yes").toUpperCase(Locale.ROOT),randomFrom(Boolean.TRUE, Boolean.FALSE, null)), is(true));
         assertThat(Booleans.parseBoolean(null, Boolean.FALSE), is(false));
         assertThat(Booleans.parseBoolean(null, Boolean.TRUE), is(true));
         assertThat(Booleans.parseBoolean(null, null), nullValue());
@@ -70,7 +70,7 @@ public class BooleansTests extends ESTestCase {
         assertThat(Booleans.parseBooleanExact(randomFrom("true", "on", "yes", "1")), is(true));
         assertThat(Booleans.parseBooleanExact(randomFrom("false", "off", "no", "0")), is(false));
         try {
-            Booleans.parseBooleanExact(randomFrom(null, "fred", "foo", "barney"));
+            Booleans.parseBooleanExact(randomFrom("fred", "foo", "barney", null));
             fail("Expected exception while parsing invalid boolean value ");
         } catch (Exception ex) {
             assertTrue(ex instanceof IllegalArgumentException);

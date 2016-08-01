@@ -42,7 +42,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
@@ -53,7 +52,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  *
  */
-public class GatewayService extends AbstractLifecycleComponent<GatewayService> implements ClusterStateListener {
+public class GatewayService extends AbstractLifecycleComponent implements ClusterStateListener {
 
     public static final Setting<Integer> EXPECTED_NODES_SETTING =
         Setting.intSetting("gateway.expected_nodes", -1, -1, Property.NodeScope);
@@ -96,11 +95,11 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
 
     @Inject
     public GatewayService(Settings settings, AllocationService allocationService, ClusterService clusterService,
-                          ThreadPool threadPool, NodeEnvironment nodeEnvironment, GatewayMetaState metaState,
+                          ThreadPool threadPool, GatewayMetaState metaState,
                           TransportNodesListGatewayMetaState listGatewayMetaState, Discovery discovery,
                           NodeServicesProvider nodeServicesProvider, IndicesService indicesService) {
         super(settings);
-        this.gateway = new Gateway(settings, clusterService, nodeEnvironment, metaState, listGatewayMetaState, discovery,
+        this.gateway = new Gateway(settings, clusterService, metaState, listGatewayMetaState, discovery,
             nodeServicesProvider, indicesService);
         this.allocationService = allocationService;
         this.clusterService = clusterService;
@@ -217,11 +216,11 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             if (recovered.compareAndSet(false, true)) {
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
-                    public void onFailure(Throwable t) {
-                        logger.warn("Recovery failed", t);
+                    public void onFailure(Exception e) {
+                        logger.warn("Recovery failed", e);
                         // we reset `recovered` in the listener don't reset it here otherwise there might be a race
                         // that resets it to false while a new recover is already running?
-                        recoveryListener.onFailure("state recovery failed: " + t.getMessage());
+                        recoveryListener.onFailure("state recovery failed: " + e.getMessage());
                     }
 
                     @Override
@@ -289,8 +288,8 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                 }
 
                 @Override
-                public void onFailure(String source, Throwable t) {
-                    logger.error("unexpected failure during [{}]", t, source);
+                public void onFailure(String source, Exception e) {
+                    logger.error("unexpected failure during [{}]", e, source);
                     GatewayRecoveryListener.this.onFailure("failed to updated cluster state");
                 }
 

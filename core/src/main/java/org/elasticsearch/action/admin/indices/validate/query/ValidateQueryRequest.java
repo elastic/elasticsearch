@@ -39,7 +39,7 @@ import java.util.Arrays;
  */
 public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest> {
 
-    private QueryBuilder<?> query = new MatchAllQueryBuilder();
+    private QueryBuilder query = new MatchAllQueryBuilder();
 
     private boolean explain;
     private boolean rewrite;
@@ -73,11 +73,11 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
     /**
      * The query to validate.
      */
-    public QueryBuilder<?> query() {
+    public QueryBuilder query() {
         return query;
     }
 
-    public ValidateQueryRequest query(QueryBuilder<?> query) {
+    public ValidateQueryRequest query(QueryBuilder query) {
         this.query = query;
         return this;
     }

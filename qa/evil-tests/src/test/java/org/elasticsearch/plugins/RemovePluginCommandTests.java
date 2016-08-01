@@ -23,32 +23,41 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.cli.UserError;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class RemovePluginCommandTests extends ESTestCase {
 
-    /** Creates a test environment with bin, config and plugins directories. */
-    static Environment createEnv() throws IOException {
-        Path home = createTempDir();
+    private Path home;
+    private Environment env;
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        home = createTempDir();
         Files.createDirectories(home.resolve("bin"));
         Files.createFile(home.resolve("bin").resolve("elasticsearch"));
         Files.createDirectories(home.resolve("plugins"));
         Settings settings = Settings.builder()
-            .put("path.home", home)
-            .build();
-        return new Environment(settings);
+                .put("path.home", home)
+                .build();
+        env = new Environment(settings);
     }
 
-    static MockTerminal removePlugin(String name, Environment env) throws Exception {
+    static MockTerminal removePlugin(String name, Path home) throws Exception {
+        Map<String, String> settings = new HashMap<>();
+        settings.put("path.home", home.toString());
         MockTerminal terminal = new MockTerminal();
-        new RemovePluginCommand(env).execute(terminal, name);
+        new RemovePluginCommand().execute(terminal, name, settings);
         return terminal;
     }
 
@@ -63,33 +72,28 @@ public class RemovePluginCommandTests extends ESTestCase {
     }
 
     public void testMissing() throws Exception {
-        Environment env = createEnv();
-        UserError e = expectThrows(UserError.class, () -> {
-           removePlugin("dne", env);
-        });
-        assertTrue(e.getMessage(), e.getMessage().contains("Plugin dne not found"));
+        UserException e = expectThrows(UserException.class, () -> removePlugin("dne", home));
+        assertTrue(e.getMessage(), e.getMessage().contains("plugin dne not found"));
         assertRemoveCleaned(env);
     }
 
     public void testBasic() throws Exception {
-        Environment env = createEnv();
         Files.createDirectory(env.pluginsFile().resolve("fake"));
         Files.createFile(env.pluginsFile().resolve("fake").resolve("plugin.jar"));
         Files.createDirectory(env.pluginsFile().resolve("fake").resolve("subdir"));
         Files.createDirectory(env.pluginsFile().resolve("other"));
-        removePlugin("fake", env);
+        removePlugin("fake", home);
         assertFalse(Files.exists(env.pluginsFile().resolve("fake")));
         assertTrue(Files.exists(env.pluginsFile().resolve("other")));
         assertRemoveCleaned(env);
     }
 
     public void testBin() throws Exception {
-        Environment env = createEnv();
         Files.createDirectories(env.pluginsFile().resolve("fake"));
         Path binDir = env.binFile().resolve("fake");
         Files.createDirectories(binDir);
         Files.createFile(binDir.resolve("somescript"));
-        removePlugin("fake", env);
+        removePlugin("fake", home);
         assertFalse(Files.exists(env.pluginsFile().resolve("fake")));
         assertTrue(Files.exists(env.binFile().resolve("elasticsearch")));
         assertFalse(Files.exists(binDir));
@@ -97,14 +101,12 @@ public class RemovePluginCommandTests extends ESTestCase {
     }
 
     public void testBinNotDir() throws Exception {
-        Environment env = createEnv();
         Files.createDirectories(env.pluginsFile().resolve("elasticsearch"));
-        UserError e = expectThrows(UserError.class, () -> {
-            removePlugin("elasticsearch", env);
-        });
+        UserException e = expectThrows(UserException.class, () -> removePlugin("elasticsearch", home));
         assertTrue(e.getMessage(), e.getMessage().contains("not a directory"));
         assertTrue(Files.exists(env.pluginsFile().resolve("elasticsearch"))); // did not remove
         assertTrue(Files.exists(env.binFile().resolve("elasticsearch")));
         assertRemoveCleaned(env);
     }
+
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
@@ -56,7 +57,8 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> indexing with id [1], and routing [0]");
-        client().prepareIndex("test", "type1", "1").setRouting("0").setSource("field", "value1").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setRouting("0").setSource("field", "value1").setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+                .get();
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
@@ -67,21 +69,22 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         logger.info("--> deleting with no routing, should not delete anything");
-        client().prepareDelete("test", "type1", "1").setRefresh(true).execute().actionGet();
+        client().prepareDelete("test", "type1", "1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
             assertThat(client().prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
         }
 
         logger.info("--> deleting with routing, should delete");
-        client().prepareDelete("test", "type1", "1").setRouting("0").setRefresh(true).execute().actionGet();
+        client().prepareDelete("test", "type1", "1").setRouting("0").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
             assertThat(client().prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(false));
         }
 
         logger.info("--> indexing with id [1], and routing [0]");
-        client().prepareIndex("test", "type1", "1").setRouting("0").setSource("field", "value1").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setRouting("0").setSource("field", "value1").setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+                .get();
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
@@ -97,7 +100,8 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> indexing with id [1], and routing [0]");
-        client().prepareIndex("test", "type1", "1").setRouting("0").setSource("field", "value1").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setRouting("0").setSource("field", "value1").setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+                .get();
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
@@ -125,7 +129,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         }
 
         logger.info("--> indexing with id [2], and routing [1]");
-        client().prepareIndex("test", "type1", "2").setRouting("1").setSource("field", "value1").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setRouting("1").setSource("field", "value1").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
         logger.info("--> search with no routing, should fine two");
         for (int i = 0; i < 5; i++) {
@@ -165,12 +169,13 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> indexing with id [1], and routing [0]");
-        client().prepareIndex(indexOrAlias(), "type1", "1").setRouting("0").setSource("field", "value1").setRefresh(true).execute().actionGet();
+        client().prepareIndex(indexOrAlias(), "type1", "1").setRouting("0").setSource("field", "value1")
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
         logger.info("--> verifying get with no routing, should fail");
 
         logger.info("--> indexing with id [1], with no routing, should fail");
         try {
-            client().prepareIndex(indexOrAlias(), "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
+            client().prepareIndex(indexOrAlias(), "type1", "1").setSource("field", "value1").get();
             fail("index with missing routing when routing is required should fail");
         } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
@@ -183,7 +188,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
         logger.info("--> deleting with no routing, should fail");
         try {
-            client().prepareDelete(indexOrAlias(), "type1", "1").setRefresh(true).execute().actionGet();
+            client().prepareDelete(indexOrAlias(), "type1", "1").get();
             fail("delete with missing routing when routing is required should fail");
         } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
@@ -223,7 +228,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             assertThat(getResponse.getSourceAsMap().get("field"), equalTo("value2"));
         }
 
-        client().prepareDelete(indexOrAlias(), "type1", "1").setRouting("0").setRefresh(true).execute().actionGet();
+        client().prepareDelete(indexOrAlias(), "type1", "1").setRouting("0").setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
         for (int i = 0; i < 5; i++) {
             try {
@@ -320,7 +325,8 @@ public class SimpleRoutingIT extends ESIntegTestCase {
         logger.info("--> indexing with id [1], and routing [0]");
         client().prepareIndex(indexOrAlias(), "type1", "1").setRouting("0").setSource("field", "value1").get();
         logger.info("--> indexing with id [2], and routing [0]");
-        client().prepareIndex(indexOrAlias(), "type1", "2").setRouting("0").setSource("field", "value2").setRefresh(true).get();
+        client().prepareIndex(indexOrAlias(), "type1", "2").setRouting("0").setSource("field", "value2")
+                .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
 
         logger.info("--> verifying get with id [1] with routing [0], should succeed");
         assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));

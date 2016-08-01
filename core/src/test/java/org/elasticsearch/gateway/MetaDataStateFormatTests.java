@@ -29,8 +29,10 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -38,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -101,7 +104,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         Format format = new Format(randomFrom(XContentType.values()), "foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
-        format.write(state, version, dirs);
+        format.write(state, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
             assertEquals(list.length, 1);
@@ -116,7 +119,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
         final int version2 = between(version, Integer.MAX_VALUE);
         DummyState state2 = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
-        format.write(state2, version2, dirs);
+        format.write(state2, dirs);
 
         for (Path file : dirs) {
             Path[] list = content("*", file);
@@ -143,7 +146,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         Format format = new Format(randomFrom(XContentType.values()), "foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
-        format.write(state, version, dirs);
+        format.write(state, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
             assertEquals(list.length, 1);
@@ -167,7 +170,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         Format format = new Format(randomFrom(XContentType.values()), "foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
-        format.write(state, version, dirs);
+        format.write(state, dirs);
         for (Path file : dirs) {
             Path[] list = content("*", file);
             assertEquals(list.length, 1);
@@ -258,7 +261,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
                 }
             }
             for (int j = numLegacy; j < numStates; j++) {
-                format.write(meta.get(j), j, dirs[i]);
+                format.write(meta.get(j), dirs[i]);
                 if (randomBoolean() && (j < numStates - 1 || dirs.length > 0 && i != 0)) {  // corrupt a file that we do not necessarily need here....
                     Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + j + ".st");
                     corruptedFiles.add(file);
@@ -282,6 +285,9 @@ public class MetaDataStateFormatTests extends ESTestCase {
             assertThat(deserialized.getNumberOfReplicas(), equalTo(original.getNumberOfReplicas()));
             assertThat(deserialized.getNumberOfShards(), equalTo(original.getNumberOfShards()));
         }
+
+        // make sure the index tombstones are the same too
+        assertThat(loadedMetaData.indexGraveyard(), equalTo(latestMetaData.indexGraveyard()));
 
         // now corrupt all the latest ones and make sure we fail to load the state
         if (numStates > numLegacy) {
@@ -322,6 +328,12 @@ public class MetaDataStateFormatTests extends ESTestCase {
         for (int i = 0; i < numIndices; i++) {
             mdBuilder.put(indexBuilder(randomAsciiOfLength(10) + "idx-"+i));
         }
+        int numDelIndices = randomIntBetween(0, 5);
+        final IndexGraveyard.Builder graveyard = IndexGraveyard.builder();
+        for (int i = 0; i < numDelIndices; i++) {
+            graveyard.addTombstone(new Index(randomAsciiOfLength(10) + "del-idx-" + i, UUIDs.randomBase64UUID()));
+        }
+        mdBuilder.indexGraveyard(graveyard.build());
         return mdBuilder.build();
     }
 

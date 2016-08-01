@@ -58,7 +58,15 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     protected TransportMasterNodeAction(Settings settings, String actionName, TransportService transportService,
                                         ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
-        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
+        this(settings, actionName, true, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, request);
+    }
+
+    protected TransportMasterNodeAction(Settings settings, String actionName, boolean canTripCircuitBreaker,
+                                        TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                        Supplier<Request> request) {
+        super(settings, actionName, canTripCircuitBreaker, threadPool, transportService, actionFilters, indexNameExpressionResolver,
+            request);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.executor = executor();
@@ -144,7 +152,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                         }
 
                         @Override
-                        public void onFailure(Throwable t) {
+                        public void onFailure(Exception t) {
                             if (t instanceof Discovery.FailedToCommitClusterStateException
                                     || (t instanceof NotMasterException)) {
                                 logger.debug("master could not publish cluster state or stepped down before publishing action [{}], scheduling a retry", t, actionName);

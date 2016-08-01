@@ -7,24 +7,32 @@ it can be nested. Example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "span_multi":{
-        "match":{
-            "prefix" : { "user" :  { "value" : "ki" } }
+    "query": {
+        "span_multi":{
+            "match":{
+                "prefix" : { "user" :  { "value" : "ki" } }
+            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 A boost can also be associated with the query:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "span_multi":{
-        "match":{
-            "prefix" : { "user" :  { "value" : "ki", "boost" : 1.08 } }
+    "query": {
+        "span_multi":{
+            "match":{
+                "prefix" : { "user" :  { "value" : "ki", "boost" : 1.08 } }
+            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE

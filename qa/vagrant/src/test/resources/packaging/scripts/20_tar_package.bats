@@ -97,7 +97,7 @@ setup() {
     stop_elasticsearch_service
 }
 
-@test "[TAR]" start Elasticsearch with custom JVM options {
+@test "[TAR] start Elasticsearch with custom JVM options" {
     local es_java_opts=$ES_JAVA_OPTS
     local es_jvm_options=$ES_JVM_OPTIONS
     local temp=`mktemp -d`
@@ -115,7 +115,7 @@ setup() {
     export ES_JAVA_OPTS=$es_java_opts
 }
 
-@test "[TAR]" start Elasticsearch with unquoted JSON option {
+@test "[TAR] start Elasticsearch with unquoted JSON option" {
     local es_java_opts=$ES_JAVA_OPTS
     local es_jvm_options=$ES_JVM_OPTIONS
     local temp=`mktemp -d`
@@ -133,6 +133,6 @@ setup() {
     export ES_JAVA_OPTS=$es_java_opts
 }
 
-@test "[TAR]" remove tar {
+@test "[TAR] remove tar" {
     rm -rf "/tmp/elasticsearch"
 }

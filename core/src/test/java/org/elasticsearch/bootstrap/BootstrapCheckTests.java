@@ -20,6 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -29,7 +30,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -38,6 +42,9 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class BootstrapCheckTests extends ESTestCase {
@@ -57,6 +64,23 @@ public class BootstrapCheckTests extends ESTestCase {
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
         BootstrapCheck.check(Settings.EMPTY, boundTransportAddress);
+    }
+
+    public void testNoLogMessageInNonProductionMode() {
+        final ESLogger logger = mock(ESLogger.class);
+        BootstrapCheck.check(false, randomBoolean(), Collections.emptyList(), logger);
+        verifyNoMoreInteractions(logger);
+    }
+
+    public void testLogMessageInProductionMode() {
+        final ESLogger logger = mock(ESLogger.class);
+        final boolean ignoreSystemChecks = randomBoolean();
+        BootstrapCheck.check(true, ignoreSystemChecks, Collections.emptyList(), logger);
+        verify(logger).info("bound or publishing to a non-loopback or non-link-local address, enforcing bootstrap checks");
+        if (ignoreSystemChecks) {
+            verify(logger).warn("enforcing bootstrap checks but ignoring system bootstrap checks, consider not ignoring system checks");
+        }
+        verifyNoMoreInteractions(logger);
     }
 
     public void testEnforceLimitsWhenBoundToNonLocalAddress() {
@@ -113,6 +137,11 @@ public class BootstrapCheckTests extends ESTestCase {
                     public String errorMessage() {
                         return "first";
                     }
+
+                    @Override
+                    public boolean isSystemCheck() {
+                        return false;
+                    }
                 },
                 new BootstrapCheck.Check() {
                     @Override
@@ -124,11 +153,16 @@ public class BootstrapCheckTests extends ESTestCase {
                     public String errorMessage() {
                         return "second";
                     }
+
+                    @Override
+                    public boolean isSystemCheck() {
+                        return false;
+                    }
                 }
         );
 
         final RuntimeException e =
-                expectThrows(RuntimeException.class, () -> BootstrapCheck.check(true, checks, "testExceptionAggregation"));
+                expectThrows(RuntimeException.class, () -> BootstrapCheck.check(true, false, checks, "testExceptionAggregation"));
         assertThat(e, hasToString(allOf(containsString("bootstrap checks failed"), containsString("first"), containsString("second"))));
         final Throwable[] suppressed = e.getSuppressed();
         assertThat(suppressed.length, equalTo(2));
@@ -159,7 +193,7 @@ public class BootstrapCheckTests extends ESTestCase {
         final RuntimeException e =
                 expectThrows(
                         RuntimeException.class,
-                        () -> BootstrapCheck.check(true, Collections.singletonList(check), "testHeapSizeCheck"));
+                        () -> BootstrapCheck.check(true, false, Collections.singletonList(check), "testHeapSizeCheck"));
         assertThat(
                 e.getMessage(),
                 containsString("initial heap size [" + initialHeapSize.get() + "] " +
@@ -167,7 +201,7 @@ public class BootstrapCheckTests extends ESTestCase {
 
         initialHeapSize.set(maxHeapSize.get());
 
-        BootstrapCheck.check(true, Collections.singletonList(check), "testHeapSizeCheck");
+        BootstrapCheck.check(true, false, Collections.singletonList(check), "testHeapSizeCheck");
 
         // nothing should happen if the initial heap size or the max
         // heap size is not available
@@ -176,7 +210,7 @@ public class BootstrapCheckTests extends ESTestCase {
         } else {
             maxHeapSize.set(0);
         }
-        BootstrapCheck.check(true, Collections.singletonList(check), "testHeapSizeCheck");
+        BootstrapCheck.check(true, false, Collections.singletonList(check), "testHeapSizeCheck");
     }
 
     public void testFileDescriptorLimits() {
@@ -202,17 +236,17 @@ public class BootstrapCheckTests extends ESTestCase {
 
         final RuntimeException e =
                 expectThrows(RuntimeException.class,
-                        () -> BootstrapCheck.check(true, Collections.singletonList(check), "testFileDescriptorLimits"));
+                        () -> BootstrapCheck.check(true, false, Collections.singletonList(check), "testFileDescriptorLimits"));
         assertThat(e.getMessage(), containsString("max file descriptors"));
 
         maxFileDescriptorCount.set(randomIntBetween(limit + 1, Integer.MAX_VALUE));
 
-        BootstrapCheck.check(true, Collections.singletonList(check), "testFileDescriptorLimits");
+        BootstrapCheck.check(true, false, Collections.singletonList(check), "testFileDescriptorLimits");
 
         // nothing should happen if current file descriptor count is
         // not available
         maxFileDescriptorCount.set(-1);
-        BootstrapCheck.check(true, Collections.singletonList(check), "testFileDescriptorLimits");
+        BootstrapCheck.check(true, false, Collections.singletonList(check), "testFileDescriptorLimits");
     }
 
     public void testFileDescriptorLimitsThrowsOnInvalidLimit() {
@@ -255,13 +289,17 @@ public class BootstrapCheckTests extends ESTestCase {
             if (testCase.shouldFail) {
                 final RuntimeException e = expectThrows(
                         RuntimeException.class,
-                        () -> BootstrapCheck.check(true, Collections.singletonList(check), "testFileDescriptorLimitsThrowsOnInvalidLimit"));
+                        () -> BootstrapCheck.check(
+                                true,
+                                false,
+                                Collections.singletonList(check),
+                                "testFileDescriptorLimitsThrowsOnInvalidLimit"));
                 assertThat(
                         e.getMessage(),
                         containsString("memory locking requested for elasticsearch process but memory is not locked"));
             } else {
                 // nothing should happen
-                BootstrapCheck.check(true, Collections.singletonList(check), "testFileDescriptorLimitsThrowsOnInvalidLimit");
+                BootstrapCheck.check(true, false, Collections.singletonList(check), "testFileDescriptorLimitsThrowsOnInvalidLimit");
             }
         }
     }
@@ -278,17 +316,17 @@ public class BootstrapCheckTests extends ESTestCase {
 
         final RuntimeException e = expectThrows(
                 RuntimeException.class,
-                () -> BootstrapCheck.check(true, Collections.singletonList(check), "testMaxNumberOfThreadsCheck"));
+                () -> BootstrapCheck.check(true, false, Collections.singletonList(check), "testMaxNumberOfThreadsCheck"));
         assertThat(e.getMessage(), containsString("max number of threads"));
 
         maxNumberOfThreads.set(randomIntBetween(limit + 1, Integer.MAX_VALUE));
 
-        BootstrapCheck.check(true, Collections.singletonList(check), "testMaxNumberOfThreadsCheck");
+        BootstrapCheck.check(true, false, Collections.singletonList(check), "testMaxNumberOfThreadsCheck");
 
         // nothing should happen if current max number of threads is
         // not available
         maxNumberOfThreads.set(-1);
-        BootstrapCheck.check(true, Collections.singletonList(check), "testMaxNumberOfThreadsCheck");
+        BootstrapCheck.check(true, false, Collections.singletonList(check), "testMaxNumberOfThreadsCheck");
     }
 
     public void testMaxSizeVirtualMemory() {
@@ -309,17 +347,17 @@ public class BootstrapCheckTests extends ESTestCase {
 
         final RuntimeException e = expectThrows(
                 RuntimeException.class,
-                () -> BootstrapCheck.check(true, Collections.singletonList(check), "testMaxSizeVirtualMemory"));
+                () -> BootstrapCheck.check(true, false, Collections.singletonList(check), "testMaxSizeVirtualMemory"));
         assertThat(e.getMessage(), containsString("max size virtual memory"));
 
         maxSizeVirtualMemory.set(rlimInfinity);
 
-        BootstrapCheck.check(true, Collections.singletonList(check), "testMaxSizeVirtualMemory");
+        BootstrapCheck.check(true, false, Collections.singletonList(check), "testMaxSizeVirtualMemory");
 
         // nothing should happen if max size virtual memory is not
         // available
         maxSizeVirtualMemory.set(Long.MIN_VALUE);
-        BootstrapCheck.check(true, Collections.singletonList(check), "testMaxSizeVirtualMemory");
+        BootstrapCheck.check(true, false, Collections.singletonList(check), "testMaxSizeVirtualMemory");
     }
 
     public void testMaxMapCountCheck() {
@@ -334,17 +372,17 @@ public class BootstrapCheckTests extends ESTestCase {
 
         RuntimeException e = expectThrows(
                 RuntimeException.class,
-                () -> BootstrapCheck.check(true, Collections.singletonList(check), "testMaxMapCountCheck"));
+                () -> BootstrapCheck.check(true, false, Collections.singletonList(check), "testMaxMapCountCheck"));
         assertThat(e.getMessage(), containsString("max virtual memory areas vm.max_map_count"));
 
         maxMapCount.set(randomIntBetween(limit + 1, Integer.MAX_VALUE));
 
-        BootstrapCheck.check(true, Collections.singletonList(check), "testMaxMapCountCheck");
+        BootstrapCheck.check(true, false, Collections.singletonList(check), "testMaxMapCountCheck");
 
         // nothing should happen if current vm.max_map_count is not
         // available
         maxMapCount.set(-1);
-        BootstrapCheck.check(true, Collections.singletonList(check), "testMaxMapCountCheck");
+        BootstrapCheck.check(true, false, Collections.singletonList(check), "testMaxMapCountCheck");
     }
 
     public void testMinMasterNodes() {
@@ -353,7 +391,217 @@ public class BootstrapCheckTests extends ESTestCase {
         assertThat(check.check(), not(equalTo(isSet)));
         List<BootstrapCheck.Check> defaultChecks = BootstrapCheck.checks(Settings.EMPTY);
 
-        expectThrows(RuntimeException.class, () -> BootstrapCheck.check(true, defaultChecks, "testMinMasterNodes"));
+        expectThrows(RuntimeException.class, () -> BootstrapCheck.check(true, false, defaultChecks, "testMinMasterNodes"));
+    }
+
+    public void testClientJvmCheck() {
+        final AtomicReference<String> vmName = new AtomicReference<>("Java HotSpot(TM) 32-Bit Client VM");
+        final BootstrapCheck.Check check = new BootstrapCheck.ClientJvmCheck() {
+            @Override
+            String getVmName() {
+                return vmName.get();
+            }
+        };
+
+        final RuntimeException e = expectThrows(
+                RuntimeException.class,
+                () -> BootstrapCheck.check(true, false, Collections.singletonList(check), "testClientJvmCheck"));
+        assertThat(
+                e.getMessage(),
+                containsString("JVM is using the client VM [Java HotSpot(TM) 32-Bit Client VM] " +
+                        "but should be using a server VM for the best performance"));
+
+        vmName.set("Java HotSpot(TM) 32-Bit Server VM");
+        BootstrapCheck.check(true, false, Collections.singletonList(check), "testClientJvmCheck");
+    }
+
+    public void testMightForkCheck() {
+        final AtomicBoolean isSeccompInstalled = new AtomicBoolean();
+        final AtomicBoolean mightFork = new AtomicBoolean();
+        final BootstrapCheck.MightForkCheck check = new BootstrapCheck.MightForkCheck() {
+            @Override
+            boolean isSeccompInstalled() {
+                return isSeccompInstalled.get();
+            }
+
+            @Override
+            boolean mightFork() {
+                return mightFork.get();
+            }
+
+            @Override
+            public String errorMessage() {
+                return "error";
+            }
+        };
+
+        runMightForkTest(
+            check,
+            isSeccompInstalled,
+            () -> mightFork.set(false),
+            () -> mightFork.set(true),
+            e -> assertThat(e.getMessage(), containsString("error")));
+    }
+
+    public void testOnErrorCheck() {
+        final AtomicBoolean isSeccompInstalled = new AtomicBoolean();
+        final AtomicReference<String> onError = new AtomicReference<>();
+        final BootstrapCheck.MightForkCheck check = new BootstrapCheck.OnErrorCheck() {
+            @Override
+            boolean isSeccompInstalled() {
+                return isSeccompInstalled.get();
+            }
+
+            @Override
+            String onError() {
+                return onError.get();
+            }
+        };
+
+        final String command = randomAsciiOfLength(16);
+        runMightForkTest(
+            check,
+            isSeccompInstalled,
+            () -> onError.set(randomBoolean() ? "" : null),
+            () -> onError.set(command),
+            e -> assertThat(
+                e.getMessage(),
+                containsString(
+                    "OnError [" + command + "] requires forking but is prevented by system call filters ([bootstrap.seccomp=true]);"
+                        + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError")));
+    }
+
+    public void testOnOutOfMemoryErrorCheck() {
+        final AtomicBoolean isSeccompInstalled = new AtomicBoolean();
+        final AtomicReference<String> onOutOfMemoryError = new AtomicReference<>();
+        final BootstrapCheck.MightForkCheck check = new BootstrapCheck.OnOutOfMemoryErrorCheck() {
+            @Override
+            boolean isSeccompInstalled() {
+                return isSeccompInstalled.get();
+            }
+
+            @Override
+            String onOutOfMemoryError() {
+                return onOutOfMemoryError.get();
+            }
+        };
+
+        final String command = randomAsciiOfLength(16);
+        runMightForkTest(
+            check,
+            isSeccompInstalled,
+            () -> onOutOfMemoryError.set(randomBoolean() ? "" : null),
+            () -> onOutOfMemoryError.set(command),
+            e -> assertThat(
+                e.getMessage(),
+                containsString(
+                    "OnOutOfMemoryError [" + command + "]"
+                        + " requires forking but is prevented by system call filters ([bootstrap.seccomp=true]);"
+                        + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError")));
+    }
+
+    private void runMightForkTest(
+        final BootstrapCheck.MightForkCheck check,
+        final AtomicBoolean isSeccompInstalled,
+        final Runnable disableMightFork,
+        final Runnable enableMightFork,
+        final Consumer<RuntimeException> consumer) {
+
+        final String methodName = Thread.currentThread().getStackTrace()[2].getMethodName();
+
+        // if seccomp is disabled, nothing should happen
+        isSeccompInstalled.set(false);
+        if (randomBoolean()) {
+            disableMightFork.run();
+        } else {
+            enableMightFork.run();
+        }
+        BootstrapCheck.check(true, randomBoolean(), Collections.singletonList(check), methodName);
+
+        // if seccomp is enabled, but we will not fork, nothing should
+        // happen
+        isSeccompInstalled.set(true);
+        disableMightFork.run();
+        BootstrapCheck.check(true, randomBoolean(), Collections.singletonList(check), methodName);
+
+        // if seccomp is enabled, and we might fork, the check should
+        // be enforced, regardless of bootstrap checks being enabled or
+        // not
+        isSeccompInstalled.set(true);
+        enableMightFork.run();
+
+        final RuntimeException e = expectThrows(
+            RuntimeException.class,
+            () -> BootstrapCheck.check(randomBoolean(), randomBoolean(), Collections.singletonList(check), methodName));
+        consumer.accept(e);
+    }
+
+    public void testIgnoringSystemChecks() {
+        final BootstrapCheck.Check check = new BootstrapCheck.Check() {
+            @Override
+            public boolean check() {
+                return true;
+            }
+
+            @Override
+            public String errorMessage() {
+                return "error";
+            }
+
+            @Override
+            public boolean isSystemCheck() {
+                return true;
+            }
+        };
+
+        final RuntimeException notIgnored = expectThrows(
+                RuntimeException.class,
+                () -> BootstrapCheck.check(true, false, Collections.singletonList(check), "testIgnoringSystemChecks"));
+        assertThat(notIgnored, hasToString(containsString("error")));
+
+        final ESLogger logger = mock(ESLogger.class);
+
+        // nothing should happen if we ignore system checks
+        BootstrapCheck.check(true, true, Collections.singletonList(check), logger);
+        verify(logger).info("bound or publishing to a non-loopback or non-link-local address, enforcing bootstrap checks");
+        verify(logger).warn("enforcing bootstrap checks but ignoring system bootstrap checks, consider not ignoring system checks");
+        verify(logger).warn("error");
+        verifyNoMoreInteractions(logger);
+        reset(logger);
+
+        // nothing should happen if we ignore all checks
+        BootstrapCheck.check(false, randomBoolean(), Collections.singletonList(check), logger);
+        verify(logger).warn("error");
+        verifyNoMoreInteractions(logger);
+    }
+
+    public void testAlwaysEnforcedChecks() {
+        final BootstrapCheck.Check check = new BootstrapCheck.Check() {
+            @Override
+            public boolean check() {
+                return true;
+            }
+
+            @Override
+            public String errorMessage() {
+                return "error";
+            }
+
+            @Override
+            public boolean isSystemCheck() {
+                return randomBoolean();
+            }
+
+            @Override
+            public boolean alwaysEnforce() {
+                return true;
+            }
+        };
+
+        final RuntimeException alwaysEnforced = expectThrows(
+            RuntimeException.class,
+            () -> BootstrapCheck.check(randomBoolean(), randomBoolean(), Collections.singletonList(check), "testAlwaysEnforcedChecks"));
+        assertThat(alwaysEnforced, hasToString(containsString("error")));
     }
 
 }

@@ -53,7 +53,7 @@ GET my_index/_search?fielddata_fields=location.geohash <2>
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> A `location.geohash` field will be indexed for each geo-point.
 <2> The geohash can be retrieved with <<doc-values,`doc_values`>>.
 <3> A <<query-dsl-prefix-query,`prefix`>> query can find all geohashes which start with a particular prefix.

@@ -47,13 +47,11 @@ Scripting is available in many APIs, but we will use an example with the
 WARNING: Enabling inline scripting on an unprotected Elasticsearch cluster is dangerous.
 See <<lang-python-file>> for a safer option.
 
-If you have enabled {ref}/modules-scripting.html#enable-dynamic-scripting[inline scripts],
+If you have enabled {ref}/modules-scripting-security.html#enable-dynamic-scripting[inline scripts],
 you can use Python as follows:
 
-[source,json]
+[source,js]
 ----
-DELETE test
-
 PUT test/doc/1
 {
   "num": 1.0
@@ -81,22 +79,20 @@ GET test/_search
   }
 }
 ----
-// AUTOSENSE
+// CONSOLE
 
-[[lang-python-indexed]]
+[[lang-python-stored]]
 [float]
-=== Indexed scripts
+=== Stored scripts
 
-WARNING: Enabling indexed scripting on an unprotected Elasticsearch cluster is dangerous.
+WARNING: Enabling stored scripts on an unprotected Elasticsearch cluster is dangerous.
 See <<lang-python-file>> for a safer option.
 
-If you have enabled {ref}/modules-scripting.html#enable-dynamic-scripting[indexed scripts],
+If you have enabled {ref}/modules-scripting-security.html#enable-dynamic-scripting[stored scripts],
 you can use Python as follows:
 
-[source,json]
+[source,js]
 ----
-DELETE test
-
 PUT test/doc/1
 {
   "num": 1.0
@@ -130,9 +126,9 @@ GET test/_search
 }
 
 ----
-// AUTOSENSE
+// CONSOLE
 
-<1> We index the script under the id `my_script`.
+<1> We store the script under the id `my_script`.
 <2> The function score query retrieves the script with id `my_script`.
 
 
@@ -154,10 +150,8 @@ doc["num"].value * factor
 
 then use the script as follows:
 
-[source,json]
+[source,js]
 ----
-DELETE test
-
 PUT test/doc/1
 {
   "num": 1.0
@@ -184,9 +178,7 @@ GET test/_search
     }
   }
 }
-
 ----
-// AUTOSENSE
+// CONSOLE
 
 <1> The function score query retrieves the script with filename `my_script.py`.
-

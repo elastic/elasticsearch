@@ -23,10 +23,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregator;
 
 import java.io.IOException;
@@ -34,29 +32,12 @@ import java.util.List;
 import java.util.Map;
 
 public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
-
-    public final static Type TYPE = new Type("extended_stats_bucket");
-
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
-        @Override
-        public ExtendedStatsBucketPipelineAggregator readResult(StreamInput in) throws IOException {
-            ExtendedStatsBucketPipelineAggregator result = new ExtendedStatsBucketPipelineAggregator();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
-        InternalExtendedStatsBucket.registerStreams();
-    }
-
+    private final double sigma;
     private double sum = 0;
     private long count = 0;
     private double min = Double.POSITIVE_INFINITY;
     private double max = Double.NEGATIVE_INFINITY;
     private double sumOfSqrs = 1;
-    private double sigma;
 
     protected ExtendedStatsBucketPipelineAggregator(String name, String[] bucketsPaths, double sigma, GapPolicy gapPolicy,
                                                     DocValueFormat formatter, Map<String, Object> metaData) {
@@ -64,13 +45,22 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
         this.sigma = sigma;
     }
 
-    ExtendedStatsBucketPipelineAggregator() {
-        // For Serialization
+    /**
+     * Read from a stream.
+     */
+    public ExtendedStatsBucketPipelineAggregator(StreamInput in) throws IOException {
+        super(in);
+        sigma = in.readDouble();
     }
 
     @Override
-    public Type type() {
-        return TYPE;
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeDouble(sigma);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ExtendedStatsBucketPipelineAggregationBuilder.NAME;
     }
 
     @Override
@@ -94,15 +84,5 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
     @Override
     protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
         return new InternalExtendedStatsBucket(name(), count, sum, min, max, sumOfSqrs, sigma, format, pipelineAggregators, metadata);
-    }
-
-    @Override
-    protected void innerReadFrom(StreamInput in) throws IOException {
-        sigma = in.readDouble();
-    }
-
-    @Override
-    protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeDouble(sigma);
     }
 }

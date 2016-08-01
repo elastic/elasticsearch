@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,7 +42,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         extends ActionRequest<Self> {
     public static final int SIZE_ALL_MATCHES = -1;
     private static final TimeValue DEFAULT_SCROLL_TIMEOUT = timeValueMinutes(5);
-    private static final int DEFAULT_SCROLL_SIZE = 100;
+    private static final int DEFAULT_SCROLL_SIZE = 1000;
 
     /**
      * The search to be executed.
@@ -86,11 +87,16 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     private int maxRetries = 11;
 
     /**
-     * The throttle for this request in sub-requests per second. 0 means set no throttle and that is the default. Throttling is done between
-     * batches, as we start the next scroll requests. That way we can increase the scroll's timeout to make sure that it contains any time
-     * that we might wait.
+     * The throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
+     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * make sure that it contains any time that we might wait.
      */
-    private float requestsPerSecond = 0;
+    private float requestsPerSecond = Float.POSITIVE_INFINITY;
+
+    /**
+     * Should this task persist its result?
+     */
+    private boolean shouldPersistResult;
 
     public AbstractBulkByScrollRequest() {
     }
@@ -101,7 +107,6 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         // Set the defaults which differ from SearchRequest's defaults.
         source.scroll(DEFAULT_SCROLL_TIMEOUT);
         source.source(new SearchSourceBuilder());
-        source.source().version(true);
         source.source().size(DEFAULT_SCROLL_SIZE);
     }
 
@@ -117,8 +122,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         if (searchRequest.source().from() != -1) {
             e = addValidationError("from is not supported in this context", e);
         }
-        if (searchRequest.source().fields() != null) {
-            e = addValidationError("fields is not supported in this context", e);
+        if (searchRequest.source().storedFields() != null) {
+            e = addValidationError("stored_fields is not supported in this context", e);
         }
         if (maxRetries < 0) {
             e = addValidationError("retries cannnot be negative", e);
@@ -263,23 +268,44 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     /**
-     * The throttle for this request in sub-requests per second. 0 means set no throttle and that is the default.
+     * The throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
+     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * make sure that it contains any time that we might wait.
      */
     public float getRequestsPerSecond() {
         return requestsPerSecond;
     }
 
     /**
-     * Set the throttle for this request in sub-requests per second. 0 means set no throttle and that is the default.
+     * Set the throttle for this request in sub-requests per second. {@link Float#POSITIVE_INFINITY} means set no throttle and that is the
+     * default. Throttling is done between batches, as we start the next scroll requests. That way we can increase the scroll's timeout to
+     * make sure that it contains any time that we might wait.
      */
     public Self setRequestsPerSecond(float requestsPerSecond) {
+        if (requestsPerSecond <= 0) {
+            throw new IllegalArgumentException(
+                    "[requests_per_second] must be greater than 0. Use Float.POSITIVE_INFINITY to disable throttling.");
+        }
         this.requestsPerSecond = requestsPerSecond;
         return self();
     }
 
+    /**
+     * Should this task persist its result after it has finished?
+     */
+    public Self setShouldPersistResult(boolean shouldPersistResult) {
+        this.shouldPersistResult = shouldPersistResult;
+        return self();
+    }
+
     @Override
-    public Task createTask(long id, String type, String action) {
-        return new BulkByScrollTask(id, type, action, getDescription(), requestsPerSecond);
+    public boolean getShouldPersistResult() {
+        return shouldPersistResult;
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        return new BulkByScrollTask(id, type, action, getDescription(), parentTaskId, requestsPerSecond);
     }
 
     @Override
@@ -290,9 +316,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         abortOnVersionConflict = in.readBoolean();
         size = in.readVInt();
         refresh = in.readBoolean();
-        timeout = TimeValue.readTimeValue(in);
+        timeout = new TimeValue(in);
         consistency = WriteConsistencyLevel.fromId(in.readByte());
-        retryBackoffInitialTime = TimeValue.readTimeValue(in);
+        retryBackoffInitialTime = new TimeValue(in);
         maxRetries = in.readVInt();
         requestsPerSecond = in.readFloat();
     }

@@ -21,20 +21,19 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
+import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBoundsTests;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 
-public class HistogramTests extends BaseAggregationTestCase<HistogramAggregatorBuilder> {
+public class HistogramTests extends BaseAggregationTestCase<HistogramAggregationBuilder> {
 
     @Override
-    protected HistogramAggregatorBuilder createTestAggregatorBuilder() {
-        HistogramAggregatorBuilder factory = new HistogramAggregatorBuilder("foo");
+    protected HistogramAggregationBuilder createTestAggregatorBuilder() {
+        HistogramAggregationBuilder factory = new HistogramAggregationBuilder("foo");
         factory.field(INT_FIELD_NAME);
         factory.interval(randomIntBetween(1, 100000));
         if (randomBoolean()) {
-            long extendedBoundsMin = randomIntBetween(-100000, 100000);
-            long extendedBoundsMax = randomIntBetween((int) extendedBoundsMin, 200000);
-            factory.extendedBounds(new ExtendedBounds(extendedBoundsMin, extendedBoundsMax));
+            factory.extendedBounds(ExtendedBoundsTests.randomExtendedBounds());
         }
         if (randomBoolean()) {
             factory.format("###.##");

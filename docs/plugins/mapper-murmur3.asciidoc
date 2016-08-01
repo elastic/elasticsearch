@@ -58,7 +58,7 @@ PUT my_index
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 Such a mapping would allow to refer to `my_field.hash` in order to get hashes
 of the values of the `my_field` field. This is only useful in order to run
@@ -88,7 +88,7 @@ GET my_index/_search
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Counting unique values on the `my_field.hash` field
 

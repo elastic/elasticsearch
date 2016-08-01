@@ -49,7 +49,7 @@ public class MockFieldMapper extends FieldMapper {
         return fullName.substring(ndx + 1);
     }
 
-    public static class FakeFieldType extends MappedFieldType {
+    public static class FakeFieldType extends TermBasedFieldType {
         public FakeFieldType() {
         }
 

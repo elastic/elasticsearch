@@ -29,10 +29,10 @@ import org.apache.lucene.queries.function.ValueSource;
 /**
  * A {@link ValueSource} which has a stub {@link FunctionValues} that holds a dynamically replaceable constant double.
  */
-class ReplaceableConstValueSource extends ValueSource {
+final class ReplaceableConstValueSource extends ValueSource {
     final ReplaceableConstFunctionValues fv;
 
-    public ReplaceableConstValueSource() {
+    ReplaceableConstValueSource() {
         fv = new ReplaceableConstFunctionValues();
     }
 

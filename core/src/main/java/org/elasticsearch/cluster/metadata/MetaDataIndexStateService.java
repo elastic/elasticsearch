@@ -172,7 +172,7 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     // We need to check that this index can be upgraded to the current version
                     indexMetaData = metaDataIndexUpgradeService.upgradeIndexMetaData(indexMetaData);
                     try {
-                        indicesService.verifyIndexMetadata(nodeServiceProvider, indexMetaData);
+                        indicesService.verifyIndexMetadata(nodeServiceProvider, indexMetaData, indexMetaData);
                     } catch (Exception e) {
                         throw new ElasticsearchException("Failed to verify index " + indexMetaData.getIndex(), e);
                     }

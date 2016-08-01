@@ -40,6 +40,10 @@ setup() {
     export_elasticsearch_paths
 }
 
+@test "[DEB] package depends on bash" {
+    dpkg -I elasticsearch-$(cat version).deb | grep "Depends:.*bash.*"
+}
+
 ##################################
 # Install DEB package
 ##################################

@@ -30,7 +30,7 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
- *
+ * A base abstract blob container that implements higher level container methods.
  */
 public abstract class AbstractBlobContainer implements BlobContainer {
 
@@ -45,21 +45,6 @@ public abstract class AbstractBlobContainer implements BlobContainer {
         return this.path;
     }
 
-    @Override
-    public void deleteBlobsByPrefix(final String blobNamePrefix) throws IOException {
-        Map<String, BlobMetaData> blobs = listBlobsByPrefix(blobNamePrefix);
-        for (BlobMetaData blob : blobs.values()) {
-            deleteBlob(blob.name());
-        }
-    }
-
-    @Override
-    public void deleteBlobs(Collection<String> blobNames) throws IOException {
-        for(String blob: blobNames) {
-            deleteBlob(blob);
-        }
-    }
-    
     @Override
     public void writeBlob(String blobName, BytesReference bytes) throws IOException {
         try (InputStream stream = bytes.streamInput()) {

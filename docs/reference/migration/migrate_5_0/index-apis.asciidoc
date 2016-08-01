@@ -24,7 +24,7 @@ ignored when upgrading to 5.0.
 The recent CPU usage (as a percent) has been added to the OS stats
 reported under the node stats API and the cat nodes API. The breaking
 change here is that there is a new object in the `os` object in the node
-stats response. This object is called `cpu` and includes percent` and
+stats response. This object is called `cpu` and includes `percent` and
 `load_average` as fields. This moves the `load_average` field that was
 previously a top-level field in the `os` object to the `cpu` object. The
 format of the `load_average` field has changed to an object with fields

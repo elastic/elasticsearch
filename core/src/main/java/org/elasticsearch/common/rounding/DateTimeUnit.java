@@ -21,36 +21,42 @@ package org.elasticsearch.common.rounding;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.joda.Joda;
 import org.joda.time.DateTimeField;
+import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
+
+import java.util.function.Function;
 
 /**
  *
  */
 public enum DateTimeUnit {
 
-    WEEK_OF_WEEKYEAR(   (byte) 1, ISOChronology.getInstanceUTC().weekOfWeekyear()),
-    YEAR_OF_CENTURY(    (byte) 2, ISOChronology.getInstanceUTC().yearOfCentury()),
-    QUARTER(            (byte) 3, Joda.QuarterOfYear.getField(ISOChronology.getInstanceUTC())),
-    MONTH_OF_YEAR(      (byte) 4, ISOChronology.getInstanceUTC().monthOfYear()),
-    DAY_OF_MONTH(       (byte) 5, ISOChronology.getInstanceUTC().dayOfMonth()),
-    HOUR_OF_DAY(        (byte) 6, ISOChronology.getInstanceUTC().hourOfDay()),
-    MINUTES_OF_HOUR(    (byte) 7, ISOChronology.getInstanceUTC().minuteOfHour()),
-    SECOND_OF_MINUTE(   (byte) 8, ISOChronology.getInstanceUTC().secondOfMinute());
+    WEEK_OF_WEEKYEAR(   (byte) 1, tz -> ISOChronology.getInstance(tz).weekOfWeekyear()),
+    YEAR_OF_CENTURY(    (byte) 2, tz -> ISOChronology.getInstance(tz).yearOfCentury()),
+    QUARTER(            (byte) 3, tz -> Joda.QuarterOfYear.getField(ISOChronology.getInstance(tz))),
+    MONTH_OF_YEAR(      (byte) 4, tz -> ISOChronology.getInstance(tz).monthOfYear()),
+    DAY_OF_MONTH(       (byte) 5, tz -> ISOChronology.getInstance(tz).dayOfMonth()),
+    HOUR_OF_DAY(        (byte) 6, tz -> ISOChronology.getInstance(tz).hourOfDay()),
+    MINUTES_OF_HOUR(    (byte) 7, tz -> ISOChronology.getInstance(tz).minuteOfHour()),
+    SECOND_OF_MINUTE(   (byte) 8, tz -> ISOChronology.getInstance(tz).secondOfMinute());
 
     private final byte id;
-    private final DateTimeField field;
+    private final Function<DateTimeZone, DateTimeField> fieldFunction;
 
-    private DateTimeUnit(byte id, DateTimeField field) {
+    private DateTimeUnit(byte id, Function<DateTimeZone, DateTimeField> fieldFunction) {
         this.id = id;
-        this.field = field;
+        this.fieldFunction = fieldFunction;
     }
 
     public byte id() {
         return id;
     }
 
-    public DateTimeField field() {
-        return field;
+    /**
+     * @return the {@link DateTimeField} for the provided {@link DateTimeZone} for this time unit
+     */
+    public DateTimeField field(DateTimeZone tz) {
+        return fieldFunction.apply(tz);
     }
 
     public static DateTimeUnit resolve(byte id) {

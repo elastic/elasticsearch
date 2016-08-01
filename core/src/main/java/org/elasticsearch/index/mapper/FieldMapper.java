@@ -58,7 +58,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         protected final MappedFieldType defaultFieldType;
         private final IndexOptions defaultOptions;
         protected boolean omitNormsSet = false;
-        protected String indexName;
         protected Boolean includeInAll;
         protected boolean indexOptionsSet = false;
         protected boolean docValuesSet = false;
@@ -166,11 +165,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         public T indexOptions(IndexOptions indexOptions) {
             this.fieldType.setIndexOptions(indexOptions);
             this.indexOptionsSet = true;
-            return builder;
-        }
-
-        public T indexName(String indexName) {
-            this.indexName = indexName;
             return builder;
         }
 
@@ -441,9 +435,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             boolean hasDifferentSearchQuoteAnalyzer = fieldType().searchAnalyzer().name().equals(fieldType().searchQuoteAnalyzer().name()) == false;
             if (includeDefaults || hasDefaultIndexAnalyzer == false || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
                 builder.field("analyzer", fieldType().indexAnalyzer().name());
-                if (hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
+                if (includeDefaults || hasDifferentSearchAnalyzer || hasDifferentSearchQuoteAnalyzer) {
                     builder.field("search_analyzer", fieldType().searchAnalyzer().name());
-                    if (hasDifferentSearchQuoteAnalyzer) {
+                    if (includeDefaults || hasDifferentSearchQuoteAnalyzer) {
                         builder.field("search_quote_analyzer", fieldType().searchQuoteAnalyzer().name());
                     }
                 }

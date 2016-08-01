@@ -66,7 +66,7 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         
     }
 
-    static class FakeFieldType extends MappedFieldType {
+    static class FakeFieldType extends TermBasedFieldType {
 
         public FakeFieldType() {
             super();

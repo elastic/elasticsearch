@@ -24,7 +24,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
@@ -44,6 +44,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -234,7 +235,7 @@ public class InternalSearchHit implements SearchHit {
         if (sourceAsBytes != null) {
             return sourceAsBytes;
         }
-        this.sourceAsBytes = sourceRef().toBytes();
+        this.sourceAsBytes = BytesReference.toBytes(sourceRef());
         return this.sourceAsBytes;
     }
 
@@ -326,21 +327,13 @@ public class InternalSearchHit implements SearchHit {
         this.highlightFields = highlightFields;
     }
 
-    public void sortValues(Object[] sortValues) {
-        // LUCENE 4 UPGRADE: There must be a better way
-        // we want to convert to a Text object here, and not BytesRef
-
-        // Don't write into sortValues! Otherwise the fields in FieldDoc is modified, which may be used in other places. (SearchContext#lastEmitedDoc)
-        Object[] sortValuesCopy = new Object[sortValues.length];
-        System.arraycopy(sortValues, 0, sortValuesCopy, 0, sortValues.length);
-        if (sortValues != null) {
-            for (int i = 0; i < sortValues.length; i++) {
-                if (sortValues[i] instanceof BytesRef) {
-                    sortValuesCopy[i] = new Text(new BytesArray((BytesRef) sortValues[i]));
-                }
+    public void sortValues(Object[] sortValues, DocValueFormat[] sortValueFormats) {
+        this.sortValues = Arrays.copyOf(sortValues, sortValues.length);
+        for (int i = 0; i < sortValues.length; ++i) {
+            if (this.sortValues[i] instanceof BytesRef) {
+                this.sortValues[i] = sortValueFormats[i].format((BytesRef) sortValues[i]);
             }
         }
-        this.sortValues = sortValuesCopy;
     }
 
     @Override
@@ -446,13 +439,14 @@ public class InternalSearchHit implements SearchHit {
             builder.field("_shard", shard.shardId());
             builder.field("_node", shard.nodeIdText());
         }
-        if (shard != null) {
-            builder.field(Fields._INDEX, shard.indexText());
-        }
-        builder.field(Fields._TYPE, type);
-        builder.field(Fields._ID, id);
         if (nestedIdentity != null) {
             nestedIdentity.toXContent(builder, params);
+        } else {
+            if (shard != null) {
+                builder.field(Fields._INDEX, shard.indexText());
+            }
+            builder.field(Fields._TYPE, type);
+            builder.field(Fields._ID, id);
         }
         if (version != -1) {
             builder.field(Fields._VERSION, version);
@@ -618,8 +612,6 @@ public class InternalSearchHit implements SearchHit {
                     sortValues[i] = in.readShort();
                 } else if (type == 8) {
                     sortValues[i] = in.readBoolean();
-                } else if (type == 9) {
-                    sortValues[i] = in.readText();
                 } else {
                     throw new IOException("Can't match type [" + type + "]");
                 }
@@ -726,9 +718,6 @@ public class InternalSearchHit implements SearchHit {
                     } else if (type == Boolean.class) {
                         out.writeByte((byte) 8);
                         out.writeBoolean((Boolean) sortValue);
-                    } else if (sortValue instanceof Text) {
-                        out.writeByte((byte) 9);
-                        out.writeText((Text) sortValue);
                     } else {
                         throw new IOException("Can't handle sort field value of type [" + type + "]");
                     }
@@ -773,7 +762,7 @@ public class InternalSearchHit implements SearchHit {
         }
     }
 
-    public final static class InternalNestedIdentity implements NestedIdentity, Streamable, ToXContent {
+    public static final class InternalNestedIdentity implements NestedIdentity, Streamable, ToXContent {
 
         private Text field;
         private int offset;

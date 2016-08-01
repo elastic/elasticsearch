@@ -76,7 +76,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 continue;
             }
             ShardId shardId = clusterService.operationRouting()
-                    .getShards(clusterState, concreteSingleIndex, item.type(), item.id(), item.routing(), null).shardId();
+                    .getShards(clusterState, concreteSingleIndex, item.id(), item.routing(), null).shardId();
             MultiGetShardRequest shardRequest = shardRequests.get(shardId);
             if (shardRequest == null) {
                 shardRequest = new MultiGetShardRequest(request, shardId.getIndexName(), shardId.id());
@@ -105,7 +105,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     // create failures for all relevant requests
                     for (int i = 0; i < shardRequest.locations.size(); i++) {
                         MultiGetRequest.Item item = shardRequest.items.get(i);

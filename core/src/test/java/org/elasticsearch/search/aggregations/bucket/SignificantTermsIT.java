@@ -19,8 +19,10 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -39,17 +41,22 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.core.IsNull.notNullValue;
 
 /**
  *
@@ -69,15 +76,15 @@ public class SignificantTermsIT extends ESIntegTestCase {
                 .build();
     }
 
-    public static final String MUSIC_CATEGORY="1";
-    public static final String OTHER_CATEGORY="2";
-    public static final String SNOWBOARDING_CATEGORY="3";
+    public static final int MUSIC_CATEGORY=1;
+    public static final int OTHER_CATEGORY=2;
+    public static final int SNOWBOARDING_CATEGORY=3;
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 5, SETTING_NUMBER_OF_REPLICAS, 0).addMapping("fact",
                 "_routing", "required=true", "routing_id", "type=keyword", "fact_category",
-                "type=keyword,index=true", "description", "type=text,fielddata=true"));
+                "type=integer", "description", "type=text,fielddata=true"));
         createIndex("idx_unmapped");
 
         ensureGreen();
@@ -110,6 +117,15 @@ public class SignificantTermsIT extends ESIntegTestCase {
                     .setSource("fact_category", parts[1], "description", parts[2]).get();
         }
         client().admin().indices().refresh(new RefreshRequest("test")).get();
+
+        assertAcked(prepareCreate("test_not_indexed")
+                .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .addMapping("type",
+                        "my_keyword", "type=keyword,index=false",
+                        "my_long", "type=long,index=false"));
+        indexRandom(true,
+                client().prepareIndex("test_not_indexed", "type", "1").setSource(
+                        "my_keyword", "foo", "my_long", 42));
     }
 
     public void testStructuredAnalysis() throws Exception {
@@ -123,12 +139,12 @@ public class SignificantTermsIT extends ESIntegTestCase {
                 .actionGet();
         assertSearchResponse(response);
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
-        String topCategory = (String) topTerms.getBuckets().iterator().next().getKey();
-        assertTrue(topCategory.equals(SNOWBOARDING_CATEGORY));
+        Number topCategory = (Number) topTerms.getBuckets().iterator().next().getKey();
+        assertTrue(topCategory.equals(Long.valueOf(SNOWBOARDING_CATEGORY)));
     }
 
     public void testStructuredAnalysisWithIncludeExclude() throws Exception {
-        String[] excludeTerms = { MUSIC_CATEGORY };
+        long[] excludeTerms = { MUSIC_CATEGORY };
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
                 .setQuery(new TermQueryBuilder("_all", "paul"))
@@ -139,8 +155,8 @@ public class SignificantTermsIT extends ESIntegTestCase {
                 .actionGet();
         assertSearchResponse(response);
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
-        String topCategory = topTerms.getBuckets().iterator().next().getKeyAsString();
-        assertTrue(topCategory.equals(OTHER_CATEGORY));
+        Number topCategory = (Number) topTerms.getBuckets().iterator().next().getKey();
+        assertTrue(topCategory.equals(Long.valueOf(OTHER_CATEGORY)));
     }
 
     public void testIncludeExclude() throws Exception {
@@ -373,6 +389,27 @@ public class SignificantTermsIT extends ESIntegTestCase {
         checkExpectedStringTermsFound(topTerms);
     }
 
+    public void testPartiallyUnmappedWithFormat() throws Exception {
+        SearchResponse response = client().prepareSearch("idx_unmapped", "test")
+                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setQuery(boolQuery().should(termQuery("_all", "the")).should(termQuery("_all", "terje")))
+                .setFrom(0).setSize(60).setExplain(true)
+                .addAggregation(significantTerms("mySignificantTerms")
+                        .field("fact_category")
+                        .executionHint(randomExecutionHint())
+                        .minDocCount(1)
+                        .format("0000"))
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
+        for (int i = 1; i <= 3; i++) {
+            String key = String.format(Locale.ROOT, "%04d", i);
+            SignificantTerms.Bucket bucket = topTerms.getBucketByKey(key);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKeyAsString(), equalTo(key));
+        }
+    }
 
     private void checkExpectedStringTermsFound(SignificantTerms topTerms) {
         HashMap<String,Bucket>topWords=new HashMap<>();
@@ -421,5 +458,19 @@ public class SignificantTermsIT extends ESIntegTestCase {
         assertSearchResponse(response);
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
         checkExpectedStringTermsFound(topTerms);
+    }
+
+    public void testFailIfFieldNotIndexed() {
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class,
+                () -> client().prepareSearch("test_not_indexed").addAggregation(
+                        significantTerms("mySignificantTerms").field("my_keyword")).get());
+        assertThat(e.toString(),
+                containsString("Cannot search on field [my_keyword] since it is not indexed."));
+
+        e = expectThrows(SearchPhaseExecutionException.class,
+                () -> client().prepareSearch("test_not_indexed").addAggregation(
+                        significantTerms("mySignificantTerms").field("my_long")).get());
+        assertThat(e.toString(),
+                containsString("Cannot search on field [my_long] since it is not indexed."));
     }
 }

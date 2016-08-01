@@ -9,9 +9,6 @@ released for the first time in Elasticsearch 5.0.0-alpha1 are listed in
 [float]
 === Breaking changes
 
-Allocation::
-* Speed up shard balancer by reusing shard model while moving shards that can no longer be allocated to a node {pull}16926[#16926]
-
 Index APIs::
 * Change Field stats API response to include both number and string based min and max values {pull}14674[#14674] (issue: {issue}14404[#14404])
 * Add Force Merge API, deprecate Optimize API {pull}13778[#13778]
@@ -35,6 +32,13 @@ Scripting::
 Search::
 * Limit the size of the result window to a dynamic property {pull}13188[#13188] (issue: {issue}9311[#9311])
 
+
+[[breaking-java-5.0.0-alpha1-2x]]
+[float]
+=== Breaking Java changes
+
+Allocation::
+* Speed up shard balancer by reusing shard model while moving shards that can no longer be allocated to a node {pull}16926[#16926]
 
 
 [[feature-5.0.0-alpha1-2x]]

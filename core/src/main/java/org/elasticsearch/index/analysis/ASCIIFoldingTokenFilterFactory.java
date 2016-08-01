@@ -29,7 +29,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  * Factory for ASCIIFoldingFilter.
  */
-public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory {
+public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
     public static ParseField PRESERVE_ORIGINAL = new ParseField("preserve_original");
     public static boolean DEFAULT_PRESERVE_ORIGINAL = false;
 
@@ -43,5 +43,10 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory {
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new ASCIIFoldingFilter(tokenStream, preserveOriginal);
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }

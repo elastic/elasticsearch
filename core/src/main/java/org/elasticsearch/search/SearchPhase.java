@@ -21,6 +21,7 @@ package org.elasticsearch.search;
 
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -28,7 +29,9 @@ import java.util.Map;
  */
 public interface SearchPhase {
 
-    Map<String, ? extends SearchParseElement> parseElements();
+    default Map<String, ? extends SearchParseElement> parseElements() {
+        return Collections.emptyMap();
+    }
 
     /**
      * Performs pre processing of the search context before the execute.

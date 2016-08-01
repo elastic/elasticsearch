@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -45,7 +46,7 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
@@ -79,14 +80,13 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.discovery.zen.ping.ZenPing.PingResponse.readPingResponse;
 
 /**
  *
  */
-public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implements ZenPing {
+public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPing {
 
     public static final String ACTION_NAME = "internal:discovery/zen/unicast";
     public static final Setting<List<String>> DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING =
@@ -131,13 +131,12 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     private volatile boolean closed = false;
 
     @Inject
-    public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName,
-                          Version version, ElectMasterService electMasterService,
-                          @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
+    public UnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
+                          ElectMasterService electMasterService, @Nullable Set<UnicastHostsProvider> unicastHostsProviders) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
-        this.clusterName = clusterName;
+        this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         this.electMasterService = electMasterService;
 
         if (unicastHostsProviders != null) {
@@ -166,7 +165,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 TransportAddress[] addresses = transportService.addressesFromString(host, limitPortCounts);
                 for (TransportAddress address : addresses) {
                     configuredTargetNodes.add(new DiscoveryNode(UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "#",
-                            address, emptyMap(), emptySet(), version.minimumCompatibilityVersion()));
+                            address, emptyMap(), emptySet(), getVersion().minimumCompatibilityVersion()));
                 }
             } catch (Exception e) {
                 throw new IllegalArgumentException("Failed to resolve address for [" + host + "]", e);
@@ -206,10 +205,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         hostsProviders.add(provider);
     }
 
-    public void removeHostsProvider(UnicastHostsProvider provider) {
-        hostsProviders.remove(provider);
-    }
-
     @Override
     public void setPingContextProvider(PingContextProvider contextProvider) {
         this.contextProvider = contextProvider;
@@ -222,16 +217,13 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         temporalResponses.clear();
     }
 
-    public PingResponse[] pingAndWait(TimeValue timeout) {
+    public PingResponse[] pingAndWait(TimeValue duration) {
         final AtomicReference<PingResponse[]> response = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        ping(new PingListener() {
-            @Override
-            public void onPing(PingResponse[] pings) {
-                response.set(pings);
-                latch.countDown();
-            }
-        }, timeout);
+        ping(pings -> {
+            response.set(pings);
+            latch.countDown();
+        }, duration);
         try {
             latch.await();
             return response.get();
@@ -241,25 +233,26 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     @Override
-    public void ping(final PingListener listener, final TimeValue timeout) {
+    public void ping(final PingListener listener, final TimeValue duration) {
         final SendPingsHandler sendPingsHandler = new SendPingsHandler(pingHandlerIdGenerator.incrementAndGet());
         try {
             receivedResponses.put(sendPingsHandler.id(), sendPingsHandler);
             try {
-                sendPings(timeout, null, sendPingsHandler);
+                sendPings(duration, null, sendPingsHandler);
             } catch (RejectedExecutionException e) {
                 logger.debug("Ping execution rejected", e);
                 // The RejectedExecutionException can come from the fact unicastConnectExecutor is at its max down in sendPings
                 // But don't bail here, we can retry later on after the send ping has been scheduled.
             }
-            threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
+
+            threadPool.schedule(TimeValue.timeValueMillis(duration.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
                 @Override
                 protected void doRun() {
-                    sendPings(timeout, null, sendPingsHandler);
-                    threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
+                    sendPings(duration, null, sendPingsHandler);
+                    threadPool.schedule(TimeValue.timeValueMillis(duration.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
                         @Override
                         protected void doRun() throws Exception {
-                            sendPings(timeout, TimeValue.timeValueMillis(timeout.millis() / 2), sendPingsHandler);
+                            sendPings(duration, TimeValue.timeValueMillis(duration.millis() / 2), sendPingsHandler);
                             sendPingsHandler.close();
                             listener.onPing(sendPingsHandler.pingCollection().toArray());
                             for (DiscoveryNode node : sendPingsHandler.nodeToDisconnect) {
@@ -269,16 +262,16 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                         }
 
                         @Override
-                        public void onFailure(Throwable t) {
-                            logger.debug("Ping execution failed", t);
+                        public void onFailure(Exception e) {
+                            logger.debug("Ping execution failed", e);
                             sendPingsHandler.close();
                         }
                     });
                 }
 
                 @Override
-                public void onFailure(Throwable t) {
-                    logger.debug("Ping execution failed", t);
+                public void onFailure(Exception e) {
+                    logger.debug("Ping execution failed", e);
                     sendPingsHandler.close();
                 }
             });
@@ -380,9 +373,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 if (!nodeFoundByAddress) {
                     if (!nodeToSend.getId().startsWith(UNICAST_NODE_PREFIX)) {
                         DiscoveryNode tempNode = new DiscoveryNode("",
-                                UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "_" + nodeToSend.getId() + "#",
-                                nodeToSend.getHostName(), nodeToSend.getHostAddress(), nodeToSend.getAddress(), nodeToSend.getAttributes(),
-                                nodeToSend.getRoles(), nodeToSend.getVersion());
+                            UNICAST_NODE_PREFIX + unicastNodeIdGenerator.incrementAndGet() + "_" + nodeToSend.getId() + "#",
+                            UUIDs.randomBase64UUID(), nodeToSend.getHostName(), nodeToSend.getHostAddress(), nodeToSend.getAddress(),
+                            nodeToSend.getAttributes(), nodeToSend.getRoles(), nodeToSend.getVersion());
 
                         logger.trace("replacing {} with temp node {}", nodeToSend, tempNode);
                         nodeToSend = tempNode;
@@ -402,7 +395,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                             // connect to the node, see if we manage to do it, if not, bail
                             if (!nodeFoundByAddress) {
                                 logger.trace("[{}] connecting (light) to {}", sendPingsHandler.id(), finalNodeToSend);
-                                transportService.connectToNodeLight(finalNodeToSend);
+                                transportService.connectToNodeLightAndHandshake(finalNodeToSend, timeout.getMillis());
                             } else {
                                 logger.trace("[{}] connecting to {}", sendPingsHandler.id(), finalNodeToSend);
                                 transportService.connectToNode(finalNodeToSend);
@@ -425,7 +418,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                             // something went wrong on the other side
                             logger.debug("[{}] received a remote error as a response to ping {}", e,
                                     sendPingsHandler.id(), finalNodeToSend);
-                        } catch (Throwable e) {
+                        } catch (Exception e) {
                             logger.warn("[{}] failed send ping to {}", e, sendPingsHandler.id(), finalNodeToSend);
                         } finally {
                             if (!success) {
@@ -451,7 +444,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                                        final CountDownLatch latch, final DiscoveryNode node, final DiscoveryNode nodeToSend) {
         logger.trace("[{}] sending to {}", id, nodeToSend);
         transportService.sendRequest(nodeToSend, ACTION_NAME, pingRequest, TransportRequestOptions.builder()
-                .withTimeout((long) (timeout.millis() * 1.25)).build(), new BaseTransportResponseHandler<UnicastPingResponse>() {
+                .withTimeout((long) (timeout.millis() * 1.25)).build(), new TransportResponseHandler<UnicastPingResponse>() {
 
             @Override
             public UnicastPingResponse newInstance() {
@@ -469,14 +462,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 try {
                     DiscoveryNodes discoveryNodes = contextProvider.nodes();
                     for (PingResponse pingResponse : response.pingResponses) {
-                        if (pingResponse.node().getId().equals(discoveryNodes.getLocalNodeId())) {
+                        if (pingResponse.node().equals(discoveryNodes.getLocalNode())) {
                             // that's us, ignore
-                            continue;
-                        }
-                        if (!pingResponse.clusterName().equals(clusterName)) {
-                            // not part of the cluster
-                            logger.debug("[{}] filtering out response from {}, not same cluster_name [{}]", id, pingResponse.node(),
-                                    pingResponse.clusterName().value());
                             continue;
                         }
                         SendPingsHandler sendPingsHandler = receivedResponses.get(response.id);
@@ -551,7 +538,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             id = in.readInt();
-            timeout = readTimeValue(in);
+            timeout = new TimeValue(in);
             pingResponse = readPingResponse(in);
         }
 
@@ -597,5 +584,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                 pingResponse.writeTo(out);
             }
         }
+    }
+
+    protected Version getVersion() {
+        return Version.CURRENT; // for tests
     }
 }

@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
@@ -36,12 +37,16 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     protected CommonTermsQueryBuilder doCreateTestQueryBuilder() {
         CommonTermsQueryBuilder query;
 
+        int numberOfTerms = randomIntBetween(0, 10);
+        StringBuilder text = new StringBuilder("");
+        for (int i = 0; i < numberOfTerms; i++) {
+            text.append(randomAsciiOfLengthBetween(1, 10)).append(" ");
+        }
         // mapped or unmapped field
-        String text = randomAsciiOfLengthBetween(1, 10);
         if (randomBoolean()) {
-            query = new CommonTermsQueryBuilder(STRING_FIELD_NAME, text);
+            query = new CommonTermsQueryBuilder(STRING_FIELD_NAME, text.toString());
         } else {
-            query = new CommonTermsQueryBuilder(randomAsciiOfLengthBetween(1, 10), text);
+            query = new CommonTermsQueryBuilder(randomAsciiOfLengthBetween(1, 10), text.toString());
         }
 
         if (randomBoolean()) {
@@ -106,21 +111,21 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
 
     public void testFromJson() throws IOException {
         String query =
-                "{\n" + 
-                "  \"common\" : {\n" + 
-                "    \"body\" : {\n" + 
-                "      \"query\" : \"nelly the elephant not as a cartoon\",\n" + 
-                "      \"disable_coord\" : true,\n" + 
-                "      \"high_freq_operator\" : \"AND\",\n" + 
-                "      \"low_freq_operator\" : \"OR\",\n" + 
-                "      \"cutoff_frequency\" : 0.001,\n" + 
-                "      \"minimum_should_match\" : {\n" + 
-                "        \"low_freq\" : \"2\",\n" + 
-                "        \"high_freq\" : \"3\"\n" + 
-                "      },\n" + 
-                "      \"boost\" : 42.0\n" + 
-                "    }\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"common\" : {\n" +
+                "    \"body\" : {\n" +
+                "      \"query\" : \"nelly the elephant not as a cartoon\",\n" +
+                "      \"disable_coord\" : true,\n" +
+                "      \"high_freq_operator\" : \"AND\",\n" +
+                "      \"low_freq_operator\" : \"OR\",\n" +
+                "      \"cutoff_frequency\" : 0.001,\n" +
+                "      \"minimum_should_match\" : {\n" +
+                "        \"low_freq\" : \"2\",\n" +
+                "        \"high_freq\" : \"3\"\n" +
+                "      },\n" +
+                "      \"boost\" : 42.0\n" +
+                "    }\n" +
+                "  }\n" +
                 "}";
 
         CommonTermsQueryBuilder queryBuilder = (CommonTermsQueryBuilder) parseQuery(query);
@@ -131,13 +136,6 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
         assertEquals(query, Operator.OR, queryBuilder.lowFreqOperator());
         assertEquals(query, Operator.AND, queryBuilder.highFreqOperator());
         assertEquals(query, "nelly the elephant not as a cartoon", queryBuilder.value());
-    }
-    
-    public void testNoTermsFromQueryString() throws IOException {
-        CommonTermsQueryBuilder builder = new CommonTermsQueryBuilder(STRING_FIELD_NAME, "");
-        QueryShardContext context = createShardContext();
-        context.setAllowUnmappedFields(true);
-        assertNull(builder.toQuery(context));
     }
 
     public void testCommonTermsQuery1() throws IOException {

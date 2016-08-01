@@ -175,3 +175,95 @@ curl -XDELETE localhost:9200/_search/scroll \
      -d 'c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1,aGVuRmV0Y2g7NTsxOnkxaDZ'
 ---------------------------------------
 
+
+==== Sliced Scroll
+
+For scroll queries that return a lot of documents it is possible to split the scroll in multiple slices which
+can be consumed independently:
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
+{
+    "slice": {
+        "id": 0, <1>
+        "max": 2 <2>
+    },
+    "query": {
+        "match" : {
+            "title" : "elasticsearch"
+        }
+    }
+}
+'
+
+curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
+{
+    "slice": {
+        "id": 1,
+        "max": 2
+    },
+    "query": {
+        "match" : {
+            "title" : "elasticsearch"
+        }
+    }
+}
+'
+--------------------------------------------------
+
+<1> The id of the slice
+<2> The maximum number of slices
+
+The result from the first request returned documents that belong to the first slice (id: 0) and the result from the
+second request returned documents that belong to the second slice. Since the maximum number of slices is set to 2
+ the union of the results of the two requests is equivalent to the results of a scroll query without slicing.
+By default the splitting is done on the shards first and then locally on each shard using the _uid field
+with the following formula:
+`slice(doc) = floorMod(hashCode(doc._uid), max)`
+For instance if the number of shards is equal to 2 and the user requested 4 slices then the slices 0 and 2 are assigned
+to the first shard and the slices 1 and 3 are assigned to the second shard.
+
+Each scroll is independent and can be processed in parallel like any scroll request.
+
+NOTE: If the number of slices is bigger than the number of shards the slice filter is very slow on the first calls, it has a complexity of O(N) and a memory cost equals
+to N bits per slice where N is the total number of documents in the shard.
+After few calls the filter should be cached and subsequent calls should be faster but you should limit the number of
+ sliced query you perform in parallel to avoid the memory explosion.
+
+To avoid this cost entirely it is possible to use the `doc_values` of another field to do the slicing
+but the user must ensure that the field has the following properties:
+
+    * The field is numeric.
+
+    * `doc_values` are enabled on that field
+
+    * Every document should contain a single value. If a document has multiple values for the specified field, the first value is used.
+
+    * The value for each document should be set once when the document is created and never updated. This ensures that each
+slice gets deterministic results.
+
+    * The cardinality of the field should be high. This ensures that each slice gets approximately the same amount of documents.
+
+[source,js]
+--------------------------------------------------
+curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
+{
+    "slice": {
+        "field": "my_random_integer_field",
+        "id": 0,
+        "max": 10
+    },
+    "query": {
+        "match" : {
+            "title" : "elasticsearch"
+        }
+    }
+}
+'
+--------------------------------------------------
+
+For append only time-based indices, the `timestamp` field can be used safely.
+
+NOTE: By default the maximum number of slices allowed per scroll is limited to 1024.
+You can update the `index.max_slices_per_scroll` index setting to bypass this limit.

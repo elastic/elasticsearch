@@ -29,12 +29,14 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.core.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -43,6 +45,8 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -282,6 +286,46 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         mapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping,  mapper.mappingSource().toString());
+
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .field("analyzer", "keyword")
+            .endObject()
+            .endObject().endObject().endObject().string();
+
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping,  mapper.mappingSource().toString());
+
+        // special case: default search analyzer
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .field("analyzer", "keyword")
+            .field("search_analyzer", "default")
+            .endObject()
+            .endObject().endObject().endObject().string();
+
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping,  mapper.mappingSource().toString());
+
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .field("analyzer", "keyword")
+            .endObject()
+            .endObject().endObject().endObject().string();
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+
+        mapper.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true")));
+        String mappingString = builder.string();
+        assertTrue(mappingString.contains("analyzer"));
+        assertTrue(mappingString.contains("search_analyzer"));
+        assertTrue(mappingString.contains("search_quote_analyzer"));
     }
 
     public void testSearchQuoteAnalyzerSerialization() throws IOException {
@@ -410,7 +454,7 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper disabledMapper = parser.parse("type", new CompressedXContent(mapping));
         assertEquals(mapping, disabledMapper.mappingSource().toString());
-        IllegalStateException e = expectThrows(IllegalStateException.class,
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> disabledMapper.mappers().getMapper("field").fieldType().fielddataBuilder());
         assertThat(e.getMessage(), containsString("Fielddata is disabled"));
 
@@ -457,5 +501,48 @@ public class TextFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldType.fielddataMinFrequency(), equalTo(2d));
         assertThat(fieldType.fielddataMaxFrequency(), equalTo((double) Integer.MAX_VALUE));
         assertThat(fieldType.fielddataMinSegmentSize(), equalTo(1000));
+    }
+
+    public void testNullConfigValuesFail() throws MapperParsingException, IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "text")
+                            .field("analyzer", (String) null)
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+
+        Exception e = expectThrows(MapperParsingException.class, () -> parser.parse("type", new CompressedXContent(mapping)));
+        assertEquals("[analyzer] must not have a [null] value", e.getMessage());
+    }
+
+    public void testNotIndexedFieldPositionIncrement() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("field")
+            .field("type", "text")
+            .field("index", false)
+            .field("position_increment_gap", 10)
+            .endObject().endObject().endObject().endObject().string();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parser.parse("type", new CompressedXContent(mapping)));
+        assertEquals("Cannot set position_increment_gap on field [field] without positions enabled", e.getMessage());
+    }
+
+    public void testAnalyzedFieldPositionIncrementWithoutPositions() throws IOException {
+        for (String indexOptions : Arrays.asList("docs", "freqs")) {
+            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                .field("type", "text")
+                .field("index_options", indexOptions)
+                .field("position_increment_gap", 10)
+                .endObject().endObject().endObject().endObject().string();
+
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parser.parse("type", new CompressedXContent(mapping)));
+            assertEquals("Cannot set position_increment_gap on field [field] without positions enabled", e.getMessage());
+        }
     }
 }

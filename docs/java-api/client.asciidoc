@@ -17,7 +17,7 @@ that connects to a cluster.
 
 The client must have the same major version (e.g. `2.x`, or `5.x`) as the
 nodes in the cluster. Clients may connect to clusters which have a different
-minor version (e.g. `2.3.x`) but it is possible that new funcionality may not
+minor version (e.g. `2.3.x`) but it is possible that new functionality may not
 be supported.  Ideally, the client should have the same version as the
 cluster.
 
@@ -37,7 +37,7 @@ be "two hop" operations).
 --------------------------------------------------
 // on startup
 
-Client client = TransportClient.builder().build()
+TransportClient client = new PreBuiltTransportClient(Settings.EMPTY)
         .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("host1"), 9300))
         .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("host2"), 9300));
 
@@ -51,26 +51,26 @@ Note that you have to set the cluster name if you use one different than
 
 [source,java]
 --------------------------------------------------
-Settings settings = Settings.settingsBuilder()
+Settings settings = Settings.builder()
         .put("cluster.name", "myClusterName").build();
-Client client = TransportClient.builder().settings(settings).build();
+TransportClient client = new PreBuiltTransportClient(settings);
 //Add transport addresses and do something with the client...
 --------------------------------------------------
 
 The Transport client comes with a cluster sniffing feature which
 allows it to dynamically add new hosts and remove old ones.
-When sniffing is enabled the the transport client will connect to the nodes in its
-internal node list, which is built via calls to addTransportAddress.
+When sniffing is enabled, the transport client will connect to the nodes in its
+internal node list, which is built via calls to `addTransportAddress`.
 After this, the client will call the internal cluster state API on those nodes
 to discover available data nodes. The internal node list of the client will
 be replaced with those data nodes only. This list is refreshed every five seconds by default.
 Note that the IP addresses the sniffer connects to are the ones declared as the 'publish'
 address in those node's elasticsearch config.
 
-Keep in mind that list might possibly not include the original node it connected to
+Keep in mind that the list might possibly not include the original node it connected to
 if that node is not a data node. If, for instance, you initially connect to a
-master node, after sniffing no further requests will go to that master node,
-but rather to any data nodes instead. The reason the transport excludes non-data
+master node, after sniffing, no further requests will go to that master node,
+but rather to any data nodes instead. The reason the transport client excludes non-data
 nodes is to avoid sending search traffic to master only nodes.
 
 In order to enable sniffing, set `client.transport.sniff` to `true`:
@@ -79,7 +79,7 @@ In order to enable sniffing, set `client.transport.sniff` to `true`:
 --------------------------------------------------
 Settings settings = Settings.settingsBuilder()
         .put("client.transport.sniff", true).build();
-TransportClient client = TransportClient.builder().settings(settings).build();
+TransportClient client = new PreBuiltTransportClient(settings);
 --------------------------------------------------
 
 Other transport client level settings include:

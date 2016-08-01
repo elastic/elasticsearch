@@ -10,10 +10,6 @@
         index: test
 
   - do:
-      cluster.health:
-        wait_for_status: yellow
-
-  - do:
       cluster.state:
         metric: [ master_node ]
 
@@ -50,17 +46,14 @@
         body: { "index.number_of_shards": 1, "index.number_of_replicas": 9 }
 
   - do:
-      cluster.health:
-        wait_for_status: yellow
-
-  - do:
       cluster.state:
         metric: [ master_node ]
 
   - set: {master_node: node_id}
 
   - do:
-      cluster.allocation_explain: {}
+      cluster.allocation_explain:
+        include_disk_info: true
 
   - match: { assigned: false }
   - match: { unassigned_info.reason: "INDEX_CREATED" }
@@ -68,6 +61,7 @@
   - match: { shard.index: "test" }
   - match: { shard.id: 0 }
   - match: { shard.primary: false }
+  - is_true: cluster_info
   # - is_true: nodes.$node_id.node_name
   # - match: { nodes.$node_id.node_attributes.testattr: "test" }
   # - match: { nodes.$node_id.node_attributes.portsfile: "true" }

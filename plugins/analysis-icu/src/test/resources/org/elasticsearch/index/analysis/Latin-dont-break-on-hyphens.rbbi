@@ -1,0 +1,135 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Based on Default.rbbi, the default RBBI rules, based on UAX#29.
+# Added dashes to $MidLetter, so that words aren't broken on single dashes.
+#
+
+!!chain;
+
+#
+#  Character Class Definitions.
+#
+
+$CR           = [\p{Word_Break = CR}];
+$LF           = [\p{Word_Break = LF}];
+$Newline      = [\p{Word_Break = Newline}];
+$Extend       = [\p{Word_Break = Extend}];
+$Format       = [\p{Word_Break = Format}];
+$Katakana     = [\p{Word_Break = Katakana}];
+$ALetter      = [\p{Word_Break = ALetter}];
+$MidNumLet    = [\p{Word_Break = MidNumLet}];
+# Don't use [:Dash:] here - it contains lots of chars that should continue to trigger word breaks
+$Dash         = [\N{HYPHEN-MINUS}
+                 \N{HYPHEN}
+                 \N{EN DASH}
+                 \N{MINUS SIGN}
+                 \N{SMALL HYPHEN-MINUS}
+                 \N{FULLWIDTH HYPHEN-MINUS}];
+$MidLetter    = [\p{Word_Break = MidLetter}$Dash]; # Don't break on (single) hyphen
+$MidNum       = [\p{Word_Break = MidNum}];
+$Numeric      = [\p{Word_Break = Numeric}[[:Decomposition_Type=Wide:]&[:General_Category=Decimal_Number:]]];
+$ExtendNumLet = [\p{Word_Break = ExtendNumLet}];
+
+
+#   Dictionary character set, for triggering language-based break engines. Currently
+#   limited to LineBreak=Complex_Context. Note that this set only works in Unicode
+#   5.0 or later as the definition of Complex_Context was corrected to include all
+#   characters requiring dictionary break.
+
+$dictionary   = [:LineBreak = Complex_Context:];
+$Control        = [\p{Grapheme_Cluster_Break = Control}];
+$ALetterPlus  = [$ALetter [$dictionary-$Extend-$Control]];   # Note:  default ALetter does not
+                                                             #  include the dictionary characters.
+
+#
+#  Rules 4    Ignore Format and Extend characters,
+#             except when they appear at the beginning of a region of text.
+#
+$KatakanaEx     = $Katakana     ($Extend |  $Format)*;
+$ALetterEx      = $ALetterPlus  ($Extend |  $Format)*;
+$MidNumLetEx    = $MidNumLet    ($Extend |  $Format)*;
+$MidLetterEx    = $MidLetter    ($Extend |  $Format)*;
+$MidNumEx       = $MidNum       ($Extend |  $Format)*;
+$NumericEx      = $Numeric      ($Extend |  $Format)*;
+$ExtendNumLetEx = $ExtendNumLet ($Extend |  $Format)*;
+
+$Hiragana       = [\p{script=Hiragana}];
+$Ideographic    = [\p{Ideographic}];
+$HiraganaEx     = $Hiragana     ($Extend |  $Format)*;
+$IdeographicEx  = $Ideographic  ($Extend |  $Format)*;
+
+## -------------------------------------------------
+
+!!forward;
+
+
+# Rule 3 - CR x LF
+#
+$CR $LF;
+
+# Rule 4 - ignore Format and Extend characters, except when they appear at the beginning
+#          of a region of Text.   The rule here comes into play when the start of text
+#          begins with a group of Format chars, or with a "word" consisting of a single
+#          char that is not in any of the listed word break categories followed by
+#          format char(s).
+[^$CR $LF $Newline]? ($Extend |  $Format)+;
+
+$NumericEx {100};
+$ALetterEx {200};
+$KatakanaEx {300};       # note:  these status values override those from rule 5
+$HiraganaEx {300};       #        by virtual of being numerically larger.
+$IdeographicEx {400};    #
+
+#
+# rule 5
+#    Do not break between most letters.
+#
+$ALetterEx $ALetterEx {200};
+
+# rule 6 and 7
+$ALetterEx ($MidLetterEx | $MidNumLetEx) $ALetterEx {200};
+
+# rule 8
+
+$NumericEx $NumericEx {100};
+
+# rule 9
+
+$ALetterEx $NumericEx {200};
+
+# rule 10
+
+$NumericEx $ALetterEx {200};
+
+# rule 11 and 12
+
+$NumericEx ($MidNumEx | $MidNumLetEx) $NumericEx {100};
+
+# rule 13
+
+$KatakanaEx  $KatakanaEx {300};
+
+# rule 13a/b
+
+$ALetterEx      $ExtendNumLetEx {200};    #  (13a)
+$NumericEx      $ExtendNumLetEx {100};    #  (13a)
+$KatakanaEx     $ExtendNumLetEx {300};    #  (13a)
+$ExtendNumLetEx $ExtendNumLetEx {200};    #  (13a)
+
+$ExtendNumLetEx $ALetterEx  {200};    #  (13b)
+$ExtendNumLetEx $NumericEx  {100};    #  (13b)
+$ExtendNumLetEx $KatakanaEx {300};    #  (13b)

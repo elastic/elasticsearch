@@ -28,13 +28,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.profile.InternalProfileShardResults;
 import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHits;
@@ -54,7 +53,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     private Suggest suggest;
 
-    private InternalProfileShardResults profileResults;
+    private SearchProfileShardResults profileResults;
 
     private boolean timedOut;
 
@@ -64,7 +63,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
     }
 
     public InternalSearchResponse(InternalSearchHits hits, InternalAggregations aggregations, Suggest suggest,
-                                  InternalProfileShardResults profileResults, boolean timedOut, Boolean terminatedEarly) {
+                                  SearchProfileShardResults profileResults, boolean timedOut, Boolean terminatedEarly) {
         this.hits = hits;
         this.aggregations = aggregations;
         this.suggest = suggest;
@@ -99,7 +98,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
      *
      * @return Profile results
      */
-    public Map<String, List<ProfileShardResult>> profile() {
+    public Map<String, ProfileShardResult> profile() {
         if (profileResults == null) {
             return Collections.emptyMap();
         }
@@ -141,7 +140,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         terminatedEarly = in.readOptionalBoolean();
 
         if (in.getVersion().onOrAfter(Version.V_2_2_0) && in.readBoolean()) {
-            profileResults = new InternalProfileShardResults(in);
+            profileResults = new SearchProfileShardResults(in);
         } else {
             profileResults = null;
         }

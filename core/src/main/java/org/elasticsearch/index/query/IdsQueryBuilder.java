@@ -40,15 +40,14 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 /**
  * A query that will return only documents matching specific ids (and a type).
  */
 public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
-
     public static final String NAME = "ids";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField TYPE_FIELD = new ParseField("type", "types", "_type");
     private static final ParseField VALUES_FIELD = new ParseField("values");
@@ -127,7 +126,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         builder.endObject();
     }
 
-    public static IdsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<IdsQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         List<String> ids = new ArrayList<>();
         List<String> types = new ArrayList<>();
@@ -191,7 +190,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         IdsQueryBuilder query = new IdsQueryBuilder(types.toArray(new String[types.size()]));
         query.addIds(ids.toArray(new String[ids.size()]));
         query.boost(boost).queryName(queryName);
-        return query;
+        return Optional.of(query);
     }
 
 
@@ -204,7 +203,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Query query;
         if (this.ids.isEmpty()) {
-             query = Queries.newMatchNoDocsQuery();
+             query = Queries.newMatchNoDocsQuery("Missing ids in \"" + this.getName() + "\" query.");
         } else {
             Collection<String> typesForQuery;
             if (types.length == 0) {

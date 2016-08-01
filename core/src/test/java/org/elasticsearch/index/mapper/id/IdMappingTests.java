@@ -19,23 +19,16 @@
 
 package org.elasticsearch.index.mapper.id;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -53,16 +46,6 @@ public class IdMappingTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().get(UidFieldMapper.NAME), notNullValue());
         assertThat(doc.rootDoc().get(IdFieldMapper.NAME), nullValue());
-
-        try {
-            docMapper.parse("test", "type", null, XContentFactory.jsonBuilder()
-                    .startObject()
-                    .endObject()
-                    .bytes());
-            fail("expect missing id");
-        } catch (MapperParsingException e) {
-            assertTrue(e.getMessage().contains("No id found"));
-        }
     }
 
     public void testIncludeInObjectNotAllowed() throws Exception {
@@ -70,8 +53,8 @@ public class IdMappingTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
 
         try {
-            docMapper.parse(SourceToParse.source(XContentFactory.jsonBuilder()
-                .startObject().field("_id", "1").endObject().bytes()).type("type"));
+            docMapper.parse(SourceToParse.source("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject().field("_id", "1").endObject().bytes()));
             fail("Expected failure to parse metadata field");
         } catch (MapperParsingException e) {
             assertTrue(e.getMessage(), e.getMessage().contains("Field [_id] is a metadata field and cannot be added inside a document"));

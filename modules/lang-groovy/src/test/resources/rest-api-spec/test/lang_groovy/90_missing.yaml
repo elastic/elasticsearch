@@ -31,8 +31,9 @@
           type:   test
           id:     1
           body:
-            script: "ctx._source.foo = bar"
-            params: { bar: 'xxx' }
+            script:
+              inline: "ctx._source.foo = bar"
+              params: { bar: 'xxx' }
 
   - do:
       update:
@@ -41,5 +42,6 @@
           id:     1
           ignore: 404
           body:
-            script:       "ctx._source.foo = bar"
-            params:       { bar: 'xxx' }
+            script:
+              inline:       "ctx._source.foo = bar"
+              params:       { bar: 'xxx' }

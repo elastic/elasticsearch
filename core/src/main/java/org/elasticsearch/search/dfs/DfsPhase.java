@@ -28,7 +28,6 @@ import org.apache.lucene.index.TermContext;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.common.collect.HppcMaps;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
@@ -36,19 +35,11 @@ import org.elasticsearch.search.rescore.RescoreSearchContext;
 import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.Map;
-
-import static java.util.Collections.emptyMap;
 
 /**
  *
  */
 public class DfsPhase implements SearchPhase {
-
-    @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        return emptyMap();
-    }
 
     @Override
     public void preProcess(SearchContext context) {

@@ -19,43 +19,68 @@
 
 package org.elasticsearch.plugins;
 
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexModule;
-
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+
+import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.threadpool.ExecutorBuilder;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 /**
  * An extension point allowing to plug in custom functionality.
  * <p>
- * A plugin can be register custom extensions to builtin behavior by implementing <tt>onModule(AnyModule)</tt>,
- * and registering the extension with the given module.
+ * Implement any of these interfaces to extend Elasticsearch:
+ * <ul>
+ * <li>{@link ActionPlugin}
+ * <li>{@link AnalysisPlugin}
+ * <li>{@link MapperPlugin}
+ * <li>{@link ScriptPlugin}
+ * <li>{@link SearchPlugin}
+ * </ul>
  */
 public abstract class Plugin {
 
     /**
-     * The name of the plugin.
+     * Node level guice modules.
      */
-    public abstract String name();
-
-    /**
-     * The description of the plugin.
-     */
-    public abstract String description();
-
-    /**
-     * Node level modules.
-     */
-    public Collection<Module> nodeModules() {
+    public Collection<Module> createGuiceModules() {
         return Collections.emptyList();
     }
 
     /**
-     * Node level services that will be automatically started/stopped/closed.
+     * Node level services that will be automatically started/stopped/closed. This classes must be constructed
+     * by injection with guice.
      */
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Returns components added by this plugin.
+     *
+     * Any components returned that implement {@link LifecycleComponent} will have their lifecycle managed.
+     * Note: To aid in the migration away from guice, all objects returned as components will be bound in guice
+     * to themselves.
+     *
+     * @param client A client to make requests to the system
+     * @param clusterService A service to allow watching and updating cluster state
+     * @param threadPool A service to allow retrieving an executor to run an async action
+     * @param resourceWatcherService A service to watch for changes to node local files
+     */
+    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+                                               ResourceWatcherService resourceWatcherService) {
         return Collections.emptyList();
     }
 
@@ -74,10 +99,64 @@ public abstract class Plugin {
     public void onIndexModule(IndexModule indexModule) {}
 
     /**
+     * Returns a list of additional {@link Setting} definitions for this plugin.
+     */
+    public List<Setting<?>> getSettings() { return Collections.emptyList(); }
+
+    /**
+     * Returns a list of additional settings filter for this plugin
+     */
+    public List<String> getSettingsFilter() { return Collections.emptyList(); }
+
+    /**
      * Old-style guice index level extension point.
      *
      * @deprecated use #onIndexModule instead
      */
     @Deprecated
     public final void onModule(IndexModule indexModule) {}
+
+
+    /**
+     * Old-style guice settings extension point.
+     *
+     * @deprecated use #getSettings and #getSettingsFilter instead
+     */
+    @Deprecated
+    public final void onModule(SettingsModule settingsModule) {}
+
+    /**
+     * Old-style guice scripting extension point.
+     *
+     * @deprecated implement {@link ScriptPlugin} instead
+     */
+    @Deprecated
+    public final void onModule(ScriptModule module) {}
+
+    /**
+     * Old-style analysis extension point.
+     *
+     * @deprecated implement {@link AnalysisPlugin} instead
+     */
+    @Deprecated
+    public final void onModule(AnalysisModule module) {}
+
+    /**
+     * Old-style action extension point.
+     *
+     * @deprecated implement {@link ActionPlugin} instead
+     */
+    @Deprecated
+    public final void onModule(ActionModule module) {}
+
+    /**
+     * Provides the list of this plugin's custom thread pools, empty if
+     * none.
+     *
+     * @param settings the current settings
+     * @return executors builders for this plugin's custom thread pools
+     */
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        return Collections.emptyList();
+    }
 }

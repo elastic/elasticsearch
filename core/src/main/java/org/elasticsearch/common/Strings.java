@@ -33,12 +33,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Properties;
-import java.util.Random;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
@@ -245,45 +244,6 @@ public class Strings {
     }
 
     /**
-     * Check whether the given CharSequence contains any whitespace characters.
-     *
-     * @param str the CharSequence to check (may be <code>null</code>)
-     * @return <code>true</code> if the CharSequence is not empty and
-     *         contains at least 1 whitespace character
-     * @see java.lang.Character#isWhitespace
-     */
-    public static boolean containsWhitespace(CharSequence str) {
-        if (!hasLength(str)) {
-            return false;
-        }
-        int strLen = str.length();
-        for (int i = 0; i < strLen; i++) {
-            if (Character.isWhitespace(str.charAt(i))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Trim leading whitespace from the given String.
-     *
-     * @param str the String to check
-     * @return the trimmed String
-     * @see java.lang.Character#isWhitespace
-     */
-    public static String trimLeadingWhitespace(String str) {
-        if (!hasLength(str)) {
-            return str;
-        }
-        StringBuilder sb = new StringBuilder(str);
-        while (sb.length() > 0 && Character.isWhitespace(sb.charAt(0))) {
-            sb.deleteCharAt(0);
-        }
-        return sb.toString();
-    }
-
-    /**
      * Trim all occurrences of the supplied leading character from the given String.
      *
      * @param str              the String to check
@@ -418,17 +378,6 @@ public class Strings {
     }
 
     /**
-     * Unqualify a string qualified by a separator character. For example,
-     * "this:name:is:qualified" returns "qualified" if using a ':' separator.
-     *
-     * @param qualifiedName the qualified name
-     * @param separator     the separator
-     */
-    public static String unqualify(String qualifiedName, char separator) {
-        return qualifiedName.substring(qualifiedName.lastIndexOf(separator) + 1);
-    }
-
-    /**
      * Capitalize a <code>String</code>, changing the first letter to
      * upper case as per {@link Character#toUpperCase(char)}.
      * No other letters are changed.
@@ -557,10 +506,23 @@ public class Strings {
     }
 
     public static String[] splitStringByCommaToArray(final String s) {
-        return splitStringToArray(s, ',');
+        if (s == null || s.isEmpty()) return Strings.EMPTY_ARRAY;
+        else return s.split(",");
     }
 
+    /**
+     * A convenience method for splitting a delimited string into
+     * a set and trimming leading and trailing whitespace from all
+     * split strings.
+     *
+     * @param s the string to split
+     * @param c the delimiter to split on
+     * @return the set of split strings
+     */
     public static Set<String> splitStringToSet(final String s, final char c) {
+        if (s == null || s.isEmpty()) {
+            return Collections.emptySet();
+        }
         final char[] chars = s.toCharArray();
         int count = 1;
         for (final char x : chars) {
@@ -572,54 +534,27 @@ public class Strings {
         final int len = chars.length;
         int start = 0;  // starting index in chars of the current substring.
         int pos = 0;    // current index in chars.
+        int end = 0; // the position of the end of the current token
         for (; pos < len; pos++) {
             if (chars[pos] == c) {
-                int size = pos - start;
+                int size = end - start;
                 if (size > 0) { // only add non empty strings
                     result.add(new String(chars, start, size));
                 }
                 start = pos + 1;
+                end = start;
+            } else if (Character.isWhitespace(chars[pos])) {
+                if (start == pos) {
+                    // skip over preceding whitespace
+                    start++;
+                }
+            } else {
+                end = pos + 1;
             }
         }
-        int size = pos - start;
+        int size = end - start;
         if (size > 0) {
             result.add(new String(chars, start, size));
-        }
-        return result;
-    }
-
-    public static String[] splitStringToArray(final CharSequence s, final char c) {
-        if (s == null || s.length() == 0) {
-            return Strings.EMPTY_ARRAY;
-        }
-        int count = 1;
-        for (int i = 0; i < s.length(); i++) {
-            if (s.charAt(i) == c) {
-                count++;
-            }
-        }
-        final String[] result = new String[count];
-        final StringBuilder builder = new StringBuilder();
-        int res = 0;
-        for (int i = 0; i < s.length(); i++) {
-            if (s.charAt(i) == c) {
-                if (builder.length() > 0) {
-                    result[res++] = builder.toString();
-                    builder.setLength(0);
-                }
-
-            } else {
-                builder.append(s.charAt(i));
-            }
-        }
-        if (builder.length() > 0) {
-            result[res++] = builder.toString();
-        }
-        if (res != count) {
-            // we have empty strings, copy over to a new array
-            String[] result1 = new String[res];
-            System.arraycopy(result, 0, result1, 0, res);
-            return result1;
         }
         return result;
     }
@@ -645,41 +580,6 @@ public class Strings {
         String beforeDelimiter = toSplit.substring(0, offset);
         String afterDelimiter = toSplit.substring(offset + delimiter.length());
         return new String[]{beforeDelimiter, afterDelimiter};
-    }
-
-    /**
-     * Take an array Strings and split each element based on the given delimiter.
-     * A <code>Properties</code> instance is then generated, with the left of the
-     * delimiter providing the key, and the right of the delimiter providing the value.
-     * <p>Will trim both the key and value before adding them to the
-     * <code>Properties</code> instance.
-     *
-     * @param array         the array to process
-     * @param delimiter     to split each element using (typically the equals symbol)
-     * @param charsToDelete one or more characters to remove from each element
-     *                      prior to attempting the split operation (typically the quotation mark
-     *                      symbol), or <code>null</code> if no removal should occur
-     * @return a <code>Properties</code> instance representing the array contents,
-     *         or <code>null</code> if the array to process was <code>null</code> or empty
-     */
-    public static Properties splitArrayElementsIntoProperties(
-            String[] array, String delimiter, String charsToDelete) {
-
-        if (isEmpty(array)) {
-            return null;
-        }
-        Properties result = new Properties();
-        for (String element : array) {
-            if (charsToDelete != null) {
-                element = deleteAny(element, charsToDelete);
-            }
-            String[] splittedElement = split(element, delimiter);
-            if (splittedElement == null) {
-                continue;
-            }
-            result.setProperty(splittedElement[0].trim(), splittedElement[1].trim());
-        }
-        return result;
     }
 
     /**
@@ -928,85 +828,6 @@ public class Strings {
                 return p.substring(0, ix) + fraction + suffix;
             }
         }
-    }
-
-    public static String toCamelCase(String value) {
-        return toCamelCase(value, null);
-    }
-
-    public static String toCamelCase(String value, StringBuilder sb) {
-        boolean changed = false;
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            //e.g. _name stays as-is, _first_name becomes _firstName
-            if (c == '_' && i > 0) {
-                if (!changed) {
-                    if (sb != null) {
-                        sb.setLength(0);
-                    } else {
-                        sb = new StringBuilder();
-                    }
-                    // copy it over here
-                    for (int j = 0; j < i; j++) {
-                        sb.append(value.charAt(j));
-                    }
-                    changed = true;
-                }
-                if (i < value.length() - 1) {
-                    sb.append(Character.toUpperCase(value.charAt(++i)));
-                }
-            } else {
-                if (changed) {
-                    sb.append(c);
-                }
-            }
-        }
-        if (!changed) {
-            return value;
-        }
-        return sb.toString();
-    }
-
-    public static String toUnderscoreCase(String value) {
-        return toUnderscoreCase(value, null);
-    }
-
-    public static String toUnderscoreCase(String value, StringBuilder sb) {
-        boolean changed = false;
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (Character.isUpperCase(c)) {
-                if (!changed) {
-                    if (sb != null) {
-                        sb.setLength(0);
-                    } else {
-                        sb = new StringBuilder();
-                    }
-                    // copy it over here
-                    for (int j = 0; j < i; j++) {
-                        sb.append(value.charAt(j));
-                    }
-                    changed = true;
-                    if (i == 0) {
-                        sb.append(Character.toLowerCase(c));
-                    } else {
-                        sb.append('_');
-                        sb.append(Character.toLowerCase(c));
-                    }
-                } else {
-                    sb.append('_');
-                    sb.append(Character.toLowerCase(c));
-                }
-            } else {
-                if (changed) {
-                    sb.append(c);
-                }
-            }
-        }
-        if (!changed) {
-            return value;
-        }
-        return sb.toString();
     }
 
     /**

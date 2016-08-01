@@ -19,14 +19,18 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ThreadContextTests extends ESTestCase {
@@ -35,7 +39,7 @@ public class ThreadContextTests extends ESTestCase {
         Settings build = Settings.builder().put("request.headers.default", "1").build();
         ThreadContext threadContext = new ThreadContext(build);
         threadContext.putHeader("foo", "bar");
-        threadContext.putTransient("ctx.foo", new Integer(1));
+        threadContext.putTransient("ctx.foo", 1);
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(new Integer(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
@@ -46,7 +50,7 @@ public class ThreadContextTests extends ESTestCase {
         }
 
         assertEquals("bar", threadContext.getHeader("foo"));
-        assertEquals(new Integer(1), threadContext.getTransient("ctx.foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
     }
 
@@ -54,7 +58,7 @@ public class ThreadContextTests extends ESTestCase {
         Settings build = Settings.builder().put("request.headers.default", "1").build();
         ThreadContext threadContext = new ThreadContext(build);
         threadContext.putHeader("foo", "bar");
-        threadContext.putTransient("ctx.foo", new Integer(1));
+        threadContext.putTransient("ctx.foo", 1);
         assertEquals("bar", threadContext.getHeader("foo"));
         assertEquals(new Integer(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
@@ -70,7 +74,7 @@ public class ThreadContextTests extends ESTestCase {
 
         assertNull(threadContext.getHeader("simon"));
         assertEquals("bar", threadContext.getHeader("foo"));
-        assertEquals(new Integer(1), threadContext.getTransient("ctx.foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
     }
 
@@ -78,9 +82,9 @@ public class ThreadContextTests extends ESTestCase {
         Settings build = Settings.builder().put("request.headers.default", "1").build();
         ThreadContext threadContext = new ThreadContext(build);
         threadContext.putHeader("foo", "bar");
-        threadContext.putTransient("ctx.foo", new Integer(1));
+        threadContext.putTransient("ctx.foo", 1);
         assertEquals("bar", threadContext.getHeader("foo"));
-        assertEquals(new Integer(1), threadContext.getTransient("ctx.foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
         ThreadContext.StoredContext storedContext = threadContext.newStoredContext();
         threadContext.putHeader("foo.bar", "baz");
@@ -91,7 +95,7 @@ public class ThreadContextTests extends ESTestCase {
         }
 
         assertEquals("bar", threadContext.getHeader("foo"));
-        assertEquals(new Integer(1), threadContext.getTransient("ctx.foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
         assertEquals("baz", threadContext.getHeader("foo.bar"));
         if (randomBoolean()) {
@@ -100,9 +104,42 @@ public class ThreadContextTests extends ESTestCase {
             storedContext.close();
         }
         assertEquals("bar", threadContext.getHeader("foo"));
-        assertEquals(new Integer(1), threadContext.getTransient("ctx.foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
         assertNull(threadContext.getHeader("foo.bar"));
+    }
+
+    public void testResponseHeaders() {
+        final boolean expectThird = randomBoolean();
+
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        threadContext.addResponseHeader("foo", "bar");
+        // pretend that another thread created the same response
+        if (randomBoolean()) {
+            threadContext.addResponseHeader("foo", "bar");
+        }
+
+        threadContext.addResponseHeader("Warning", "One is the loneliest number");
+        threadContext.addResponseHeader("Warning", "Two can be as bad as one");
+        if (expectThird) {
+            threadContext.addResponseHeader("Warning", "No is the saddest experience");
+        }
+
+        final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+        final List<String> foo = responseHeaders.get("foo");
+        final List<String> warnings = responseHeaders.get("Warning");
+        final int expectedWarnings = expectThird ? 3 : 2;
+
+        assertThat(foo, hasSize(1));
+        assertEquals("bar", foo.get(0));
+        assertThat(warnings, hasSize(expectedWarnings));
+        assertThat(warnings, hasItem(equalTo("One is the loneliest number")));
+        assertThat(warnings, hasItem(equalTo("Two can be as bad as one")));
+
+        if (expectThird) {
+            assertThat(warnings, hasItem(equalTo("No is the saddest experience")));
+        }
     }
 
     public void testCopyHeaders() {
@@ -117,7 +154,7 @@ public class ThreadContextTests extends ESTestCase {
         Settings build = Settings.builder().put("request.headers.default", "1").build();
         ThreadContext threadContext = new ThreadContext(build);
         threadContext.putHeader("foo", "bar");
-        threadContext.putTransient("ctx.foo", new Integer(1));
+        threadContext.putTransient("ctx.foo", 1);
 
         threadContext.close();
         try {
@@ -146,20 +183,35 @@ public class ThreadContextTests extends ESTestCase {
         Settings build = Settings.builder().put("request.headers.default", "1").build();
         ThreadContext threadContext = new ThreadContext(build);
         threadContext.putHeader("foo", "bar");
-        threadContext.putTransient("ctx.foo", new Integer(1));
+        threadContext.putTransient("ctx.foo", 1);
+        threadContext.addResponseHeader("Warning", "123456");
+        if (rarely()) {
+            threadContext.addResponseHeader("Warning", "123456");
+        }
+        threadContext.addResponseHeader("Warning", "234567");
+
         BytesStreamOutput out = new BytesStreamOutput();
         threadContext.writeTo(out);
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
             assertNull(threadContext.getHeader("foo"));
             assertNull(threadContext.getTransient("ctx.foo"));
+            assertTrue(threadContext.getResponseHeaders().isEmpty());
             assertEquals("1", threadContext.getHeader("default"));
 
-            threadContext.readHeaders(StreamInput.wrap(out.bytes()));
+            threadContext.readHeaders(out.bytes().streamInput());
             assertEquals("bar", threadContext.getHeader("foo"));
             assertNull(threadContext.getTransient("ctx.foo"));
+
+            final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
+            final List<String> warnings = responseHeaders.get("Warning");
+
+            assertThat(responseHeaders.keySet(), hasSize(1));
+            assertThat(warnings, hasSize(2));
+            assertThat(warnings, hasItem(equalTo("123456")));
+            assertThat(warnings, hasItem(equalTo("234567")));
         }
         assertEquals("bar", threadContext.getHeader("foo"));
-        assertEquals(new Integer(1), threadContext.getTransient("ctx.foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.foo"));
         assertEquals("1", threadContext.getHeader("default"));
     }
 
@@ -169,30 +221,44 @@ public class ThreadContextTests extends ESTestCase {
             Settings build = Settings.builder().put("request.headers.default", "1").build();
             ThreadContext threadContext = new ThreadContext(build);
             threadContext.putHeader("foo", "bar");
-            threadContext.putTransient("ctx.foo", new Integer(1));
+            threadContext.putTransient("ctx.foo", 1);
+            threadContext.addResponseHeader("Warning", "123456");
+            if (rarely()) {
+                threadContext.addResponseHeader("Warning", "123456");
+            }
+            threadContext.addResponseHeader("Warning", "234567");
 
             assertEquals("bar", threadContext.getHeader("foo"));
             assertNotNull(threadContext.getTransient("ctx.foo"));
             assertEquals("1", threadContext.getHeader("default"));
+            assertThat(threadContext.getResponseHeaders().keySet(), hasSize(1));
             threadContext.writeTo(out);
         }
         {
             Settings otherSettings = Settings.builder().put("request.headers.default", "5").build();
-            ThreadContext otherhreadContext = new ThreadContext(otherSettings);
-            otherhreadContext.readHeaders(StreamInput.wrap(out.bytes()));
+            ThreadContext otherThreadContext = new ThreadContext(otherSettings);
+            otherThreadContext.readHeaders(out.bytes().streamInput());
 
-            assertEquals("bar", otherhreadContext.getHeader("foo"));
-            assertNull(otherhreadContext.getTransient("ctx.foo"));
-            assertEquals("1", otherhreadContext.getHeader("default"));
+            assertEquals("bar", otherThreadContext.getHeader("foo"));
+            assertNull(otherThreadContext.getTransient("ctx.foo"));
+            assertEquals("1", otherThreadContext.getHeader("default"));
+
+            final Map<String, List<String>> responseHeaders = otherThreadContext.getResponseHeaders();
+            final List<String> warnings = responseHeaders.get("Warning");
+
+            assertThat(responseHeaders.keySet(), hasSize(1));
+            assertThat(warnings, hasSize(2));
+            assertThat(warnings, hasItem(equalTo("123456")));
+            assertThat(warnings, hasItem(equalTo("234567")));
         }
     }
-    
+
     public void testSerializeInDifferentContextNoDefaults() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         {
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             threadContext.putHeader("foo", "bar");
-            threadContext.putTransient("ctx.foo", new Integer(1));
+            threadContext.putTransient("ctx.foo", 1);
 
             assertEquals("bar", threadContext.getHeader("foo"));
             assertNotNull(threadContext.getTransient("ctx.foo"));
@@ -202,14 +268,13 @@ public class ThreadContextTests extends ESTestCase {
         {
             Settings otherSettings = Settings.builder().put("request.headers.default", "5").build();
             ThreadContext otherhreadContext = new ThreadContext(otherSettings);
-            otherhreadContext.readHeaders(StreamInput.wrap(out.bytes()));
+            otherhreadContext.readHeaders(out.bytes().streamInput());
 
             assertEquals("bar", otherhreadContext.getHeader("foo"));
             assertNull(otherhreadContext.getTransient("ctx.foo"));
             assertEquals("5", otherhreadContext.getHeader("default"));
         }
     }
-
 
     public void testCanResetDefault() {
         Settings build = Settings.builder().put("request.headers.default", "1").build();
@@ -294,8 +359,8 @@ public class ThreadContextTests extends ESTestCase {
         }
         return new AbstractRunnable() {
             @Override
-            public void onFailure(Throwable t) {
-                throw new RuntimeException(t);
+            public void onFailure(Exception e) {
+                throw new RuntimeException(e);
             }
 
             @Override

@@ -29,11 +29,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -71,7 +69,7 @@ public class ESTestCaseTests extends ESTestCase {
         Map<String, Object> randomStringObjectMap = randomStringObjectMap(5);
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.map(randomStringObjectMap);
-        XContentBuilder shuffleXContent = shuffleXContent(builder, Collections.emptySet());
+        XContentBuilder shuffleXContent = shuffleXContent(builder);
         XContentParser parser = XContentFactory.xContent(shuffleXContent.bytes()).createParser(shuffleXContent.bytes());
         Map<String, Object> resultMap = parser.map();
         assertEquals("both maps should contain the same mappings", randomStringObjectMap, resultMap);

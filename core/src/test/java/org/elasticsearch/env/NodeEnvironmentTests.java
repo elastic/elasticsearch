@@ -51,6 +51,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.not;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
 public class NodeEnvironmentTests extends ESTestCase {
@@ -73,10 +74,10 @@ public class NodeEnvironmentTests extends ESTestCase {
     }
 
     public void testNodeLockSingleEnvironment() throws IOException {
-        NodeEnvironment env = newNodeEnvironment(Settings.builder()
-                .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 1).build());
-        Settings settings = env.getSettings();
-        List<String> dataPaths = Environment.PATH_DATA_SETTING.get(env.getSettings());
+        final Settings settings = buildEnvSettings(Settings.builder()
+            .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 1).build());
+        NodeEnvironment env = newNodeEnvironment(settings);
+        List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
 
         try {
             // Reuse the same location and attempt to lock again
@@ -120,9 +121,10 @@ public class NodeEnvironmentTests extends ESTestCase {
     }
 
     public void testNodeLockMultipleEnvironment() throws IOException {
-        final NodeEnvironment first = newNodeEnvironment();
-        List<String> dataPaths = Environment.PATH_DATA_SETTING.get(first.getSettings());
-        NodeEnvironment second = new NodeEnvironment(first.getSettings(), new Environment(first.getSettings()));
+        final Settings settings = buildEnvSettings(Settings.EMPTY);
+        final NodeEnvironment first = newNodeEnvironment(settings);
+        List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
+        NodeEnvironment second = new NodeEnvironment(settings, new Environment(settings));
         assertEquals(first.nodeDataPaths().length, dataPaths.size());
         assertEquals(second.nodeDataPaths().length, dataPaths.size());
         for (int i = 0; i < dataPaths.size(); i++) {
@@ -266,9 +268,9 @@ public class NodeEnvironmentTests extends ESTestCase {
         if (randomBoolean()) {
             Thread t = new Thread(new AbstractRunnable() {
                 @Override
-                public void onFailure(Throwable t) {
-                    logger.error("unexpected error", t);
-                    threadException.set(t);
+                public void onFailure(Exception e) {
+                    logger.error("unexpected error", e);
+                    threadException.set(e);
                     latch.countDown();
                     blockLatch.countDown();
                 }
@@ -382,26 +384,89 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
                 env.availableShardPaths(sid),
-                equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/" + index.getUUID() + "/0")));
+                equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID() + "/0")));
 
         assertThat("index paths uses the regular template",
-                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/" + index.getUUID())));
+                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID())));
 
-        env.close();
-        NodeEnvironment env2 = newNodeEnvironment(dataPaths, "/tmp",
-                Settings.builder().put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH.getKey(), false).build());
+        IndexSettings s3 = new IndexSettings(s2.getIndexMetaData(),
+                Settings.builder().put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), false).build());
 
-        assertThat(env2.availableShardPaths(sid), equalTo(env2.availableShardPaths(sid)));
-        assertThat(env2.resolveCustomLocation(s2, sid), equalTo(PathUtils.get("/tmp/foo/" + index.getUUID() + "/0")));
+        assertThat(env.availableShardPaths(sid), equalTo(env.availableShardPaths(sid)));
+        assertThat(env.resolveCustomLocation(s3, sid), equalTo(PathUtils.get("/tmp/foo/" + index.getUUID() + "/0")));
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
-                env2.availableShardPaths(sid),
-                equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/" + index.getUUID() + "/0")));
+                env.availableShardPaths(sid),
+                equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID() + "/0")));
 
         assertThat("index paths uses the regular template",
-                env2.indexPaths(index), equalTo(stringsToPaths(dataPaths, "elasticsearch/nodes/0/indices/" + index.getUUID())));
+                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID())));
 
-        env2.close();
+        env.close();
+    }
+
+    public void testWhetherClusterFolderShouldBeUsed() throws Exception {
+        Path tempNoCluster = createTempDir();
+        Path tempDataPath = tempNoCluster.toAbsolutePath();
+
+        Path tempPath = tempNoCluster.resolve("foo"); // "foo" is the cluster name
+        Path tempClusterPath = tempPath.toAbsolutePath();
+
+        assertFalse("non-existent directory should not be used", NodeEnvironment.readFromDataPathWithClusterName(tempPath));
+        Settings settings = Settings.builder()
+                .put("cluster.name", "foo")
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+                .put(Environment.PATH_DATA_SETTING.getKey(), tempDataPath.toString()).build();
+        try (NodeEnvironment env = new NodeEnvironment(settings, new Environment(settings))) {
+            Path nodeDataPath = env.nodeDataPaths()[0];
+            assertEquals(nodeDataPath, tempDataPath.resolve("nodes").resolve("0"));
+        }
+        IOUtils.rm(tempNoCluster);
+
+        Files.createDirectories(tempPath);
+        assertFalse("empty directory should not be read from", NodeEnvironment.readFromDataPathWithClusterName(tempPath));
+        settings = Settings.builder()
+                .put("cluster.name", "foo")
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+                .put(Environment.PATH_DATA_SETTING.getKey(), tempDataPath.toString()).build();
+        try (NodeEnvironment env = new NodeEnvironment(settings, new Environment(settings))) {
+            Path nodeDataPath = env.nodeDataPaths()[0];
+            assertEquals(nodeDataPath, tempDataPath.resolve("nodes").resolve("0"));
+        }
+        IOUtils.rm(tempNoCluster);
+
+        // Create a directory for the cluster name
+        Files.createDirectories(tempPath.resolve(NodeEnvironment.NODES_FOLDER));
+        assertTrue("there is data in the directory", NodeEnvironment.readFromDataPathWithClusterName(tempPath));
+        settings = Settings.builder()
+                .put("cluster.name", "foo")
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+                .put(Environment.PATH_DATA_SETTING.getKey(), tempClusterPath.toString()).build();
+        try (NodeEnvironment env = new NodeEnvironment(settings, new Environment(settings))) {
+            Path nodeDataPath = env.nodeDataPaths()[0];
+            assertEquals(nodeDataPath, tempClusterPath.resolve("nodes").resolve("0"));
+        }
+    }
+
+    public void testPersistentNodeId() throws IOException {
+        String[] paths = tmpPaths();
+        NodeEnvironment env = newNodeEnvironment(paths, Settings.builder()
+            .put("node.local_storage", false)
+            .put("node.master", false)
+            .put("node.data", false)
+            .build());
+        String nodeID = env.nodeId();
+        env.close();
+        env = newNodeEnvironment(paths, Settings.EMPTY);
+        assertThat("previous node didn't have local storage enabled, id should change", env.nodeId(), not(equalTo(nodeID)));
+        nodeID = env.nodeId();
+        env.close();
+        env = newNodeEnvironment(paths, Settings.EMPTY);
+        assertThat(env.nodeId(), equalTo(nodeID));
+        env.close();
+        env = newNodeEnvironment(Settings.EMPTY);
+        assertThat(env.nodeId(), not(equalTo(nodeID)));
+        env.close();
     }
 
     /** Converts an array of Strings to an array of Paths, adding an additional child if specified */
@@ -430,11 +495,15 @@ public class NodeEnvironmentTests extends ESTestCase {
 
     @Override
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
-        Settings build = Settings.builder()
-                .put(settings)
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .putArray(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
+        Settings build = buildEnvSettings(settings);
         return new NodeEnvironment(build, new Environment(build));
+    }
+
+    public Settings buildEnvSettings(Settings settings) {
+        return Settings.builder()
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+                    .putArray(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
+                    .put(settings).build();
     }
 
     public NodeEnvironment newNodeEnvironment(String[] dataPaths, Settings settings) throws IOException {

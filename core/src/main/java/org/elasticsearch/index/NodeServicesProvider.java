@@ -20,6 +20,7 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -40,15 +41,19 @@ public final class NodeServicesProvider {
     private final IndicesQueriesRegistry indicesQueriesRegistry;
     private final ScriptService scriptService;
     private final CircuitBreakerService circuitBreakerService;
+    private final ClusterService clusterService;
 
     @Inject
-    public NodeServicesProvider(ThreadPool threadPool, BigArrays bigArrays, Client client, ScriptService scriptService, IndicesQueriesRegistry indicesQueriesRegistry, CircuitBreakerService circuitBreakerService) {
+    public NodeServicesProvider(ThreadPool threadPool, BigArrays bigArrays, Client client, ScriptService scriptService,
+                                IndicesQueriesRegistry indicesQueriesRegistry, CircuitBreakerService circuitBreakerService,
+                                ClusterService clusterService) {
         this.threadPool = threadPool;
         this.bigArrays = bigArrays;
         this.client = client;
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.scriptService = scriptService;
         this.circuitBreakerService = circuitBreakerService;
+        this.clusterService = clusterService;
     }
 
     public ThreadPool getThreadPool() {
@@ -71,5 +76,9 @@ public final class NodeServicesProvider {
 
     public CircuitBreakerService getCircuitBreakerService() {
         return circuitBreakerService;
+    }
+
+    public ClusterService getClusterService() {
+        return clusterService;
     }
 }

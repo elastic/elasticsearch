@@ -130,7 +130,7 @@ public class Retry {
         }
 
         @Override
-        public void onFailure(Throwable e) {
+        public void onFailure(Exception e) {
             try {
                 listener.onFailure(e);
             } finally {
@@ -163,8 +163,8 @@ public class Retry {
             }
             for (BulkItemResponse bulkItemResponse : bulkItemResponses) {
                 if (bulkItemResponse.isFailed()) {
-                    Throwable cause = bulkItemResponse.getFailure().getCause();
-                    Throwable rootCause = ExceptionsHelper.unwrapCause(cause);
+                    final Throwable cause = bulkItemResponse.getFailure().getCause();
+                    final Throwable rootCause = ExceptionsHelper.unwrapCause(cause);
                     if (!rootCause.getClass().equals(retryOnThrowable)) {
                         return false;
                     }

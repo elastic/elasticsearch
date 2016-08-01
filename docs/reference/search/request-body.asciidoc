@@ -55,7 +55,7 @@ And here is a sample response:
 
 `from`::
 
-    The starting from index of the hits to return. Defaults to `0`.
+    To retrieve hits from a certain offset. Defaults to `0`.
 
 `size`::
 
@@ -143,11 +143,11 @@ include::request/sort.asciidoc[]
 
 include::request/source-filtering.asciidoc[]
 
-include::request/fields.asciidoc[]
+include::request/stored-fields.asciidoc[]
 
 include::request/script-fields.asciidoc[]
 
-include::request/fielddata-fields.asciidoc[]
+include::request/docvalue-fields.asciidoc[]
 
 include::request/post-filter.asciidoc[]
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.bytes.BytesReference;
-
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,6 +32,8 @@ public interface XContentGenerator extends Closeable {
     XContentType contentType();
 
     void usePrettyPrint();
+
+    boolean isPrettyPrint();
 
     void usePrintLineFeedAtEnd();
 

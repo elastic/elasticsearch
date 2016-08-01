@@ -37,15 +37,13 @@ import org.elasticsearch.transport.TransportService;
 public class TransportMainAction extends HandledTransportAction<MainRequest, MainResponse> {
 
     private final ClusterService clusterService;
-    private final Version version;
 
     @Inject
     public TransportMainAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ClusterService clusterService, Version version) {
+                               ClusterService clusterService) {
         super(settings, MainAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MainRequest::new);
         this.clusterService = clusterService;
-        this.version = version;
     }
 
     @Override
@@ -54,6 +52,7 @@ public class TransportMainAction extends HandledTransportAction<MainRequest, Mai
         assert Node.NODE_NAME_SETTING.exists(settings);
         final boolean available = clusterState.getBlocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE) == false;
         listener.onResponse(
-            new MainResponse(Node.NODE_NAME_SETTING.get(settings), version, clusterState.getClusterName(), Build.CURRENT, available));
+            new MainResponse(Node.NODE_NAME_SETTING.get(settings), Version.CURRENT, clusterState.getClusterName(), Build.CURRENT,
+                available));
     }
 }

@@ -126,14 +126,28 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testNullValue() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "keyword").field("null_value", "uri").endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "keyword").endObject().endObject()
                 .endObject().endObject().string();
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
-
         assertEquals(mapping, mapper.mappingSource().toString());
 
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .nullField("field")
+                .endObject()
+                .bytes());
+        assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "keyword").field("null_value", "uri").endObject().endObject()
+                .endObject().endObject().string();
+
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+
+        assertEquals(mapping, mapper.mappingSource().toString());
+
+        doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .endObject()
                 .bytes());

@@ -25,6 +25,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
@@ -59,7 +60,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
     }
 
     public void testIllegalArgument() {
-        expectThrows(IllegalArgumentException.class, () -> new SpanMultiTermQueryBuilder((MultiTermQueryBuilder<?>) null));
+        expectThrows(IllegalArgumentException.class, () -> new SpanMultiTermQueryBuilder((MultiTermQueryBuilder) null));
     }
 
     /**
@@ -90,18 +91,18 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"span_multi\" : {\n" + 
-                "    \"match\" : {\n" + 
-                "      \"prefix\" : {\n" + 
-                "        \"user\" : {\n" + 
-                "          \"value\" : \"ki\",\n" + 
-                "          \"boost\" : 1.08\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    },\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"span_multi\" : {\n" +
+                "    \"match\" : {\n" +
+                "      \"prefix\" : {\n" +
+                "        \"user\" : {\n" +
+                "          \"value\" : \"ki\",\n" +
+                "          \"boost\" : 1.08\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
 
         SpanMultiTermQueryBuilder parsed = (SpanMultiTermQueryBuilder) parseQuery(json);

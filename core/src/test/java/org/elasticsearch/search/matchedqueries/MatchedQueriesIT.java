@@ -252,7 +252,6 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         }
     }
 
-    @SuppressWarnings("deprecation") // fuzzy queries will be removed in 4.0
     public void testFuzzyQuerySupportsName() {
         createIndex("test1");
         ensureGreen();
@@ -363,8 +362,8 @@ public class MatchedQueriesIT extends ESIntegTestCase {
         refresh();
 
         QueryBuilder[] queries = new QueryBuilder[]{
-                wrapperQuery(matchQuery("content", "amet").queryName("abc").buildAsBytes().toUtf8()),
-                constantScoreQuery(wrapperQuery(termQuery("content", "amet").queryName("abc").buildAsBytes().toUtf8()))
+                wrapperQuery(matchQuery("content", "amet").queryName("abc").buildAsBytes().utf8ToString()),
+                constantScoreQuery(wrapperQuery(termQuery("content", "amet").queryName("abc").buildAsBytes().utf8ToString()))
         };
         for (QueryBuilder query : queries) {
             SearchResponse searchResponse = client().prepareSearch()

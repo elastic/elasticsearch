@@ -25,7 +25,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.property.PropertyPlaceholder;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -58,13 +57,12 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.Strings.toCamelCase;
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
@@ -77,23 +75,11 @@ public final class Settings implements ToXContent {
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
 
-    private final Map<String, String> forcedUnderscoreSettings;
     private SortedMap<String, String> settings;
 
     Settings(Map<String, String> settings) {
         // we use a sorted map for consistent serialization when using getAsMap()
         this.settings = Collections.unmodifiableSortedMap(new TreeMap<>(settings));
-        Map<String, String> forcedUnderscoreSettings = null;
-        for (Map.Entry<String, String> entry : settings.entrySet()) {
-            String toUnderscoreCase = Strings.toUnderscoreCase(entry.getKey());
-            if (!toUnderscoreCase.equals(entry.getKey())) {
-                if (forcedUnderscoreSettings == null) {
-                    forcedUnderscoreSettings = new HashMap<>();
-                }
-                forcedUnderscoreSettings.put(toUnderscoreCase, entry.getValue());
-            }
-        }
-        this.forcedUnderscoreSettings = forcedUnderscoreSettings == null ? emptyMap() : unmodifiableMap(forcedUnderscoreSettings);
     }
 
     /**
@@ -240,11 +226,7 @@ public final class Settings implements ToXContent {
      * @return The setting value, <tt>null</tt> if it does not exists.
      */
     public String get(String setting) {
-        String retVal = settings.get(setting);
-        if (retVal != null) {
-            return retVal;
-        }
-        return forcedUnderscoreSettings.get(setting);
+        return settings.get(setting);
     }
 
     /**
@@ -473,7 +455,8 @@ public final class Settings implements ToXContent {
                     if (ignoreNonGrouped) {
                         continue;
                     }
-                    throw new SettingsException("Failed to get setting group for [" + settingPrefix + "] setting prefix and setting [" + setting + "] because of a missing '.'");
+                    throw new SettingsException("Failed to get setting group for [" + settingPrefix + "] setting prefix and setting ["
+                            + setting + "] because of a missing '.'");
                 }
                 String name = nameValue.substring(0, dotIndex);
                 String value = nameValue.substring(dotIndex + 1);
@@ -637,12 +620,7 @@ public final class Settings implements ToXContent {
          * Returns a setting value based on the setting key.
          */
         public String get(String key) {
-            String retVal = map.get(key);
-            if (retVal != null) {
-                return retVal;
-            }
-            // try camel case version
-            return map.get(toCamelCase(key));
+            return map.get(key);
         }
 
         /**
@@ -660,7 +638,8 @@ public final class Settings implements ToXContent {
                 }
             }
             if ((settings.length % 2) != 0) {
-                throw new IllegalArgumentException("array settings of key + value order doesn't hold correct number of arguments (" + settings.length + ")");
+                throw new IllegalArgumentException(
+                        "array settings of key + value order doesn't hold correct number of arguments (" + settings.length + ")");
             }
             for (int i = 0; i < settings.length; i++) {
                 put(settings[i++].toString(), settings[i].toString());
@@ -921,18 +900,6 @@ public final class Settings implements ToXContent {
             return this;
         }
 
-        public Builder loadFromDelimitedString(String value, char delimiter) {
-            String[] values = Strings.splitStringToArray(value, delimiter);
-            for (String s : values) {
-                int index = s.indexOf('=');
-                if (index == -1) {
-                    throw new IllegalArgumentException("value [" + s + "] for settings loaded with delimiter [" + delimiter + "] is malformed, missing =");
-                }
-                map.put(s.substring(0, index), s.substring(index + 1));
-            }
-            return this;
-        }
-
         /**
          * Loads settings from the actual string content that represents them using the
          * {@link SettingsLoaderFactory#loaderFromSource(String)}.
@@ -952,120 +919,87 @@ public final class Settings implements ToXContent {
          * Loads settings from a url that represents them using the
          * {@link SettingsLoaderFactory#loaderFromSource(String)}.
          */
-        public Builder loadFromPath(Path path) throws SettingsException {
-            try {
-                return loadFromStream(path.getFileName().toString(), Files.newInputStream(path));
-            } catch (IOException e) {
-                throw new SettingsException("Failed to open stream for url [" + path + "]", e);
-            }
+        public Builder loadFromPath(Path path) throws IOException {
+            // NOTE: loadFromStream will close the input stream
+            return loadFromStream(path.getFileName().toString(), Files.newInputStream(path));
         }
 
         /**
          * Loads settings from a stream that represents them using the
          * {@link SettingsLoaderFactory#loaderFromSource(String)}.
          */
-        public Builder loadFromStream(String resourceName, InputStream is) throws SettingsException {
+        public Builder loadFromStream(String resourceName, InputStream is) throws IOException {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromResource(resourceName);
-            try {
-                Map<String, String> loadedSettings = settingsLoader.load(Streams.copyToString(new InputStreamReader(is, StandardCharsets.UTF_8)));
-                put(loadedSettings);
-            } catch (Exception e) {
-                throw new SettingsException("Failed to load settings from [" + resourceName + "]", e);
-            }
+            // NOTE: copyToString will close the input stream
+            Map<String, String> loadedSettings =
+                settingsLoader.load(Streams.copyToString(new InputStreamReader(is, StandardCharsets.UTF_8)));
+            put(loadedSettings);
             return this;
         }
 
-        /**
-         * Puts all the properties with keys starting with the provided <tt>prefix</tt>.
-         *
-         * @param prefix     The prefix to filter property key by
-         * @param properties The properties to put
-         * @return The builder
-         */
-        public Builder putProperties(String prefix, Dictionary<Object, Object> properties) {
-            for (Object property : Collections.list(properties.keys())) {
-                String key = Objects.toString(property);
-                String value = Objects.toString(properties.get(property));
-                if (key.startsWith(prefix)) {
-                    map.put(key.substring(prefix.length()), value);
+        public Builder putProperties(Map<String, String> esSettings, Predicate<String> keyPredicate, Function<String, String> keyFunction) {
+            for (final Map.Entry<String, String> esSetting : esSettings.entrySet()) {
+                final String key = esSetting.getKey();
+                if (keyPredicate.test(key)) {
+                    map.put(keyFunction.apply(key), esSetting.getValue());
                 }
             }
             return this;
         }
 
         /**
-         * Puts all the properties with keys starting with the provided <tt>prefix</tt>.
-         *
-         * @param prefix     The prefix to filter property key by
-         * @param properties The properties to put
-         * @return The builder
-         */
-        public Builder putProperties(String prefix, Dictionary<Object, Object> properties, String ignorePrefix) {
-            for (Object property : Collections.list(properties.keys())) {
-                String key = Objects.toString(property);
-                String value = Objects.toString(properties.get(property));
-                if (key.startsWith(prefix)) {
-                    if (!key.startsWith(ignorePrefix)) {
-                        map.put(key.substring(prefix.length()), value);
-                    }
-                }
-            }
-            return this;
-        }
-
-        /**
-         * Runs across all the settings set on this builder and replaces <tt>${...}</tt> elements in the
-         * each setting value according to the following logic:
-         * <p>
-         * First, tries to resolve it against a System property ({@link System#getProperty(String)}), next,
-         * tries and resolve it against an environment variable ({@link System#getenv(String)}), and last, tries
-         * and replace it with another setting already set on this builder.
+         * Runs across all the settings set on this builder and
+         * replaces <tt>${...}</tt> elements in each setting with
+         * another setting already set on this builder.
          */
         public Builder replacePropertyPlaceholders() {
+            return replacePropertyPlaceholders(System::getenv);
+        }
+
+        // visible for testing
+        Builder replacePropertyPlaceholders(Function<String, String> getenv) {
             PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
             PropertyPlaceholder.PlaceholderResolver placeholderResolver = new PropertyPlaceholder.PlaceholderResolver() {
-                    @Override
-                    public String resolvePlaceholder(String placeholderName) {
-                        if (placeholderName.startsWith("env.")) {
-                            // explicit env var prefix
-                            return System.getenv(placeholderName.substring("env.".length()));
-                        }
-                        String value = System.getProperty(placeholderName);
-                        if (value != null) {
-                            return value;
-                        }
-                        value = System.getenv(placeholderName);
-                        if (value != null) {
-                            return value;
-                        }
-                        return map.get(placeholderName);
+                @Override
+                public String resolvePlaceholder(String placeholderName) {
+                    final String value = getenv.apply(placeholderName);
+                    if (value != null) {
+                        return value;
                     }
+                    return map.get(placeholderName);
+                }
 
-                    @Override
-                    public boolean shouldIgnoreMissing(String placeholderName) {
-                        // if its an explicit env var, we are ok with not having a value for it and treat it as optional
-                        if (placeholderName.startsWith("env.") || placeholderName.startsWith("prompt.")) {
-                            return true;
-                        }
-                        return false;
-                    }
-
-                    @Override
-                    public boolean shouldRemoveMissingPlaceholder(String placeholderName) {
-                        if (placeholderName.startsWith("prompt.")) {
-                            return false;
-                        }
+                @Override
+                public boolean shouldIgnoreMissing(String placeholderName) {
+                    if (placeholderName.startsWith("prompt.")) {
                         return true;
                     }
-                };
-            for (Map.Entry<String, String> entry : new HashMap<>(map).entrySet()) {
-                String value = propertyPlaceholder.replacePlaceholders(entry.getKey(), entry.getValue(), placeholderResolver);
+                    return false;
+                }
+
+                @Override
+                public boolean shouldRemoveMissingPlaceholder(String placeholderName) {
+                    if (placeholderName.startsWith("prompt.")) {
+                        return false;
+                    }
+                    return true;
+                }
+            };
+
+            Iterator<Map.Entry<String, String>> entryItr = map.entrySet().iterator();
+            while (entryItr.hasNext()) {
+                Map.Entry<String, String> entry = entryItr.next();
+                if (entry.getValue() == null) {
+                    // a null value obviously can't be replaced
+                    continue;
+                }
+                String value = propertyPlaceholder.replacePlaceholders(entry.getValue(), placeholderResolver);
                 // if the values exists and has length, we should maintain it  in the map
                 // otherwise, the replace process resolved into removing it
                 if (Strings.hasLength(value)) {
-                    map.put(entry.getKey(), value);
+                    entry.setValue(value);
                 } else {
-                    map.remove(entry.getKey());
+                    entryItr.remove();
                 }
             }
             return this;

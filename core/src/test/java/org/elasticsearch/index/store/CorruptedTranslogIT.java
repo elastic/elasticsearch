@@ -80,7 +80,6 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
                 .put("index.refresh_interval", "-1")
                 .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true) // never flush - always recover from translog
         ));
-        ensureYellow();
 
         // Index some documents
         int numDocs = scaledRandomIntBetween(100, 1000);
@@ -110,7 +109,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
 
     private void corruptRandomTranslogFiles() throws IOException {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        GroupShardsIterator shardIterators = state.getRoutingNodes().getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
+        GroupShardsIterator shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
         final Index test = state.metaData().index("test").getIndex();
         List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
         ShardIterator shardIterator = RandomPicks.randomFrom(random(), iterators);
@@ -121,7 +120,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
         String nodeId = shardRouting.currentNodeId();
         NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
         Set<Path> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
-        for (FsInfo.Path fsPath : nodeStatses.getNodes()[0].getFs()) {
+        for (FsInfo.Path fsPath : nodeStatses.getNodes().get(0).getFs()) {
             String path = fsPath.getPath();
             final String relativeDataLocationPath =  "indices/"+ test.getUUID() +"/" + Integer.toString(shardRouting.getId()) + "/translog";
             Path file = PathUtils.get(path).resolve(relativeDataLocationPath);

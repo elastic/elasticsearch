@@ -78,7 +78,7 @@ public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<Up
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 logger.debug("failed to upgrade minimum compatibility version settings on indices [{}]", t, request.versions().keySet());
                 listener.onFailure(t);
             }

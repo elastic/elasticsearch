@@ -62,7 +62,7 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
         }
     }
 
-    public static abstract class Builder<T extends Builder, Y extends Mapper> {
+    public abstract static class Builder<T extends Builder, Y extends Mapper> {
 
         public String name;
 
@@ -130,7 +130,7 @@ public abstract class Mapper implements ToXContent, Iterable<Mapper> {
             }
 
             public TypeParser typeParser(String type) {
-                return typeParsers.apply(Strings.toUnderscoreCase(type));
+                return typeParsers.apply(type);
             }
 
             public Version indexVersionCreated() {

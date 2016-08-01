@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
@@ -54,9 +55,9 @@ public class BulkRequestTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
-        assertThat(((IndexRequest) bulkRequest.requests().get(0)).source().toBytes(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }").toBytes()));
+        assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }")));
         assertThat(bulkRequest.requests().get(1), instanceOf(DeleteRequest.class));
-        assertThat(((IndexRequest) bulkRequest.requests().get(2)).source().toBytes(), equalTo(new BytesArray("{ \"field1\" : \"value3\" }").toBytes()));
+        assertThat(((IndexRequest) bulkRequest.requests().get(2)).source(), equalTo(new BytesArray("{ \"field1\" : \"value3\" }")));
     }
 
     public void testSimpleBulk2() throws Exception {
@@ -80,19 +81,19 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(bulkRequest.numberOfActions(), equalTo(4));
         assertThat(((UpdateRequest) bulkRequest.requests().get(0)).id(), equalTo("1"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(0)).retryOnConflict(), equalTo(2));
-        assertThat(((UpdateRequest) bulkRequest.requests().get(0)).doc().source().toUtf8(), equalTo("{\"field\":\"value\"}"));
+        assertThat(((UpdateRequest) bulkRequest.requests().get(0)).doc().source().utf8ToString(), equalTo("{\"field\":\"value\"}"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).id(), equalTo("0"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).type(), equalTo("type1"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).index(), equalTo("index1"));
         Script script = ((UpdateRequest) bulkRequest.requests().get(1)).script();
         assertThat(script, notNullValue());
         assertThat(script.getScript(), equalTo("counter += param1"));
-        assertThat(script.getLang(), equalTo("js"));
+        assertThat(script.getLang(), equalTo("javascript"));
         Map<String, Object> scriptParams = script.getParams();
         assertThat(scriptParams, notNullValue());
         assertThat(scriptParams.size(), equalTo(1));
         assertThat(((Integer) scriptParams.get("param1")), equalTo(1));
-        assertThat(((UpdateRequest) bulkRequest.requests().get(1)).upsertRequest().source().toUtf8(), equalTo("{\"counter\":1}"));
+        assertThat(((UpdateRequest) bulkRequest.requests().get(1)).upsertRequest().source().utf8ToString(), equalTo("{\"counter\":1}"));
     }
 
     public void testBulkAllowExplicitIndex() throws Exception {
@@ -180,22 +181,22 @@ public class BulkRequestTests extends ESTestCase {
     public void testBulkRequestWithRefresh() throws Exception {
         BulkRequest bulkRequest = new BulkRequest();
         // We force here a "id is missing" validation error
-        bulkRequest.add(new DeleteRequest("index", "type", null).refresh(true));
+        bulkRequest.add(new DeleteRequest("index", "type", null).setRefreshPolicy(RefreshPolicy.IMMEDIATE));
         // We force here a "type is missing" validation error
         bulkRequest.add(new DeleteRequest("index", null, "id"));
-        bulkRequest.add(new DeleteRequest("index", "type", "id").refresh(true));
-        bulkRequest.add(new UpdateRequest("index", "type", "id").doc("{}").refresh(true));
-        bulkRequest.add(new IndexRequest("index", "type", "id").source("{}").refresh(true));
+        bulkRequest.add(new DeleteRequest("index", "type", "id").setRefreshPolicy(RefreshPolicy.IMMEDIATE));
+        bulkRequest.add(new UpdateRequest("index", "type", "id").doc("{}").setRefreshPolicy(RefreshPolicy.IMMEDIATE));
+        bulkRequest.add(new IndexRequest("index", "type", "id").source("{}").setRefreshPolicy(RefreshPolicy.IMMEDIATE));
         ActionRequestValidationException validate = bulkRequest.validate();
         assertThat(validate, notNullValue());
         assertThat(validate.validationErrors(), not(empty()));
         assertThat(validate.validationErrors(), contains(
-                "Refresh is not supported on an item request, set the refresh flag on the BulkRequest instead.",
+                "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.",
                 "id is missing",
                 "type is missing",
-                "Refresh is not supported on an item request, set the refresh flag on the BulkRequest instead.",
-                "Refresh is not supported on an item request, set the refresh flag on the BulkRequest instead.",
-                "Refresh is not supported on an item request, set the refresh flag on the BulkRequest instead."));
+                "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.",
+                "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.",
+                "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead."));
     }
 
     // issue 15120
@@ -209,5 +210,12 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(validate.validationErrors(), contains(
                 "script or doc is missing",
                 "source is missing"));
+    }
+
+    public void testCannotAddNullRequests() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest();
+        expectThrows(NullPointerException.class, () -> bulkRequest.add((IndexRequest) null));
+        expectThrows(NullPointerException.class, () -> bulkRequest.add((UpdateRequest) null));
+        expectThrows(NullPointerException.class, () -> bulkRequest.add((DeleteRequest) null));
     }
 }

@@ -19,6 +19,10 @@
 
 apply plugin: 'elasticsearch.rest-test'
 
+dependencies {
+    testCompile project(path: ':modules:ingest-common', configuration: 'runtime')
+}
+
 integTest {
     cluster {
         setting 'node.ingest', 'false'

@@ -39,6 +39,10 @@ class PluginPropertiesExtension {
     @Input
     String classname
 
+    /** Indicates whether the plugin jar should be made available for the transport client. */
+    @Input
+    boolean hasClientJar = false
+
     PluginPropertiesExtension(Project project) {
         name = project.name
         version = project.version

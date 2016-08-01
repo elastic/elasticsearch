@@ -31,19 +31,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 
-/**
- *
- */
-public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
+public class MonitorService extends AbstractLifecycleComponent {
 
     private final JvmGcMonitorService jvmGcMonitorService;
-
     private final OsService osService;
-
     private final ProcessService processService;
-
     private final JvmService jvmService;
-
     private final FsService fsService;
 
     public MonitorService(Settings settings, NodeEnvironment nodeEnvironment, ThreadPool threadPool) throws IOException {
@@ -85,4 +78,5 @@ public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
     protected void doClose() {
         jvmGcMonitorService.close();
     }
+
 }

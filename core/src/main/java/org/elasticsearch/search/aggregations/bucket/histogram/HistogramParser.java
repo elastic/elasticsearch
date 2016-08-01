@@ -47,7 +47,7 @@ public class HistogramParser extends NumericValuesSourceParser {
     @Override
     protected AbstractHistogramBuilder<?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        HistogramAggregatorBuilder factory = new HistogramAggregatorBuilder(aggregationName);
+        HistogramAggregationBuilder factory = new HistogramAggregationBuilder(aggregationName);
         Long interval = (Long) otherOptions.get(Rounding.Interval.INTERVAL_FIELD);
         if (interval == null) {
             throw new ParsingException(null, "Missing required field [interval] for histogram aggregation [" + aggregationName + "]");
@@ -127,8 +127,11 @@ public class HistogramParser extends NumericValuesSourceParser {
                 otherOptions.put(HistogramAggregator.ORDER_FIELD, order);
                 return true;
             } else if (parseFieldMatcher.match(currentFieldName, ExtendedBounds.EXTENDED_BOUNDS_FIELD)) {
-                ExtendedBounds extendedBounds = ExtendedBounds.fromXContent(parser, parseFieldMatcher, aggregationName);
-                otherOptions.put(ExtendedBounds.EXTENDED_BOUNDS_FIELD, extendedBounds);
+                try {
+                    otherOptions.put(ExtendedBounds.EXTENDED_BOUNDS_FIELD, ExtendedBounds.PARSER.apply(parser, () -> parseFieldMatcher));
+                } catch (Exception e) {
+                    throw new ParsingException(parser.getTokenLocation(), "Error parsing [{}]", e, aggregationName);
+                }
                 return true;
             } else {
                 return false;

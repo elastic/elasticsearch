@@ -22,43 +22,19 @@ package org.elasticsearch.search.fetch.source;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
-import java.util.Map;
 
-import static java.util.Collections.singletonMap;
-
-/**
- */
-public class FetchSourceSubPhase implements FetchSubPhase {
-    private static final Map<String, SearchParseElement> PARSE_ELEMENTS = singletonMap("_source", new FetchSourceParseElement());
-
-    @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        return PARSE_ELEMENTS;
-    }
-
-    @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
-        return false;
-    }
-
-    @Override
-    public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
-    }
-
-    @Override
-    public boolean hitExecutionNeeded(SearchContext context) {
-        return context.sourceRequested();
-    }
+public final class FetchSourceSubPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
+        if (context.sourceRequested() == false) {
+            return;
+        }
         FetchSourceContext fetchSourceContext = context.fetchSourceContext();
         assert fetchSourceContext.fetchSource();
         if (fetchSourceContext.includes().length == 0 && fetchSourceContext.excludes().length == 0) {

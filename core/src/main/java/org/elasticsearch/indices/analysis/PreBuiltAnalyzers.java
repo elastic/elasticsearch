@@ -465,7 +465,7 @@ public enum PreBuiltAnalyzers {
         }
     };
 
-    abstract protected Analyzer create(Version version);
+    protected abstract  Analyzer create(Version version);
 
     protected final PreBuiltCacheFactory.PreBuiltCache<Analyzer> cache;
 

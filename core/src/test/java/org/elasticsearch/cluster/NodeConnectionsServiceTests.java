@@ -26,7 +26,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.test.ESTestCase;
@@ -64,7 +64,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         List<DiscoveryNode> nodes = new ArrayList<>();
         for (int i = randomIntBetween(20, 50); i > 0; i--) {
             Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values())));
-            nodes.add(new DiscoveryNode("node_" + i, "" + i, DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+            nodes.add(new DiscoveryNode("node_" + i, "" + i, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
                     roles, Version.CURRENT));
         }
         return nodes;
@@ -149,7 +149,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         this.transport = new MockTransport();
-        transportService = new TransportService(transport, THREAD_POOL);
+        transportService = new TransportService(Settings.EMPTY, transport, THREAD_POOL);
         transportService.start();
         transportService.acceptIncomingRequests();
     }
@@ -253,18 +253,12 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public Transport start() {
-            return null;
-        }
+        public void start() {}
 
         @Override
-        public Transport stop() {
-            return null;
-        }
+        public void stop() {}
 
         @Override
-        public void close() {
-
-        }
+        public void close() {}
     }
 }

@@ -39,6 +39,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     private boolean http = true;
     private boolean plugins = true;
     private boolean ingest = true;
+    private boolean indices = true;
 
     public NodesInfoRequest() {
     }
@@ -64,6 +65,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         http = false;
         plugins = false;
         ingest = false;
+        indices = false;
         return this;
     }
 
@@ -80,6 +82,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         http = true;
         plugins = true;
         ingest = true;
+        indices = true;
         return this;
     }
 
@@ -221,6 +224,22 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         return ingest;
     }
 
+    /**
+     * Should information about indices (currently just indexing buffers) be returned
+     * @param indices true if you want info
+     */
+    public NodesInfoRequest indices(boolean indices) {
+        this.indices = indices;
+        return this;
+    }
+
+    /**
+     * @return true if information about indices (currently just indexing buffers)
+     */
+    public boolean indices() {
+        return indices;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -233,6 +252,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         http = in.readBoolean();
         plugins = in.readBoolean();
         ingest = in.readBoolean();
+        indices = in.readBoolean();
     }
 
     @Override
@@ -247,5 +267,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         out.writeBoolean(http);
         out.writeBoolean(plugins);
         out.writeBoolean(ingest);
+        out.writeBoolean(indices);
     }
 }

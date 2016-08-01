@@ -25,12 +25,10 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
@@ -43,28 +41,9 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class DerivativePipelineAggregator extends PipelineAggregator {
-
-    public final static Type TYPE = new Type("derivative");
-
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
-        @Override
-        public DerivativePipelineAggregator readResult(StreamInput in) throws IOException {
-            DerivativePipelineAggregator result = new DerivativePipelineAggregator();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    private DocValueFormat formatter;
-    private GapPolicy gapPolicy;
-    private Double xAxisUnits;
-
-    public DerivativePipelineAggregator() {
-    }
+    private final DocValueFormat formatter;
+    private final GapPolicy gapPolicy;
+    private final Double xAxisUnits;
 
     public DerivativePipelineAggregator(String name, String[] bucketsPaths, DocValueFormat formatter, GapPolicy gapPolicy, Long xAxisUnits,
             Map<String, Object> metadata) {
@@ -74,9 +53,26 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         this.xAxisUnits = xAxisUnits == null ? null : (double) xAxisUnits;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public DerivativePipelineAggregator(StreamInput in) throws IOException {
+        super(in);
+        formatter = in.readNamedWriteable(DocValueFormat.class);
+        gapPolicy = GapPolicy.readFrom(in);
+        xAxisUnits = in.readOptionalDouble();
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    public void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(formatter);
+        gapPolicy.writeTo(out);
+        out.writeOptionalDouble(xAxisUnits);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return DerivativePipelineAggregationBuilder.NAME;
     }
 
     @Override
@@ -122,29 +118,6 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
         } else {
             throw new AggregationExecutionException("InternalBucket keys must be either a Number or a DateTime for aggregation " + name()
                     + ". Found bucket with key " + key);
-        }
-    }
-
-    @Override
-    public void doReadFrom(StreamInput in) throws IOException {
-        formatter = in.readNamedWriteable(DocValueFormat.class);
-        gapPolicy = GapPolicy.readFrom(in);
-        if (in.readBoolean()) {
-            xAxisUnits = in.readDouble();
-        } else {
-            xAxisUnits = null;
-
-        }
-    }
-
-    @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(formatter);
-        gapPolicy.writeTo(out);
-        boolean hasXAxisUnitsValue = xAxisUnits != null;
-        out.writeBoolean(hasXAxisUnitsValue);
-        if (hasXAxisUnitsValue) {
-            out.writeDouble(xAxisUnits);
         }
     }
 }

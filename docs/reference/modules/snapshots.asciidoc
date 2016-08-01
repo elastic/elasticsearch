@@ -8,7 +8,7 @@ backends are available via officially supported repository plugins.
 [float]
 === Repositories
 
-Before any snapshot or restore operation can be performed a snapshot repository should be registered in
+Before any snapshot or restore operation can be performed, a snapshot repository should be registered in
 Elasticsearch. The repository settings are repository-type specific. See below for details.
 
 [source,js]
@@ -28,7 +28,7 @@ Once a repository is registered, its information can be obtained using the follo
 -----------------------------------
 GET /_snapshot/my_backup
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
 which returns:
 
@@ -162,6 +162,7 @@ Other repository backends are available in these official plugins:
 * {plugins}/repository-s3.html[repository-s3] for S3 repository support
 * {plugins}/repository-hdfs.html[repository-hdfs] for HDFS repository support in Hadoop environments
 * {plugins}/repository-azure.html[repository-azure] for Azure storage repositories
+* {plugins}/repository-gcs.html[repository-gcs] for Google Cloud Storage repositories
 
 [float]
 ===== Repository Verification
@@ -180,7 +181,7 @@ PUT /_snapshot/s3_repository?verify=false
   }
 }
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The verification process can also be executed manually by running the following command:
 
@@ -188,7 +189,7 @@ The verification process can also be executed manually by running the following 
 -----------------------------------
 POST /_snapshot/s3_repository/_verify
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
 It returns a list of nodes where repository was successfully verified or an error message if verification process failed.
 
@@ -203,7 +204,7 @@ command:
 -----------------------------------
 PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The `wait_for_completion` parameter specifies whether or not the request should return immediately after snapshot
 initialization (default) or wait for snapshot completion. During snapshot initialization, information about all
@@ -222,7 +223,7 @@ PUT /_snapshot/my_backup/snapshot_1
   "include_global_state": false
 }
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The list of indices that should be included into the snapshot can be specified using the `indices` parameter that
 supports <<search-multi-index-type,multi index syntax>>. The snapshot request also supports the
@@ -258,7 +259,7 @@ Once a snapshot is created information about this snapshot can be obtained using
 -----------------------------------
 GET /_snapshot/my_backup/snapshot_1
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Similar as for repositories, information about multiple snapshots can be queried in one go, supporting wildcards as well:
 
@@ -266,7 +267,7 @@ Similar as for repositories, information about multiple snapshots can be queried
 -----------------------------------
 GET /_snapshot/my_backup/snapshot_*,some_other_snapshot
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
 All snapshots currently stored in the repository can be listed using the following command:
 
@@ -274,7 +275,7 @@ All snapshots currently stored in the repository can be listed using the followi
 -----------------------------------
 GET /_snapshot/my_backup/_all
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
 The command fails if some of the snapshots are unavailable. The boolean parameter `ignore_unvailable` can be used to
 return all snapshots that are currently available.
@@ -292,7 +293,7 @@ A snapshot can be deleted from the repository using the following command:
 -----------------------------------
 DELETE /_snapshot/my_backup/snapshot_1
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
 When a snapshot is deleted from a repository, Elasticsearch deletes all files that are associated with the deleted
 snapshot and not used by any other snapshots. If the deleted snapshot operation is executed while the snapshot is being
@@ -306,7 +307,7 @@ A repository can be deleted using the following command:
 -----------------------------------
 DELETE /_snapshot/my_backup
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
 When a repository is deleted, Elasticsearch only removes the reference to the location where the repository is storing
 the snapshots. The snapshots themselves are left untouched and in place.
@@ -320,15 +321,19 @@ A snapshot can be restored using the following command:
 -----------------------------------
 POST /_snapshot/my_backup/snapshot_1/_restore
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
-By default, all indices in the snapshot as well as cluster state are restored. It's possible to select indices that
-should be restored as well as prevent global cluster state from being restored by using `indices` and
-`include_global_state` options in the restore request body. The list of indices supports
-<<search-multi-index-type,multi index syntax>>. The `rename_pattern` and `rename_replacement` options can be also used to
-rename index on restore using regular expression that supports referencing the original text as explained
+By default, all indices in the snapshot are restored, and the cluster state is
+*not* restored. It's possible to select indices that should be restored as well
+as to allow the global cluster state from being restored by using `indices` and
+`include_global_state` options in the restore request body. The list of indices
+supports <<search-multi-index-type,multi index syntax>>. The `rename_pattern`
+and `rename_replacement` options can be also used to rename indices on restore
+using regular expression that supports referencing the original text as
+explained
 http://docs.oracle.com/javase/6/docs/api/java/util/regex/Matcher.html#appendReplacement(java.lang.StringBuffer,%20java.lang.String)[here].
-Set `include_aliases` to `false` to prevent aliases from being restored together with associated indices
+Set `include_aliases` to `false` to prevent aliases from being restored together
+with associated indices
 
 [source,js]
 -----------------------------------
@@ -336,19 +341,22 @@ POST /_snapshot/my_backup/snapshot_1/_restore
 {
   "indices": "index_1,index_2",
   "ignore_unavailable": "true",
-  "include_global_state": false,
+  "include_global_state": true,
   "rename_pattern": "index_(.+)",
   "rename_replacement": "restored_index_$1"
 }
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
-The restore operation can be performed on a functioning cluster. However, an existing index can be only restored if it's
-<<indices-open-close,closed>> and has the same number of shards as the index in the snapshot.
-The restore operation automatically opens restored indices if they were closed and creates new indices if they
-didn't exist in the cluster. If cluster state is restored, the restored templates that don't currently exist in the
-cluster are added and existing templates with the same name are replaced by the restored templates. The restored
-persistent settings are added to the existing persistent settings.
+The restore operation can be performed on a functioning cluster. However, an
+existing index can be only restored if it's <<indices-open-close,closed>> and
+has the same number of shards as the index in the snapshot. The restore
+operation automatically opens restored indices if they were closed and creates
+new indices if they didn't exist in the cluster. If cluster state is restored
+with `include_cluster_state` (defaults to `false`), the restored templates that
+don't currently exist in the cluster are added and existing templates with the
+same name are replaced by the restored templates. The restored persistent
+settings are added to the existing persistent settings.
 
 [float]
 ==== Partial restore
@@ -378,7 +386,7 @@ POST /_snapshot/my_backup/snapshot_1/_restore
   ]
 }
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Please note, that some settings such as `index.number_of_shards` cannot be changed during restore operation.
 
@@ -413,7 +421,7 @@ A list of currently running snapshots with their detailed status information can
 -----------------------------------
 GET /_snapshot/_status
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
 In this format, the command will return information about all currently running snapshots. By specifying a repository name, it's possible
 to limit the results to a particular repository:
@@ -422,7 +430,7 @@ to limit the results to a particular repository:
 -----------------------------------
 GET /_snapshot/my_backup/_status
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
 If both repository name and snapshot id are specified, this command will return detailed status information for the given snapshot even
 if it's not currently running:
@@ -431,7 +439,7 @@ if it's not currently running:
 -----------------------------------
 GET /_snapshot/my_backup/snapshot_1/_status
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Multiple ids are also supported:
 
@@ -439,7 +447,7 @@ Multiple ids are also supported:
 -----------------------------------
 GET /_snapshot/my_backup/snapshot_1,snapshot_2/_status
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [float]
 === Monitoring snapshot/restore progress
@@ -454,7 +462,7 @@ The snapshot operation can be also monitored by periodic calls to the snapshot i
 -----------------------------------
 GET /_snapshot/my_backup/snapshot_1
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
 Please note that snapshot info operation uses the same resources and thread pool as the snapshot operation. So,
 executing a snapshot info operation while large shards are being snapshotted can cause the snapshot info operation to wait
@@ -466,7 +474,7 @@ To get more immediate and complete information about snapshots the snapshot stat
 -----------------------------------
 GET /_snapshot/my_backup/snapshot_1/_status
 -----------------------------------
-// AUTOSENSE
+// CONSOLE
 
 While snapshot info method returns only basic information about the snapshot in progress, the snapshot status returns
 complete breakdown of the current state for each shard participating in the snapshot.

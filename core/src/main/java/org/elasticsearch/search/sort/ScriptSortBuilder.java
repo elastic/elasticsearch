@@ -49,9 +49,8 @@ import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.Script.ScriptField;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptParameterParser;
-import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -60,6 +59,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Script sort builder allows to sort based on a custom script expression.
@@ -72,7 +72,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     public static final ParseField SORTMODE_FIELD = new ParseField("mode");
     public static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path");
     public static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter");
-    public static final ParseField PARAMS_FIELD = new ParseField("params");
 
     private final Script script;
 
@@ -80,7 +79,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     private SortMode sortMode;
 
-    private QueryBuilder<?> nestedFilter;
+    private QueryBuilder nestedFilter;
 
     private String nestedPath;
 
@@ -113,7 +112,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
      * Read from a stream.
      */
     public ScriptSortBuilder(StreamInput in) throws IOException {
-        script = Script.readScript(in);
+        script = new Script(in);
         type = ScriptSortType.readFromStream(in);
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
@@ -170,7 +169,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
      * Sets the nested filter that the nested objects should match with in order to be taken into account
      * for sorting.
      */
-    public ScriptSortBuilder setNestedFilter(QueryBuilder<?> nestedFilter) {
+    public ScriptSortBuilder setNestedFilter(QueryBuilder nestedFilter) {
         this.nestedFilter = nestedFilter;
         return this;
     }
@@ -178,7 +177,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     /**
      * Gets the nested filter.
      */
-    public QueryBuilder<?> getNestedFilter() {
+    public QueryBuilder getNestedFilter() {
         return this.nestedFilter;
     }
 
@@ -229,16 +228,14 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
      *        in '{ "foo": { "order" : "asc"} }'. When parsing the inner object, the field name can be passed in via this argument
      */
     public static ScriptSortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException {
-        ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         XContentParser parser = context.parser();
         ParseFieldMatcher parseField = context.getParseFieldMatcher();
         Script script = null;
         ScriptSortType type = null;
         SortMode sortMode = null;
         SortOrder order = null;
-        QueryBuilder<?> nestedFilter = null;
+        Optional<QueryBuilder> nestedFilter = Optional.empty();
         String nestedPath = null;
-        Map<String, Object> params = new HashMap<>();
 
         XContentParser.Token token;
         String currentName = parser.currentName();
@@ -248,8 +245,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseField.match(currentName, ScriptField.SCRIPT)) {
                     script = Script.parse(parser, parseField);
-                } else if (parseField.match(currentName, PARAMS_FIELD)) {
-                    params = parser.map();
                 } else if (parseField.match(currentName, NESTED_FILTER_FIELD)) {
                     nestedFilter = context.parseInnerQueryBuilder();
                 } else {
@@ -258,29 +253,19 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             } else if (token.isValue()) {
                 if (parseField.match(currentName, ORDER_FIELD)) {
                     order = SortOrder.fromString(parser.text());
-                } else if (scriptParameterParser.token(currentName, token, parser, parseField)) {
-                    // Do Nothing (handled by ScriptParameterParser
                 } else if (parseField.match(currentName, TYPE_FIELD)) {
                     type = ScriptSortType.fromString(parser.text());
                 } else if (parseField.match(currentName, SORTMODE_FIELD)) {
                     sortMode = SortMode.fromString(parser.text());
                 } else if (parseField.match(currentName, NESTED_PATH_FIELD)) {
                     nestedPath = parser.text();
+                } else if (parseField.match(currentName, ScriptField.SCRIPT)) {
+                    script = Script.parse(parser, parseField);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] failed to parse field [" + currentName + "]");
                 }
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] unexpected token [" + token + "]");
-            }
-        }
-
-        if (script == null) { // Didn't find anything using the new API so try using the old one instead
-            ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
-            if (scriptValue != null) {
-                if (params == null) {
-                    params = new HashMap<>();
-                }
-                script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
             }
         }
 
@@ -291,9 +276,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         if (sortMode != null) {
             result.sortMode(sortMode);
         }
-        if (nestedFilter != null) {
-            result.setNestedFilter(nestedFilter);
-        }
+        nestedFilter.ifPresent(result::setNestedFilter);
         if (nestedPath != null) {
             result.setNestedPath(nestedPath);
         }
@@ -302,7 +285,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
 
     @Override
-    public SortField build(QueryShardContext context) throws IOException {
+    public SortFieldAndFormat build(QueryShardContext context) throws IOException {
         final SearchScript searchScript = context.getScriptService().search(
                 context.lookup(), script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
 
@@ -366,7 +349,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             throw new QueryShardException(context, "custom script sort type [" + type + "] not supported");
         }
 
-        return new SortField("_script", fieldComparatorSource, reverse);
+        return new SortFieldAndFormat(new SortField("_script", fieldComparatorSource, reverse), DocValueFormat.RAW);
     }
 
     @Override

@@ -77,24 +77,22 @@ public abstract class XContentSettingsLoader implements SettingsLoader {
             while (!jp.isClosed() && (lastToken = jp.nextToken()) == null);
         } catch (Exception e) {
             throw new ElasticsearchParseException(
-                    "malformed, expected end of settings but encountered additional content starting at line number: [{}], column number: [{}]",
-                    e,
-                    jp.getTokenLocation().lineNumber,
-                    jp.getTokenLocation().columnNumber
-            );
+                    "malformed, expected end of settings but encountered additional content starting at line number: [{}], "
+                            + "column number: [{}]",
+                    e, jp.getTokenLocation().lineNumber, jp.getTokenLocation().columnNumber);
         }
         if (lastToken != null) {
             throw new ElasticsearchParseException(
-                    "malformed, expected end of settings but encountered additional content starting at line number: [{}], column number: [{}]",
-                    jp.getTokenLocation().lineNumber,
-                    jp.getTokenLocation().columnNumber
-            );
+                    "malformed, expected end of settings but encountered additional content starting at line number: [{}], "
+                            + "column number: [{}]",
+                    jp.getTokenLocation().lineNumber, jp.getTokenLocation().columnNumber);
         }
 
         return settings;
     }
 
-    private void serializeObject(Map<String, String> settings, StringBuilder sb, List<String> path, XContentParser parser, String objFieldName) throws IOException {
+    private void serializeObject(Map<String, String> settings, StringBuilder sb, List<String> path, XContentParser parser,
+            String objFieldName) throws IOException {
         if (objFieldName != null) {
             path.add(objFieldName);
         }
@@ -121,7 +119,8 @@ public abstract class XContentSettingsLoader implements SettingsLoader {
         }
     }
 
-    private void serializeArray(Map<String, String> settings, StringBuilder sb, List<String> path, XContentParser parser, String fieldName) throws IOException {
+    private void serializeArray(Map<String, String> settings, StringBuilder sb, List<String> path, XContentParser parser, String fieldName)
+            throws IOException {
         XContentParser.Token token;
         int counter = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -140,7 +139,8 @@ public abstract class XContentSettingsLoader implements SettingsLoader {
         }
     }
 
-    private void serializeValue(Map<String, String> settings, StringBuilder sb, List<String> path, XContentParser parser, String fieldName, boolean isNull) throws IOException {
+    private void serializeValue(Map<String, String> settings, StringBuilder sb, List<String> path, XContentParser parser, String fieldName,
+            boolean isNull) throws IOException {
         sb.setLength(0);
         for (String pathEle : path) {
             sb.append(pathEle).append('.');

@@ -22,16 +22,16 @@ package org.elasticsearch;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.nio.file.AccessMode;
-import java.nio.file.Path;
+import java.io.InputStream;
+import java.net.URL;
 
 public class BuildTests extends ESTestCase {
 
     /** Asking for the jar metadata should not throw exception in tests, no matter how configured */
     public void testJarMetadata() throws IOException {
-        Path path = Build.getElasticsearchCodebase();
+        URL url = Build.getElasticsearchCodebase();
         // throws exception if does not exist, or we cannot access it
-        path.getFileSystem().provider().checkAccess(path, AccessMode.READ);
+        try (InputStream ignored = url.openStream()) {}
         // these should never be null
         assertNotNull(Build.CURRENT.date());
         assertNotNull(Build.CURRENT.shortHash());

@@ -12,11 +12,11 @@ QueryBuilder qb = scriptQuery(
 <1> inlined script
 
 
-If you have stored on each data node a script named `mygroovyscript.groovy` with:
+If you have stored on each data node a script named `myscript.painless` with:
 
-[source,groovy]
+[source,js]
 --------------------------------------------------
-doc['num1'].value > param1
+doc['num1'].value > params.param1
 --------------------------------------------------
 
 You can use it then with:
@@ -25,9 +25,9 @@ You can use it then with:
 --------------------------------------------------
 QueryBuilder qb = scriptQuery(
     new Script(
-        "mygroovyscript",                    <1>
+        "myscript",                          <1>
         ScriptType.FILE,       <2>
-        "groovy",                            <3>
+        "painless",                          <3>
         ImmutableMap.of("param1", 5))        <4>
 );
 --------------------------------------------------

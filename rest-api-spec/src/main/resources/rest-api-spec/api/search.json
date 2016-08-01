@@ -38,13 +38,17 @@
           "type" : "boolean",
           "description" : "Specify whether to return detailed information about score computation as part of a hit"
         },
-        "fields": {
+        "stored_fields": {
           "type" : "list",
-          "description" : "A comma-separated list of fields to return as part of a hit"
+          "description" : "A comma-separated list of stored fields to return as part of a hit"
+        },
+        "docvalue_fields": {
+          "type" : "list",
+          "description" : "A comma-separated list of fields to return as the docvalue representation of a field for each hit"
         },
         "fielddata_fields": {
           "type" : "list",
-          "description" : "A comma-separated list of fields to return as the field data representation of a field for each hit"
+          "description" : "A comma-separated list of fields to return as the docvalue representation of a field for each hit"
         },
         "from": {
           "type" : "number",

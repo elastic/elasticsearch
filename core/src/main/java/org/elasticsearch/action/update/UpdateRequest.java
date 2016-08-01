@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -38,8 +39,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptParameterParser;
-import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
@@ -53,7 +52,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> implements DocumentRequest<UpdateRequest> {
+public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
+        implements DocumentRequest<UpdateRequest>, WriteRequest<UpdateRequest> {
 
     private String type;
     private String id;
@@ -72,7 +72,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     private VersionType versionType = VersionType.INTERNAL;
     private int retryOnConflict = 0;
 
-    private boolean refresh = false;
+    private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
 
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
@@ -422,18 +422,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this.versionType;
     }
 
-    /**
-     * Should a refresh be executed post this update operation causing the operation to
-     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
-     */
-    public UpdateRequest refresh(boolean refresh) {
-        this.refresh = refresh;
+    @Override
+    public UpdateRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {
+        this.refreshPolicy = refreshPolicy;
         return this;
     }
 
-    public boolean refresh() {
-        return this.refresh;
+    @Override
+    public RefreshPolicy getRefreshPolicy() {
+        return refreshPolicy;
     }
 
     public WriteConsistencyLevel consistencyLevel() {
@@ -638,8 +635,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     }
 
     public UpdateRequest source(BytesReference source) throws Exception {
-        ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
-        Map<String, Object> scriptParams = null;
         Script script = null;
         try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
             XContentParser.Token token = parser.nextToken();
@@ -650,11 +645,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if ("script".equals(currentFieldName) && token == XContentParser.Token.START_OBJECT) {
-                    //here we don't have settings available, unable to throw strict deprecation exceptions
+                } else if ("script".equals(currentFieldName)) {
                     script = Script.parse(parser, ParseFieldMatcher.EMPTY);
-                } else if ("params".equals(currentFieldName)) {
-                    scriptParams = parser.map();
                 } else if ("scripted_upsert".equals(currentFieldName)) {
                     scriptedUpsert = parser.booleanValue();
                 } else if ("upsert".equals(currentFieldName)) {
@@ -681,16 +673,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                     if (fields != null) {
                         fields(fields.toArray(new String[fields.size()]));
                     }
-                } else {
-                    //here we don't have settings available, unable to throw deprecation exceptions
-                    scriptParameterParser.token(currentFieldName, token, parser, ParseFieldMatcher.EMPTY);
-                }
-            }
-            // Don't have a script using the new API so see if it is specified with the old API
-            if (script == null) {
-                ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
-                if (scriptValue != null) {
-                    script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), scriptParams);
                 }
             }
             if (script != null) {
@@ -727,10 +709,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         routing = in.readOptionalString();
         parent = in.readOptionalString();
         if (in.readBoolean()) {
-            script = Script.readScript(in);
+            script = new Script(in);
         }
         retryOnConflict = in.readVInt();
-        refresh = in.readBoolean();
+        refreshPolicy = RefreshPolicy.readFrom(in);
         if (in.readBoolean()) {
             doc = new IndexRequest();
             doc.readFrom(in);
@@ -767,7 +749,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             script.writeTo(out);
         }
         out.writeVInt(retryOnConflict);
-        out.writeBoolean(refresh);
+        refreshPolicy.writeTo(out);
         if (doc == null) {
             out.writeBoolean(false);
         } else {

@@ -44,8 +44,8 @@ public class StatsParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected StatsAggregatorBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new StatsAggregatorBuilder(aggregationName);
+    protected StatsAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                    ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        return new StatsAggregationBuilder(aggregationName);
     }
 }

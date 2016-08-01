@@ -18,12 +18,15 @@
  */
 package org.elasticsearch.search.fetch.matchedqueries;
 
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
@@ -31,75 +34,63 @@ import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
-
-/**
- *
- */
-public class MatchedQueriesFetchSubPhase implements FetchSubPhase {
-
-    @Override
-    public Map<String, ? extends SearchParseElement> parseElements() {
-        return emptyMap();
-    }
-
-    @Override
-    public boolean hitsExecutionNeeded(SearchContext context) {
-        return false;
-    }
+public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
-    }
+        if (hits.length == 0) {
+            return;
+        }
+        hits = hits.clone(); // don't modify the incoming hits
+        Arrays.sort(hits, (a, b) -> Integer.compare(a.docId(), b.docId()));
+        @SuppressWarnings("unchecked")
+        List<String>[] matchedQueries = new List[hits.length];
+        for (int i = 0; i < matchedQueries.length; ++i) {
+            matchedQueries[i] = new ArrayList<>();
+        }
 
-    @Override
-    public boolean hitExecutionNeeded(SearchContext context) {
-        return !context.parsedQuery().namedFilters().isEmpty()
-                || (context.parsedPostFilter() !=null && !context.parsedPostFilter().namedFilters().isEmpty());
-    }
-
-    @Override
-    public void hitExecute(SearchContext context, HitContext hitContext) {
-        List<String> matchedQueries = new ArrayList<>(2);
+        Map<String, Query> namedQueries = new HashMap<>(context.parsedQuery().namedFilters());
+        if (context.parsedPostFilter() != null) {
+            namedQueries.putAll(context.parsedPostFilter().namedFilters());
+        }
 
         try {
-            addMatchedQueries(hitContext, context.parsedQuery().namedFilters(), matchedQueries);
-
-            if (context.parsedPostFilter() != null) {
-                addMatchedQueries(hitContext, context.parsedPostFilter().namedFilters(), matchedQueries);
+            for (Map.Entry<String, Query> entry : namedQueries.entrySet()) {
+                String name = entry.getKey();
+                Query query = entry.getValue();
+                int readerIndex = -1;
+                int docBase = -1;
+                Weight weight = context.searcher().createNormalizedWeight(query, false);
+                Bits matchingDocs = null;
+                final IndexReader indexReader = context.searcher().getIndexReader();
+                for (int i = 0; i < hits.length; ++i) {
+                    InternalSearchHit hit = hits[i];
+                    int hitReaderIndex = ReaderUtil.subIndex(hit.docId(), indexReader.leaves());
+                    if (readerIndex != hitReaderIndex) {
+                        readerIndex = hitReaderIndex;
+                        LeafReaderContext ctx = indexReader.leaves().get(readerIndex);
+                        docBase = ctx.docBase;
+                        // scorers can be costly to create, so reuse them across docs of the same segment
+                        Scorer scorer = weight.scorer(ctx);
+                        matchingDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), scorer);
+                    }
+                    if (matchingDocs.get(hit.docId() - docBase)) {
+                        matchedQueries[i].add(name);
+                    }
+                }
+            }
+            for (int i = 0; i < hits.length; ++i) {
+                hits[i].matchedQueries(matchedQueries[i].toArray(new String[matchedQueries[i].size()]));
             }
         } catch (IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         } finally {
             SearchContext.current().clearReleasables(Lifetime.COLLECTION);
-        }
-
-        hitContext.hit().matchedQueries(matchedQueries.toArray(new String[matchedQueries.size()]));
-    }
-
-    private void addMatchedQueries(HitContext hitContext, Map<String, Query> namedQueries, List<String> matchedQueries) throws IOException {
-        for (Map.Entry<String, Query> entry : namedQueries.entrySet()) {
-            String name = entry.getKey();
-            Query filter = entry.getValue();
-
-            final Weight weight = hitContext.topLevelSearcher().createNormalizedWeight(filter, false);
-            final Scorer scorer = weight.scorer(hitContext.readerContext());
-            if (scorer == null) {
-                continue;
-            }
-            final TwoPhaseIterator twoPhase = scorer.twoPhaseIterator();
-            if (twoPhase == null) {
-                if (scorer.iterator().advance(hitContext.docId()) == hitContext.docId()) {
-                    matchedQueries.add(name);
-                }
-            } else {
-                if (twoPhase.approximation().advance(hitContext.docId()) == hitContext.docId() && twoPhase.matches()) {
-                    matchedQueries.add(name);
-                }
-            }
         }
     }
 }

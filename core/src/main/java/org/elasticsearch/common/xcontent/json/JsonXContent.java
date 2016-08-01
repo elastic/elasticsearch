@@ -45,10 +45,10 @@ public class JsonXContent implements XContent {
         return XContentBuilder.builder(jsonXContent);
     }
 
-    private final static JsonFactory jsonFactory;
-    public final static String JSON_ALLOW_UNQUOTED_FIELD_NAMES = "elasticsearch.json.allow_unquoted_field_names";
-    public final static JsonXContent jsonXContent;
-    public final static boolean unquotedFieldNamesSet;
+    private static final JsonFactory jsonFactory;
+    public static final String JSON_ALLOW_UNQUOTED_FIELD_NAMES = "elasticsearch.json.allow_unquoted_field_names";
+    public static final JsonXContent jsonXContent;
+    public static final boolean unquotedFieldNamesSet;
 
     static {
         jsonFactory = new JsonFactory();
@@ -73,6 +73,8 @@ public class JsonXContent implements XContent {
         jsonFactory.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true);
         jsonFactory.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
         jsonFactory.configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
+        // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.core.json.UTF8JsonGenerator#close() method
+        jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         jsonXContent = new JsonXContent();
     }
 
@@ -116,9 +118,6 @@ public class JsonXContent implements XContent {
 
     @Override
     public XContentParser createParser(BytesReference bytes) throws IOException {
-        if (bytes.hasArray()) {
-            return createParser(bytes.array(), bytes.arrayOffset(), bytes.length());
-        }
         return createParser(bytes.streamInput());
     }
 

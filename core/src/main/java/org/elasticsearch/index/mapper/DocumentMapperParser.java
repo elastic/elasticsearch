@@ -113,7 +113,7 @@ public class DocumentMapperParser {
         // parse DocumentMapper
         while(iterator.hasNext()) {
             Map.Entry<String, Object> entry = iterator.next();
-            String fieldName = Strings.toUnderscoreCase(entry.getKey());
+            String fieldName = entry.getKey();
             Object fieldNode = entry.getValue();
 
             MetadataFieldMapper.TypeParser typeParser = rootTypeParsers.get(fieldName);

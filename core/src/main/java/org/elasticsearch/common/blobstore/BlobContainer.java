@@ -27,60 +27,108 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
- *
+ * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.
  */
 public interface BlobContainer {
 
+    /**
+     * Gets the {@link BlobPath} that defines the implementation specific paths to where the blobs are contained.
+     *
+     * @return  the BlobPath where the blobs are contained
+     */
     BlobPath path();
 
+    /**
+     * Tests whether a blob with the given blob name exists in the container.
+     *
+     * @param   blobName
+     *          The name of the blob whose existence is to be determined.
+     * @return  {@code true} if a blob exists in the {@link BlobContainer} with the given name, and {@code false} otherwise.
+     */
     boolean blobExists(String blobName);
 
     /**
-     * Creates a new InputStream for the given blob name
+     * Creates a new {@link InputStream} for the given blob name.
+     *
+     * @param   blobName
+     *          The name of the blob to get an {@link InputStream} for.
+     * @return  The {@code InputStream} to read the blob.
+     * @throws  IOException if the blob does not exist or can not be read.
      */
     InputStream readBlob(String blobName) throws IOException;
 
     /**
-     * Reads blob content from the input stream and writes it to the blob store
+     * Reads blob content from the input stream and writes it to the container in a new blob with the given name.
+     * This method assumes the container does not already contain a blob of the same blobName.  If a blob by the
+     * same name already exists, the operation will fail and an {@link IOException} will be thrown.
+     *
+     * @param   blobName
+     *          The name of the blob to write the contents of the input stream to.
+     * @param   inputStream
+     *          The input stream from which to retrieve the bytes to write to the blob.
+     * @param   blobSize
+     *          The size of the blob to be written, in bytes.  It is implementation dependent whether
+     *          this value is used in writing the blob to the repository.
+     * @throws  IOException if the input stream could not be read, a blob by the same name already exists,
+     *          or the target blob could not be written to.
      */
     void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException;
 
     /**
-     * Writes bytes to the blob
+     * Writes the input bytes to a new blob in the container with the given name.  This method assumes the
+     * container does not already contain a blob of the same blobName.  If a blob by the same name already
+     * exists, the operation will fail and an {@link IOException} will be thrown.
+     *
+     * TODO: Remove this in favor of a single {@link #writeBlob(String, InputStream, long)} method.
+     *       See https://github.com/elastic/elasticsearch/issues/18528
+     *
+     * @param   blobName
+     *          The name of the blob to write the contents of the input stream to.
+     * @param   bytes
+     *          The bytes to write to the blob.
+     * @throws  IOException if a blob by the same name already exists, or the target blob could not be written to.
      */
     void writeBlob(String blobName, BytesReference bytes) throws IOException;
 
     /**
-     * Deletes a blob with giving name.
+     * Deletes a blob with giving name, if the blob exists.  If the blob does not exist, this method throws an IOException.
      *
-     * If a blob exists but cannot be deleted an exception has to be thrown.
+     * @param   blobName
+     *          The name of the blob to delete.
+     * @throws  IOException if the blob does not exist, or if the blob exists but could not be deleted.
      */
     void deleteBlob(String blobName) throws IOException;
 
     /**
-     * Deletes blobs with giving names.
+     * Lists all blobs in the container.
      *
-     * If a blob exists but cannot be deleted an exception has to be thrown.
-     */
-    void deleteBlobs(Collection<String> blobNames) throws IOException;
-
-    /**
-     * Deletes all blobs in the container that match the specified prefix.
-     */
-    void deleteBlobsByPrefix(String blobNamePrefix) throws IOException;
-
-    /**
-     * Lists all blobs in the container
+     * @return  A map of all the blobs in the container.  The keys in the map are the names of the blobs and
+     *          the values are {@link BlobMetaData}, containing basic information about each blob.
+     * @throws  IOException if there were any failures in reading from the blob container.
      */
     Map<String, BlobMetaData> listBlobs() throws IOException;
 
     /**
-     * Lists all blobs in the container that match specified prefix
+     * Lists all blobs in the container that match the specified prefix.
+     *
+     * @param   blobNamePrefix
+     *          The prefix to match against blob names in the container.
+     * @return  A map of the matching blobs in the container.  The keys in the map are the names of the blobs
+     *          and the values are {@link BlobMetaData}, containing basic information about each blob.
+     * @throws  IOException if there were any failures in reading from the blob container.
      */
     Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException;
 
     /**
-     * Atomically renames source blob into target blob
+     * Atomically renames the source blob into the target blob.  If the source blob does not exist or the
+     * target blob already exists, an exception is thrown.
+     *
+     * @param   sourceBlobName
+     *          The blob to rename.
+     * @param   targetBlobName
+     *          The name of the blob after the renaming.
+     * @throws  IOException if the source blob does not exist, the target blob already exists,
+     *          or there were any failures in reading from the blob container.
      */
     void move(String sourceBlobName, String targetBlobName) throws IOException;
 }

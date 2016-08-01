@@ -28,12 +28,12 @@ PUT my_index
   }
 }
 --------------------------------
-// AUTOSENSE
+// CONSOLE
 
 [[keyword-params]]
 ==== Parameters for keyword fields
 
-The following parameters are accepted by `string` fields:
+The following parameters are accepted by `keyword` fields:
 
 [horizontal]
 
@@ -62,7 +62,7 @@ The following parameters are accepted by `string` fields:
 
 <<ignore-above,`ignore_above`>>::
 
-    Do not index or analyze any string longer than this value.  Defaults to
+    Do not index any string longer than this value.  Defaults to
     `2147483647` so that all values would be accepted.
 
 <<include-in-all,`include_in_all`>>::

@@ -150,7 +150,7 @@ public class MultiPhrasePrefixQuery extends Query {
             }
         }
         if (terms.isEmpty()) {
-            return Queries.newMatchNoDocsQuery();
+            return Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName());
         }
         query.add(terms.toArray(Term.class), position);
         return query.build();
@@ -238,7 +238,7 @@ public class MultiPhrasePrefixQuery extends Query {
      */
     @Override
     public boolean equals(Object o) {
-        if (super.equals(o) == false) {
+        if (sameClassAs(o) == false) {
             return false;
         }
         MultiPhrasePrefixQuery other = (MultiPhrasePrefixQuery) o;
@@ -252,7 +252,7 @@ public class MultiPhrasePrefixQuery extends Query {
      */
     @Override
     public int hashCode() {
-        return super.hashCode()
+        return classHash()
                 ^ slop
                 ^ termArraysHashCode()
                 ^ positions.hashCode();

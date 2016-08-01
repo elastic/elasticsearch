@@ -35,7 +35,6 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCan
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-
 import static org.hamcrest.Matchers.equalTo;
 
 public class DirectCandidateGeneratorTests extends ESTestCase{
@@ -117,8 +116,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
                 builder.prettyPrint();
             }
             generator.toXContent(builder, ToXContent.EMPTY_PARAMS);
-
-            XContentParser parser = XContentHelper.createParser(builder.bytes());
+            XContentParser parser = XContentHelper.createParser(shuffleXContent(builder).bytes());
             QueryParseContext context = new QueryParseContext(mockRegistry, parser, ParseFieldMatcher.STRICT);
             parser.nextToken();
             DirectCandidateGeneratorBuilder secondGenerator = DirectCandidateGeneratorBuilder.fromXContent(context);
@@ -208,7 +206,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
     private static DirectCandidateGeneratorBuilder serializedCopy(DirectCandidateGeneratorBuilder original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
-            try (StreamInput in = StreamInput.wrap(output.bytes())) {
+            try (StreamInput in = output.bytes().streamInput()) {
                 return new DirectCandidateGeneratorBuilder(in);
             }
         }

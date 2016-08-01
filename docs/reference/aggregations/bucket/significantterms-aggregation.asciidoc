@@ -224,12 +224,12 @@ are presented unstemmed, highlighted, with the right case, in the right order an
 ==== Custom background sets
 
 Ordinarily, the foreground set of documents is "diffed" against a background set of all the documents in your index.
-However, sometimes it may prove useful to use a narrower background set as the basis for comparisons. 
-For example, a query on documents relating to "Madrid" in an index with content from all over the world might reveal that "Spanish" 
-was a significant term. This may be true but if you want some more focused terms you could use a `background_filter` 
-on the term 'spain' to establish a narrower set of documents as context. With this as a background "Spanish" would now 
-be seen as commonplace and therefore not as significant as words like "capital" that relate more strongly with Madrid.  
-Note that using a background filter will slow things down - each term's background frequency must now be derived on-the-fly from filtering posting lists rather than reading the index's pre-computed count for a term.  
+However, sometimes it may prove useful to use a narrower background set as the basis for comparisons.
+For example, a query on documents relating to "Madrid" in an index with content from all over the world might reveal that "Spanish"
+was a significant term. This may be true but if you want some more focused terms you could use a `background_filter`
+on the term 'spain' to establish a narrower set of documents as context. With this as a background "Spanish" would now
+be seen as commonplace and therefore not as significant as words like "capital" that relate more strongly with Madrid.
+Note that using a background filter will slow things down - each term's background frequency must now be derived on-the-fly from filtering posting lists rather than reading the index's pre-computed count for a term.
 
 ==== Limitations
 
@@ -274,7 +274,7 @@ The scores are derived from the doc frequencies in _foreground_ and _background_
 
 ===== mutual information
 Mutual information as described in "Information Retrieval", Manning et al., Chapter 13.5.1 can be used as significance score by adding the parameter
-	
+
 [source,js]
 --------------------------------------------------
 
@@ -283,9 +283,9 @@ Mutual information as described in "Information Retrieval", Manning et al., Chap
 	 }
 --------------------------------------------------
 
-Mutual information does not differentiate between terms that are descriptive for the subset or for documents outside the subset. The significant terms therefore can contain terms that appear more or less frequent in the subset than outside the subset. To filter out the terms that appear less often in the subset than in documents outside the subset, `include_negatives` can be set to `false`. 
+Mutual information does not differentiate between terms that are descriptive for the subset or for documents outside the subset. The significant terms therefore can contain terms that appear more or less frequent in the subset than outside the subset. To filter out the terms that appear less often in the subset than in documents outside the subset, `include_negatives` can be set to `false`.
 
-Per default, the assumption is that the documents in the bucket are also contained in the background. If instead you defined a custom background filter that represents a different set of documents that you want to compare to, set 
+Per default, the assumption is that the documents in the bucket are also contained in the background. If instead you defined a custom background filter that represents a different set of documents that you want to compare to, set
 
 [source,js]
 --------------------------------------------------
@@ -296,7 +296,7 @@ Per default, the assumption is that the documents in the bucket are also contain
 
 ===== Chi square
 Chi square as described in "Information Retrieval", Manning et al., Chapter 13.5.2 can be used as significance score by adding the parameter
-	
+
 [source,js]
 --------------------------------------------------
 
@@ -309,7 +309,7 @@ Chi square behaves like mutual information and can be configured with the same p
 
 ===== google normalized distance
 Google normalized distance  as described in "The Google Similarity Distance", Cilibrasi and Vitanyi, 2007 (http://arxiv.org/pdf/cs/0412098v3.pdf) can be used as significance score by adding the parameter
-	
+
 [source,js]
 --------------------------------------------------
 
@@ -317,7 +317,7 @@ Google normalized distance  as described in "The Google Similarity Distance", Ci
 	 }
 --------------------------------------------------
 
-`gnd` also accepts the `background_is_superset` parameter. 
+`gnd` also accepts the `background_is_superset` parameter.
 
 
 ===== Percentage
@@ -328,7 +328,7 @@ The benefit of this heuristic is that the scoring logic is simple to explain to 
 
 It would be hard for a seasoned boxer to win a championship if the prize was awarded purely on the basis of percentage of fights won - by these rules a newcomer with only one fight under his belt would be impossible to beat.
 Multiple observations are typically required to reinforce a view so it is recommended in these cases to set both `min_doc_count` and `shard_min_doc_count` to a higher value such as 10 in order to filter out the low-frequency terms that otherwise take precedence.
-	
+
 [source,js]
 --------------------------------------------------
 
@@ -348,7 +348,7 @@ If none of the above measures suits your usecase than another option is to imple
 
 ===== scripted
 Customized scores can be implemented via a script:
-	
+
 [source,js]
 --------------------------------------------------
 
@@ -357,7 +357,7 @@ Customized scores can be implemented via a script:
             }
 --------------------------------------------------
 
-Scripts can be inline (as in above example), indexed or stored on disk. For details on the options, see <<modules-scripting, script documentation>>. 
+Scripts can be inline (as in above example), indexed or stored on disk. For details on the options, see <<modules-scripting, script documentation>>.
 
 Available parameters in the script are
 
@@ -374,9 +374,7 @@ default, the node coordinating the search process will request each shard to pro
 and once all shards respond, it will reduce the results to the final list that will then be returned to the client.
 If the number of unique terms is greater than `size`, the returned list can be slightly off and not accurate
 (it could be that the term counts are slightly off and it could even be that a term that should have been in the top
-size buckets was not returned). 
-
-If set to `0`, the `size` will be set to `Integer.MAX_VALUE`.
+size buckets was not returned).
 
 To ensure better accuracy a multiple of the final `size` is used as the number of terms to request from each shard
 using a heuristic based on the number of shards. To take manual control of this setting the `shard_size` parameter
@@ -386,11 +384,8 @@ Low-frequency terms can turn out to be the most interesting ones once all result
 significant_terms aggregation can produce higher-quality results when the `shard_size` parameter is set to
 values significantly higher than the `size` setting. This ensures that a bigger volume of promising candidate terms are given
 a consolidated review by the reducing node before the final selection. Obviously large candidate term lists
-will cause extra network traffic and RAM usage so this is  quality/cost trade off that needs to be balanced.  If `shard_size` is set to -1 (the default) then `shard_size` will be automatically estimated based on the number of shards and the `size` parameter. 
+will cause extra network traffic and RAM usage so this is  quality/cost trade off that needs to be balanced.  If `shard_size` is set to -1 (the default) then `shard_size` will be automatically estimated based on the number of shards and the `size` parameter.
 
-
-If set to `0`, the `shard_size` will be set to `Integer.MAX_VALUE`.
- 
 
 NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sense). When it is, elasticsearch will
         override it and reset it to be equal to `size`.
@@ -439,7 +434,7 @@ WARNING: Setting `min_doc_count` to `1` is generally not advised as it tends to 
 
 The default source of statistical information for background term frequencies is the entire index and this
 scope can be narrowed through the use of a `background_filter` to focus in on significant terms within a narrower
-context: 
+context:
 
 [source,js]
 --------------------------------------------------
@@ -449,7 +444,7 @@ context:
     },
     "aggs" : {
         "tags" : {
-            "significant_terms" : { 
+            "significant_terms" : {
                 "field" : "tag",
                 "background_filter": {
                 	"term" : { "text" : "spain"}
@@ -460,9 +455,9 @@ context:
 }
 --------------------------------------------------
 
-The above filter would help focus in on terms that were peculiar to the city of Madrid rather than revealing 
-terms like "Spanish" that are unusual in the full index's worldwide context but commonplace in the subset of documents containing the 
-word "Spain".   
+The above filter would help focus in on terms that were peculiar to the city of Madrid rather than revealing
+terms like "Spanish" that are unusual in the full index's worldwide context but commonplace in the subset of documents containing the
+word "Spain".
 
 WARNING: Use of background filters will slow the query as each term's postings must be filtered to determine a frequency
 
@@ -482,7 +477,7 @@ There are different mechanisms by which terms aggregations can be executed:
  - by using field values directly in order to aggregate data per-bucket (`map`)
  - by using ordinals of the field and preemptively allocating one bucket per ordinal value (`global_ordinals`)
  - by using ordinals of the field and dynamically allocating one bucket per ordinal value (`global_ordinals_hash`)
- 
+
 Elasticsearch tries to have sensible defaults so this is something that generally doesn't need to be configured.
 
 `map` should only be considered when very few documents match a query. Otherwise the ordinals-based execution modes
@@ -514,4 +509,3 @@ in inner aggregations.
 <1> the possible values are `map`, `global_ordinals` and `global_ordinals_hash`
 
 Please note that Elasticsearch will ignore this execution hint if it is not applicable.
-

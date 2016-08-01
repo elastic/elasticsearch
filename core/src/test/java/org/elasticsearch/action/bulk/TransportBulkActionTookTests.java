@@ -38,6 +38,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -51,19 +52,19 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.cluster.service.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class TransportBulkActionTookTests extends ESTestCase {
 
-    static private ThreadPool threadPool;
+    private static ThreadPool threadPool;
     private ClusterService clusterService;
 
     @BeforeClass
     public static void beforeClass() {
-        threadPool = new ThreadPool("TransportBulkActionTookTests");
+        threadPool = new TestThreadPool("TransportBulkActionTookTests");
     }
 
     @AfterClass
@@ -86,7 +87,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
     private TransportBulkAction createAction(boolean controlled, AtomicLong expected) {
         CapturingTransport capturingTransport = new CapturingTransport();
-        TransportService transportService = new TransportService(capturingTransport, threadPool);
+        TransportService transportService = new TransportService(clusterService.getSettings(), capturingTransport, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();
         IndexNameExpressionResolver resolver = new Resolver(Settings.EMPTY);
@@ -200,7 +201,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
 
             }
         });

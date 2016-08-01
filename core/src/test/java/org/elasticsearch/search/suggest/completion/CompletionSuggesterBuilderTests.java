@@ -37,14 +37,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-
 import static org.hamcrest.Matchers.containsString;
 
 public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTestCase<CompletionSuggestionBuilder> {
 
-    private static final Set<String> SHUFFLE_PROTECTED_FIELDS =
-            Collections.singleton(CompletionSuggestionBuilder.CONTEXTS_FIELD.getPreferredName());
+    private static final String[] SHUFFLE_PROTECTED_FIELDS = new String[] {CompletionSuggestionBuilder.CONTEXTS_FIELD.getPreferredName()};
 
     @Override
     protected CompletionSuggestionBuilder randomSuggestionBuilder() {
@@ -113,7 +110,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
      * the equals() test will fail because their {@link BytesReference} representation isn't the same
      */
     @Override
-    protected Set<String> shuffleProtectedFields() {
+    protected String[] shuffleProtectedFields() {
         return SHUFFLE_PROTECTED_FIELDS;
     }
 

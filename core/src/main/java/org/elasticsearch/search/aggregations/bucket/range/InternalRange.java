@@ -22,13 +22,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
-import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -43,46 +40,12 @@ import java.util.Map;
  */
 public class InternalRange<B extends InternalRange.Bucket, R extends InternalRange<B, R>> extends InternalMultiBucketAggregation<R, B>
         implements Range {
-
     static final Factory FACTORY = new Factory();
-
-    public final static Type TYPE = new Type("range");
-
-    private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalRange readResult(StreamInput in) throws IOException {
-            InternalRange ranges = new InternalRange();
-            ranges.readFrom(in);
-            return ranges;
-        }
-    };
-
-    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
-        @Override
-        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
-            Bucket buckets = new Bucket(context.keyed(), context.format());
-            buckets.readFrom(in);
-            return buckets;
-        }
-
-        @Override
-        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
-            BucketStreamContext context = new BucketStreamContext();
-            context.format(bucket.format);
-            context.keyed(bucket.keyed);
-            return context;
-        }
-    };
-
-    public static void registerStream() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
-    }
 
     public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Range.Bucket {
 
-        protected transient final boolean keyed;
-        protected transient final DocValueFormat format;
+        protected final transient boolean keyed;
+        protected final transient DocValueFormat format;
         protected double from;
         protected double to;
         private long docCount;
@@ -210,20 +173,13 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
-
         }
     }
 
     public static class Factory<B extends Bucket, R extends InternalRange<B, R>> {
-
         public Type type() {
-            return TYPE;
+            return RangeAggregationBuilder.TYPE;
         }
 
         public ValuesSourceType getValueSourceType() {
@@ -237,7 +193,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         @SuppressWarnings("unchecked")
         public R create(String name, List<B> ranges, DocValueFormat formatter, boolean keyed, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) {
-            return (R) new InternalRange<>(name, ranges, formatter, keyed, pipelineAggregators, metaData);
+            return (R) new InternalRange<B, R>(name, ranges, formatter, keyed, pipelineAggregators, metaData);
         }
 
         @SuppressWarnings("unchecked")
@@ -248,7 +204,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
         @SuppressWarnings("unchecked")
         public R create(List<B> ranges, R prototype) {
-            return (R) new InternalRange<>(prototype.name, ranges, prototype.format, prototype.keyed, prototype.pipelineAggregators(),
+            return (R) new InternalRange<B, R>(prototype.name, ranges, prototype.format, prototype.keyed, prototype.pipelineAggregators(),
                     prototype.metaData);
         }
 
@@ -260,11 +216,8 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     }
 
     private List<B> ranges;
-    private Map<String, B> rangeMap;
     protected DocValueFormat format;
     protected boolean keyed;
-
-    public InternalRange() {} // for serialization
 
     public InternalRange(String name, List<B> ranges, DocValueFormat format, boolean keyed,
             List<PipelineAggregator> pipelineAggregators,
@@ -275,9 +228,40 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         this.keyed = keyed;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public InternalRange(StreamInput in) throws IOException {
+        super(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
+        keyed = in.readBoolean();
+        int size = in.readVInt();
+        List<B> ranges = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            String key = in.readOptionalString();
+            ranges.add(getFactory().createBucket(key, in.readDouble(), in.readDouble(), in.readVLong(),
+                    InternalAggregations.readAggregations(in), keyed, format));
+        }
+        this.ranges = ranges;
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(format);
+        out.writeBoolean(keyed);
+        out.writeVInt(ranges.size());
+        for (B bucket : ranges) {
+            out.writeOptionalString(((Bucket) bucket).key);
+            out.writeDouble(((Bucket) bucket).from);
+            out.writeDouble(((Bucket) bucket).to);
+            out.writeVLong(((Bucket) bucket).docCount);
+            bucket.aggregations.writeTo(out);
+        }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return RangeAggregationBuilder.NAME;
     }
 
     @Override
@@ -305,7 +289,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Bucket>[] rangeList = new List[ranges.size()];
         for (int i = 0; i < rangeList.length; ++i) {
-            rangeList[i] = new ArrayList<Bucket>();
+            rangeList[i] = new ArrayList<>();
         }
         for (InternalAggregation aggregation : aggregations) {
             InternalRange<B, R> ranges = (InternalRange<B, R>) aggregation;
@@ -320,34 +304,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             ranges.add((B) rangeList[i].get(0).reduce(rangeList[i], reduceContext));
         }
         return getFactory().create(name, ranges, format, keyed, pipelineAggregators(), getMetaData());
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        format = in.readNamedWriteable(DocValueFormat.class);
-        keyed = in.readBoolean();
-        int size = in.readVInt();
-        List<B> ranges = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            String key = in.readOptionalString();
-            ranges.add(getFactory().createBucket(key, in.readDouble(), in.readDouble(), in.readVLong(), InternalAggregations.readAggregations(in), keyed, format));
-        }
-        this.ranges = ranges;
-        this.rangeMap = null;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(format);
-        out.writeBoolean(keyed);
-        out.writeVInt(ranges.size());
-        for (B bucket : ranges) {
-            out.writeOptionalString(((Bucket) bucket).key);
-            out.writeDouble(((Bucket) bucket).from);
-            out.writeDouble(((Bucket) bucket).to);
-            out.writeVLong(((Bucket) bucket).docCount);
-            bucket.aggregations.writeTo(out);
-        }
     }
 
     @Override

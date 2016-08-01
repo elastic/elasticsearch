@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -42,25 +43,23 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
     protected static final String CHILD_TYPE = "child";
 
     @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        MapperService mapperService = createShardContext().getMapperService();
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
-            STRING_FIELD_NAME, "type=text",
-            INT_FIELD_NAME, "type=integer",
-            DOUBLE_FIELD_NAME, "type=double",
-            BOOLEAN_FIELD_NAME, "type=boolean",
-            DATE_FIELD_NAME, "type=date",
-            OBJECT_FIELD_NAME, "type=object"
+                STRING_FIELD_NAME, "type=text",
+                INT_FIELD_NAME, "type=integer",
+                DOUBLE_FIELD_NAME, "type=double",
+                BOOLEAN_FIELD_NAME, "type=boolean",
+                DATE_FIELD_NAME, "type=date",
+                OBJECT_FIELD_NAME, "type=object"
         ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mapperService.merge(CHILD_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(CHILD_TYPE,
-            "_parent", "type=" + PARENT_TYPE,
-            STRING_FIELD_NAME, "type=text",
-            INT_FIELD_NAME, "type=integer",
-            DOUBLE_FIELD_NAME, "type=double",
-            BOOLEAN_FIELD_NAME, "type=boolean",
-            DATE_FIELD_NAME, "type=date",
-            OBJECT_FIELD_NAME, "type=object"
+                "_parent", "type=" + PARENT_TYPE,
+                STRING_FIELD_NAME, "type=text",
+                INT_FIELD_NAME, "type=integer",
+                DOUBLE_FIELD_NAME, "type=double",
+                BOOLEAN_FIELD_NAME, "type=boolean",
+                DATE_FIELD_NAME, "type=date",
+                OBJECT_FIELD_NAME, "type=object"
         ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 

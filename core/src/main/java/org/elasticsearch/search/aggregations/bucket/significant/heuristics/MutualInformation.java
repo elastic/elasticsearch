@@ -21,14 +21,13 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 public class MutualInformation extends NXYSignificanceHeuristic {
-    public static final ParseField NAMES_FIELD = new ParseField("mutual_information");
+    public static final String NAME = "mutual_information";
 
     private static final double log2 = Math.log(2.0);
 
@@ -54,7 +53,7 @@ public class MutualInformation extends NXYSignificanceHeuristic {
 
     @Override
     public int hashCode() {
-        int result = NAMES_FIELD.getPreferredName().hashCode();
+        int result = NAME.hashCode();
         result = 31 * result + super.hashCode();
         return result;
     }
@@ -108,18 +107,18 @@ public class MutualInformation extends NXYSignificanceHeuristic {
 
     @Override
     public String getWriteableName() {
-        return NAMES_FIELD.getPreferredName();
+        return NAME;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NAMES_FIELD.getPreferredName());
+        builder.startObject(NAME);
         super.build(builder);
         builder.endObject();
         return builder;
     }
 
-    public static SignificanceHeuristicParser PARSER = new NXYParser() {
+    public static final SignificanceHeuristicParser PARSER = new NXYParser() {
         @Override
         protected SignificanceHeuristic newHeuristic(boolean includeNegatives, boolean backgroundIsSuperset) {
             return new MutualInformation(includeNegatives, backgroundIsSuperset);
@@ -134,7 +133,7 @@ public class MutualInformation extends NXYSignificanceHeuristic {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(NAMES_FIELD.getPreferredName());
+            builder.startObject(NAME);
             super.build(builder);
             builder.endObject();
             return builder;

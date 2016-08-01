@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.fasterxml.jackson.core.JsonParseException;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -33,30 +32,33 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.support.InnerHitBuilder;
-import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.junit.BeforeClass;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.startsWith;
 
 public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQueryBuilder> {
     protected static final String PARENT_TYPE = "parent";
     protected static final String CHILD_TYPE = "child";
 
-    @BeforeClass
-    public static void beforeClass() throws Exception {
-        MapperService mapperService = createShardContext().getMapperService();
+    boolean requiresRewrite = false;
+
+    @Override
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
                 STRING_FIELD_NAME, "type=text",
                 STRING_FIELD_NAME_2, "type=keyword",
@@ -85,8 +87,12 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
      */
     @Override
     protected HasParentQueryBuilder doCreateTestQueryBuilder() {
-        HasParentQueryBuilder hqb = new HasParentQueryBuilder(PARENT_TYPE,
-                RandomQueryBuilder.createQuery(random()),randomBoolean());
+        QueryBuilder innerQueryBuilder = RandomQueryBuilder.createQuery(random());
+        if (randomBoolean()) {
+            requiresRewrite = true;
+            innerQueryBuilder = new WrapperQueryBuilder(innerQueryBuilder.toString());
+        }
+        HasParentQueryBuilder hqb = new HasParentQueryBuilder(PARENT_TYPE, innerQueryBuilder, randomBoolean());
         if (randomBoolean()) {
             hqb.innerHit(new InnerHitBuilder()
                     .setName(randomAsciiOfLengthBetween(1, 10))
@@ -99,28 +105,30 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
     @Override
     protected void doAssertLuceneQuery(HasParentQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        QueryBuilder innerQueryBuilder = queryBuilder.query();
-        if (innerQueryBuilder instanceof EmptyQueryBuilder) {
-            assertNull(query);
-        } else {
-            assertThat(query, instanceOf(HasChildQueryBuilder.LateParsingQuery.class));
-            HasChildQueryBuilder.LateParsingQuery lpq = (HasChildQueryBuilder.LateParsingQuery) query;
-            assertEquals(queryBuilder.score() ? ScoreMode.Max : ScoreMode.None, lpq.getScoreMode());
-        }
+        assertThat(query, instanceOf(HasChildQueryBuilder.LateParsingQuery.class));
+        HasChildQueryBuilder.LateParsingQuery lpq = (HasChildQueryBuilder.LateParsingQuery) query;
+        assertEquals(queryBuilder.score() ? ScoreMode.Max : ScoreMode.None, lpq.getScoreMode());
+
         if (queryBuilder.innerHit() != null) {
-            assertNotNull(SearchContext.current());
-            if (query != null) {
-                assertNotNull(SearchContext.current().innerHits());
-                assertEquals(1, SearchContext.current().innerHits().getInnerHits().size());
-                assertTrue(SearchContext.current().innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
-                InnerHitsContext.BaseInnerHits innerHits = SearchContext.current().innerHits()
-                        .getInnerHits().get(queryBuilder.innerHit().getName());
-                assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
-                assertEquals(innerHits.sort().getSort().length, 1);
-                assertEquals(innerHits.sort().getSort()[0].getField(), STRING_FIELD_NAME_2);
-            } else {
-                assertThat(SearchContext.current().innerHits().getInnerHits().size(), equalTo(0));
+            // have to rewrite again because the provided queryBuilder hasn't been rewritten (directly returned from
+            // doCreateTestQueryBuilder)
+            queryBuilder = (HasParentQueryBuilder) queryBuilder.rewrite(context);
+
+            SearchContext searchContext = SearchContext.current();
+            assertNotNull(searchContext);
+            Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
+            InnerHitBuilder.extractInnerHits(queryBuilder, innerHitBuilders);
+            for (InnerHitBuilder builder : innerHitBuilders.values()) {
+                builder.build(searchContext, searchContext.innerHits());
             }
+            assertNotNull(searchContext.innerHits());
+            assertEquals(1, searchContext.innerHits().getInnerHits().size());
+            assertTrue(searchContext.innerHits().getInnerHits().containsKey(queryBuilder.innerHit().getName()));
+            InnerHitsContext.BaseInnerHits innerHits = searchContext.innerHits()
+                    .getInnerHits().get(queryBuilder.innerHit().getName());
+            assertEquals(innerHits.size(), queryBuilder.innerHit().getSize());
+            assertEquals(innerHits.sort().sort.getSort().length, 1);
+            assertEquals(innerHits.sort().sort.getSort()[0].getField(), STRING_FIELD_NAME_2);
         }
     }
 
@@ -158,27 +166,6 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
         HasParentQueryBuilder queryBuilder = (HasParentQueryBuilder) parseQuery(builder.string(), ParseFieldMatcher.EMPTY);
         assertEquals("foo", queryBuilder.type());
-
-        boolean score = randomBoolean();
-        String key = RandomPicks.randomFrom(random(), Arrays.asList("score_mode", "scoreMode"));
-        builder = XContentFactory.jsonBuilder().prettyPrint();
-        builder.startObject();
-        builder.startObject("has_parent");
-        builder.field("query");
-        new TermQueryBuilder("a", "a").toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.field(key, score ? "score": "none");
-        builder.field("parent_type", "foo");
-        builder.endObject();
-        builder.endObject();
-        try {
-            parseQuery(builder.string());
-            fail(key + " is deprecated");
-        } catch (IllegalArgumentException ex) {
-            assertEquals("Deprecated field [" + key + "] used, replaced by [score]", ex.getMessage());
-        }
-
-        queryBuilder = (HasParentQueryBuilder) parseQuery(builder.string(), ParseFieldMatcher.EMPTY);
-        assertEquals(score, queryBuilder.score());
     }
 
     public void testToQueryInnerQueryType() throws IOException {
@@ -212,12 +199,23 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 try {
                     parseQuery(testQuery);
                     fail("some parsing exception expected for query: " + testQuery);
-                } catch (ParsingException | ScriptParseException | ElasticsearchParseException e) {
+                } catch (ParsingException | ElasticsearchParseException e) {
                     // different kinds of exception wordings depending on location
                     // of mutation, so no simple asserts possible here
                 } catch (JsonParseException e) {
                     // mutation produced invalid json
                 }
+            }
+        }
+    }
+
+    @Override
+    public void testMustRewrite() throws IOException {
+        try {
+            super.testMustRewrite();
+        } catch (UnsupportedOperationException e) {
+            if (requiresRewrite == false) {
+                throw e;
             }
         }
     }
@@ -244,6 +242,27 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         checkGeneratedJson(json, parsed);
         assertEquals(json, "blog", parsed.type());
         assertEquals(json, "something", ((TermQueryBuilder) parsed.query()).value());
+    }
+
+    /**
+     * we resolve empty inner clauses by representing this whole query as empty optional upstream
+     */
+    public void testFromJsonEmptyQueryBody() throws IOException {
+        String query =  "{\n" +
+                "  \"has_parent\" : {\n" +
+                "    \"query\" : { },\n" +
+                "    \"parent_type\" : \"blog\"" +
+                "   }" +
+                "}";
+        XContentParser parser = XContentFactory.xContent(query).createParser(query);
+        QueryParseContext context = createParseContext(parser, ParseFieldMatcher.EMPTY);
+        Optional<QueryBuilder> innerQueryBuilder = context.parseInnerQueryBuilder();
+        assertTrue(innerQueryBuilder.isPresent() == false);
+
+        parser = XContentFactory.xContent(query).createParser(query);
+        QueryParseContext otherContext = createParseContext(parser, ParseFieldMatcher.STRICT);
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> otherContext.parseInnerQueryBuilder());
+        assertThat(ex.getMessage(), startsWith("query malformed, empty clause found at"));
     }
 
     public void testIgnoreUnmapped() throws IOException {

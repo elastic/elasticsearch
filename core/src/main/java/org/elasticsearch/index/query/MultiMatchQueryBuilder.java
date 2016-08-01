@@ -43,6 +43,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.TreeMap;
 
 /**
@@ -59,7 +60,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     public static final boolean DEFAULT_LENIENCY = MatchQuery.DEFAULT_LENIENCY;
     public static final MatchQuery.ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = MatchQuery.DEFAULT_ZERO_TERMS_QUERY;
 
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
     private static final ParseField SLOP_FIELD = new ParseField("slop", "phrase_slop");
     private static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
@@ -556,7 +556,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         builder.endObject();
     }
 
-    public static MultiMatchQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<MultiMatchQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         Object value = null;
@@ -655,7 +655,12 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             throw new ParsingException(parser.getTokenLocation(), "No fields specified for multi_match query");
         }
 
-        return new MultiMatchQueryBuilder(value)
+        if (fuzziness != null && (type == Type.CROSS_FIELDS || type == Type.PHRASE || type == Type.PHRASE_PREFIX)) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "Fuziness not allowed for type [" + type.parseField.getPreferredName() + "]");
+        }
+
+        return Optional.of(new MultiMatchQueryBuilder(value)
                 .fields(fieldsBoosts)
                 .type(type)
                 .analyzer(analyzer)
@@ -672,7 +677,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                 .tieBreaker(tieBreaker)
                 .zeroTermsQuery(zeroTermsQuery)
                 .boost(boost)
-                .queryName(queryName);
+                .queryName(queryName));
     }
 
     private static void parseFieldAndBoost(XContentParser parser, Map<String, Float> fieldsBoosts) throws IOException {
@@ -740,11 +745,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
 
         Map<String, Float> newFieldsBoosts = handleFieldsMatchPattern(context.getMapperService(), fieldsBoosts);
 
-        Query query = multiMatchQuery.parse(type, newFieldsBoosts, value, minimumShouldMatch);
-        if (query == null) {
-            return null;
-        }
-        return query;
+        return multiMatchQuery.parse(type, newFieldsBoosts, value, minimumShouldMatch);
     }
 
     private static Map<String, Float> handleFieldsMatchPattern(MapperService mapperService, Map<String, Float> fieldsBoosts) {

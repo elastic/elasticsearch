@@ -283,7 +283,7 @@ public abstract class BlendedTermQuery extends Query {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!super.equals(o)) return false;
+        if (sameClassAs(o) == false) return false;
 
         BlendedTermQuery that = (BlendedTermQuery) o;
         return Arrays.equals(equalsTerms(), that.equalsTerms());
@@ -291,7 +291,7 @@ public abstract class BlendedTermQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), Arrays.hashCode(equalsTerms()));
+        return Objects.hash(classHash(), Arrays.hashCode(equalsTerms()));
     }
 
     public static BlendedTermQuery booleanBlendedQuery(Term[] terms, final boolean disableCoord) {

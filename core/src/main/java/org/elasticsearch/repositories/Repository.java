@@ -19,42 +19,65 @@
 package org.elasticsearch.repositories;
 
 import org.apache.lucene.index.IndexCommit;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 
 import java.io.IOException;
 import java.util.List;
 
 /**
- * Snapshot repository interface.
+ * An interface for interacting with a repository in snapshot and restore.
  * <p>
- * Responsible for index and cluster level operations. It's called only on master.
- * Shard-level operations are performed using {@link org.elasticsearch.index.snapshots.IndexShardRepository}
- * interface on data nodes.
+ * Implementations are responsible for reading and writing both metadata and shard data to and from
+ * a repository backend.
  * <p>
- * Typical snapshot usage pattern:
+ * To perform a snapshot:
  * <ul>
- * <li>Master calls {@link #initializeSnapshot(org.elasticsearch.cluster.metadata.SnapshotId, List, org.elasticsearch.cluster.metadata.MetaData)}
+ * <li>Master calls {@link #initializeSnapshot(SnapshotId, List, org.elasticsearch.cluster.metadata.MetaData)}
  * with list of indices that will be included into the snapshot</li>
- * <li>Data nodes call {@link org.elasticsearch.index.snapshots.IndexShardRepository#snapshot(SnapshotId, ShardId, IndexCommit, IndexShardSnapshotStatus)} for each shard</li>
- * <li>When all shard calls return master calls {@link #finalizeSnapshot}
- * with possible list of failures</li>
+ * <li>Data nodes call {@link Repository#snapshotShard(IndexShard, SnapshotId, IndexCommit, IndexShardSnapshotStatus)}
+ * for each shard</li>
+ * <li>When all shard calls return master calls {@link #finalizeSnapshot} with possible list of failures</li>
  * </ul>
  */
-public interface Repository extends LifecycleComponent<Repository> {
+public interface Repository extends LifecycleComponent {
+
+    /**
+     * An factory interface for constructing repositories.
+     * See {@link org.elasticsearch.plugins.RepositoryPlugin}.
+     */
+    interface Factory {
+        /**
+         * Constructs a repository.
+         * @param metadata    metadata for the repository including name and settings
+         */
+        Repository create(RepositoryMetaData metadata) throws Exception;
+    }
+
+    /**
+     * Returns metadata about this repository.
+     */
+    RepositoryMetaData getMetadata();
 
     /**
      * Reads snapshot description from repository.
      *
-     * @param snapshotId snapshot ID
+     * @param snapshotId  snapshot id
      * @return information about snapshot
      */
-    Snapshot readSnapshot(SnapshotId snapshotId);
+    SnapshotInfo getSnapshotInfo(SnapshotId snapshotId);
 
     /**
      * Returns global metadata associate with the snapshot.
@@ -65,14 +88,15 @@ public interface Repository extends LifecycleComponent<Repository> {
      * @param indices    list of indices
      * @return information about snapshot
      */
-    MetaData readSnapshotMetaData(SnapshotId snapshotId, Snapshot snapshot, List<String> indices) throws IOException;
+    MetaData getSnapshotMetaData(SnapshotInfo snapshot, List<String> indices) throws IOException;
 
     /**
-     * Returns the list of snapshots currently stored in the repository
+     * Returns the list of snapshots currently stored in the repository that match the given predicate on the snapshot name.
+     * To get all snapshots, the predicate filter should return true regardless of the input.
      *
      * @return snapshot list
      */
-    List<SnapshotId> snapshots();
+    List<SnapshotId> getSnapshots();
 
     /**
      * Starts snapshotting process
@@ -94,7 +118,7 @@ public interface Repository extends LifecycleComponent<Repository> {
      * @param shardFailures list of shard failures
      * @return snapshot description
      */
-    Snapshot finalizeSnapshot(SnapshotId snapshotId, List<String> indices, long startTime, String failure, int totalShards, List<SnapshotShardFailure> shardFailures);
+    SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<String> indices, long startTime, String failure, int totalShards, List<SnapshotShardFailure> shardFailures);
 
     /**
      * Deletes snapshot
@@ -106,12 +130,12 @@ public interface Repository extends LifecycleComponent<Repository> {
     /**
      * Returns snapshot throttle time in nanoseconds
      */
-    long snapshotThrottleTimeInNanos();
+    long getSnapshotThrottleTimeInNanos();
 
     /**
      * Returns restore throttle time in nanoseconds
      */
-    long restoreThrottleTimeInNanos();
+    long getRestoreThrottleTimeInNanos();
 
 
     /**
@@ -134,9 +158,56 @@ public interface Repository extends LifecycleComponent<Repository> {
     void endVerification(String verificationToken);
 
     /**
+     * Verifies repository settings on data node.
+     * @param verificationToken value returned by {@link org.elasticsearch.repositories.Repository#startVerification()}
+     * @param localNode         the local node information, for inclusion in verification errors
+     */
+    void verify(String verificationToken, DiscoveryNode localNode);
+
+    /**
      * Returns true if the repository supports only read operations
      * @return true if the repository is read/only
      */
-    boolean readOnly();
+    boolean isReadOnly();
+
+    /**
+     * Creates a snapshot of the shard based on the index commit point.
+     * <p>
+     * The index commit point can be obtained by using {@link org.elasticsearch.index.engine.Engine#snapshotIndex} method.
+     * Repository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
+     * <p>
+     * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
+     * {@link IndexShardSnapshotStatus#aborted()} to see if the snapshot process should be aborted.
+     *
+     * @param shard               shard to be snapshotted
+     * @param snapshotId          snapshot id
+     * @param snapshotIndexCommit commit point
+     * @param snapshotStatus      snapshot status
+     */
+    void snapshotShard(IndexShard shard, SnapshotId snapshotId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus);
+
+    /**
+     * Restores snapshot of the shard.
+     * <p>
+     * The index can be renamed on restore, hence different {@code shardId} and {@code snapshotShardId} are supplied.
+     *
+     * @param shard           the shard to restore the index into
+     * @param snapshotId      snapshot id
+     * @param version         version of elasticsearch that created this snapshot
+     * @param snapshotShardId shard id (in the snapshot)
+     * @param recoveryState   recovery state
+     */
+    void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, ShardId snapshotShardId, RecoveryState recoveryState);
+
+    /**
+     * Retrieve shard snapshot status for the stored snapshot
+     *
+     * @param snapshotId snapshot id
+     * @param version    version of elasticsearch that created this snapshot
+     * @param shardId    shard id
+     * @return snapshot status
+     */
+    IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId);
+
 
 }

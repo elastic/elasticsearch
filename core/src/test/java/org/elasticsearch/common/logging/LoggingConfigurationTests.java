@@ -27,6 +27,7 @@ import java.util.Arrays;
 
 import org.apache.log4j.Appender;
 import org.apache.log4j.Logger;
+import org.apache.log4j.MDC;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -92,23 +93,6 @@ public class LoggingConfigurationTests extends ESTestCase {
 
         Settings logSettings = builder.build();
         assertThat(logSettings.get("json"), is("foo"));
-    }
-
-    public void testResolvePropertiesLoggingConfig() throws Exception {
-        Path tmpDir = createTempDir();
-        Path loggingConf = tmpDir.resolve(loggingConfiguration("properties"));
-        Files.write(loggingConf, "key: value".getBytes(StandardCharsets.UTF_8));
-        Environment environment = new Environment(
-                Settings.builder()
-                    .put(Environment.PATH_CONF_SETTING.getKey(), tmpDir.toAbsolutePath())
-                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                    .build());
-
-        Settings.Builder builder = Settings.builder();
-        LogConfigurator.resolveConfig(environment, builder);
-
-        Settings logSettings = builder.build();
-        assertThat(logSettings.get("key"), is("value"));
     }
 
     public void testResolveYamlLoggingConfig() throws Exception {

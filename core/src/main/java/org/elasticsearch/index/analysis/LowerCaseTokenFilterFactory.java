@@ -37,7 +37,7 @@ import org.elasticsearch.index.IndexSettings;
  *   <li>turkish: {@link TurkishLowerCaseFilter}
  * </ul>
  */
-public class LowerCaseTokenFilterFactory extends AbstractTokenFilterFactory {
+public class LowerCaseTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
     private final String lang;
 
@@ -59,6 +59,11 @@ public class LowerCaseTokenFilterFactory extends AbstractTokenFilterFactory {
         } else {
             throw new IllegalArgumentException("language [" + lang + "] not support for lower case");
         }
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }
 

@@ -132,7 +132,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
             }
 
             @Override
-            public final void remove() {
+            public void remove() {
                 throw new UnsupportedOperationException();
             }
         };
@@ -162,7 +162,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
             }
 
             @Override
-            public final void remove() {
+            public void remove() {
                 throw new UnsupportedOperationException();
             }
         };

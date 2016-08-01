@@ -21,13 +21,17 @@ package org.elasticsearch.rest.action.support;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -38,9 +42,14 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  *
@@ -63,25 +72,21 @@ public class RestActions {
         return (version == Versions.MATCH_ANY) ? defaultVersion : version;
     }
 
-    static final class Fields {
-        static final String _SHARDS = "_shards";
-        static final String TOTAL = "total";
-        static final String SUCCESSFUL = "successful";
-        static final String FAILED = "failed";
-        static final String FAILURES = "failures";
+    public static void buildBroadcastShardsHeader(XContentBuilder builder, Params params, BroadcastResponse response) throws IOException {
+        buildBroadcastShardsHeader(builder, params,
+                                   response.getTotalShards(), response.getSuccessfulShards(), response.getFailedShards(),
+                                   response.getShardFailures());
     }
 
-    public static void buildBroadcastShardsHeader(XContentBuilder builder, ToXContent.Params params, BroadcastResponse response) throws IOException {
-        buildBroadcastShardsHeader(builder, params, response.getTotalShards(), response.getSuccessfulShards(), response.getFailedShards(), response.getShardFailures());
-    }
-
-    public static void buildBroadcastShardsHeader(XContentBuilder builder, ToXContent.Params params, int total, int successful, int failed, ShardOperationFailedException[] shardFailures) throws IOException {
-        builder.startObject(Fields._SHARDS);
-        builder.field(Fields.TOTAL, total);
-        builder.field(Fields.SUCCESSFUL, successful);
-        builder.field(Fields.FAILED, failed);
+    public static void buildBroadcastShardsHeader(XContentBuilder builder, Params params,
+                                                  int total, int successful, int failed,
+                                                  ShardOperationFailedException[] shardFailures) throws IOException {
+        builder.startObject("_shards");
+        builder.field("total", total);
+        builder.field("successful", successful);
+        builder.field("failed", failed);
         if (shardFailures != null && shardFailures.length > 0) {
-            builder.startArray(Fields.FAILURES);
+            builder.startArray("failures");
             final boolean group = params.paramAsBoolean("group_shard_failures", true); // we group by default
             for (ShardOperationFailedException shardFailure : group ? ExceptionsHelper.groupBy(shardFailures) : shardFailures) {
                 builder.startObject();
@@ -92,8 +97,96 @@ public class RestActions {
         }
         builder.endObject();
     }
+    /**
+     * Create the XContent header for any {@link BaseNodesResponse}.
+     *
+     * @param builder XContent builder.
+     * @param params XContent parameters.
+     * @param response The response containing individual, node-level responses.
+     * @see #buildNodesHeader(XContentBuilder, Params, int, int, int, List)
+     */
+    public static <NodeResponse extends BaseNodeResponse> void buildNodesHeader(final XContentBuilder builder, final Params params,
+                                                                                final BaseNodesResponse<NodeResponse> response)
+            throws IOException {
+        final int successful = response.getNodes().size();
+        final int failed = response.failures().size();
 
-    public static QueryBuilder<?> urlParamsToQueryBuilder(RestRequest request) {
+        buildNodesHeader(builder, params, successful + failed, successful, failed, response.failures());
+    }
+
+    /**
+     * Create the XContent header for any {@link BaseNodesResponse}. This looks like:
+     * <code>
+     * "_nodes" : {
+     *   "total" : 3,
+     *   "successful" : 1,
+     *   "failed" : 2,
+     *   "failures" : [ { ... }, { ... } ]
+     * }
+     * </code>
+     * Prefer the overload that properly invokes this method to calling this directly.
+     *
+     * @param builder XContent builder.
+     * @param params XContent parameters.
+     * @param total The total number of nodes touched.
+     * @param successful The successful number of responses received.
+     * @param failed The number of failures (effectively {@code total - successful}).
+     * @param failures The failure exceptions related to {@code failed}.
+     * @see #buildNodesHeader(XContentBuilder, Params, BaseNodesResponse)
+     */
+    public static void buildNodesHeader(final XContentBuilder builder, final Params params,
+                                        final int total, final int successful, final int failed,
+                                        final List<FailedNodeException> failures) throws IOException {
+        builder.startObject("_nodes");
+        builder.field("total", total);
+        builder.field("successful", successful);
+        builder.field("failed", failed);
+
+        if (failures.isEmpty() == false) {
+            builder.startArray("failures");
+            for (FailedNodeException failure : failures) {
+                builder.startObject();
+                failure.toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endArray();
+        }
+
+        builder.endObject();
+    }
+
+    /**
+     * Automatically transform the {@link ToXContent}-compatible, nodes-level {@code response} into a a {@link BytesRestResponse}.
+     * <p>
+     * This looks like:
+     * <code>
+     * {
+     *   "_nodes" : { ... },
+     *   "cluster_name" : "...",
+     *   ...
+     * }
+     * </code>
+     *
+     * @param builder XContent builder.
+     * @param params XContent parameters.
+     * @param response The nodes-level (plural) response.
+     * @return Never {@code null}.
+     * @throws IOException if building the response causes an issue
+     */
+    public static <NodesResponse extends BaseNodesResponse & ToXContent> BytesRestResponse nodesResponse(final XContentBuilder builder,
+                                                                                                         final Params params,
+                                                                                                         final NodesResponse response)
+            throws IOException {
+        builder.startObject();
+        RestActions.buildNodesHeader(builder, params, response);
+        builder.field("cluster_name", response.getClusterName().value());
+        response.toXContent(builder, params);
+        builder.endObject();
+
+        return new BytesRestResponse(RestStatus.OK, builder);
+    }
+
+    public static QueryBuilder urlParamsToQueryBuilder(RestRequest request) {
         String queryString = request.param("q");
         if (queryString == null) {
             return null;
@@ -130,7 +223,8 @@ public class RestActions {
         return content;
     }
 
-    public static QueryBuilder<?> getQueryContent(BytesReference source, IndicesQueriesRegistry indicesQueriesRegistry, ParseFieldMatcher parseFieldMatcher) {
+    public static QueryBuilder getQueryContent(BytesReference source, IndicesQueriesRegistry indicesQueriesRegistry,
+                                               ParseFieldMatcher parseFieldMatcher) {
         try (XContentParser requestParser = XContentFactory.xContent(source).createParser(source)) {
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, requestParser, parseFieldMatcher);
             return context.parseTopLevelQueryBuilder();
@@ -158,4 +252,32 @@ public class RestActions {
     public static boolean hasBodyContent(final RestRequest request) {
         return request.hasContent() || request.hasParam("source");
     }
+
+    /**
+     * {@code NodesResponseRestBuilderListener} automatically translates any {@link BaseNodesResponse} (multi-node) response that is
+     * {@link ToXContent}-compatible into a {@link RestResponse} with the necessary header info (e.g., "cluster_name").
+     * <p>
+     * This is meant to avoid a slew of anonymous classes doing (or worse):
+     * <code>
+     * client.admin().cluster().request(nodesRequest, new RestBuilderListener&lt;NodesResponse&gt;(channel) {
+     *     public RestResponse buildResponse(NodesResponse response, XContentBuilder builder) throws Exception {
+     *         return RestActions.nodesResponse(builder, ToXContent.EMPTY_PARAMS, response);
+     *     }
+     * });
+     * </code>
+     */
+    public static class NodesResponseRestListener<NodesResponse extends BaseNodesResponse & ToXContent>
+        extends RestBuilderListener<NodesResponse> {
+
+        public NodesResponseRestListener(RestChannel channel) {
+            super(channel);
+        }
+
+        @Override
+        public RestResponse buildResponse(NodesResponse response, XContentBuilder builder) throws Exception {
+            return RestActions.nodesResponse(builder, channel.request(), response);
+        }
+
+    }
+
 }

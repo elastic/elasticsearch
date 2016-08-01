@@ -64,7 +64,6 @@ public class FunctionScoreBackwardCompatibilityIT extends ESBackcompatTestCase {
                         .endObject()
                         .endObject()
                         .endObject()));
-        ensureYellow();
 
         int numDocs = 10;
         String[] ids = new String[numDocs];

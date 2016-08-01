@@ -111,7 +111,7 @@ public class BulkRequestModifierTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
             }
         });
 
@@ -157,7 +157,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         }
 
         @Override
-        public void onFailure(Throwable e) {
+        public void onFailure(Exception e) {
         }
 
         public BulkResponse getResponse() {

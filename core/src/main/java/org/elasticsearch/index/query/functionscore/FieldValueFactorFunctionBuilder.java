@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,7 +42,6 @@ import java.util.Objects;
  */
 public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldValueFactorFunctionBuilder> {
     public static final String NAME = "field_value_factor";
-    public static final ParseField FUNCTION_NAME_FIELD = new ParseField(NAME);
     public static final FieldValueFactorFunction.Modifier DEFAULT_MODIFIER = FieldValueFactorFunction.Modifier.NONE;
     public static final float DEFAULT_FACTOR = 1;
 

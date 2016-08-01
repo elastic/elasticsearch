@@ -32,6 +32,7 @@ import java.util.List;
 
 import static org.elasticsearch.client.Requests.nodesInfoRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -54,30 +55,64 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         logger.info("--> started nodes: {} and {}", server1NodeId, server2NodeId);
 
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();
-        assertThat(response.getNodes().length, is(2));
+        assertThat(response.getNodes().size(), is(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
         response = client().admin().cluster().nodesInfo(nodesInfoRequest()).actionGet();
-        assertThat(response.getNodes().length, is(2));
+        assertThat(response.getNodes().size(), is(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
         response = client().admin().cluster().nodesInfo(nodesInfoRequest(server1NodeId)).actionGet();
-        assertThat(response.getNodes().length, is(1));
+        assertThat(response.getNodes().size(), is(1));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
 
         response = client().admin().cluster().nodesInfo(nodesInfoRequest(server1NodeId)).actionGet();
-        assertThat(response.getNodes().length, is(1));
+        assertThat(response.getNodes().size(), is(1));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
 
         response = client().admin().cluster().nodesInfo(nodesInfoRequest(server2NodeId)).actionGet();
-        assertThat(response.getNodes().length, is(1));
+        assertThat(response.getNodes().size(), is(1));
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
         response = client().admin().cluster().nodesInfo(nodesInfoRequest(server2NodeId)).actionGet();
-        assertThat(response.getNodes().length, is(1));
+        assertThat(response.getNodes().size(), is(1));
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
+    }
+
+    public void testNodesInfosTotalIndexingBuffer() throws Exception {
+        List<String> nodesIds = internalCluster().startNodesAsync(2).get();
+        final String node_1 = nodesIds.get(0);
+        final String node_2 = nodesIds.get(1);
+
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").get();
+        logger.info("--> done cluster_health, status {}", clusterHealth.getStatus());
+
+        String server1NodeId = internalCluster().getInstance(ClusterService.class, node_1).state().nodes().getLocalNodeId();
+        String server2NodeId = internalCluster().getInstance(ClusterService.class, node_2).state().nodes().getLocalNodeId();
+        logger.info("--> started nodes: {} and {}", server1NodeId, server2NodeId);
+
+        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();
+        assertThat(response.getNodes().size(), is(2));
+        assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
+        assertNotNull(response.getNodesMap().get(server1NodeId).getTotalIndexingBuffer());
+        assertThat(response.getNodesMap().get(server1NodeId).getTotalIndexingBuffer().bytes(), greaterThan(0L));
+
+        assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
+        assertNotNull(response.getNodesMap().get(server2NodeId).getTotalIndexingBuffer());
+        assertThat(response.getNodesMap().get(server2NodeId).getTotalIndexingBuffer().bytes(), greaterThan(0L));
+
+        // again, using only the indices flag
+        response = client().admin().cluster().prepareNodesInfo().clear().setIndices(true).execute().actionGet();
+        assertThat(response.getNodes().size(), is(2));
+        assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
+        assertNotNull(response.getNodesMap().get(server1NodeId).getTotalIndexingBuffer());
+        assertThat(response.getNodesMap().get(server1NodeId).getTotalIndexingBuffer().bytes(), greaterThan(0L));
+
+        assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
+        assertNotNull(response.getNodesMap().get(server2NodeId).getTotalIndexingBuffer());
+        assertThat(response.getNodesMap().get(server2NodeId).getTotalIndexingBuffer().bytes(), greaterThan(0L));
     }
 
     public void testAllocatedProcessors() throws Exception {
@@ -99,7 +134,7 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
 
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();
 
-        assertThat(response.getNodes().length, is(2));
+        assertThat(response.getNodes().size(), is(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 

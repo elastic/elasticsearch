@@ -148,13 +148,19 @@ You can use the `@ClusterScope` annotation at class level to configure this beha
 
 [source,java]
 -----------------------------------------
-@ClusterScope(scope=TEST, numNodes=1)
+@ClusterScope(scope=TEST, numDataNodes=1)
 public class CustomSuggesterSearchTests extends ESIntegTestCase {
   // ... tests go here
 }
 -----------------------------------------
 
-The above sample configures the test to use a new cluster for each test method. The default scope is `SUITE` (one cluster for all test methods in the test). The `numNodes` settings allows you to only start a certain number of nodes, which can speed up test execution, as starting a new node is a costly and time consuming operation and might not be needed for this test.
+The above sample configures the test to use a new cluster for each test method. The default scope is `SUITE` (one cluster for all
+test methods in the test). The `numDataNodes` settings allows you to only start a certain number of data nodes, which can speed up test
+execution, as starting a new node is a costly and time consuming operation and might not be needed for this test.
+
+By default, the testing infrastructure will randomly start dedicated master nodes. If you want to disable dedicated masters
+you can set `supportsDedicatedMasters=false` in a similar fashion to the `numDataNodes` setting. If dedicated master nodes are not used,
+data nodes will be allowed to become masters as well.
 
 
 [[changing-node-configuration]]

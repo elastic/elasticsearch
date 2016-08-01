@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -53,6 +54,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -92,12 +94,14 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
         logger.trace("using cluster state version [{}] to determine shards", state.version());
         // collect relevant shard ids of the requested indices for fetching store infos
         for (String index : concreteIndices) {
+            IndexMetaData indexMetaData = state.metaData().index(index);
             IndexRoutingTable indexShardRoutingTables = routingTables.index(index);
             if (indexShardRoutingTables == null) {
                 continue;
             }
             for (IndexShardRoutingTable routing : indexShardRoutingTables) {
-                ClusterShardHealth shardHealth = new ClusterShardHealth(routing.shardId().id(), routing);
+                final int shardId = routing.shardId().id();
+                ClusterShardHealth shardHealth = new ClusterShardHealth(shardId, routing, indexMetaData);
                 if (request.shardStatuses().contains(shardHealth.getStatus())) {
                     shardIdsToFetch.add(routing.shardId());
                 }
@@ -152,7 +156,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             }
 
             @Override
-            protected synchronized void processAsyncFetch(ShardId shardId, NodeGatewayStartedShards[] responses, FailedNodeException[] failures) {
+            protected synchronized void processAsyncFetch(ShardId shardId, List<NodeGatewayStartedShards> responses, List<FailedNodeException> failures) {
                 fetchResponses.add(new Response(shardId, responses, failures));
                 if (expectedOps.countDown()) {
                     finish();
@@ -220,10 +224,10 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
 
             public class Response {
                 private final ShardId shardId;
-                private final NodeGatewayStartedShards[] responses;
-                private final FailedNodeException[] failures;
+                private final List<NodeGatewayStartedShards> responses;
+                private final List<FailedNodeException> failures;
 
-                public Response(ShardId shardId, NodeGatewayStartedShards[] responses, FailedNodeException[] failures) {
+                public Response(ShardId shardId, List<NodeGatewayStartedShards> responses, List<FailedNodeException> failures) {
                     this.shardId = shardId;
                     this.responses = responses;
                     this.failures = failures;

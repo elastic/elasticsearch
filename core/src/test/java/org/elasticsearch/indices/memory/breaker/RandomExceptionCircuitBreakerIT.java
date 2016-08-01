@@ -22,18 +22,16 @@ package org.elasticsearch.indices.memory.breaker;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
@@ -49,6 +47,7 @@ import org.elasticsearch.test.engine.ThrowingLeafReaderWrapper;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
@@ -113,18 +112,20 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                 .put(EXCEPTION_LOW_LEVEL_RATIO_KEY, lowLevelRate)
                 .put(MockEngineSupport.WRAP_READER_RATIO.getKey(), 1.0d);
         logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
-        client().admin().indices().prepareCreate("test")
+        CreateIndexResponse response = client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
                 .addMapping("type", mapping).execute().actionGet();
-        ClusterHealthResponse clusterHealthResponse = client().admin().cluster()
-                .health(Requests.clusterHealthRequest().waitForYellowStatus().timeout(TimeValue.timeValueSeconds(5))).get(); // it's OK to timeout here
         final int numDocs;
-        if (clusterHealthResponse.isTimedOut()) {
+        if (response.isShardsAcked() == false) {
             /* some seeds just won't let you create the index at all and we enter a ping-pong mode
              * trying one node after another etc. that is ok but we need to make sure we don't wait
              * forever when indexing documents so we set numDocs = 1 and expect all shards to fail
              * when we search below.*/
-            logger.info("ClusterHealth timed out - only index one doc and expect searches to fail");
+            if (response.isAcknowledged()) {
+                logger.info("Index creation timed out waiting for primaries to start - only index one doc and expect searches to fail");
+            } else {
+                logger.info("Index creation failed - only index one doc and expect searches to fail");
+            }
             numDocs = 1;
         } else {
             numDocs = between(10, 100);
@@ -201,17 +202,8 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
             Setting.doubleSetting(EXCEPTION_LOW_LEVEL_RATIO_KEY, 0.1d, 0.0d, Property.IndexScope);
         public static class TestPlugin extends Plugin {
             @Override
-            public String name() {
-                return "random-exception-reader-wrapper";
-            }
-            @Override
-            public String description() {
-                return "a mock reader wrapper that throws random exceptions for testing";
-            }
-
-            public void onModule(SettingsModule module) {
-                module.registerSetting(EXCEPTION_TOP_LEVEL_RATIO_SETTING);
-                module.registerSetting(EXCEPTION_LOW_LEVEL_RATIO_SETTING);
+            public List<Setting<?>> getSettings() {
+                return Arrays.asList(EXCEPTION_TOP_LEVEL_RATIO_SETTING, EXCEPTION_LOW_LEVEL_RATIO_SETTING);
             }
 
             public void onModule(MockEngineFactoryPlugin.MockEngineReaderModule module) {

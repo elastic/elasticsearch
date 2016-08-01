@@ -29,7 +29,7 @@ PUT my_index/my_type/1
   ]
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `user` field is dynamically added as a field of type `object`.
 
 would be transformed internally into a document that looks more like this:
@@ -61,7 +61,8 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
 
 ==== Using `nested` fields for arrays of objects
 
@@ -137,12 +138,12 @@ GET my_index/_search
             "user.first": {}
           }
         }
-
+      }
     }
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `user` field is mapped as type `nested` instead of type `object`.
 <2> This query doesn't match because `Alice` and `Smith` are not in the same nested object.
 <3> This query matches because `Alice` and `White` are in the same nested object.

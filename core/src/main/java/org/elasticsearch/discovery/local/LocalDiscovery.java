@@ -28,9 +28,10 @@ import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -46,45 +47,43 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.cluster.ClusterState.Builder;
 
 /**
  *
  */
-public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery {
+public class LocalDiscovery extends AbstractLifecycleComponent implements Discovery {
 
     private static final LocalDiscovery[] NO_MEMBERS = new LocalDiscovery[0];
 
     private final ClusterService clusterService;
-    private RoutingService routingService;
+    private AllocationService allocationService;
     private final ClusterName clusterName;
 
     private final DiscoverySettings discoverySettings;
 
     private volatile boolean master = false;
 
-    private final AtomicBoolean initialStateSent = new AtomicBoolean();
-
     private static final ConcurrentMap<ClusterName, ClusterGroup> clusterGroups = ConcurrentCollections.newConcurrentMap();
 
     private volatile ClusterState lastProcessedClusterState;
 
     @Inject
-    public LocalDiscovery(Settings settings, ClusterName clusterName, ClusterService clusterService, ClusterSettings clusterSettings) {
+    public LocalDiscovery(Settings settings, ClusterService clusterService, ClusterSettings clusterSettings) {
         super(settings);
-        this.clusterName = clusterName;
+        this.clusterName = clusterService.getClusterName();
         this.clusterService = clusterService;
         this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
     }
 
     @Override
-    public void setRoutingService(RoutingService routingService) {
-        this.routingService = routingService;
+    public void setAllocationService(AllocationService allocationService) {
+        this.allocationService = allocationService;
     }
 
     @Override
@@ -101,6 +100,14 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 clusterGroups.put(clusterName, clusterGroup);
             }
             logger.debug("Connected to cluster [{}]", clusterName);
+
+            Optional<LocalDiscovery> current = clusterGroup.members().stream().filter(other -> (
+                other.localNode().equals(this.localNode()) || other.localNode().getId().equals(this.localNode().getId())
+            )).findFirst();
+            if (current.isPresent()) {
+                throw new IllegalStateException("current cluster group already contains a node with the same id. current "
+                    + current.get().localNode() + ", this node " + localNode());
+            }
 
             clusterGroup.members().add(this);
 
@@ -136,8 +143,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                     }
 
                     @Override
-                    public void onFailure(String source, Throwable t) {
-                        logger.error("unexpected failure during [{}]", t, source);
+                    public void onFailure(String source, Exception e) {
+                        logger.error("unexpected failure during [{}]", e, source);
                     }
                 });
             } else if (firstMaster != null) {
@@ -156,21 +163,19 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                             nodesBuilder.put(discovery.localNode());
                         }
                         nodesBuilder.localNodeId(master.localNode().getId()).masterNodeId(master.localNode().getId());
-                        return ClusterState.builder(currentState).nodes(nodesBuilder).build();
+                        currentState = ClusterState.builder(currentState).nodes(nodesBuilder).build();
+                        RoutingAllocation.Result result =  master.allocationService.reroute(currentState, "node_add");
+                        if (result.changed()) {
+                            currentState = ClusterState.builder(currentState).routingResult(result).build();
+                        }
+                        return currentState;
                     }
 
                     @Override
-                    public void onFailure(String source, Throwable t) {
-                        logger.error("unexpected failure during [{}]", t, source);
+                    public void onFailure(String source, Exception e) {
+                        logger.error("unexpected failure during [{}]", e, source);
                     }
 
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        // we reroute not in the same cluster state update since in certain areas we rely on
-                        // the node to be in the cluster state (sampled from ClusterService#state) to be there, also
-                        // shard transitions need to better be handled in such cases
-                        master.routingService.reroute("post_node_add");
-                    }
                 });
             }
         } // else, no master node, the next node that will start will fill things in...
@@ -226,14 +231,14 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         }
                         // reroute here, so we eagerly remove dead nodes from the routing
                         ClusterState updatedState = ClusterState.builder(currentState).nodes(newNodes).build();
-                        RoutingAllocation.Result routingResult = master.routingService.getAllocationService().reroute(
+                        RoutingAllocation.Result routingResult = master.allocationService.reroute(
                                 ClusterState.builder(updatedState).build(), "elected as master");
                         return ClusterState.builder(updatedState).routingResult(routingResult).build();
                     }
 
                     @Override
-                    public void onFailure(String source, Throwable t) {
-                        logger.error("unexpected failure during [{}]", t, source);
+                    public void onFailure(String source, Exception e) {
+                        logger.error("unexpected failure during [{}]", e, source);
                     }
                 });
             }
@@ -312,13 +317,13 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 synchronized (this) {
                     // we do the marshaling intentionally, to check it works well...
                     // check if we published cluster state at least once and node was in the cluster when we published cluster state the last time
-                    if (discovery.lastProcessedClusterState != null && clusterChangedEvent.previousState().nodes().nodeExists(discovery.localNode().getId())) {
+                    if (discovery.lastProcessedClusterState != null && clusterChangedEvent.previousState().nodes().nodeExists(discovery.localNode())) {
                         // both conditions are true - which means we can try sending cluster state as diffs
                         if (clusterStateDiffBytes == null) {
                             Diff diff = clusterState.diff(clusterChangedEvent.previousState());
                             BytesStreamOutput os = new BytesStreamOutput();
                             diff.writeTo(os);
-                            clusterStateDiffBytes = os.bytes().toBytes();
+                            clusterStateDiffBytes = BytesReference.toBytes(os.bytes());
                         }
                         try {
                             newNodeSpecificClusterState = discovery.lastProcessedClusterState.readDiffFrom(StreamInput.wrap(clusterStateDiffBytes)).apply(discovery.lastProcessedClusterState);
@@ -374,9 +379,9 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         }
 
                         @Override
-                        public void onFailure(String source, Throwable t) {
-                            logger.error("unexpected failure during [{}]", t, source);
-                            publishResponseHandler.onFailure(discovery.localNode(), t);
+                        public void onFailure(String source, Exception e) {
+                            logger.error("unexpected failure during [{}]", e, source);
+                            publishResponseHandler.onFailure(discovery.localNode(), e);
                         }
 
                         @Override

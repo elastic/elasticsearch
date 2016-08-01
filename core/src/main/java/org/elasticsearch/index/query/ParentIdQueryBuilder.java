@@ -38,11 +38,10 @@ import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQueryBuilder> {
-
     public static final String NAME = "parent_id";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     /**
      * The default value for ignore_unmapped.
@@ -117,7 +116,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
         builder.endObject();
     }
 
-    public static ParentIdQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<ParentIdQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String type = null;
@@ -151,7 +150,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
         queryBuilder.queryName(queryName);
         queryBuilder.boost(boost);
         queryBuilder.ignoreUnmapped(ignoreUnmapped);
-        return queryBuilder;
+        return Optional.of(queryBuilder);
     }
 
 

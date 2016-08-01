@@ -50,7 +50,8 @@ public class IndexConstraint {
         this(field, property, comparison, value, null);
     }
 
-    public IndexConstraint(String field, Property property, Comparison comparison, String value, String optionalFormat) {
+    public IndexConstraint(String field, Property property,
+                           Comparison comparison, String value, String optionalFormat) {
         this.field = Objects.requireNonNull(field);
         this.property = Objects.requireNonNull(property);
         this.comparison = Objects.requireNonNull(comparison);

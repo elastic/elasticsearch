@@ -115,18 +115,18 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     }
 
     /**
-     * Applies the given settings to all listeners and rolls back the result after application. This
+     * Validates the given settings by running it through all update listeners without applying it. This
      * method will not change any settings but will fail if any of the settings can't be applied.
      */
-    public synchronized Settings dryRun(Settings settings) {
+    public synchronized Settings validateUpdate(Settings settings) {
         final Settings current = Settings.builder().put(this.settings).put(settings).build();
         final Settings previous = Settings.builder().put(this.settings).put(this.lastSettingsApplied).build();
         List<RuntimeException> exceptions = new ArrayList<>();
         for (SettingUpdater<?> settingUpdater : settingUpdaters) {
             try {
-                if (settingUpdater.hasChanged(current, previous)) {
-                    settingUpdater.getValue(current, previous);
-                }
+                // ensure running this through the updater / dynamic validator
+                // don't check if the value has changed we wanna test this anyways
+                settingUpdater.getValue(current, previous);
             } catch (RuntimeException ex) {
                 exceptions.add(ex);
                 logger.debug("failed to prepareCommit settings for [{}]", ex, settingUpdater);
@@ -263,6 +263,9 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             List<String> keys = scoredKeys.stream().map((a) -> a.v2()).collect(Collectors.toList());
             if (keys.isEmpty() == false) {
                 msg += " did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]": "any of " + keys.toString()) + "?";
+            } else {
+                msg += " please check that any required plugins are installed, or check the breaking changes documentation for removed " +
+                    "settings";
             }
             throw new IllegalArgumentException(msg);
         }
@@ -391,10 +394,13 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Updates a target settings builder with new, updated or deleted settings from a given settings builder.
      * <p>
-     * Note: This method will only allow updates to dynamic settings. if a non-dynamic setting is updated an {@link IllegalArgumentException} is thrown instead.
-     *</p>
+     * Note: This method will only allow updates to dynamic settings. if a non-dynamic setting is updated an
+     * {@link IllegalArgumentException} is thrown instead.
+     * </p>
+     *
      * @param toApply the new settings to apply
-     * @param target the target settings builder that the updates are applied to. All keys that have explicit null value in toApply will be removed from this builder
+     * @param target the target settings builder that the updates are applied to. All keys that have explicit null value in toApply will be
+     *        removed from this builder
      * @param updates a settings builder that holds all updates applied to target
      * @param type a free text string to allow better exceptions messages
      * @return <code>true</code> if the target has changed otherwise <code>false</code>
@@ -405,8 +411,10 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
 
     /**
      * Updates a target settings builder with new, updated or deleted settings from a given settings builder.
+     *
      * @param toApply the new settings to apply
-     * @param target the target settings builder that the updates are applied to. All keys that have explicit null value in toApply will be removed from this builder
+     * @param target the target settings builder that the updates are applied to. All keys that have explicit null value in toApply will be
+     *        removed from this builder
      * @param updates a settings builder that holds all updates applied to target
      * @param type a free text string to allow better exceptions messages
      * @return <code>true</code> if the target has changed otherwise <code>false</code>
@@ -417,11 +425,14 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
 
     /**
      * Updates a target settings builder with new, updated or deleted settings from a given settings builder.
+     *
      * @param toApply the new settings to apply
-     * @param target the target settings builder that the updates are applied to. All keys that have explicit null value in toApply will be removed from this builder
+     * @param target the target settings builder that the updates are applied to. All keys that have explicit null value in toApply will be
+     *        removed from this builder
      * @param updates a settings builder that holds all updates applied to target
      * @param type a free text string to allow better exceptions messages
-     * @param onlyDynamic  if <code>false</code> all settings are updated otherwise only dynamic settings are updated. if set to <code>true</code> and a non-dynamic setting is updated an exception is thrown.
+     * @param onlyDynamic if <code>false</code> all settings are updated otherwise only dynamic settings are updated. if set to
+     *        <code>true</code> and a non-dynamic setting is updated an exception is thrown.
      * @return <code>true</code> if the target has changed otherwise <code>false</code>
      */
     private boolean updateSettings(Settings toApply, Settings.Builder target, Settings.Builder updates, String type, boolean onlyDynamic) {
@@ -446,7 +457,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         return changed;
     }
 
-    private static final boolean applyDeletes(Set<String> deletes, Settings.Builder builder) {
+    private static boolean applyDeletes(Set<String> deletes, Settings.Builder builder) {
         boolean changed = false;
         for (String entry : deletes) {
             Set<String> keysToRemove = new HashSet<>();
@@ -500,16 +511,22 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                     } else {
                         changed = true;
                         logger.warn("found unknown setting: {} value: {} - archiving", entry.getKey(), entry.getValue());
-                        // we put them back in here such that tools can check from the outside if there are any indices with broken settings. The setting can remain there
-                        // but we want users to be aware that some of their setting are broken and they can research why and what they need to do to replace them.
+                        /*
+                         * We put them back in here such that tools can check from the outside if there are any indices with broken
+                         * settings. The setting can remain there but we want users to be aware that some of their setting are broken and
+                         * they can research why and what they need to do to replace them.
+                         */
                         builder.put(ARCHIVED_SETTINGS_PREFIX + entry.getKey(), entry.getValue());
                     }
                 }
             } catch (IllegalArgumentException ex) {
                 changed = true;
                 logger.warn("found invalid setting: {} value: {} - archiving",ex , entry.getKey(), entry.getValue());
-                // we put them back in here such that tools can check from the outside if there are any indices with broken settings. The setting can remain there
-                // but we want users to be aware that some of their setting sare broken and they can research why and what they need to do to replace them.
+                /*
+                 * We put them back in here such that tools can check from the outside if there are any indices with broken settings. The
+                 * setting can remain there but we want users to be aware that some of their setting are broken and they can research why
+                 * and what they need to do to replace them.
+                 */
                 builder.put(ARCHIVED_SETTINGS_PREFIX + entry.getKey(), entry.getValue());
             }
         }

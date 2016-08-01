@@ -27,15 +27,14 @@ import org.joda.time.DateTimeZone;
  */
 public class ValuesSourceConfig<VS extends ValuesSource> {
 
-    final ValuesSourceType valueSourceType;
-    FieldContext fieldContext;
-    SearchScript script;
-    ValueType scriptValueType;
-    boolean unmapped = false;
-    String formatPattern;
-    DocValueFormat format = DocValueFormat.RAW;
-    Object missing;
-    DateTimeZone timeZone;
+    private final ValuesSourceType valueSourceType;
+    private FieldContext fieldContext;
+    private SearchScript script;
+    private ValueType scriptValueType;
+    private boolean unmapped = false;
+    private DocValueFormat format = DocValueFormat.RAW;
+    private Object missing;
+    private DateTimeZone timeZone;
 
     public ValuesSourceConfig(ValuesSourceType valueSourceType) {
         this.valueSourceType = valueSourceType;
@@ -71,9 +70,41 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return this;
     }
 
+    public ValuesSourceConfig<VS> scriptValueType(ValueType scriptValueType) {
+        this.scriptValueType = scriptValueType;
+        return this;
+    }
+
+    public ValueType scriptValueType() {
+        return this.scriptValueType;
+    }
+
     public ValuesSourceConfig<VS> unmapped(boolean unmapped) {
         this.unmapped = unmapped;
         return this;
+    }
+
+    public ValuesSourceConfig<VS> format(final DocValueFormat format) {
+        this.format = format;
+        return this;
+    }
+
+    public ValuesSourceConfig<VS> missing(final Object missing) {
+        this.missing = missing;
+        return this;
+    }
+
+    public Object missing() {
+        return this.missing;
+    }
+
+    public ValuesSourceConfig<VS> timezone(final DateTimeZone timeZone) {
+        this.timeZone= timeZone;
+        return this;
+    }
+
+    public DateTimeZone timezone() {
+        return this.timeZone;
     }
 
     public DocValueFormat format() {

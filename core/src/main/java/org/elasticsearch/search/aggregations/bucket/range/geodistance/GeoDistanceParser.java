@@ -47,7 +47,7 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
     static final ParseField UNIT_FIELD = new ParseField("unit");
     static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
 
-    private GeoPointParser geoPointParser = new GeoPointParser(InternalGeoDistance.TYPE, ORIGIN_FIELD);
+    private GeoPointParser geoPointParser = new GeoPointParser(GeoDistanceAggregationBuilder.TYPE, ORIGIN_FIELD);
 
     public GeoDistanceParser() {
         super(true, false);
@@ -85,10 +85,10 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    protected GeoDistanceAggregatorBuilder createFactory(
+    protected GeoDistanceAggregationBuilder createFactory(
             String aggregationName, ValuesSourceType valuesSourceType, ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         GeoPoint origin = (GeoPoint) otherOptions.get(ORIGIN_FIELD);
-        GeoDistanceAggregatorBuilder factory = new GeoDistanceAggregatorBuilder(aggregationName, origin);
+        GeoDistanceAggregationBuilder factory = new GeoDistanceAggregationBuilder(aggregationName, origin);
         @SuppressWarnings("unchecked")
         List<Range> ranges = (List<Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
         for (Range range : ranges) {

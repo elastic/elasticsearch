@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESBackcompatTestCase;
+import org.elasticsearch.transport.MockTransportClient;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -44,7 +45,7 @@ public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
         createIndex("test");
 
         // connect to each node with a custom TransportClient, issue a ClusterStateRequest to test serialization
-        for (NodeInfo n : clusterNodes()) {
+        for (NodeInfo n : clusterNodes().getNodes()) {
             try (TransportClient tc = newTransportClient()) {
                 tc.addTransportAddress(n.getNode().getAddress());
                 ClusterStateResponse response = tc.admin().cluster().prepareState().execute().actionGet();
@@ -68,7 +69,7 @@ public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
             try {
                 enableIndexBlock("test-blocks", block.getKey());
 
-                for (NodeInfo n : clusterNodes()) {
+                for (NodeInfo n : clusterNodes().getNodes()) {
                     try (TransportClient tc = newTransportClient()) {
                         tc.addTransportAddress(n.getNode().getAddress());
 
@@ -101,6 +102,6 @@ public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
     private TransportClient newTransportClient() {
         Settings settings = Settings.builder().put("client.transport.ignore_cluster_name", true)
                 .put("node.name", "transport_client_" + getTestName()).build();
-        return TransportClient.builder().settings(settings).build();
+        return new MockTransportClient(settings);
     }
 }

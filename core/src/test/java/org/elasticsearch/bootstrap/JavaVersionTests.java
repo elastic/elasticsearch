@@ -72,4 +72,8 @@ public class JavaVersionTests extends ESTestCase {
             assertFalse(JavaVersion.isValid(version));
         }
     }
+
+    public void testJava8Compat() {
+        assertEquals(JavaVersion.parse("1.8"), JavaVersion.parse("8"));
+    }
 }

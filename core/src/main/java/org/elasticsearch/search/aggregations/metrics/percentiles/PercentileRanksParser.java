@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 
 /**
  *
@@ -39,9 +39,10 @@ public class PercentileRanksParser extends AbstractPercentilesParser {
     }
 
     @Override
-    protected ValuesSourceAggregatorBuilder<Numeric, ?> buildFactory(String aggregationName, double[] keys, PercentilesMethod method,
-            Double compression, Integer numberOfSignificantValueDigits, Boolean keyed) {
-        PercentileRanksAggregatorBuilder factory = new PercentileRanksAggregatorBuilder(aggregationName);
+    protected ValuesSourceAggregationBuilder<Numeric, ?> buildFactory(String aggregationName, double[] keys, PercentilesMethod method,
+                                                                      Double compression, Integer numberOfSignificantValueDigits,
+                                                                      Boolean keyed) {
+        PercentileRanksAggregationBuilder factory = new PercentileRanksAggregationBuilder(aggregationName);
         if (keys != null) {
             factory.values(keys);
         }

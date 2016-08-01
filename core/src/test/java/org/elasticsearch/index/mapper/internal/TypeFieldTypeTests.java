@@ -37,11 +37,23 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.junit.Before;
 
 public class TypeFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new TypeFieldMapper.TypeFieldType();
+    }
+
+    @Before
+    public void setupProperties() {
+        addModifier(new Modifier("fielddata", true) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                TypeFieldMapper.TypeFieldType tft = (TypeFieldMapper.TypeFieldType) ft;
+                tft.setFielddata(tft.fielddata() == false);
+            }
+        });
     }
 
     public void testTermQuery() throws Exception {

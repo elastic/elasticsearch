@@ -94,8 +94,6 @@ include::modules/network.asciidoc[]
 
 include::modules/node.asciidoc[]
 
-include::modules/painless.asciidoc[]
-
 include::modules/plugins.asciidoc[]
 
 include::modules/scripting.asciidoc[]

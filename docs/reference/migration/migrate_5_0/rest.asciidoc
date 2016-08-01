@@ -29,6 +29,11 @@ node can contribute to multiple counts as it can have multiple roles. Every
 node is implicitly a coordinating node, so whenever a node has no explicit
 roles, it will be counted as coordinating only.
 
+==== Removed shard `version` information from `/_cluster/state` routing table
+
+We now store allocation id's of shards in the cluster state and use that to 
+select primary shards instead of the version information. 
+
 ==== Node roles are not part of node attributes anymore
 
 Node roles are now returned in a specific section, called `roles`, as part of
@@ -52,3 +57,25 @@ removed in Elasticsearch 6.0.0.
 
 The deprecated `filters`/`token_filters`/`char_filters` parameter has been
 renamed `filter`/`token_filter`/`char_filter`.
+
+==== `DELETE /_query` endpoint removed
+
+The `DELETE /_query` endpoint provided by the Delete-By-Query plugin has been
+removed and replaced by the <<docs-delete-by-query,Delete By Query API>>.
+
+==== Create stored script endpoint removed
+
+The `PUT /_scripts/{lang}/{id}/_create` endpoint that previously allowed to create
+ indexed scripts has been removed. Indexed scripts have been replaced
+ by <<modules-scripting-stored-scripts,stored scripts>>.
+
+==== Create stored template endpoint removed
+
+The `PUT /_search/template/{id}/_create` endpoint that previously allowed to create
+ indexed template has been removed. Indexed templates have been replaced
+ by <<pre-registered-templates, Pre-registered templates>>.
+
+==== Remove properties support
+
+Some REST endpoints (e.g., cluster update index settings) supported detecting content in the Java
+properties format (line-delimited key=value pairs). This support has been removed.

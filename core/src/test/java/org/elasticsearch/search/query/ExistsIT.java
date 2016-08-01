@@ -47,7 +47,6 @@ public class ExistsIT extends ESIntegTestCase {
     // TODO: move this to a unit test somewhere...
     public void testEmptyIndex() throws Exception {
         createIndex("test");
-        ensureYellow("test");
         SearchResponse resp = client().prepareSearch("test").setQuery(QueryBuilders.existsQuery("foo")).execute().actionGet();
         assertSearchResponse(resp);
         resp = client().prepareSearch("test").setQuery(QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("foo"))).execute().actionGet();
@@ -118,7 +117,6 @@ public class ExistsIT extends ESIntegTestCase {
         expected.put("bar.bar.bar", 1);
         expected.put("foobar", 0);
 
-        ensureYellow("idx");
         final long numDocs = sources.length;
         SearchResponse allDocs = client().prepareSearch("idx").setSize(sources.length).get();
         assertSearchResponse(allDocs);

@@ -80,8 +80,6 @@ include::params/null-value.asciidoc[]
 
 include::params/position-increment-gap.asciidoc[]
 
-include::params/precision-step.asciidoc[]
-
 include::params/properties.asciidoc[]
 
 include::params/search-analyzer.asciidoc[]
@@ -91,10 +89,3 @@ include::params/similarity.asciidoc[]
 include::params/store.asciidoc[]
 
 include::params/term-vector.asciidoc[]
-
-
-[source,js]
---------------------------------------------------
---------------------------------------------------
-// AUTOSENSE
-

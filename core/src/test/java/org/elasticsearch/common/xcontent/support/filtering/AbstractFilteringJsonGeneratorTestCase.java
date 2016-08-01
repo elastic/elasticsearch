@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -45,7 +44,7 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
         assertNotNull(expected);
 
         // Verify that the result is equal to the expected string
-        assertThat(builder.bytes().toUtf8(), is(expected.bytes().toUtf8()));
+        assertThat(builder.bytes().utf8ToString(), is(expected.bytes().utf8ToString()));
     }
 
     protected void assertBinary(XContentBuilder expected, XContentBuilder builder) {
@@ -1166,15 +1165,15 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
 
         // Test method: rawField(String fieldName, InputStream content)
         assertXContentBuilder(expectedRawField,
-                newXContentBuilder().startObject().field("foo", 0).rawField("raw", new ByteArrayInputStream(raw.toBytes())).endObject());
+                newXContentBuilder().startObject().field("foo", 0).rawField("raw", raw.streamInput()).endObject());
         assertXContentBuilder(expectedRawFieldFiltered, newXContentBuilder("f*", true).startObject().field("foo", 0)
-                .rawField("raw", new ByteArrayInputStream(raw.toBytes())).endObject());
+                .rawField("raw", raw.streamInput()).endObject());
         assertXContentBuilder(expectedRawFieldFiltered, newXContentBuilder("r*", false).startObject().field("foo", 0)
-                .rawField("raw", new ByteArrayInputStream(raw.toBytes())).endObject());
+                .rawField("raw", raw.streamInput()).endObject());
         assertXContentBuilder(expectedRawFieldNotFiltered, newXContentBuilder("r*", true).startObject().field("foo", 0)
-                .rawField("raw", new ByteArrayInputStream(raw.toBytes())).endObject());
+                .rawField("raw", raw.streamInput()).endObject());
         assertXContentBuilder(expectedRawFieldNotFiltered, newXContentBuilder("f*", false).startObject().field("foo", 0)
-                .rawField("raw", new ByteArrayInputStream(raw.toBytes())).endObject());
+                .rawField("raw", raw.streamInput()).endObject());
     }
 
     public void testArrays() throws Exception {

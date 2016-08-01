@@ -2,24 +2,34 @@
 == Validate API
 
 The validate API allows a user to validate a potentially expensive query
-without executing it. The following example shows how it can be used:
+without executing it. We'll use the following test data to explain _validate:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT 'http://localhost:9200/twitter/tweet/1' -d '{
-    "user" : "kimchy",
-    "post_date" : "2009-11-15T14:12:12",
-    "message" : "trying out Elasticsearch"
-}'
+PUT twitter/tweet/_bulk?refresh
+{"index":{"_id":1}}
+{"user" : "kimchy", "post_date" : "2009-11-15T14:12:12", "message" : "trying out Elasticsearch"}
+{"index":{"_id":2}}
+{"user" : "kimchi", "post_date" : "2009-11-15T14:12:13", "message" : "My username is similar to @kimchy!"}
 --------------------------------------------------
+// CONSOLE
+// TESTSETUP
 
-When the query is valid, the response contains `valid:true`:
+When sent a valid query:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/_validate/query?q=user:foo'
+GET twitter/_validate/query?q=user:foo
+--------------------------------------------------
+// CONSOLE
+
+The response contains `valid:true`:
+
+[source,js]
+--------------------------------------------------
 {"valid":true,"_shards":{"total":1,"successful":1,"failed":0}}
 --------------------------------------------------
+// TESTRESPONSE
 
 [float]
 === Request Parameters
@@ -49,11 +59,12 @@ not. Defaults to `true`.
 not. Defaults to `false`.
 |=======================================================================
 
-Or, with a request body:
+The query may also be sent in the request body:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/_validate/query' -d '{
+GET twitter/tweet/_validate/query
+{
   "query" : {
     "bool" : {
       "must" : {
@@ -66,9 +77,9 @@ curl -XGET 'http://localhost:9200/twitter/tweet/_validate/query' -d '{
       }
     }
   }
-}'
-{"valid":true,"_shards":{"total":1,"successful":1,"failed":0}}
+}
 --------------------------------------------------
+// CONSOLE
 
 NOTE: The query being sent in the body must be nested in a `query` key, same as
 the <<search-search,search api>> works
@@ -79,16 +90,28 @@ due to dynamic mapping, and 'foo' does not correctly parse into a date:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/_validate/query?q=post_date:foo'
+GET twitter/tweet/_validate/query?q=post_date:foo
+--------------------------------------------------
+// CONSOLE
+
+[source,js]
+--------------------------------------------------
 {"valid":false,"_shards":{"total":1,"successful":1,"failed":0}}
 --------------------------------------------------
+// TESTRESPONSE
 
 An `explain` parameter can be specified to get more detailed information
 about why a query failed:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/_validate/query?q=post_date:foo&pretty=true&explain=true'
+GET twitter/tweet/_validate/query?q=post_date:foo&explain=true
+--------------------------------------------------
+// CONSOLE
+
+responds with:
+
+--------------------------------------------------
 {
   "valid" : false,
   "_shards" : {
@@ -99,10 +122,11 @@ curl -XGET 'http://localhost:9200/twitter/tweet/_validate/query?q=post_date:foo&
   "explanations" : [ {
     "index" : "twitter",
     "valid" : false,
-    "error" : "[twitter] QueryParsingException[Failed to parse]; nested: IllegalArgumentException[Invalid format: \"foo\"];; java.lang.IllegalArgumentException: Invalid format: \"foo\""
+    "error" : "twitter/IAEc2nIXSSunQA_suI0MLw] QueryShardException[failed to create query:...failed to parse date field [foo]"
   } ]
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"error" : "[^\"]+"/"error": "$body.explanations.0.error"/]
 
 When the query is valid, the explanation defaults to the string
 representation of that query. With `rewrite` set to `true`, the explanation
@@ -112,15 +136,20 @@ For Fuzzy Queries:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/imdb/movies/_validate/query?rewrite=true' -d '
+GET twitter/tweet/_validate/query?rewrite=true
 {
   "query": {
-    "fuzzy": {
-      "actors": "kyle"
+    "match": {
+      "user": {
+        "query": "kimchy",
+        "fuzziness": "auto"
+      }
     }
   }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:https://github.com/elastic/elasticsearch/issues/18254]
 
 Response:
 
@@ -135,30 +164,33 @@ Response:
    },
    "explanations": [
       {
-         "index": "imdb",
+         "index": "twitter",
          "valid": true,
-         "explanation": "plot:kyle plot:kylie^0.75 plot:kyne^0.75 plot:lyle^0.75 plot:pyle^0.75 #_type:movies"
+         "explanation": "+user:kimchy +user:kimchi^0.75 #(ConstantScore(_type:tweet))^0.0"
       }
    ]
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 For More Like This:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/imdb/movies/_validate/query?rewrite=true'
+GET twitter/tweet/_validate/query?rewrite=true
 {
   "query": {
     "more_like_this": {
       "like": {
-        "_id": "88247"
+        "_id": "2"
       },
       "boost_terms": 1
     }
   }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[skip:https://github.com/elastic/elasticsearch/issues/18254]
 
 Response:
 
@@ -173,13 +205,14 @@ Response:
    },
    "explanations": [
       {
-         "index": "imdb",
+         "index": "twitter",
          "valid": true,
-         "explanation": "((title:terminator^3.71334 plot:future^2.763601 plot:human^2.8415773 plot:sarah^3.4193945 plot:kyle^3.8244398 plot:cyborg^3.9177752 plot:connor^4.040236 plot:reese^4.7133346 ... )~6) -ConstantScore(_uid:movies#88247) #_type:movies"
+         "explanation": "((user:terminator^3.71334 plot:future^2.763601 plot:human^2.8415773 plot:sarah^3.4193945 plot:kyle^3.8244398 plot:cyborg^3.9177752 plot:connor^4.040236 plot:reese^4.7133346 ... )~6) -ConstantScore(_uid:tweet#2)) #(ConstantScore(_type:tweet))^0.0"
       }
    ]
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 CAUTION: The request is executed on a single shard only, which is randomly
 selected. The detailed explanation of the query may depend on which shard is

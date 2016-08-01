@@ -27,6 +27,7 @@ import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -157,7 +158,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         this.id = other.id();
         this.type = other.type();
         if (this.doc != null) {
-            this.doc = other.doc().copyBytesArray();
+            this.doc = new BytesArray(other.doc().toBytesRef(), true);
         }
         this.flagsEnum = other.getFlags().clone();
         this.preference = other.preference();
@@ -594,7 +595,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                 } else if (currentFieldName.equals("per_field_analyzer") || currentFieldName.equals("perFieldAnalyzer")) {
                     termVectorsRequest.perFieldAnalyzer(readPerFieldAnalyzer(parser.map()));
                 } else if (currentFieldName.equals("filter")) {
-                    termVectorsRequest.filterSettings(readFilterSettings(parser, termVectorsRequest));
+                    termVectorsRequest.filterSettings(readFilterSettings(parser));
                 } else if ("_index".equals(currentFieldName)) { // the following is important for multi request parsing.
                     termVectorsRequest.index = parser.text();
                 } else if ("_type".equals(currentFieldName)) {
@@ -640,7 +641,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         return mapStrStr;
     }
 
-    private static FilterSettings readFilterSettings(XContentParser parser, TermVectorsRequest termVectorsRequest) throws IOException {
+    private static FilterSettings readFilterSettings(XContentParser parser) throws IOException {
         FilterSettings settings = new FilterSettings();
         XContentParser.Token token;
         String currentFieldName = null;

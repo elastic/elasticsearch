@@ -51,7 +51,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> Setting `lat_lon` to true indexes the geo-point in the `location.lat` and `location.lon` fields.
 <2> The `indexed` option tells the geo-distance query to use the inverted index instead of the in-memory calculation.
 

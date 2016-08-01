@@ -24,11 +24,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.IndexGraveyard;
+import org.elasticsearch.cluster.metadata.IndexGraveyardTests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -49,6 +52,8 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
@@ -118,7 +123,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 Diff<ClusterState> diffBeforeSerialization = clusterState.diff(previousClusterState);
                 BytesStreamOutput os = new BytesStreamOutput();
                 diffBeforeSerialization.writeTo(os);
-                byte[] diffBytes = os.bytes().toBytes();
+                byte[] diffBytes = BytesReference.toBytes(os.bytes());
                 Diff<ClusterState> diff;
                 try (StreamInput input = StreamInput.wrap(diffBytes)) {
                     diff = previousClusterStateFromDiffs.readDiffFrom(input);
@@ -187,9 +192,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         List<String> nodeIds = randomSubsetOf(randomInt(clusterState.nodes().getNodes().size() - 1), clusterState.nodes().getNodes().keys().toArray(String.class));
         for (String nodeId : nodeIds) {
             if (nodeId.startsWith("node-")) {
+                nodes.remove(nodeId);
                 if (randomBoolean()) {
-                    nodes.remove(nodeId);
-                } else {
                     nodes.put(new DiscoveryNode(nodeId, new LocalTransportAddress(randomAsciiOfLength(10)), emptyMap(),
                             emptySet(), randomVersion(random())));
                 }
@@ -243,7 +247,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 }
                 indexShard.addShard(
                         TestShardRouting.newShardRouting(index, i, randomFrom(nodeIds), null, null, j == 0,
-                                ShardRoutingState.fromValue((byte) randomIntBetween(2, 4)), unassignedInfo));
+                                ShardRoutingState.fromValue((byte) randomIntBetween(2, 3)), unassignedInfo));
             }
             builder.addIndexShard(indexShard.build());
         }
@@ -257,9 +261,8 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(original.getIndex());
         for (ObjectCursor<IndexShardRoutingTable> indexShardRoutingTable :  original.shards().values()) {
             for (ShardRouting shardRouting : indexShardRoutingTable.value.shards()) {
-                final ShardRouting newShardRouting = new ShardRouting(shardRouting);
-                randomChange(newShardRouting, nodes);
-                builder.addShard(indexShardRoutingTable.value, newShardRouting);
+                final ShardRouting updatedShardRouting = randomChange(shardRouting, nodes);
+                builder.addShard(updatedShardRouting);
             }
         }
         return builder.build();
@@ -602,12 +605,21 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
             @Override
             public MetaData.Builder remove(MetaData.Builder builder, String name) {
-                return builder.removeCustom(name);
+                if (IndexGraveyard.TYPE.equals(name)) {
+                    // there must always be at least an empty graveyard
+                    return builder.indexGraveyard(IndexGraveyard.builder().build());
+                } else {
+                    return builder.removeCustom(name);
+                }
             }
 
             @Override
             public MetaData.Custom randomCreate(String name) {
-                return new RepositoriesMetaData();
+                if (randomBoolean()) {
+                    return new RepositoriesMetaData();
+                } else {
+                    return IndexGraveyardTests.createRandom();
+                }
             }
 
             @Override
@@ -643,7 +655,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 switch (randomIntBetween(0, 1)) {
                     case 0:
                         return new SnapshotsInProgress(new SnapshotsInProgress.Entry(
-                                new SnapshotId(randomName("repo"), randomName("snap")),
+                                new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
                                 randomBoolean(),
                                 randomBoolean(),
                                 SnapshotsInProgress.State.fromValue((byte) randomIntBetween(0, 6)),
@@ -652,7 +664,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                                 ImmutableOpenMap.of()));
                     case 1:
                         return new RestoreInProgress(new RestoreInProgress.Entry(
-                                new SnapshotId(randomName("repo"), randomName("snap")),
+                                new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
                                 RestoreInProgress.State.fromValue((byte) randomIntBetween(0, 3)),
                                 emptyList(),
                                 ImmutableOpenMap.of()));

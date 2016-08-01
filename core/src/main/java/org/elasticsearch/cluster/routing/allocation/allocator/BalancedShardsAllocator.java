@@ -28,10 +28,13 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -201,7 +204,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             final float weightIndex = node.numShards(index) + numAdditionalShards - balancer.avgShardsPerNode(index);
             return theta0 * weightShard + theta1 * weightIndex;
         }
-
     }
 
     /**
@@ -224,7 +226,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             this.weight = weight;
             this.threshold = threshold;
             this.routingNodes = allocation.routingNodes();
-            metaData = routingNodes.metaData();
+            this.metaData = allocation.metaData();
             avgShardsPerNode = ((float) metaData.getTotalNumberOfShards()) / routingNodes.size();
             buildModelFromAssigned();
         }
@@ -512,28 +514,19 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             // shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
             // offloading the shards.
             boolean changed = false;
-            int index = 0;
-            boolean found = true;
             final NodeSorter sorter = newNodeSorter();
-            while (found) {
-                found = false;
-                for (RoutingNode routingNode : allocation.routingNodes()) {
-                    if (index >= routingNode.size()) {
-                        continue;
-                    }
-                    found = true;
-                    ShardRouting shardRouting = routingNode.get(index);
-                    // we can only move started shards...
-                    if (shardRouting.started()) {
-                        final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
-                        assert sourceNode != null && sourceNode.containsShard(shardRouting);
-                        Decision decision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
-                        if (decision.type() == Decision.Type.NO) {
-                            changed |= moveShard(sorter, shardRouting, sourceNode, routingNode);
-                        }
+            for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(); it.hasNext(); ) {
+                ShardRouting shardRouting = it.next();
+                // we can only move started shards...
+                if (shardRouting.started()) {
+                    final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
+                    assert sourceNode != null && sourceNode.containsShard(shardRouting);
+                    RoutingNode routingNode = sourceNode.getRoutingNode();
+                    Decision decision = allocation.deciders().canRemain(shardRouting, routingNode, allocation);
+                    if (decision.type() == Decision.Type.NO) {
+                        changed |= moveShard(sorter, shardRouting, sourceNode, routingNode);
                     }
                 }
-                index++;
             }
 
             return changed;
@@ -560,8 +553,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     Decision allocationDecision = allocation.deciders().canAllocate(shardRouting, target, allocation);
                     if (allocationDecision.type() == Type.YES) { // TODO maybe we can respect throttling here too?
                         sourceNode.removeShard(shardRouting);
-                        ShardRouting targetRelocatingShard = routingNodes.relocate(shardRouting, target.nodeId(), allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
-                        currentNode.addShard(targetRelocatingShard);
+                        Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocate(shardRouting, target.nodeId(), allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
+                        currentNode.addShard(relocatingShards.v2());
                         if (logger.isTraceEnabled()) {
                             logger.trace("Moved shard [{}] to node [{}]", shardRouting, routingNode.node());
                         }
@@ -655,11 +648,12 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 for (int i = 0; i < primaryLength; i++) {
                     ShardRouting shard = primary[i];
                     if (!shard.primary()) {
-                        boolean drop = deciders.canAllocate(shard, allocation).type() == Type.NO;
-                        if (drop) {
-                            unassigned.ignoreShard(shard);
+                        final Decision decision = deciders.canAllocate(shard, allocation);
+                        if (decision.type() == Type.NO) {
+                            UnassignedInfo.AllocationStatus allocationStatus = UnassignedInfo.AllocationStatus.fromDecision(decision);
+                            changed |= unassigned.ignoreShard(shard, allocationStatus);
                             while(i < primaryLength-1 && comparator.compare(primary[i], primary[i+1]) == 0) {
-                                unassigned.ignoreShard(primary[++i]);
+                                changed |= unassigned.ignoreShard(primary[++i], allocationStatus);
                             }
                             continue;
                         } else {
@@ -709,9 +703,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                                                 final int minNodeHigh = minNode.highestPrimary(shard.getIndexName());
                                                 if ((((nodeHigh > repId && minNodeHigh > repId) || (nodeHigh < repId && minNodeHigh < repId)) && (nodeHigh < minNodeHigh))
                                                         || (nodeHigh > minNodeHigh && nodeHigh > repId && minNodeHigh < repId)) {
-                                                    minNode = node;
-                                                    minWeight = currentWeight;
-                                                    decision = currentDecision;
+                                                    // nothing to set here; the minNode, minWeight, and decision get set below
                                                 } else {
                                                     break NOUPDATE;
                                                 }
@@ -727,22 +719,28 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                             }
                         }
                     }
-                    assert decision != null && minNode != null || decision == null && minNode == null;
+                    assert (decision == null) == (minNode == null);
                     if (minNode != null) {
-                        minNode.addShard(shard);
+                        final long shardSize = DiskThresholdDecider.getExpectedShardSize(shard, allocation,
+                            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
                         if (decision.type() == Type.YES) {
                             if (logger.isTraceEnabled()) {
                                 logger.trace("Assigned shard [{}] to [{}]", shard, minNode.getNodeId());
                             }
-                            routingNodes.initialize(shard, minNode.getNodeId(), null, allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
+
+                            shard = routingNodes.initialize(shard, minNode.getNodeId(), null, shardSize);
+                            minNode.addShard(shard);
                             changed = true;
                             continue; // don't add to ignoreUnassigned
                         } else {
+                            minNode.addShard(shard.initialize(minNode.getNodeId(), null, shardSize));
                             final RoutingNode node = minNode.getRoutingNode();
-                            if (deciders.canAllocate(node, allocation).type() != Type.YES) {
+                            final Decision.Type nodeLevelDecision = deciders.canAllocate(node, allocation).type();
+                            if (nodeLevelDecision != Type.YES) {
                                 if (logger.isTraceEnabled()) {
                                     logger.trace("Can not allocate on node [{}] remove from round decision [{}]", node, decision.type());
                                 }
+                                assert nodeLevelDecision == Type.NO;
                                 throttledNodes.add(minNode);
                             }
                         }
@@ -752,10 +750,14 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     } else if (logger.isTraceEnabled()) {
                         logger.trace("No Node found to assign shard [{}]", shard);
                     }
-                    unassigned.ignoreShard(shard);
+                    assert decision == null || decision.type() == Type.THROTTLE;
+                    UnassignedInfo.AllocationStatus allocationStatus =
+                        decision == null ? UnassignedInfo.AllocationStatus.DECIDERS_NO :
+                                           UnassignedInfo.AllocationStatus.fromDecision(decision);
+                    changed |= unassigned.ignoreShard(shard, allocationStatus);
                     if (!shard.primary()) { // we could not allocate it and we are a replica - check if we can ignore the other replicas
                         while(secondaryLength > 0 && comparator.compare(shard, secondary[secondaryLength-1]) == 0) {
-                            unassigned.ignoreShard(secondary[--secondaryLength]);
+                            changed |= unassigned.ignoreShard(secondary[--secondaryLength], allocationStatus);
                         }
                     }
                 }
@@ -810,15 +812,19 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 if (candidate != null) {
                     /* allocate on the model even if not throttled */
                     maxNode.removeShard(candidate);
-                    minNode.addShard(candidate);
+                    long shardSize = allocation.clusterInfo().getShardSize(candidate, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+
                     if (decision.type() == Type.YES) { /* only allocate on the cluster if we are not throttled */
                         if (logger.isTraceEnabled()) {
                             logger.trace("Relocate shard [{}] from node [{}] to node [{}]", candidate, maxNode.getNodeId(),
                                     minNode.getNodeId());
                         }
                         /* now allocate on the cluster */
-                        routingNodes.relocate(candidate, minNode.getNodeId(), allocation.clusterInfo().getShardSize(candidate, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
+                        minNode.addShard(routingNodes.relocate(candidate, minNode.getNodeId(), shardSize).v1());
                         return true;
+                    } else {
+                        assert decision.type() == Type.THROTTLE;
+                        minNode.addShard(candidate.relocate(minNode.getNodeId(), shardSize));
                     }
                 }
             }

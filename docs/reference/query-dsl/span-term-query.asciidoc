@@ -6,25 +6,37 @@ Matches spans containing a term. The span term query maps to Lucene
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "span_term" : { "user" : "kimchy" }
+    "query": {
+        "span_term" : { "user" : "kimchy" }
+    }
 }    
 --------------------------------------------------
+// CONSOLE
 
 A boost can also be associated with the query:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "span_term" : { "user" : { "value" : "kimchy", "boost" : 2.0 } }
+    "query": {
+       "span_term" : { "user" : { "value" : "kimchy", "boost" : 2.0 } }
+    }
 }    
 --------------------------------------------------
+// CONSOLE
 
 Or :
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "span_term" : { "user" : { "term" : "kimchy", "boost" : 2.0 } }
+    "query": {
+        "span_term" : { "user" : { "term" : "kimchy", "boost" : 2.0 } }
+    }
 }    
 --------------------------------------------------
+// CONSOLE

@@ -100,4 +100,5 @@ public class NetworkAddressTests extends ESTestCase {
         byte bytes[] = InetAddress.getByName(address).getAddress();
         return Inet6Address.getByAddress(hostname, bytes, scopeid);
     }
+
 }

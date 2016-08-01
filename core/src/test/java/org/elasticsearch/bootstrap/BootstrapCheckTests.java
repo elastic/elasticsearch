@@ -20,10 +20,12 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.bootstrap.BootstrapCheck.DataDirectoryLockNumberCheck;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -63,7 +65,7 @@ public class BootstrapCheckTests extends ESTestCase {
         BoundTransportAddress boundTransportAddress = mock(BoundTransportAddress.class);
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
-        BootstrapCheck.check(Settings.EMPTY, boundTransportAddress);
+        BootstrapCheck.check(Settings.EMPTY, between(0, Integer.MAX_VALUE), boundTransportAddress);
     }
 
     public void testNoLogMessageInNonProductionMode() {
@@ -389,7 +391,7 @@ public class BootstrapCheckTests extends ESTestCase {
         boolean isSet = randomBoolean();
         BootstrapCheck.Check check = new BootstrapCheck.MinMasterNodesCheck(isSet);
         assertThat(check.check(), not(equalTo(isSet)));
-        List<BootstrapCheck.Check> defaultChecks = BootstrapCheck.checks(Settings.EMPTY);
+        List<BootstrapCheck.Check> defaultChecks = BootstrapCheck.checks(Settings.EMPTY, 0);
 
         expectThrows(RuntimeException.class, () -> BootstrapCheck.check(true, false, defaultChecks, "testMinMasterNodes"));
     }
@@ -604,4 +606,21 @@ public class BootstrapCheckTests extends ESTestCase {
         assertThat(alwaysEnforced, hasToString(containsString("error")));
     }
 
+    public void testDataDirectoryNumberCheck() {
+        // In production mode this defaults to 1:
+        DataDirectoryLockNumberCheck check = new DataDirectoryLockNumberCheck(0, 1);
+        assertTrue(check.check());
+        check = new DataDirectoryLockNumberCheck(1, 1);
+        assertFalse(check.check());
+        assertEquals("there are already [1] Elasticsearch processes running with this data directory", check.errorMessage());
+
+        // But in development mode it defaults to a whopping 50
+        check = new DataDirectoryLockNumberCheck(0, 50);
+        assertTrue(check.check());
+        check = new DataDirectoryLockNumberCheck(49, 50);
+        assertTrue(check.check());
+        check = new DataDirectoryLockNumberCheck(50, 50);
+        assertFalse(check.check());
+        assertEquals("there are already [50] Elasticsearch processes running with this data directory", check.errorMessage());
+    }
 }

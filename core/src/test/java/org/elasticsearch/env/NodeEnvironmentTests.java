@@ -57,20 +57,25 @@ import static org.hamcrest.Matchers.not;
 public class NodeEnvironmentTests extends ESTestCase {
     private final IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("foo", Settings.EMPTY);
 
-    public void testNodeLockSillySettings() {
-        try {
-            NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(Settings.builder()
-                    .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), between(Integer.MIN_VALUE, 0)).build());
-            fail("expected failure");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("must be >= 1"));
+    public void testLocalStorageNodesSetting() {
+        {
+            final Settings settings = Settings.builder()
+                    .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), between(Integer.MIN_VALUE, 0)).build();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                    () -> NodeEnvironment.getMaxLocalStorageNodes(settings, randomBoolean()));
+            assertThat(e.getMessage(), containsString("must be >= 0"));
+        }
+        {
+            int value = between(1, Integer.MAX_VALUE); // MAXINT is silly but ok.
+            Settings settings = Settings.builder().put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), value).build();
+            assertEquals(value,NodeEnvironment.getMaxLocalStorageNodes(settings, randomBoolean()));
         }
 
-        // Even though its silly MAXINT nodes is a-ok!
-        int value = between(1, Integer.MAX_VALUE);
-        int max = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(
-                Settings.builder().put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), value).build());
-        assertEquals(value, max);
+        // Defaults for production and non-production mode
+        assertEquals(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_NON_PRODUCTION_DEFAULT,
+                NodeEnvironment.getMaxLocalStorageNodes(Settings.EMPTY, false));
+        assertEquals(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_PRODUCTION_DEFAULT,
+                NodeEnvironment.getMaxLocalStorageNodes(Settings.EMPTY, true));
     }
 
     public void testNodeLockSingleEnvironment() throws IOException {

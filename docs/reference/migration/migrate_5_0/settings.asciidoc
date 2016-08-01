@@ -73,7 +73,7 @@ scope (e.g. `_local_,_site_` for all loopback and private network addresses)
 or by explicit interface names, hostnames, or addresses.
 
 The `netty.epollBugWorkaround` settings is removed. This settings allow people to enable
-a netty work around for https://github.com/netty/netty/issues/327[a high CPU usage issue] with early JVM versions. 
+a netty work around for https://github.com/netty/netty/issues/327[a high CPU usage issue] with early JVM versions.
 This bug was http://bugs.java.com/view_bug.do?bug_id=6403933[fixed in Java 7]. Since Elasticsearch 5.0 requires Java 8 the settings is removed. Note that if the workaround needs to be reintroduced you can still set the `org.jboss.netty.epollBugWorkaround` system property to control Netty directly.
 
 ==== Forbid changing of thread pool types
@@ -258,6 +258,15 @@ The `action.get.realtime` setting has been removed. This setting was
 a fallback realtime setting for the get and mget APIs when realtime
 wasn't specified. Now if the parameter isn't specified we always
 default to true.
+
+==== `node.max_local_storage_nodes` defaults to 1 in production mode
+
+If you don't explicitly set `node.max_local_storage_nodes` and you start
+multiple Elasticsearch processes in the same source directories then
+Elasticsearch will log warning if it hasn't bound to any non-local addresses.
+If it *has* bound to any non-local addresses then it'll refuse to start,
+with the message
+`there are already [1] Elasticsearch processes running with this data directory`.
 
 === Script settings
 

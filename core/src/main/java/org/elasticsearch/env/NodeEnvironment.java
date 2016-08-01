@@ -81,9 +81,6 @@ import static java.util.Collections.unmodifiableSet;
  * A component that holds all data paths for a single node.
  */
 public final class NodeEnvironment  implements Closeable {
-
-    private final ESLogger logger;
-
     public static class NodePath {
         /* ${data.paths}/nodes/{node.id} */
         public final Path path;
@@ -138,21 +135,20 @@ public final class NodeEnvironment  implements Closeable {
         }
     }
 
-    private final NodePath[] nodePaths;
-    private final Path sharedDataPath;
-    private final Lock[] locks;
-
-    private final int nodeLockId;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
-    private final Map<ShardId, InternalShardLock> shardLocks = new HashMap<>();
-
-    private final NodeMetaData nodeMetaData;
-
     /**
-     * Maximum number of data nodes that should run in an environment.
+     * Maximum number of data nodes that can run in an environment. {@code 0} is a special value for this setting meaning "use the default
+     * based on the number of allowed local storage nodes".
      */
-    public static final Setting<Integer> MAX_LOCAL_STORAGE_NODES_SETTING = Setting.intSetting("node.max_local_storage_nodes", 50, 1,
-        Property.NodeScope);
+    public static final Setting<Integer> MAX_LOCAL_STORAGE_NODES_SETTING = Setting.intSetting("node.max_local_storage_nodes", 0, 0,
+            Property.NodeScope);
+    /**
+     * Default for {@link MAX_LOCAL_STORAGE_NODES_SETTING} to use when not in production mode.
+     */
+    public static final int MAX_LOCAL_STORAGE_NODES_NON_PRODUCTION_DEFAULT = 50;
+    /**
+     * Default for {@link MAX_LOCAL_STORAGE_NODES_SETTING} to use when in production mode.
+     */
+    public static final int MAX_LOCAL_STORAGE_NODES_PRODUCTION_DEFAULT = 1;
 
     /**
      * If true automatically append node lock id to custom data paths.
@@ -179,6 +175,21 @@ public final class NodeEnvironment  implements Closeable {
     public static final String INDICES_FOLDER = "indices";
     public static final String NODE_LOCK_FILENAME = "node.lock";
 
+    private final ESLogger logger;
+    private final NodePath[] nodePaths;
+    private final Path sharedDataPath;
+    private final Lock[] locks;
+
+    /**
+     * The lock number we were able to take. This is <strong>usually</strong> the number of Elasticsearch nodes sharing data directories
+     * with this node.
+     */
+    private final int nodeLockId;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
+    private final Map<ShardId, InternalShardLock> shardLocks = new HashMap<>();
+
+    private final NodeMetaData nodeMetaData;
+
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
 
         if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
@@ -201,7 +212,11 @@ public final class NodeEnvironment  implements Closeable {
             sharedDataPath = environment.sharedDataFile();
             int nodeLockId = -1;
             IOException lastException = null;
-            int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
+            /*
+             * Try and acquire a lock as though we were in non-production mode regardless of what we will bind. If we find out later we are
+             * in production mode we'll fail to startup fully and if we aren't in production mode we'll log a nice little warning.
+             */
+            int maxLocalStorageNodes = getMaxLocalStorageNodes(settings, false);
             for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
                 for (int dirIndex = 0; dirIndex < environment.dataFiles().length; dirIndex++) {
                     Path dataDirWithClusterName = environment.dataWithClusterFiles()[dirIndex];
@@ -417,6 +432,28 @@ public final class NodeEnvironment  implements Closeable {
             b.append(item);
         }
         return b.toString();
+    }
+
+    /**
+     * The lock number we were able to take. This is <strong>usually</strong> the number of Elasticsearch nodes sharing data directories
+     * with this node.
+     */
+    public int getNodeLockId() {
+        return nodeLockId;
+    }
+
+    /**
+     * Get the maximum number of local storage nodes allowed.
+     * @param settings the settings object from which to read the settings
+     * @param productionMode whether or not we are running in production mode
+     */
+    public static int getMaxLocalStorageNodes(Settings settings, boolean productionMode) {
+        int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
+        if (maxLocalStorageNodes == 0) {
+            maxLocalStorageNodes = productionMode ? MAX_LOCAL_STORAGE_NODES_PRODUCTION_DEFAULT
+                    : MAX_LOCAL_STORAGE_NODES_NON_PRODUCTION_DEFAULT;
+        }
+        return maxLocalStorageNodes;
     }
 
     /**

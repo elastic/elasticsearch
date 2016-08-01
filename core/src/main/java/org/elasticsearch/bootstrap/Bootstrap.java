@@ -175,7 +175,7 @@ final class Bootstrap {
         node = new Node(environment) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress) {
-                BootstrapCheck.check(settings, boundTransportAddress);
+                BootstrapCheck.check(settings, getNodeEnvironment().getNodeLockId(), boundTransportAddress);
             }
         };
     }

@@ -82,7 +82,7 @@ cluster health to have a stable master node.
 Any master-eligible node (all nodes by default) may be elected to become the
 master node by the <<modules-discovery-zen,master election process>>.
 
-IMPORTANT: Master nodes must have access to the `data/` directory (just like 
+IMPORTANT: Master nodes must have access to the `data/` directory (just like
 `data` nodes) as this is where the cluster state is persisted between node restarts.
 
 Indexing and searching your data is CPU-, memory-, and I/O-intensive work
@@ -284,14 +284,19 @@ your data! The RPM and Debian distributions do this for you already.
 The <<data-path,data path>> can be shared by multiple nodes, even by nodes
 from different clusters.  This is very useful for testing failover and
 different configurations on your development machine.  In production, however,
-it is recommended to run only one node of Elasticsearch per server.
+it is recommended to run only one node of Elasticsearch per server. If you
+don't explicitly set `node.max_local_storage_nodes` then Elasticsearch will
+log a warning if multiple nodes share the same data directory and it hasn't
+bound to any non-local addresses. If it has bound to any non-local addresses
+then it'll refuse to start.
 
-To prevent more than one node from sharing the same data path, add this
-setting to the `elasticsearch.yml` config file:
+You can always override the setting to *allow* more than one node to share the
+same data directory in production mode by setting it in the `elasticsearch.yml`
+config file:
 
 [source,yaml]
 ------------------------------
-node.max_local_storage_nodes: 1
+node.max_local_storage_nodes: 2
 ------------------------------
 
 WARNING: Never run different node types (i.e. master, data) from the

@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
@@ -59,13 +60,14 @@ final class BootstrapCheck {
      * checks
      *
      * @param settings              the current node settings
+     * @param dataDirectoryNumber   the integer number of the directories who's locks under the data directory we were able to take
      * @param boundTransportAddress the node network bindings
      */
-    static void check(final Settings settings, final BoundTransportAddress boundTransportAddress) {
+    static void check(final Settings settings, final int dataDirectoryNumber, final BoundTransportAddress boundTransportAddress) {
         check(
                 enforceLimits(boundTransportAddress),
                 BootstrapSettings.IGNORE_SYSTEM_BOOTSTRAP_CHECKS.get(settings),
-                checks(settings),
+                checks(settings, dataDirectoryNumber),
                 Node.NODE_NAME_SETTING.get(settings));
     }
 
@@ -153,7 +155,7 @@ final class BootstrapCheck {
     }
 
     // the list of checks to execute
-    static List<Check> checks(final Settings settings) {
+    static List<Check> checks(final Settings settings, final int dataDirectoryNumber) {
         final List<Check> checks = new ArrayList<>();
         checks.add(new HeapSizeCheck());
         final FileDescriptorCheck fileDescriptorCheck
@@ -173,6 +175,12 @@ final class BootstrapCheck {
         checks.add(new ClientJvmCheck());
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
+        /*
+         * true in the line below means that we always default to the number of nodes for production configurations. This means that the
+         * check will produce consistent results even if Elasticsearch isn't being run in production mode. We rely on the production mode
+         * detection that BootstrapCheck already does decide whether or not to throw an error.
+         */
+        checks.add(new DataDirectoryLockNumberCheck(dataDirectoryNumber, NodeEnvironment.getMaxLocalStorageNodes(settings, true)));
         return Collections.unmodifiableList(checks);
     }
 
@@ -592,4 +600,32 @@ final class BootstrapCheck {
 
     }
 
+    /**
+     * Checks that the data directory that the node is using is within the production limit defined by
+     * {@link NodeEnvironment#MAX_LOCAL_STORAGE_NODES_SETTING}.
+     */
+    static class DataDirectoryLockNumberCheck implements BootstrapCheck.Check {
+        private final int dataDirectoryNumber;
+        private final int maxLocalStorageNodes;
+
+        DataDirectoryLockNumberCheck(int dataDirectoryNumber, int maxLocalStorageNodes) {
+            this.dataDirectoryNumber = dataDirectoryNumber;
+            this.maxLocalStorageNodes = maxLocalStorageNodes;
+        }
+
+        @Override
+        public boolean check() {
+            return dataDirectoryNumber < maxLocalStorageNodes;
+        }
+
+        @Override
+        public String errorMessage() {
+            return "there are already [" + dataDirectoryNumber + "] Elasticsearch processes running with this data directory";
+        }
+
+        @Override
+        public boolean isSystemCheck() {
+            return false;
+        }
+    }
 }

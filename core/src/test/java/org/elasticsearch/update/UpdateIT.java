@@ -371,7 +371,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript(new Script("field", ScriptService.ScriptType.INLINE, "field_inc", null))
                 .execute().actionGet();
-        assertEquals(DocWriteResponse.Operation.CREATE, updateResponse.getOperation());
+        assertEquals(DocWriteResponse.Result.CREATED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
@@ -383,7 +383,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript(new Script("field", ScriptService.ScriptType.INLINE, "field_inc", null))
                 .execute().actionGet();
-        assertEquals(DocWriteResponse.Operation.INDEX, updateResponse.getOperation());
+        assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
@@ -412,7 +412,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .setScriptedUpsert(true)
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "scripted_upsert", params))
                 .execute().actionGet();
-        assertEquals(DocWriteResponse.Operation.CREATE, updateResponse.getOperation());
+        assertEquals(DocWriteResponse.Result.CREATED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
@@ -426,7 +426,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .setScriptedUpsert(true)
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "scripted_upsert", params))
                 .execute().actionGet();
-        assertEquals(DocWriteResponse.Operation.INDEX, updateResponse.getOperation());
+        assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
@@ -582,7 +582,7 @@ public class UpdateIT extends ESIntegTestCase {
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setScript(new Script("field", ScriptService.ScriptType.INLINE, "field_inc", null)).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(2L));
-        assertEquals(DocWriteResponse.Operation.INDEX, updateResponse.getOperation());
+        assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
@@ -595,7 +595,7 @@ public class UpdateIT extends ESIntegTestCase {
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setScript(new Script("field", ScriptService.ScriptType.INLINE, "field_inc", params)).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(3L));
-        assertEquals(DocWriteResponse.Operation.INDEX, updateResponse.getOperation());
+        assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
@@ -607,7 +607,7 @@ public class UpdateIT extends ESIntegTestCase {
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values", Collections.singletonMap("_ctx", Collections.singletonMap("op", "none")))).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(3L));
-        assertEquals(DocWriteResponse.Operation.NOOP, updateResponse.getOperation());
+        assertEquals(DocWriteResponse.Result.NOOP, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {
@@ -619,7 +619,7 @@ public class UpdateIT extends ESIntegTestCase {
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setScript(new Script("", ScriptService.ScriptType.INLINE, "put_values", Collections.singletonMap("_ctx", Collections.singletonMap("op", "delete")))).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(4L));
-        assertEquals(DocWriteResponse.Operation.DELETE, updateResponse.getOperation());
+        assertEquals(DocWriteResponse.Result.DELETED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
 
         for (int i = 0; i < 5; i++) {

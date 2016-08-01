@@ -101,7 +101,7 @@ public class TopHitsIT extends ESIntegTestCase {
     public static class CustomScriptPlugin extends MockScriptPlugin {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            return Collections.emptyMap();
+            return Collections.singletonMap("5", script -> "5");
         }
     }
 

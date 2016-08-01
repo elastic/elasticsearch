@@ -155,7 +155,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             functionBuilder = fieldValueFactorFunctionBuilder;
             break;
         case 2:
-            String script = "5";
+            String script = "1";
             Map<String, Object> params = Collections.emptyMap();
             functionBuilder = new ScriptScoreFunctionBuilder(
                     new Script(script, ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, params));

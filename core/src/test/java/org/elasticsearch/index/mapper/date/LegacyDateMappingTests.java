@@ -449,7 +449,7 @@ public class LegacyDateMappingTests extends ESSingleNodeTestCase {
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", document.bytes());
         assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(1433239200000L));
         IndexResponse indexResponse = client().prepareIndex("test2", "test").setSource(document).get();
-        assertEquals(DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         // integers should always be parsed as well... cannot be sure it is a unix timestamp only
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
@@ -459,7 +459,7 @@ public class LegacyDateMappingTests extends ESSingleNodeTestCase {
                 .bytes());
         assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(1433239200000L));
         indexResponse = client().prepareIndex("test", "test").setSource(document).get();
-        assertEquals(DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
     }
 
     public void testThatNewIndicesOnlyAllowStrictDates() throws Exception {

@@ -1,5 +1,5 @@
 ---
-"Index operation field":
+"Index result field":
 
   - do:
       index:
@@ -8,7 +8,7 @@
           id:     1
           body:   { foo: bar }
 
-  - match:   { _operation: create }
+  - match:   { result: created }
 
   - do:
       index:
@@ -18,4 +18,4 @@
           body:     { foo: bar }
           op_type:  index
 
-  - match:   { _operation: index }
+  - match:   { result: updated }

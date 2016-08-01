@@ -21,7 +21,6 @@ package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -94,6 +93,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -861,7 +861,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     new Class[]{Client.class},
                     clientInvocationHandler);
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-            ScriptModule scriptModule = newTestScriptModule();
+            ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
             List<Setting<?>> scriptSettings = scriptModule.getSettings();
             scriptSettings.addAll(pluginsService.getPluginSettings());
             scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
@@ -968,6 +968,20 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             Client client = injector.getInstance(Client.class);
             return new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
                     scriptService, indicesQueriesRegistry, client, null, state);
+        }
+
+        ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {
+            if (scriptPlugins == null || scriptPlugins.isEmpty()) {
+                return newTestScriptModule();
+            }
+
+            Settings settings = Settings.builder()
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                    // no file watching, so we don't need a ResourceWatcherService
+                    .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
+                    .build();
+            Environment environment = new Environment(settings);
+            return ScriptModule.create(settings, environment, null, scriptPlugins);
         }
 
     }

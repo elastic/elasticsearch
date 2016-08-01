@@ -8,9 +8,7 @@ package org.elasticsearch.xpack.monitoring.agent.exporter;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.node.Node;
@@ -39,16 +37,15 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
 
     private final AtomicReference<Map<String, Exporter>> exporters;
 
-    @Inject
     public Exporters(Settings settings, Map<String, Exporter.Factory> factories,
-                     ClusterService clusterService,
-                     ClusterSettings clusterSettings) {
+                     ClusterService clusterService) {
 
         super(settings);
         this.factories = factories;
         this.clusterService = clusterService;
         this.exporters = new AtomicReference<>(emptyMap());
-        clusterSettings.addSettingsUpdateConsumer(MonitoringSettings.EXPORTERS_SETTINGS, this::setExportersSetting);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MonitoringSettings.EXPORTERS_SETTINGS,
+            this::setExportersSetting);
     }
 
     private void setExportersSetting(Settings exportersSetting) {
@@ -135,7 +132,7 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
             if (factory == null) {
                 throw new SettingsException("unknown exporter type [" + type + "] set for exporter [" + name + "]");
             }
-            Exporter.Config config = new Exporter.Config(name, globalSettings, exporterSettings);
+            Exporter.Config config = new Exporter.Config(name, type, globalSettings, exporterSettings);
             if (!config.enabled()) {
                 hasDisabled = true;
                 if (logger.isDebugEnabled()) {
@@ -143,8 +140,9 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
                 }
                 continue;
             }
-            if (factory.singleton()) {
-                // this is a singleton exporter factory, let's make sure we didn't already registered one
+            Exporter exporter = factory.create(config);
+            if (exporter.isSingleton()) {
+                // this is a singleton exporter, let's make sure we didn't already create one
                 // (there can only be one instance of a singleton exporter)
                 if (singletons.contains(type)) {
                     throw new SettingsException("multiple [" + type + "] exporters are configured. there can " +
@@ -152,7 +150,7 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
                 }
                 singletons.add(type);
             }
-            exporters.put(config.name(), factory.create(config));
+            exporters.put(config.name(), exporter);
         }
 
         // no exporters are configured, lets create a default local one.
@@ -161,7 +159,8 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
         //          fallback on the default
         //
         if (exporters.isEmpty() && !hasDisabled) {
-            Exporter.Config config = new Exporter.Config("default_" + LocalExporter.TYPE, globalSettings, Settings.EMPTY);
+            Exporter.Config config = new Exporter.Config("default_" + LocalExporter.TYPE, LocalExporter.TYPE,
+                globalSettings, Settings.EMPTY);
             exporters.put(config.name(), factories.get(LocalExporter.TYPE).create(config));
         }
 

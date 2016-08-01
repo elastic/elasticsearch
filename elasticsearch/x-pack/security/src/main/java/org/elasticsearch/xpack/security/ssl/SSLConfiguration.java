@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.security.ssl;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
+import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -14,10 +16,12 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.support.OptionalSettings.createInt;
@@ -42,6 +46,42 @@ public abstract class SSLConfiguration {
     public abstract List<String> ciphers();
 
     public abstract List<String> supportedProtocols();
+
+    /**
+     * Provides the list of paths to files that back this configuration
+     */
+    public List<Path> filesToMonitor(@Nullable Environment environment) {
+        if (keyConfig() == trustConfig()) {
+            return keyConfig().filesToMonitor(environment);
+        }
+        List<Path> paths = new ArrayList<>(keyConfig().filesToMonitor(environment));
+        paths.addAll(trustConfig().filesToMonitor(environment));
+        return paths;
+    }
+
+    /**
+     * Reloads the portion of this configuration that makes use of the modified file
+     */
+    public void reload(Path file, @Nullable Environment environment) {
+        if (keyConfig() == trustConfig()) {
+            keyConfig().reload(environment);
+            return;
+        }
+
+        for (Path path : keyConfig().filesToMonitor(environment)) {
+            if (file.equals(path)) {
+                keyConfig().reload(environment);
+                break;
+            }
+        }
+
+        for (Path path : trustConfig().filesToMonitor(environment)) {
+            if (file.equals(path)) {
+                trustConfig().reload(environment);
+                break;
+            }
+        }
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -258,14 +298,14 @@ public abstract class SSLConfiguration {
                 if (certPaths == null) {
                     throw new IllegalArgumentException("you must specify the certificates to use with the key");
                 }
-                return new PEMKeyConfig(includeSystem, reloadEnabled, keyPath, keyPassword, certPaths);
+                return new PEMKeyConfig(includeSystem, keyPath, keyPassword, certPaths);
             } else {
                 assert keyStorePath != null;
                 String keyStorePassword = KEYSTORE_PASSWORD_SETTING.get(settings).orElse(null);
                 String keyStoreAlgorithm = KEYSTORE_ALGORITHM_SETTING.get(settings);
                 String keyStoreKeyPassword = KEYSTORE_KEY_PASSWORD_SETTING.get(settings).orElse(keyStorePassword);
                 String trustStoreAlgorithm = TRUSTSTORE_ALGORITHM_SETTING.get(settings);
-                return new StoreKeyConfig(includeSystem, reloadEnabled, keyStorePath, keyStorePassword, keyStoreKeyPassword,
+                return new StoreKeyConfig(includeSystem, keyStorePath, keyStorePassword, keyStoreKeyPassword,
                         keyStoreAlgorithm, trustStoreAlgorithm);
             }
         }
@@ -274,19 +314,18 @@ public abstract class SSLConfiguration {
             String trustStorePath = TRUSTSTORE_PATH_SETTING.get(settings).orElse(null);
             List<String> caPaths = getListOrNull(CA_PATHS_SETTING, settings);
             boolean includeSystem = INCLUDE_JDK_CERTS_SETTING.get(settings);
-            boolean reloadEnabled = RELOAD_ENABLED_SETTING.get(settings);
             if (trustStorePath != null && caPaths != null) {
                 throw new IllegalArgumentException("you cannot specify a truststore and ca files");
             } else if (caPaths != null) {
-                return new PEMTrustConfig(includeSystem, reloadEnabled, caPaths);
+                return new PEMTrustConfig(includeSystem, caPaths);
             } else if (trustStorePath != null) {
                 String trustStorePassword = TRUSTSTORE_PASSWORD_SETTING.get(settings).orElse(null);
                 String trustStoreAlgorithm = TRUSTSTORE_ALGORITHM_SETTING.get(settings);
-                return new StoreTrustConfig(includeSystem, reloadEnabled, trustStorePath, trustStorePassword, trustStoreAlgorithm);
+                return new StoreTrustConfig(includeSystem, trustStorePath, trustStorePassword, trustStoreAlgorithm);
             } else if (keyInfo != KeyConfig.NONE) {
                 return keyInfo;
             } else {
-                return new StoreTrustConfig(includeSystem, reloadEnabled, null, null, null);
+                return new StoreTrustConfig(includeSystem, null, null, null);
             }
         }
     }
@@ -413,14 +452,14 @@ public abstract class SSLConfiguration {
                 if (certPaths == null) {
                     throw new IllegalArgumentException("you must specify the certificates to use with the key");
                 }
-                return new PEMKeyConfig(includeSystem, reloadEnabled, keyPath, keyPassword, certPaths);
+                return new PEMKeyConfig(includeSystem, keyPath, keyPassword, certPaths);
             } else {
                 assert keyStorePath != null;
                 String keyStorePassword = KEYSTORE_PASSWORD_SETTING.get(settings).orElse(null);
                 String keyStoreAlgorithm = KEYSTORE_ALGORITHM_SETTING.get(settings);
                 String keyStoreKeyPassword = KEYSTORE_KEY_PASSWORD_SETTING.get(settings).orElse(keyStorePassword);
                 String trustStoreAlgorithm = TRUSTSTORE_ALGORITHM_SETTING.get(settings);
-                return new StoreKeyConfig(includeSystem, reloadEnabled, keyStorePath, keyStorePassword, keyStoreKeyPassword,
+                return new StoreKeyConfig(includeSystem, keyStorePath, keyStorePassword, keyStoreKeyPassword,
                         keyStoreAlgorithm, trustStoreAlgorithm);
             }
         }
@@ -431,11 +470,11 @@ public abstract class SSLConfiguration {
             if (trustStorePath != null && caPaths != null) {
                 throw new IllegalArgumentException("you cannot specify a truststore and ca files");
             } else if (caPaths != null) {
-                return new PEMTrustConfig(INCLUDE_JDK_CERTS_SETTING.get(settings), RELOAD_ENABLED_SETTING.get(settings), caPaths);
+                return new PEMTrustConfig(INCLUDE_JDK_CERTS_SETTING.get(settings), caPaths);
             } else if (trustStorePath != null) {
                 String trustStorePassword = TRUSTSTORE_PASSWORD_SETTING.get(settings).orElse(null);
                 String trustStoreAlgorithm = TRUSTSTORE_ALGORITHM_SETTING.get(settings);
-                return new StoreTrustConfig(INCLUDE_JDK_CERTS_SETTING.get(settings), RELOAD_ENABLED_SETTING.get(settings),
+                return new StoreTrustConfig(INCLUDE_JDK_CERTS_SETTING.get(settings),
                         trustStorePath, trustStorePassword, trustStoreAlgorithm);
             } else if (keyConfig == global.keyConfig()) {
                 return global.trustConfig();

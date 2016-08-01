@@ -10,14 +10,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
-import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.Realms;
-import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RolesStore;
@@ -25,19 +22,19 @@ import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
+import org.elasticsearch.xpack.security.user.AnonymousUser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  *
  */
 public class SecurityFeatureSet implements XPackFeatureSet {
+
+    private static final Map<String, Object> DISABLED_FEATURE_MAP = Collections.singletonMap("enabled", false);
 
     private final Settings settings;
     private final boolean enabled;
@@ -91,28 +88,22 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     @Override
     public XPackFeatureSet.Usage usage() {
-        List<Map<String, Object>> enabledRealms = buildEnabledRealms(realms);
+        Map<String, Object> realmsUsage = buildRealmsUsage(realms);
         Map<String, Object> rolesStoreUsage = rolesStoreUsage(rolesStore);
         Map<String, Object> sslUsage = sslUsage(settings);
         Map<String, Object> auditUsage = auditUsage(auditTrailService);
         Map<String, Object> ipFilterUsage = ipFilterUsage(ipFilter);
-        boolean hasSystemKey = systemKeyUsage(cryptoService);
-        return new Usage(available(), enabled(), enabledRealms, rolesStoreUsage, sslUsage, auditUsage, ipFilterUsage, hasSystemKey);
+        Map<String, Object> systemKeyUsage = systemKeyUsage(cryptoService);
+        Map<String, Object> anonymousUsage = Collections.singletonMap("enabled", AnonymousUser.enabled());
+        return new Usage(available(), enabled(), realmsUsage, rolesStoreUsage, sslUsage, auditUsage, ipFilterUsage, systemKeyUsage,
+                anonymousUsage);
     }
 
-    static List<Map<String, Object>> buildEnabledRealms(Realms realms) {
+    static Map<String, Object> buildRealmsUsage(Realms realms) {
         if (realms == null) {
-            return Collections.emptyList();
+            return Collections.emptyMap();
         }
-        List<Map<String, Object>> enabledRealms = new ArrayList<>();
-        for (Realm realm : realms) {
-            if (realm instanceof ReservedRealm) {
-                continue; // we don't need usage of this one
-            }
-            Map<String, Object> stats = realm.usageStats();
-            enabledRealms.add(stats);
-        }
-        return enabledRealms;
+        return realms.usageStats();
     }
 
     static Map<String, Object> rolesStoreUsage(@Nullable RolesStore rolesStore) {
@@ -131,82 +122,88 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     static Map<String, Object> auditUsage(@Nullable AuditTrailService auditTrailService) {
         if (auditTrailService == null) {
-            return Collections.emptyMap();
+            return DISABLED_FEATURE_MAP;
         }
         return auditTrailService.usageStats();
     }
 
     static Map<String, Object> ipFilterUsage(@Nullable IPFilter ipFilter) {
         if (ipFilter == null) {
-            return Collections.emptyMap();
+            return IPFilter.DISABLED_USAGE_STATS;
         }
         return ipFilter.usageStats();
     }
 
-    static boolean systemKeyUsage(CryptoService cryptoService) {
+    static Map<String, Object> systemKeyUsage(CryptoService cryptoService) {
         // we can piggy back on the encryption enabled method as it is only enabled if there is a system key
-        return cryptoService != null && cryptoService.isEncryptionEnabled();
+        return Collections.singletonMap("enabled", cryptoService != null && cryptoService.isEncryptionEnabled());
     }
 
     static class Usage extends XPackFeatureSet.Usage {
 
-        private static final String ENABLED_REALMS_XFIELD = "enabled_realms";
+        private static final String REALMS_XFIELD = "realms";
         private static final String ROLES_XFIELD = "roles";
         private static final String SSL_XFIELD = "ssl";
         private static final String AUDIT_XFIELD = "audit";
         private static final String IP_FILTER_XFIELD = "ipfilter";
         private static final String SYSTEM_KEY_XFIELD = "system_key";
+        private static final String ANONYMOUS_XFIELD = "anonymous";
 
-        private List<Map<String, Object>> enabledRealms;
+        private Map<String, Object> realmsUsage;
         private Map<String, Object> rolesStoreUsage;
         private Map<String, Object> sslUsage;
         private Map<String, Object> auditUsage;
         private Map<String, Object> ipFilterUsage;
-        private boolean hasSystemKey;
+        private Map<String, Object> systemKeyUsage;
+        private Map<String, Object> anonymousUsage;
 
         public Usage(StreamInput in) throws IOException {
             super(in);
-            enabledRealms = in.readList(StreamInput::readMap);
+            realmsUsage = in.readMap();
             rolesStoreUsage = in.readMap();
             sslUsage = in.readMap();
             auditUsage = in.readMap();
             ipFilterUsage = in.readMap();
-            hasSystemKey = in.readBoolean();
+            systemKeyUsage = in.readMap();
+            anonymousUsage = in.readMap();
         }
 
-        public Usage(boolean available, boolean enabled, List<Map<String, Object>> enabledRealms, Map<String, Object> rolesStoreUsage,
+        public Usage(boolean available, boolean enabled, Map<String, Object> realmsUsage, Map<String, Object> rolesStoreUsage,
                      Map<String, Object> sslUsage, Map<String, Object> auditUsage, Map<String, Object> ipFilterUsage,
-                     boolean hasSystemKey) {
+                     Map<String, Object> systemKeyUsage, Map<String, Object> anonymousUsage) {
             super(Security.NAME, available, enabled);
-            this.enabledRealms = enabledRealms;
+            this.realmsUsage = realmsUsage;
             this.rolesStoreUsage = rolesStoreUsage;
             this.sslUsage = sslUsage;
             this.auditUsage = auditUsage;
             this.ipFilterUsage = ipFilterUsage;
-            this.hasSystemKey = hasSystemKey;
+            this.systemKeyUsage = systemKeyUsage;
+            this.anonymousUsage = anonymousUsage;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(enabledRealms.stream().map((m) -> (Writeable) o -> o.writeMap(m)).collect(Collectors.toList()));
+            out.writeMap(realmsUsage);
             out.writeMap(rolesStoreUsage);
             out.writeMap(sslUsage);
             out.writeMap(auditUsage);
             out.writeMap(ipFilterUsage);
-            out.writeBoolean(hasSystemKey);
+            out.writeMap(systemKeyUsage);
+            out.writeMap(anonymousUsage);
         }
 
         @Override
         protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
             super.innerXContent(builder, params);
             if (enabled) {
-                builder.field(ENABLED_REALMS_XFIELD, enabledRealms);
+                builder.field(REALMS_XFIELD, realmsUsage);
                 builder.field(ROLES_XFIELD, rolesStoreUsage);
                 builder.field(SSL_XFIELD, sslUsage);
                 builder.field(AUDIT_XFIELD, auditUsage);
                 builder.field(IP_FILTER_XFIELD, ipFilterUsage);
-                builder.field(SYSTEM_KEY_XFIELD, hasSystemKey);
+                builder.field(SYSTEM_KEY_XFIELD, systemKeyUsage);
+                builder.field(ANONYMOUS_XFIELD, anonymousUsage);
             }
         }
     }

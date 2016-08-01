@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -139,7 +140,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
         this.licensing = new Licensing(settings);
         this.security = new Security(settings, env, licenseState);
-        this.monitoring = new Monitoring(settings);
+        this.monitoring = new Monitoring(settings, env, licenseState);
         this.watcher = new Watcher(settings);
         this.graph = new Graph(settings);
         this.notification = new Notification(settings);
@@ -173,8 +174,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
         if (transportClientMode == false) {
             modules.add(new TextTemplateModule());
-            // Note: this only exists so LicenseService subclasses can be bound in mock tests
-            modules.addAll(licensing.nodeModules());
         } else {
             modules.add(b -> b.bind(XPackLicenseState.class).toProvider(Providers.of(null)));
         }
@@ -185,7 +184,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
         ArrayList<Class<? extends LifecycleComponent>> services = new ArrayList<>();
         services.addAll(notification.nodeServices());
-        services.addAll(monitoring.nodeServices());
         return services;
     }
 
@@ -196,9 +194,14 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         final InternalClient internalClient = new InternalClient(settings, threadPool, client, security.getCryptoService());
         components.add(internalClient);
 
-        components.addAll(licensing.createComponents(clusterService, getClock(), env, resourceWatcherService, licenseState));
+        LicenseService licenseService = new LicenseService(settings, clusterService, getClock(),
+            env, resourceWatcherService, licenseState);
+        components.add(licenseService);
+        components.add(licenseState);
+
         components.addAll(security.createComponents(internalClient, threadPool, clusterService, resourceWatcherService,
                                                     extensionsService.getExtensions()));
+        components.addAll(monitoring.createComponents(internalClient, threadPool, clusterService, licenseService));
 
         // watcher http stuff
         Map<String, HttpAuthFactory> httpAuthFactories = new HashMap<>();

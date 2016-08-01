@@ -1,0 +1,13 @@
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+  compile project(':x-plugins:elasticsearch:x-pack')
+  compile "org.elasticsearch:elasticsearch:${version}"
+  testCompile "org.elasticsearch.test:framework:${version}"
+}
+
+project.forbiddenPatterns {
+  exclude '**/*.key'
+}
+
+dependencyLicenses.enabled = false

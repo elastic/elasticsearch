@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -69,7 +68,7 @@ public class HttpClient extends AbstractLifecycleComponent {
     public static final String SETTINGS_SSL_TRUSTSTORE_ALGORITHM = SETTINGS_SSL_PREFIX + "truststore.algorithm";
     static final String SETTINGS_SSL_SECURITY_TRUSTSTORE_ALGORITHM = SETTINGS_SSL_SECURITY_PREFIX + "truststore.algorithm";
     public static final String SETTINGS_PROXY_HOST = SETTINGS_PROXY_PREFIX + "host";
-    public static final String SETTINGS_PROXY_PORT = SETTINGS_PROXY_PREFIX + "post";
+    public static final String SETTINGS_PROXY_PORT = SETTINGS_PROXY_PREFIX + "port";
 
     private final HttpAuthRegistry httpAuthRegistry;
     private final Environment env;
@@ -93,6 +92,7 @@ public class HttpClient extends AbstractLifecycleComponent {
         String proxyHost = settings.get(SETTINGS_PROXY_HOST, null);
         if (proxyPort != null && Strings.hasText(proxyHost)) {
             proxy = new HttpProxy(proxyHost, proxyPort);
+            logger.info("Using default proxy for http input and slack/hipchat/pagerduty/webhook actions [{}:{}]", proxyHost, proxyPort);
         } else {
             if (proxyPort == null && Strings.hasText(proxyHost) || proxyPort != null && !Strings.hasText(proxyHost)) {
                 logger.error("disabling proxy. Watcher HTTP HttpProxy requires both settings: [{}] and [{}]", SETTINGS_PROXY_HOST,

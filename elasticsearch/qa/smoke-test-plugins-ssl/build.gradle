@@ -154,12 +154,12 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each
 integTest {
   cluster {
     setting 'xpack.monitoring.collection.interval', '3s'
-    setting 'xpack.monitoring.collection.exporters._http.type', 'http'
-    setting 'xpack.monitoring.collection.exporters._http.enabled', 'false'
-    setting 'xpack.monitoring.collection.exporters._http.ssl.truststore.path', clientKeyStore.name
-    setting 'xpack.monitoring.collection.exporters._http.ssl.truststore.password', 'keypass'
-    setting 'xpack.monitoring.collection.exporters._http.auth.username', 'monitoring_agent'
-    setting 'xpack.monitoring.collection.exporters._http.auth.password', 'changeme'
+    setting 'xpack.monitoring.exporters._http.type', 'http'
+    setting 'xpack.monitoring.exporters._http.enabled', 'false'
+    setting 'xpack.monitoring.exporters._http.ssl.truststore.path', clientKeyStore.name
+    setting 'xpack.monitoring.exporters._http.ssl.truststore.password', 'keypass'
+    setting 'xpack.monitoring.exporters._http.auth.username', 'monitoring_agent'
+    setting 'xpack.monitoring.exporters._http.auth.password', 'changeme'
 
     setting 'xpack.security.transport.ssl.enabled', 'true'
     setting 'xpack.security.http.ssl.enabled', 'true'

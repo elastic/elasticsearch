@@ -8,6 +8,8 @@ integTest {
   cluster {
     setting 'script.inline', 'true'
     plugin ':x-plugins:elasticsearch:x-pack'
+    // Whitelist reindexing from the local node so we can test it.
+    setting 'reindex.remote.whitelist', 'myself'
     extraConfigFile 'x-pack/roles.yml', 'roles.yml'
     [
       test_admin: 'superuser',

@@ -30,6 +30,7 @@ import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -48,6 +49,7 @@ import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.security.auth.x500.X500Principal;
 import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -84,7 +86,7 @@ class CertUtils {
         return PathUtils.get(Strings.cleanPath(path));
     }
 
-    static X509ExtendedKeyManager[] keyManagers(Certificate[] certificateChain, PrivateKey privateKey, char[] password) throws Exception {
+    static X509ExtendedKeyManager keyManagers(Certificate[] certificateChain, PrivateKey privateKey, char[] password) throws Exception {
         KeyStore keyStore = KeyStore.getInstance("jks");
         keyStore.load(null, null);
         // password must be non-null for keystore...
@@ -92,19 +94,19 @@ class CertUtils {
         return keyManagers(keyStore, password, KeyManagerFactory.getDefaultAlgorithm());
     }
 
-    static X509ExtendedKeyManager[] keyManagers(KeyStore keyStore, char[] password, String algorithm) throws Exception {
+    static X509ExtendedKeyManager keyManagers(KeyStore keyStore, char[] password, String algorithm) throws Exception {
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(algorithm);
         kmf.init(keyStore, password);
         KeyManager[] keyManagers = kmf.getKeyManagers();
         for (KeyManager keyManager : keyManagers) {
             if (keyManager instanceof X509ExtendedKeyManager) {
-                return new X509ExtendedKeyManager[] { (X509ExtendedKeyManager) keyManager };
+                return (X509ExtendedKeyManager) keyManager;
             }
         }
         throw new IllegalStateException("failed to find a X509ExtendedKeyManager");
     }
 
-    static X509ExtendedTrustManager[] trustManagers(Certificate[] certificates) throws Exception {
+    static X509ExtendedTrustManager trustManagers(Certificate[] certificates) throws Exception {
         KeyStore store = KeyStore.getInstance("jks");
         store.load(null, null);
         int counter = 0;
@@ -115,13 +117,26 @@ class CertUtils {
         return trustManagers(store, TrustManagerFactory.getDefaultAlgorithm());
     }
 
-    static X509ExtendedTrustManager[] trustManagers(KeyStore keyStore, String algorithm) throws Exception {
+    static X509ExtendedTrustManager trustManagers(String trustStorePath, String trustStorePassword, String trustStoreAlgorithm,
+                                                  Environment env) throws Exception {
+        try (InputStream in = Files.newInputStream(resolvePath(trustStorePath, env))) {
+            // TODO remove reliance on JKS since we can PKCS12 stores...
+            KeyStore trustStore = KeyStore.getInstance("jks");
+            assert trustStorePassword != null;
+            trustStore.load(in, trustStorePassword.toCharArray());
+            return CertUtils.trustManagers(trustStore, trustStoreAlgorithm);
+        } catch (Exception e) {
+            throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
+        }
+    }
+
+    static X509ExtendedTrustManager trustManagers(KeyStore keyStore, String algorithm) throws Exception {
         TrustManagerFactory tmf = TrustManagerFactory.getInstance(algorithm);
         tmf.init(keyStore);
         TrustManager[] trustManagers = tmf.getTrustManagers();
         for (TrustManager trustManager : trustManagers) {
             if (trustManager instanceof X509ExtendedTrustManager) {
-                return new X509ExtendedTrustManager[] { (X509ExtendedTrustManager) trustManager };
+                return (X509ExtendedTrustManager) trustManager ;
             }
         }
         throw new IllegalStateException("failed to find a X509ExtendedTrustManager");

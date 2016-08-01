@@ -5,19 +5,12 @@
  */
 package org.elasticsearch.xpack.security.ssl;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.security.ssl.TrustConfig.Reloadable.Listener;
-import org.elasticsearch.watcher.FileWatcher;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.watcher.ResourceWatcherService.Frequency;
 
-import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
-import java.io.IOException;
 import java.net.Socket;
 import java.nio.file.Path;
 import java.security.Principal;
@@ -28,18 +21,20 @@ import java.util.List;
 
 abstract class KeyConfig extends TrustConfig {
 
-    KeyConfig(boolean includeSystem, boolean reloadEnabled) {
-        super(includeSystem, reloadEnabled);
+    private X509ExtendedKeyManager[] keyManagers = null;
+
+    KeyConfig(boolean includeSystem) {
+        super(includeSystem);
     }
 
-    static final KeyConfig NONE = new KeyConfig(false, false) {
+    static final KeyConfig NONE = new KeyConfig(false) {
         @Override
-        X509ExtendedKeyManager[] loadKeyManagers(@Nullable Environment environment) {
+        X509ExtendedKeyManager loadKeyManager(@Nullable Environment environment) {
             return null;
         }
 
         @Override
-        X509ExtendedTrustManager[] nonSystemTrustManagers(@Nullable Environment environment) {
+        X509ExtendedTrustManager nonSystemTrustManager(@Nullable Environment environment) {
             return null;
         }
 
@@ -58,39 +53,48 @@ abstract class KeyConfig extends TrustConfig {
         }
     };
 
-    final KeyManager[] keyManagers(@Nullable Environment environment, @Nullable ResourceWatcherService resourceWatcherService,
-                                   @Nullable Listener listener) {
-        X509ExtendedKeyManager[] keyManagers = loadKeyManagers(environment);
-        if (reloadEnabled && resourceWatcherService != null && listener != null) {
-            ReloadableX509KeyManager reloadableX509KeyManager = new ReloadableX509KeyManager(keyManagers[0], environment);
-            List<Path> filesToMonitor = filesToMonitor(environment);
-            if (filesToMonitor.isEmpty() == false) {
-                ChangeListener changeListener = new ChangeListener(filesToMonitor, reloadableX509KeyManager, listener);
-                try {
-                    for (Path dir : directoriesToMonitor(filesToMonitor)) {
-                        FileWatcher fileWatcher = new FileWatcher(dir);
-                        fileWatcher.addListener(changeListener);
-                        resourceWatcherService.add(fileWatcher, Frequency.HIGH);
-                    }
-                    return new X509ExtendedKeyManager[]{reloadableX509KeyManager};
-                } catch (IOException e) {
-                    throw new ElasticsearchException("failed to add file watcher", e);
-                }
-            }
+    final synchronized X509ExtendedKeyManager[] keyManagers(@Nullable Environment environment) {
+        if (keyManagers == null) {
+            X509ExtendedKeyManager keyManager = loadKeyManager(environment);
+            setKeyManagers(keyManager);
         }
         return keyManagers;
     }
 
-    abstract X509ExtendedKeyManager[] loadKeyManagers(@Nullable Environment environment);
+    @Override
+    synchronized void reload(@Nullable Environment environment) {
+        if (trustManagers == null) {
+            // trust managers were never initialized... do it lazily!
+            X509ExtendedKeyManager loadedKeyManager = loadKeyManager(environment);
+            setKeyManagers(loadedKeyManager);
+            return;
+        }
 
-    final class ReloadableX509KeyManager extends X509ExtendedKeyManager implements Reloadable {
+        X509ExtendedTrustManager loadedTrustManager = loadAndMergeIfNecessary(environment);
+        X509ExtendedKeyManager loadedKeyManager = loadKeyManager(environment);
+        setTrustManagers(loadedTrustManager);
+        setKeyManagers(loadedKeyManager);
+    }
 
-        private final Environment environment;
+    final synchronized void setKeyManagers(X509ExtendedKeyManager loadedKeyManager) {
+        if (loadedKeyManager == null) {
+            this.keyManagers = new X509ExtendedKeyManager[0];
+        } else if (this.keyManagers == null || this.keyManagers.length == 0) {
+            this.keyManagers = new X509ExtendedKeyManager[] { new ReloadableX509KeyManager(loadedKeyManager) };
+        } else {
+            assert this.keyManagers[0] instanceof ReloadableX509KeyManager;
+            ((ReloadableX509KeyManager)this.keyManagers[0]).setKeyManager(loadedKeyManager);
+        }
+    }
+
+    abstract X509ExtendedKeyManager loadKeyManager(@Nullable Environment environment);
+
+    final class ReloadableX509KeyManager extends X509ExtendedKeyManager {
+
         private volatile X509ExtendedKeyManager keyManager;
 
-        ReloadableX509KeyManager(X509ExtendedKeyManager keyManager, @Nullable Environment environment) {
+        ReloadableX509KeyManager(X509ExtendedKeyManager keyManager) {
             this.keyManager = keyManager;
-            this.environment = environment;
         }
 
         @Override
@@ -133,13 +137,13 @@ abstract class KeyConfig extends TrustConfig {
             return keyManager.chooseEngineServerAlias(s, principals, engine);
         }
 
-        public synchronized void reload() {
-            X509ExtendedKeyManager[] keyManagers = loadKeyManagers(environment);
-            this.keyManager = keyManagers[0];
-        }
-
         synchronized void setKeyManager(X509ExtendedKeyManager x509ExtendedKeyManager) {
             this.keyManager = x509ExtendedKeyManager;
+        }
+
+        // pkg-private accessor for testing
+        X509ExtendedKeyManager getKeyManager() {
+            return keyManager;
         }
     }
 }

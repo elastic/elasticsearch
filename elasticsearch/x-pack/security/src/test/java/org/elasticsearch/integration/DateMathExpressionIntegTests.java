@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.integration;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -69,7 +70,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
         IndexResponse response = client.prepareIndex(expression, "type").setSource("foo", "bar")
                 .setRefreshPolicy(refeshOnOperation ? IMMEDIATE : NONE).get();
 
-        assertThat(response.isCreated(), is(true));
+        assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
         assertThat(response.getIndex(), containsString(expectedIndexName));
 
         if (refeshOnOperation == false) {
@@ -89,7 +90,7 @@ public class DateMathExpressionIntegTests extends SecurityIntegTestCase {
                 .setDoc("new", "field")
                 .setRefreshPolicy(refeshOnOperation ? IMMEDIATE : NONE)
                 .get();
-        assertThat(updateResponse.isCreated(), is(false));
+        assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
 
         if (refeshOnOperation == false) {
             client.admin().indices().prepareRefresh(expression).get();

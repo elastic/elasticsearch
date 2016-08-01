@@ -147,10 +147,9 @@
       indices.refresh: {}
 
   - do:
-      headers: {es-security-runas-user: dest_only_user}
+      headers: {es-security-runas-user: minimal_user}
       catch: forbidden
       reindex:
-        refresh: true
         body:
           source:
             index: source

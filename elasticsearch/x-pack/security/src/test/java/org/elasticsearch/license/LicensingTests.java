@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
@@ -23,7 +24,6 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.core.License;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -115,14 +115,14 @@ public class LicensingTests extends SecurityIntegTestCase {
             .startObject()
             .field("name", "value")
             .endObject());
-        assertThat(indexResponse.isCreated(), is(true));
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
 
         indexResponse = index("test1", "type", jsonBuilder()
             .startObject()
             .field("name", "value1")
             .endObject());
-        assertThat(indexResponse.isCreated(), is(true));
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         refresh();
 

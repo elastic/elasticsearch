@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.integration;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
@@ -186,13 +187,13 @@ public class KibanaUserRoleIntegTests extends SecurityIntegTestCase {
                 .setSource("foo", "bar")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
-        assertThat(response.isCreated(), is(true));
+        assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
 
         DeleteResponse deleteResponse = client()
                 .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
                 .prepareDelete(index, "dashboard", response.getId())
                 .get();
-        assertThat(deleteResponse.isFound(), is(true));
+        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
     }
 
     // TODO: When we have an XPackIntegTestCase, this should test that we can send MonitoringBulkActions

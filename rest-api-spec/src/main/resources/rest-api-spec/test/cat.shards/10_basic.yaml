@@ -88,9 +88,6 @@
             number_of_replicas: 0
 
   - do:
-      cluster.health:
-        wait_for_status: green
-  - do:
       indices.flush_synced:
         index: sync_id_test
 
@@ -115,10 +112,6 @@
           settings:
             number_of_shards: 5
             number_of_replicas: 0
-
-  - do:
-      cluster.health:
-        wait_for_status: green
 
   - do:
       cat.shards:
@@ -153,9 +146,6 @@
           settings:
             number_of_shards: "5"
             number_of_replicas: "0"
-  - do:
-       cluster.health:
-         wait_for_relocating_shards: 0
 
   - do:
       cat.shards: {}
@@ -179,9 +169,6 @@
             number_of_replicas: "1"
             shadow_replicas: true
             shared_filesystem: false
-  - do:
-       cluster.health:
-         wait_for_relocating_shards: 0
 
   - do:
       cat.shards:

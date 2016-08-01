@@ -46,9 +46,6 @@
         body: { foo: bar }
         refresh: true
   - do:
-       cluster.health:
-         wait_for_status: green
-  - do:
       cat.segments: {}
   - match:
       $body: |
@@ -62,11 +59,6 @@
           settings:
             number_of_shards: "3"
             number_of_replicas: "0"
-  - do:
-       cluster.health:
-         wait_for_status: green
-         wait_for_relocating_shards: 0
-
   - do:
       index:
         index: index2
@@ -101,10 +93,6 @@
           settings:
             number_of_shards: "1"
             number_of_replicas: "0"
-
-  - do:
-       cluster.health:
-         wait_for_status: green
 
   - do:
       indices.close:

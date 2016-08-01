@@ -333,9 +333,8 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
                 @Override
                 protected void doRun() throws Exception {
                     StreamInput input = new InputStreamStreamInput(new BufferedInputStream(activeChannel.getInputStream()));
-                    // as per interruption policy of CancellableThreads we don't need to check for interrupts.
-                    // the only possibility to ever exit this loop is that #close() is invoked.
-                    while (isOpen.get()) {
+                    // There is a (slim) chance that we get interrupted right after a loop iteration, so check explicitly
+                    while (isOpen.get() && !Thread.currentThread().isInterrupted()) {
                         cancellableThreads.executeIO(() -> readMessage(MockChannel.this, input));
                     }
                 }

@@ -18,7 +18,7 @@
  */
 
 
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.script.groovy;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class IndexedScriptTests extends ESIntegTestCase {
+public class GroovyIndexedScriptTests extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);

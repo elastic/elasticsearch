@@ -658,7 +658,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                                 randomBoolean(),
                                 randomBoolean(),
                                 SnapshotsInProgress.State.fromValue((byte) randomIntBetween(0, 6)),
-                                Collections.<String>emptyList(),
+                                Collections.emptyList(),
                                 Math.abs(randomLong()),
                                 ImmutableOpenMap.of()));
                     case 1:

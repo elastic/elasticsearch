@@ -341,7 +341,7 @@ as `setRefresh(true)` used to have. See `setRefreshPolicy`'s javadoc for more.
 Some Java APIs (e.g., `IndicesAdminClient#setSettings`) would support Java properties syntax
 (line-delimited key=value pairs). This support has been removed.
 
-=== Render Search Template Java API has been removed
+==== Render Search Template Java API has been removed
 
 The Render Search Template Java API including `RenderSearchTemplateAction`, `RenderSearchTemplateRequest` and
 `RenderSearchTemplateResponse` has been removed in favor of a new `simulate` option in the Search Template Java API.

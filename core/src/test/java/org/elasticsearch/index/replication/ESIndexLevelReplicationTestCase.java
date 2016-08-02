@@ -30,8 +30,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
-import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
@@ -82,8 +80,6 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -257,7 +253,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
                 final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", Integer.toString(docId.incrementAndGet()))
                     .source("{}");
                 final IndexResponse response = index(indexRequest);
-                assertEquals(DocWriteResponse.Operation.CREATE, response.getOperation());
+                assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
             }
             return numOfDoc;
         }

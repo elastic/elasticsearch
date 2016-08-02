@@ -137,13 +137,13 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
                 .endObject().endObject()).get();
         ensureGreen();
 
-        assertEquals(DocWriteResponse.Operation.CREATE, prepareIndex("single", "I have four terms").get().getOperation());
+        assertEquals(DocWriteResponse.Result.CREATED, prepareIndex("single", "I have four terms").get().getResult());
         BulkResponse bulk = client().prepareBulk()
                 .add(prepareIndex("bulk1", "bulk three terms"))
                 .add(prepareIndex("bulk2", "this has five bulk terms")).get();
         assertFalse(bulk.buildFailureMessage(), bulk.hasFailures());
-        assertEquals(DocWriteResponse.Operation.CREATE,
-                     prepareIndex("multi", "two terms", "wow now I have seven lucky terms").get().getOperation());
+        assertEquals(DocWriteResponse.Result.CREATED,
+                     prepareIndex("multi", "two terms", "wow now I have seven lucky terms").get().getResult());
         bulk = client().prepareBulk()
                 .add(prepareIndex("multibulk1", "one", "oh wow now I have eight unlucky terms"))
                 .add(prepareIndex("multibulk2", "six is a bunch of terms", "ten!  ten terms is just crazy!  too many too count!")).get();

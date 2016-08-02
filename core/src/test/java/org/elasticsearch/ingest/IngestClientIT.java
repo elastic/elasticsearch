@@ -162,7 +162,7 @@ public class IngestClientIT extends ESIntegTestCase {
                     itemResponse.isFailed(), is(false));
                 assertThat(indexResponse, notNullValue());
                 assertThat(indexResponse.getId(), equalTo(Integer.toString(i)));
-                assertEquals(DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
+                assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
             }
         }
     }

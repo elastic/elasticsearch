@@ -261,7 +261,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 case "index":
                 case "create":
                     IndexResponse ir = item.getResponse();
-                    if (ir.getOperation() == DocWriteResponse.Operation.CREATE) {
+                    if (ir.getResult() == DocWriteResponse.Result.CREATED) {
                         task.countCreated();
                     } else {
                         task.countUpdated();

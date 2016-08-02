@@ -38,7 +38,7 @@ should keep the ``search context'' alive (see <<scroll-search-context>>), eg `?s
 
 [source,js]
 --------------------------------------------------
-GET /twitter/tweet/_search?scroll=1m
+curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
 {
     "query": {
         "match" : {
@@ -46,9 +46,8 @@ GET /twitter/tweet/_search?scroll=1m
         }
     }
 }
+'
 --------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
 
 The result from the above request includes a `_scroll_id`, which should
 be passed to the `scroll` API in order to retrieve the next batch of
@@ -56,11 +55,12 @@ results.
 
 [source,js]
 --------------------------------------------------
-GET <1> /_search/scroll <2> 
+curl -XGET <1> 'localhost:9200/_search/scroll' <2> -d'
 {
     "scroll" : "1m", <3>
     "scroll_id" : "c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1" <4>
 }
+'
 --------------------------------------------------
 
 <1> `GET` or `POST` can be used.
@@ -94,14 +94,14 @@ order, this is the most efficient option:
 
 [source,js]
 --------------------------------------------------
-GET /_search?scroll=1m
+curl -XGET 'localhost:9200/_search?scroll=1m' -d '
 {
   "sort": [
     "_doc"
   ]
 }
+'
 --------------------------------------------------
-// CONSOLE
 
 [[scroll-search-context]]
 ==== Keeping the search context alive
@@ -130,9 +130,8 @@ You can check how many search contexts are open with the
 
 [source,js]
 ---------------------------------------
-GET /_nodes/stats/indices/search?pretty
+curl -XGET localhost:9200/_nodes/stats/indices/search?pretty
 ---------------------------------------
-// CONSOLE
 
 ==== Clear scroll API
 
@@ -164,9 +163,8 @@ All search contexts can be cleared with the `_all` parameter:
 
 [source,js]
 ---------------------------------------
-DELETE /_search/scroll/_all
+curl -XDELETE localhost:9200/_search/scroll/_all
 ---------------------------------------
-// CONSOLE
 
 The `scroll_id` can also be passed as a query string parameter or in the request body.
 Multiple scroll IDs can be passed as comma separated values:

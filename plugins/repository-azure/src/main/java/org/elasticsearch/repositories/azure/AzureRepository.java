@@ -32,6 +32,8 @@ import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -44,7 +46,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotCreationException;
-import org.elasticsearch.snapshots.SnapshotId;
 
 import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.getEffectiveSetting;
 import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.getValue;
@@ -153,7 +154,7 @@ public class AzureRepository extends BlobStoreRepository {
     }
 
     @Override
-    public void initializeSnapshot(SnapshotId snapshotId, List<String> indices, MetaData clusterMetadata) {
+    public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData clusterMetadata) {
         try {
             if (!blobStore.doesContainerExist(blobStore.container())) {
                 logger.debug("container [{}] does not exist. Creating...", blobStore.container());

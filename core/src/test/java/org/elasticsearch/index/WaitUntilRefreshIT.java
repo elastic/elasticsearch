@@ -84,7 +84,7 @@ public class WaitUntilRefreshIT extends ESIntegTestCase {
 
         // Now delete with blockUntilRefresh
         DeleteResponse delete = client().prepareDelete("test", "test", "1").setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).get();
-        assertEquals(DocWriteResponse.Operation.DELETE, delete.getOperation());
+        assertEquals(DocWriteResponse.Result.DELETED, delete.getResult());
         assertFalse("request shouldn't have forced a refresh", delete.forcedRefresh());
         assertNoSearchHits(client().prepareSearch("test").setQuery(matchQuery("foo", "bar")).get());
     }

@@ -254,7 +254,7 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
             } else {
                 logger.error(e.getMessage() + ". skipping role...");
             }
-        } catch (YAMLException | IOException e) {
+        } catch (IOException e) {
             if (roleName != null) {
                 logger.error("invalid role definition [{}] in roles file [{}]. skipping role...", e, roleName, path);
             } else {

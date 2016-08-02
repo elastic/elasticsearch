@@ -13,7 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.license.core.License;
+import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.monitoring.agent.collector.cluster.ClusterInfoMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.agent.resolver.MonitoringIndexNameResolverTestCase;

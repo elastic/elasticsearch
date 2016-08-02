@@ -26,9 +26,9 @@ class StoreKeyConfig extends KeyConfig {
     final String keyPassword;
     final String trustStoreAlgorithm;
 
-    StoreKeyConfig(boolean includeSystem, boolean reloadEnabled, String keyStorePath, String keyStorePassword, String keyPassword,
+    StoreKeyConfig(boolean includeSystem, String keyStorePath, String keyStorePassword, String keyPassword,
                    String keyStoreAlgorithm, String trustStoreAlgorithm) {
-        super(includeSystem, reloadEnabled);
+        super(includeSystem);
         this.keyStorePath = keyStorePath;
         this.keyStorePassword = keyStorePassword;
         this.keyPassword = keyPassword;
@@ -37,7 +37,7 @@ class StoreKeyConfig extends KeyConfig {
     }
 
     @Override
-    X509ExtendedKeyManager[] loadKeyManagers(@Nullable Environment environment) {
+    X509ExtendedKeyManager loadKeyManager(@Nullable Environment environment) {
         try (InputStream in = Files.newInputStream(CertUtils.resolvePath(keyStorePath, environment))) {
             // TODO remove reliance on JKS since we can PKCS12 stores...
             KeyStore ks = KeyStore.getInstance("jks");
@@ -50,14 +50,9 @@ class StoreKeyConfig extends KeyConfig {
     }
 
     @Override
-    X509ExtendedTrustManager[] nonSystemTrustManagers(@Nullable Environment environment) {
-        try (InputStream in = Files.newInputStream(CertUtils.resolvePath(keyStorePath, environment))) {
-            // TODO remove reliance on JKS since we can PKCS12 stores...
-            KeyStore ks = KeyStore.getInstance("jks");
-            assert keyStorePassword != null;
-            ks.load(in, keyStorePassword.toCharArray());
-
-            return CertUtils.trustManagers(ks, trustStoreAlgorithm);
+    X509ExtendedTrustManager nonSystemTrustManager(@Nullable Environment environment) {
+        try {
+            return CertUtils.trustManagers(keyStorePath, keyStorePassword, trustStoreAlgorithm, environment);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }

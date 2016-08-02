@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.transport.actions.put;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -16,8 +17,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.plugin.core.LicenseUtils;
-import org.elasticsearch.license.plugin.core.XPackLicenseState;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.watcher.Watcher;
@@ -62,7 +63,8 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
         try {
             IndexResponse indexResponse = watcherService.putWatch(request.getId(), request.getSource(), request.masterNodeTimeout(),
                     request.isActive());
-            listener.onResponse(new PutWatchResponse(indexResponse.getId(), indexResponse.getVersion(), indexResponse.isCreated()));
+            boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+            listener.onResponse(new PutWatchResponse(indexResponse.getId(), indexResponse.getVersion(), created));
         } catch (Exception e) {
             listener.onFailure(e);
         }

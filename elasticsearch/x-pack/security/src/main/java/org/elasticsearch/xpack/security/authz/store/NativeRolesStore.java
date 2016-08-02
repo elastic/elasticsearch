@@ -22,6 +22,7 @@ import java.util.function.Function;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -273,7 +274,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
             client.delete(request, new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {
-                    clearRoleCache(deleteRoleRequest.name(), listener, deleteResponse.isFound());
+                    clearRoleCache(deleteRoleRequest.name(), listener, deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
                 }
 
                 @Override
@@ -303,11 +304,12 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
                     .execute(new ActionListener<IndexResponse>() {
                         @Override
                         public void onResponse(IndexResponse indexResponse) {
-                            if (indexResponse.isCreated()) {
-                                listener.onResponse(indexResponse.isCreated());
+                            boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+                            if (created) {
+                                listener.onResponse(true);
                                 return;
                             }
-                            clearRoleCache(role.getName(), listener, indexResponse.isCreated());
+                            clearRoleCache(role.getName(), listener, created);
                         }
 
                         @Override

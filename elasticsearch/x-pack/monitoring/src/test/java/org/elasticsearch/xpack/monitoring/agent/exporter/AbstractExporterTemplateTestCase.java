@@ -6,14 +6,18 @@
 package org.elasticsearch.xpack.monitoring.agent.exporter;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.agent.collector.Collector;
 import org.elasticsearch.xpack.monitoring.agent.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
+import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.Map;
@@ -32,7 +36,7 @@ public abstract class AbstractExporterTemplateTestCase extends MonitoringIntegTe
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1");
 
         for (Map.Entry<String, String> setting : exporterSettings().getAsMap().entrySet()) {
-            settings.put("xpack.monitoring.collection.exporters._exporter." + setting.getKey(), setting.getValue());
+            settings.put("xpack.monitoring.exporters._exporter." + setting.getKey(), setting.getValue());
         }
         return settings.build();
     }
@@ -114,8 +118,14 @@ public abstract class AbstractExporterTemplateTestCase extends MonitoringIntegTe
     }
 
     protected void doExporting() throws Exception {
-        Collector collector = internalCluster().getInstance(ClusterStatsCollector.class);
-        assertNotNull(collector);
+        // TODO: these should be unit tests, not using guice
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
+        XPackLicenseState licenseState = internalCluster().getInstance(XPackLicenseState.class);
+        LicenseService licenseService = internalCluster().getInstance(LicenseService.class);
+        InternalClient client = internalCluster().getInstance(InternalClient.class);
+        Collector collector = new ClusterStatsCollector(clusterService.getSettings(), clusterService,
+            new MonitoringSettings(clusterService.getSettings(), clusterService.getClusterSettings()),
+            licenseState, client, licenseService);
 
         Exporters exporters = internalCluster().getInstance(Exporters.class);
         assertNotNull(exporters);

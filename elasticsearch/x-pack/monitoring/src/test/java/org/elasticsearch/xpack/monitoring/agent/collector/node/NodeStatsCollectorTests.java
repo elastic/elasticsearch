@@ -11,7 +11,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.license.plugin.core.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
@@ -56,8 +56,6 @@ public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
                     equalTo(internalCluster().getInstance(ClusterService.class, node).localNode().getId()));
             assertThat(nodeStatsMonitoringDoc.isNodeMaster(), equalTo(node.equals(internalCluster().getMasterName())));
             assertThat(nodeStatsMonitoringDoc.isMlockall(), equalTo(BootstrapInfo.isMemoryLocked()));
-            assertNotNull(nodeStatsMonitoringDoc.isDiskThresholdDeciderEnabled());
-            assertNotNull(nodeStatsMonitoringDoc.getDiskThresholdWaterMarkHigh());
 
             assertNotNull(nodeStatsMonitoringDoc.getNodeStats());
         }
@@ -68,8 +66,6 @@ public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
                 internalCluster().getInstance(ClusterService.class, nodeId),
                 internalCluster().getInstance(MonitoringSettings.class, nodeId),
                 internalCluster().getInstance(XPackLicenseState.class, nodeId),
-                internalCluster().getInstance(InternalClient.class, nodeId),
-                internalCluster().getInstance(NodeEnvironment.class, nodeId),
-                internalCluster().getInstance(DiskThresholdDecider.class, nodeId));
+                internalCluster().getInstance(InternalClient.class, nodeId));
     }
 }

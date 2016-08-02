@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.plugin.core.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.monitoring.agent.exporter.Exporter;
@@ -128,10 +128,10 @@ public class MonitoringFeatureSetTests extends ESTestCase {
 
     private Exporter mockExporter(String type, boolean enabled) {
         Exporter exporter = mock(Exporter.class);
-        when(exporter.type()).thenReturn(type);
         Exporter.Config enabledConfig = mock(Exporter.Config.class);
         when(enabledConfig.enabled()).thenReturn(enabled);
         when(exporter.config()).thenReturn(enabledConfig);
+        when(enabledConfig.type()).thenReturn(type);
         return exporter;
     }
 }

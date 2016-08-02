@@ -32,7 +32,7 @@ public class ClusterStatsTests extends MonitoringIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
                 .put(MonitoringSettings.COLLECTORS.getKey(), ClusterStatsCollector.NAME)
-                .put("xpack.monitoring.collection.exporters.default_local.type", "local")
+                .put("xpack.monitoring.exporters.default_local.type", "local")
                 .build();
     }
 

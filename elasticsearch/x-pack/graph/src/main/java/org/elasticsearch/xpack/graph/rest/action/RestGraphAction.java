@@ -16,7 +16,6 @@ import java.util.Map;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -27,23 +26,24 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
+import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.graph.action.GraphExploreRequest;
 import org.elasticsearch.xpack.graph.action.GraphExploreResponse;
 import org.elasticsearch.xpack.graph.action.Hop;
 import org.elasticsearch.xpack.graph.action.VertexRequest;
 import org.elasticsearch.xpack.graph.action.GraphExploreRequest.TermBoost;
+import org.elasticsearch.xpack.rest.XPackRestHandler;
 
 
 /**
  * @see GraphExploreRequest
  */
-public class RestGraphAction extends BaseRestHandler {
+public class RestGraphAction extends XPackRestHandler {
 
     private IndicesQueriesRegistry indicesQueriesRegistry;
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
@@ -68,21 +68,23 @@ public class RestGraphAction extends BaseRestHandler {
     @Inject
     public RestGraphAction(Settings settings, RestController controller, IndicesQueriesRegistry indicesQueriesRegistry) {
         super(settings);
-        // @deprecated TODO need to add deprecation support as per https://github.com/elastic/x-plugins/issues/1760#issuecomment-217507517
-        controller.registerHandler(GET, "/{index}/_graph/explore", this);
-        controller.registerHandler(POST, "/{index}/_graph/explore", this);
-        controller.registerHandler(GET, "/{index}/{type}/_graph/explore", this);
-        controller.registerHandler(POST, "/{index}/{type}/_graph/explore", this);
-        // new REST endpoint
-        controller.registerHandler(GET, "/{index}/_xpack/graph/_explore", this);
-        controller.registerHandler(POST, "/{index}/_xpack/graph/_explore", this);
-        controller.registerHandler(GET, "/{index}/{type}/_xpack/graph/_explore", this);
-        controller.registerHandler(POST, "/{index}/{type}/_xpack/graph/_explore", this);
+
         this.indicesQueriesRegistry = indicesQueriesRegistry;
+
+        // @deprecated Remove in 6.0
+        // NOTE: Old versions did not end with "/_explore"; they were just "/explore"
+        controller.registerWithDeprecatedHandler(GET, "/{index}" + URI_BASE + "/_graph/_explore", this,
+                                                 GET, "/{index}/_graph/explore", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, "/{index}" + URI_BASE + "/_graph/_explore", this,
+                                                 POST, "/{index}/_graph/explore", deprecationLogger);
+        controller.registerWithDeprecatedHandler(GET, "/{index}/{type}" + URI_BASE + "/_graph/_explore", this,
+                                                 GET, "/{index}/{type}/_graph/explore", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, "/{index}/{type}" + URI_BASE + "/_graph/_explore", this,
+                                                 POST, "/{index}/{type}/_graph/explore", deprecationLogger);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
+    public void handleRequest(final RestRequest request, final RestChannel channel, final XPackClient client) throws IOException {
         GraphExploreRequest graphRequest = new GraphExploreRequest(Strings.splitStringByCommaToArray(request.param("index")));
         graphRequest.indicesOptions(IndicesOptions.fromRequest(request, graphRequest.indicesOptions()));
         graphRequest.routing(request.param("routing"));
@@ -109,7 +111,7 @@ public class RestGraphAction extends BaseRestHandler {
         }
 
         graphRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
-        client.execute(INSTANCE, graphRequest, new RestToXContentListener<GraphExploreResponse>(channel));
+        client.es().execute(INSTANCE, graphRequest, new RestToXContentListener<GraphExploreResponse>(channel));
     }
 
     private void parseHop(XContentParser parser, QueryParseContext context, Hop currentHop,

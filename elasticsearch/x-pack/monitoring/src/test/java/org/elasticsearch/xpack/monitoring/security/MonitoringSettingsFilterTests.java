@@ -35,13 +35,13 @@ public class MonitoringSettingsFilterTests extends MonitoringIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
-                .put("xpack.monitoring.collection.exporters._http.type", "http")
-                .put("xpack.monitoring.collection.exporters._http.enabled", false)
-                .put("xpack.monitoring.collection.exporters._http.auth.username", "_user")
-                .put("xpack.monitoring.collection.exporters._http.auth.password", "_passwd")
-                .put("xpack.monitoring.collection.exporters._http.ssl.truststore.path", "/path/to/truststore")
-                .put("xpack.monitoring.collection.exporters._http.ssl.truststore.password", "_passwd")
-                .put("xpack.monitoring.collection.exporters._http.ssl.hostname_verification", true)
+                .put("xpack.monitoring.exporters._http.type", "http")
+                .put("xpack.monitoring.exporters._http.enabled", false)
+                .put("xpack.monitoring.exporters._http.auth.username", "_user")
+                .put("xpack.monitoring.exporters._http.auth.password", "_passwd")
+                .put("xpack.monitoring.exporters._http.ssl.truststore.path", "/path/to/truststore")
+                .put("xpack.monitoring.exporters._http.ssl.truststore.password", "_passwd")
+                .put("xpack.monitoring.exporters._http.ssl.hostname_verification", true)
                 .build();
     }
 
@@ -69,13 +69,13 @@ public class MonitoringSettingsFilterTests extends MonitoringIntegTestCase {
         for (Object node : nodes.values()) {
             @SuppressWarnings("unchecked")
             Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) node).get("settings");
-            assertThat(extractValue("xpack.monitoring.collection.exporters._http.type", settings), equalTo("http"));
-            assertThat(extractValue("xpack.monitoring.collection.exporters._http.enabled", settings), equalTo("false"));
-            assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.auth.username");
-            assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.auth.password");
-            assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.ssl.truststore.path");
-            assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.ssl.truststore.password");
-            assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.ssl.hostname_verification");
+            assertThat(extractValue("xpack.monitoring.exporters._http.type", settings), equalTo("http"));
+            assertThat(extractValue("xpack.monitoring.exporters._http.enabled", settings), equalTo("false"));
+            assertNullSetting(settings, "xpack.monitoring.exporters._http.auth.username");
+            assertNullSetting(settings, "xpack.monitoring.exporters._http.auth.password");
+            assertNullSetting(settings, "xpack.monitoring.exporters._http.ssl.truststore.path");
+            assertNullSetting(settings, "xpack.monitoring.exporters._http.ssl.truststore.password");
+            assertNullSetting(settings, "xpack.monitoring.exporters._http.ssl.hostname_verification");
         }
     }
 

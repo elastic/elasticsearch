@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.logging.ESLogger;
@@ -40,7 +39,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.license.plugin.core.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.rest.RestHandler;
@@ -112,6 +111,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.ssl.ClientSSLService;
 import org.elasticsearch.xpack.security.ssl.SSLConfiguration;
+import org.elasticsearch.xpack.security.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.security.ssl.ServerSSLService;
 import org.elasticsearch.xpack.security.support.OptionalSettings;
 import org.elasticsearch.xpack.security.transport.SecurityClientTransportService;
@@ -186,8 +186,7 @@ public class Security implements ActionPlugin, IngestPlugin {
             modules.add(b -> {
                 // for transport client we still must inject these ssl classes with guice
                 b.bind(ServerSSLService.class).toProvider(Providers.<ServerSSLService>of(null));
-                b.bind(ClientSSLService.class).toInstance(
-                    new ClientSSLService(settings, null, new SSLConfiguration.Global(settings), null));
+                b.bind(ClientSSLService.class).toInstance(new ClientSSLService(settings, null, new SSLConfiguration.Global(settings)));
             });
 
             return modules;
@@ -233,8 +232,12 @@ public class Security implements ActionPlugin, IngestPlugin {
         components.add(securityContext);
 
         final SSLConfiguration.Global globalSslConfig = new SSLConfiguration.Global(settings);
-        final ClientSSLService clientSSLService = new ClientSSLService(settings, env, globalSslConfig, resourceWatcherService);
-        final ServerSSLService serverSSLService = new ServerSSLService(settings, env, globalSslConfig, resourceWatcherService);
+        final ClientSSLService clientSSLService = new ClientSSLService(settings, env, globalSslConfig);
+        final ServerSSLService serverSSLService = new ServerSSLService(settings, env, globalSslConfig);
+        // just create the reloader as it will register itself as a listener to the ssl service and nothing else depends on it
+        // IMPORTANT: if the reloader construction is moved to later, then it needs to be updated to ensure any SSLContexts that have been
+        // loaded by the services are also monitored by the reloader!
+        new SSLConfigurationReloader(settings, env, serverSSLService, clientSSLService, resourceWatcherService);
         components.add(clientSSLService);
         components.add(serverSSLService);
 
@@ -330,7 +333,10 @@ public class Security implements ActionPlugin, IngestPlugin {
 
     public Settings additionalSettings() {
         if (enabled == false) {
-            return Settings.EMPTY;
+            return Settings.builder()
+                    .put(NetworkModule.HTTP_TYPE_KEY, "netty3")
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty3")
+                    .build();
         }
 
         return additionalSettings(settings);

@@ -435,12 +435,6 @@
             "mlockall": {
               "type": "boolean"
             },
-            "disk_threshold_enabled": {
-              "type": "boolean"
-            },
-            "disk_threshold_watermark_high": {
-              "type": "short"
-            },
             "indices": {
               "properties": {
                 "docs": {

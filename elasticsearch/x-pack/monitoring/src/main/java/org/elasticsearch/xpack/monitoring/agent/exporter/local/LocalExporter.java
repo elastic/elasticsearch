@@ -51,16 +51,16 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     public static final String TYPE = "local";
 
-    private final ClientProxy client;
+    private final InternalClient client;
     private final ClusterService clusterService;
     private final ResolversRegistry resolvers;
     private final CleanerService cleanerService;
 
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
 
-    public LocalExporter(Exporter.Config config, ClientProxy client,
+    public LocalExporter(Exporter.Config config, InternalClient client,
                          ClusterService clusterService, CleanerService cleanerService) {
-        super(TYPE, config);
+        super(config);
         this.client = client;
         this.clusterService = clusterService;
         this.cleanerService = cleanerService;
@@ -300,26 +300,6 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 logger.error("failed to delete indices", e);
             }
         });
-    }
-
-    public static class Factory extends Exporter.Factory<LocalExporter> {
-
-        private final ClientProxy client;
-        private final ClusterService clusterService;
-        private final CleanerService cleanerService;
-
-        @Inject
-        public Factory(InternalClient client, ClusterService clusterService, CleanerService cleanerService) {
-            super(TYPE, true);
-            this.client = new ClientProxy(client);
-            this.clusterService = clusterService;
-            this.cleanerService = cleanerService;
-        }
-
-        @Override
-        public LocalExporter create(Config config) {
-            return new LocalExporter(config, client, clusterService, cleanerService);
-        }
     }
 
     enum State {

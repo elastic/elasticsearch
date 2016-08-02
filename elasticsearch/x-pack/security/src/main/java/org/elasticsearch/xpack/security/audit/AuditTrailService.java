@@ -13,7 +13,7 @@ import java.util.Map;
 
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.plugin.core.XPackLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.security.Security;
@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.security.user.User;
  *
  */
 public class AuditTrailService extends AbstractComponent implements AuditTrail {
+
+    public static final Map<String, Object> DISABLED_USAGE_STATS = Collections.singletonMap("enabled", false);
 
     private final XPackLicenseState licenseState;
     final List<AuditTrail> auditTrails;

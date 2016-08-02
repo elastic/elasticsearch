@@ -48,8 +48,8 @@ public class MockMustacheScriptEngine extends MockScriptEngine {
         if (script.contains("{{") && script.contains("}}")) {
             throw new IllegalArgumentException("Fix your test to not rely on mustache");
         }
-
-        return super.compile(name, script, params);
+        // We always return the script's source as it is
+        return new MockCompiledScript(name, params, script, null);
     }
 
     @Override

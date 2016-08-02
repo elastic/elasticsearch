@@ -74,8 +74,8 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
         URI uri = new URI("https", null, httpAddress.getHostString(), httpAddress.getPort(), "/", null, null);
 
         Settings exporterSettings = Settings.builder()
-                .put("xpack.monitoring.collection.exporters._http.enabled", true)
-                .put("xpack.monitoring.collection.exporters._http.host", uri.toString())
+                .put("xpack.monitoring.exporters._http.enabled", true)
+                .put("xpack.monitoring.exporters._http.host", uri.toString())
                 .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
     }
@@ -83,8 +83,8 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
     @After
     public void disableExporter() {
         Settings exporterSettings = Settings.builder()
-                .putNull("xpack.monitoring.collection.exporters._http.enabled")
-                .putNull("xpack.monitoring.collection.exporters._http.host")
+                .putNull("xpack.monitoring.exporters._http.enabled")
+                .putNull("xpack.monitoring.exporters._http.host")
                 .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
     }

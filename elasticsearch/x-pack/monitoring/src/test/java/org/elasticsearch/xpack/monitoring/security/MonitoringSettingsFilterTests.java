@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.MockNetty3Plugin;
+import org.elasticsearch.xpack.MockNetty4Plugin;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
@@ -49,6 +50,7 @@ public class MonitoringSettingsFilterTests extends MonitoringIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(MockNetty3Plugin.class); // for http
+        plugins.add(MockNetty4Plugin.class); // for http
         return plugins;
     }
 
@@ -82,4 +84,5 @@ public class MonitoringSettingsFilterTests extends MonitoringIntegTestCase {
     private void assertNullSetting(Map<String, Object> settings, String setting) {
         assertThat(extractValue(setting, settings), nullValue());
     }
+
 }

@@ -5,27 +5,28 @@
  */
 package org.elasticsearch.xpack.security.transport.netty4;
 
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.ipfilter.AbstractRemoteAddressFilter;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
 import java.net.InetSocketAddress;
 
-/**
- *
- */
-public class IPFilterNetty4Handler extends AbstractRemoteAddressFilter<InetSocketAddress> {
+@ChannelHandler.Sharable
+class IpFilterRemoteAddressFilter extends AbstractRemoteAddressFilter<InetSocketAddress> {
 
     private final IPFilter filter;
     private final String profile;
 
-    public IPFilterNetty4Handler(IPFilter filter, String profile) {
+    IpFilterRemoteAddressFilter(final IPFilter filter, final String profile) {
         this.filter = filter;
         this.profile = profile;
     }
 
     @Override
-    protected boolean accept(ChannelHandlerContext ctx, InetSocketAddress inetSocketAddress) throws Exception {
-        return filter.accept(profile, inetSocketAddress.getAddress());
+    protected boolean accept(final ChannelHandlerContext ctx, final InetSocketAddress remoteAddress) throws Exception {
+        // at this stage no auth has happened, so we do not have any principal anyway
+        return filter.accept(profile, remoteAddress.getAddress());
     }
+
 }

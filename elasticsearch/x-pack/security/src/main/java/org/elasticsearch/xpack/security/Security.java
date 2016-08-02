@@ -120,6 +120,7 @@ import org.elasticsearch.xpack.security.transport.SecurityTransportModule;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
+import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.joda.time.DateTime;
@@ -335,8 +336,8 @@ public class Security implements ActionPlugin, IngestPlugin {
     public Settings additionalSettings() {
         if (enabled == false) {
             return Settings.builder()
-                    .put(NetworkModule.HTTP_TYPE_KEY, "netty3")
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty3")
+                    .put(NetworkModule.HTTP_TYPE_KEY, "netty4")
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty4")
                     .build();
         }
 
@@ -348,8 +349,9 @@ public class Security implements ActionPlugin, IngestPlugin {
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME + "4");
         settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, Security.NAME);
-        settingsBuilder.put(NetworkModule.HTTP_TYPE_SETTING.getKey(), Security.NAME);
-        SecurityNetty3HttpServerTransport.overrideSettings(settingsBuilder, settings);
+        settingsBuilder.put(NetworkModule.HTTP_TYPE_SETTING.getKey(), Security.NAME + "4");
+        // nocommit
+        SecurityNetty4HttpServerTransport.overrideSettings(settingsBuilder, settings);
         addUserSettings(settings, settingsBuilder);
         addTribeSettings(settings, settingsBuilder);
         return settingsBuilder.build();
@@ -513,6 +515,7 @@ public class Security implements ActionPlugin, IngestPlugin {
             module.registerTransport(Security.NAME + "4", SecurityNetty4Transport.class);
             module.registerTransportService(Security.NAME, SecurityServerTransportService.class);
             module.registerHttpTransport(Security.NAME, SecurityNetty3HttpServerTransport.class);
+            module.registerHttpTransport(Security.NAME + "4", SecurityNetty4HttpServerTransport.class);
         }
     }
 

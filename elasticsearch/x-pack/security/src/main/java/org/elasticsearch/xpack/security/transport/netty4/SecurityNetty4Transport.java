@@ -124,7 +124,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
                 ch.pipeline().addFirst(new SslHandler(serverEngine));
             }
             if (authenticator != null) {
-                ch.pipeline().addFirst(new IPFilterNetty4Handler(authenticator, name));
+                ch.pipeline().addFirst(new IpFilterRemoteAddressFilter(authenticator, name));
             }
         }
     }
@@ -180,6 +180,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
             return hostname;
         }
     }
+
     static boolean profileSSL(Settings profileSettings, boolean defaultSSL) {
         if (PROFILE_SSL_SETTING.exists(profileSettings)) {
             return PROFILE_SSL_SETTING.get(profileSettings);
@@ -196,4 +197,5 @@ public class SecurityNetty4Transport extends Netty4Transport {
         }
         return clientAuth;
     }
+
 }

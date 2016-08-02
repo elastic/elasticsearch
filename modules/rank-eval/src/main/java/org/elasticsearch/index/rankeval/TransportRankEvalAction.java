@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -62,6 +61,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     private SearchTransportService searchTransportService;
     private ClusterService clusterService;
     private ActionFilters actionFilters;
+    private Client client;
 
     @Inject
     public TransportRankEvalAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
@@ -75,6 +75,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         this.searchTransportService = searchTransportService;
         this.clusterService = clusterService;
         this.actionFilters = actionFilters;
+        this.client = client;
     }
 
     @Override
@@ -82,7 +83,6 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         RankEvalSpec qualityTask = request.getRankEvalSpec();
         RankedListQualityMetric metric = qualityTask.getEvaluator();
 
-        double qualitySum = 0;
         Map<String, Collection<RatedDocumentKey>> unknownDocs = new HashMap<>();
         Collection<QuerySpec> specifications = qualityTask.getSpecifications();
         Vector<EvalQueryQuality> partialResults = new Vector<>(specifications.size());
@@ -95,10 +95,8 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             spec.getTypes().toArray(types);
             templatedRequest.types(types);
 
-            TransportSearchAction transportSearchAction = new TransportSearchAction(settings, threadPool, searchPhaseController,
-                    transportService, searchTransportService, clusterService, actionFilters, indexNameExpressionResolver);
-            ActionFuture<SearchResponse> searchResponse = transportSearchAction.execute(templatedRequest);
-            SearchHits hits = searchResponse.actionGet().getHits();
+            ActionFuture<SearchResponse> response = client.search(templatedRequest);
+            SearchHits hits = response.actionGet().getHits();
 
             EvalQueryQuality queryQuality = metric.evaluate(hits.getHits(), spec.getRatedDocs());
             partialResults.addElement(queryQuality);

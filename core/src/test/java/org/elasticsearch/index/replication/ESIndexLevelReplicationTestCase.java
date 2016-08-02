@@ -309,15 +309,17 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
         }
 
         private Store.MetadataSnapshot getMetadataSnapshotOrEmpty(IndexShard replica) throws IOException {
+            Store.MetadataSnapshot result;
             try {
-                return replica.snapshotStoreMetadata();
+                result = replica.snapshotStoreMetadata();
             } catch (IndexNotFoundException e) {
                 // OK!
-                return Store.MetadataSnapshot.EMPTY;
+                result = Store.MetadataSnapshot.EMPTY;
             } catch (IOException e) {
                 logger.warn("{} failed read store, treating as empty", e);
-                return Store.MetadataSnapshot.EMPTY;
+                result = Store.MetadataSnapshot.EMPTY;
             }
+            return result;
         }
 
         public synchronized DiscoveryNode getPrimaryNode() {

@@ -833,7 +833,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public Store.MetadataSnapshot snapshotStoreMetadata() throws IOException {
         IndexCommit indexCommit = null;
-        Store.MetadataSnapshot result = null;
         store.incRef();
         try {
             synchronized (mutex) {
@@ -843,21 +842,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 Engine engine = getEngineOrNull();
                 if (engine == null) {
                     try (Lock ignored = store.directory().obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-                        result = store.getMetadata(null);
+                        return store.getMetadata(null);
                     }
                 }
             }
-            if (result == null) {
-                indexCommit = deletionPolicy.snapshot();
-                result = store.getMetadata(indexCommit);
-            }
+            indexCommit = deletionPolicy.snapshot();
+            return store.getMetadata(indexCommit);
         } finally {
             store.decRef();
             if (indexCommit != null) {
                 deletionPolicy.release(indexCommit);
             }
         }
-        return result;
     }
 
     /**

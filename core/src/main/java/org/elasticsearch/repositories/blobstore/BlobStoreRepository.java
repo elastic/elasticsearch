@@ -405,7 +405,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
         try {
             // Delete snapshot from the index file, since it is the maintainer of truth of active snapshots
-            writeIndexGen(repositoryData.removeSnapshot(snapshotId));
+            final RepositoryData updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
+            writeIndexGen(updatedRepositoryData);
 
             // delete the snapshot file
             safeSnapshotBlobDelete(snapshot, snapshotId.getUUID());
@@ -433,6 +434,21 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             }
                         }
                     }
+                }
+            }
+
+            // cleanup indices that are no longer part of the repository
+            final Collection<IndexId> indicesToCleanUp = Sets.newHashSet(repositoryData.getIndices().values());
+            indicesToCleanUp.removeAll(updatedRepositoryData.getIndices().values());
+            final BlobContainer indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
+            for (final IndexId indexId : indicesToCleanUp) {
+                try {
+                    indicesBlobContainer.deleteBlob(indexId.getId());
+                } catch (IOException e) {
+                    // if the directory isn't empty for some reason, it will fail to clean up;
+                    // we'll ignore that and accept that cleanup didn't fully succeed.
+                    // since we are using UUIDs for path names, this won't be an issue for
+                    // snapshotting indices of the same name
                 }
             }
         } catch (IOException ex) {

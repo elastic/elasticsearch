@@ -92,6 +92,7 @@ public abstract class AbstractBenchmark<T extends Closeable> {
      * Requests a full GC and checks whether the GC did actually run after a request. It retries up to 5 times in case the GC did not
      * run in time.
      */
+    @SuppressForbidden(reason = "we need to request a system GC for the benchmark")
     private void runGc() {
         long previousCollections = getTotalGcCount();
         int attempts = 0;

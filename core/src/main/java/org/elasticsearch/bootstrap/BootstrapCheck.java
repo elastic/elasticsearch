@@ -60,14 +60,14 @@ final class BootstrapCheck {
      * checks
      *
      * @param settings              the current node settings
-     * @param dataDirectoryNumber   the integer number of the directories who's locks under the data directory we were able to take
+     * @param dataDirectoryIndex   the index of the directories who's locks under the data directories we were able to take
      * @param boundTransportAddress the node network bindings
      */
-    static void check(final Settings settings, final int dataDirectoryNumber, final BoundTransportAddress boundTransportAddress) {
+    static void check(final Settings settings, final int dataDirectoryIndex, final BoundTransportAddress boundTransportAddress) {
         check(
                 enforceLimits(boundTransportAddress),
                 BootstrapSettings.IGNORE_SYSTEM_BOOTSTRAP_CHECKS.get(settings),
-                checks(settings, dataDirectoryNumber),
+                checks(settings, dataDirectoryIndex),
                 Node.NODE_NAME_SETTING.get(settings));
     }
 
@@ -155,7 +155,7 @@ final class BootstrapCheck {
     }
 
     // the list of checks to execute
-    static List<Check> checks(final Settings settings, final int dataDirectoryNumber) {
+    static List<Check> checks(final Settings settings, final int dataDirectoryIndex) {
         final List<Check> checks = new ArrayList<>();
         checks.add(new HeapSizeCheck());
         final FileDescriptorCheck fileDescriptorCheck
@@ -180,7 +180,7 @@ final class BootstrapCheck {
          * check will produce consistent results even if Elasticsearch isn't being run in production mode. We rely on the production mode
          * detection that BootstrapCheck already does decide whether or not to throw an error.
          */
-        checks.add(new DataDirectoryLockNumberCheck(dataDirectoryNumber, NodeEnvironment.getMaxLocalStorageNodes(settings, true)));
+        checks.add(new DataDirectoryLockNumberCheck(dataDirectoryIndex, NodeEnvironment.getMaxLocalStorageNodes(settings, true)));
         return Collections.unmodifiableList(checks);
     }
 
@@ -605,22 +605,22 @@ final class BootstrapCheck {
      * {@link NodeEnvironment#MAX_LOCAL_STORAGE_NODES_SETTING}.
      */
     static class DataDirectoryLockNumberCheck implements BootstrapCheck.Check {
-        private final int dataDirectoryNumber;
+        private final int dataDirectoryIndex;
         private final int maxLocalStorageNodes;
 
-        DataDirectoryLockNumberCheck(int dataDirectoryNumber, int maxLocalStorageNodes) {
-            this.dataDirectoryNumber = dataDirectoryNumber;
+        DataDirectoryLockNumberCheck(int dataDirectoryIndex, int maxLocalStorageNodes) {
+            this.dataDirectoryIndex = dataDirectoryIndex;
             this.maxLocalStorageNodes = maxLocalStorageNodes;
         }
 
         @Override
         public boolean check() {
-            return dataDirectoryNumber < maxLocalStorageNodes;
+            return dataDirectoryIndex < maxLocalStorageNodes;
         }
 
         @Override
         public String errorMessage() {
-            return "there are already [" + dataDirectoryNumber + "] Elasticsearch processes running with this data directory";
+            return "there are already [" + dataDirectoryIndex + "] Elasticsearch processes running with this data directory";
         }
 
         @Override

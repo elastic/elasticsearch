@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.transport.netty4;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -35,19 +37,66 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.security.Security.featureEnabledSetting;
+import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.Security.settingPrefix;
-import static org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport.CLIENT_AUTH_SETTING;
-import static org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport.DEPRECATED_PROFILE_SSL_SETTING;
-import static org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING;
-import static org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport.HOSTNAME_VERIFICATION_SETTING;
-import static org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport.PROFILE_CLIENT_AUTH_SETTING;
-import static org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport.PROFILE_SSL_SETTING;
-import static org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport.SSL_SETTING;
+
+import org.elasticsearch.common.settings.Setting.Property;
+
 
 /**
  * Implementation of a transport that extends the {@link Netty4Transport} to add SSL and IP Filtering
  */
 public class SecurityNetty4Transport extends Netty4Transport {
+
+    public static final String CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED.name();
+    public static final boolean SSL_DEFAULT = false;
+
+    public static final Setting<Boolean> DEPRECATED_HOSTNAME_VERIFICATION_SETTING =
+            Setting.boolSetting(
+                    setting("ssl.hostname_verification"),
+                    true,
+                    new Property[]{Property.NodeScope, Property.Filtered, Property.Deprecated, Property.Shared});
+
+    public static final Setting<Boolean> HOSTNAME_VERIFICATION_SETTING =
+            Setting.boolSetting(featureEnabledSetting("ssl.hostname_verification"), DEPRECATED_HOSTNAME_VERIFICATION_SETTING,
+                    Property.NodeScope, Property.Filtered, Property.Shared);
+
+    public static final Setting<Boolean> HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING =
+            Setting.boolSetting(
+                    setting("ssl.hostname_verification.resolve_name"),
+                    true,
+                    new Property[]{Property.NodeScope, Property.Filtered, Property.Shared});
+
+    public static final Setting<Boolean> DEPRECATED_SSL_SETTING =
+            Setting.boolSetting(setting("transport.ssl"), SSL_DEFAULT,
+                    Property.Filtered, Property.NodeScope, Property.Deprecated, Property.Shared);
+
+    public static final Setting<Boolean> SSL_SETTING =
+            Setting.boolSetting(
+                    setting("transport.ssl.enabled"),
+                    DEPRECATED_SSL_SETTING,
+                    new Property[]{Property.Filtered, Property.NodeScope, Property.Shared});
+
+    public static final Setting<SSLClientAuth> CLIENT_AUTH_SETTING =
+            new Setting<>(
+                    setting("transport.ssl.client.auth"),
+                    CLIENT_AUTH_DEFAULT,
+                    SSLClientAuth::parse,
+                    new Property[]{Property.NodeScope, Property.Filtered, Property.Shared});
+
+    public static final Setting<Boolean> DEPRECATED_PROFILE_SSL_SETTING =
+            Setting.boolSetting(setting("ssl"), SSL_SETTING, Property.Filtered, Property.NodeScope, Property.Deprecated, Property.Shared);
+
+    public static final Setting<Boolean> PROFILE_SSL_SETTING =
+            Setting.boolSetting(setting("ssl.enabled"), SSL_DEFAULT, Property.Filtered, Property.NodeScope, Property.Shared);
+
+    public static final Setting<SSLClientAuth> PROFILE_CLIENT_AUTH_SETTING =
+            new Setting<>(
+                    setting("ssl.client.auth"),
+                    CLIENT_AUTH_SETTING,
+                    SSLClientAuth::parse,
+                    new Property[]{Property.NodeScope, Property.Filtered, Property.Shared});
 
     private final ServerSSLService serverSslService;
     private final ClientSSLService clientSSLService;
@@ -77,12 +126,12 @@ public class SecurityNetty4Transport extends Netty4Transport {
     }
 
     @Override
-    protected ChannelInitializer<SocketChannel> getServerChannelInitializer(String name, Settings settings) {
+    protected ChannelHandler getServerChannelInitializer(String name, Settings settings) {
         return new SecurityServerChannelInitializer(name, settings);
     }
 
     @Override
-    protected ChannelInitializer<SocketChannel> getClientChannelInitializer() {
+    protected ChannelHandler getClientChannelInitializer() {
         return new SecurityClientChannelInitializer();
     }
 
@@ -113,7 +162,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
         }
 
         @Override
-        protected void initChannel(SocketChannel ch) throws Exception {
+        protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
             if (sslEnabled) {
                 Settings securityProfileSettings = settings.getByPrefix(settingPrefix());
@@ -131,7 +180,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
     class SecurityClientChannelInitializer extends ClientChannelInitializer {
         @Override
-        protected void initChannel(SocketChannel ch) throws Exception {
+        protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
             if (ssl) {
                 ch.pipeline().addFirst(new ClientSslHandlerInitializer());

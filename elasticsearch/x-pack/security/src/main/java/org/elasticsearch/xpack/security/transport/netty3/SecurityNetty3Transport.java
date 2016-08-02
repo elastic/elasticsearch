@@ -47,31 +47,50 @@ public class SecurityNetty3Transport extends Netty3Transport {
     public static final boolean SSL_DEFAULT = false;
 
     public static final Setting<Boolean> DEPRECATED_HOSTNAME_VERIFICATION_SETTING =
-            Setting.boolSetting(setting("ssl.hostname_verification"), true, Property.NodeScope, Property.Filtered, Property.Deprecated);
+            Setting.boolSetting(
+                    setting("ssl.hostname_verification"),
+                    true,
+                    new Property[]{Property.NodeScope, Property.Filtered, Property.Deprecated, Property.Shared});
+
     public static final Setting<Boolean> HOSTNAME_VERIFICATION_SETTING =
             Setting.boolSetting(featureEnabledSetting("ssl.hostname_verification"), DEPRECATED_HOSTNAME_VERIFICATION_SETTING,
-                    Property.NodeScope, Property.Filtered);
+                    Property.NodeScope, Property.Filtered, Property.Shared);
+
     public static final Setting<Boolean> HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING =
-            Setting.boolSetting(setting("ssl.hostname_verification.resolve_name"), true, Property.NodeScope, Property.Filtered);
+            Setting.boolSetting(
+                    setting("ssl.hostname_verification.resolve_name"),
+                    true,
+                    new Property[]{Property.NodeScope, Property.Filtered, Property.Shared});
 
     public static final Setting<Boolean> DEPRECATED_SSL_SETTING =
             Setting.boolSetting(setting("transport.ssl"), SSL_DEFAULT,
-                    Property.Filtered, Property.NodeScope, Property.Deprecated);
+                    Property.Filtered, Property.NodeScope, Property.Deprecated, Property.Shared);
+
     public static final Setting<Boolean> SSL_SETTING =
-            Setting.boolSetting(setting("transport.ssl.enabled"), DEPRECATED_SSL_SETTING, Property.Filtered, Property.NodeScope);
+            Setting.boolSetting(
+                    setting("transport.ssl.enabled"),
+                    DEPRECATED_SSL_SETTING,
+                    new Property[]{Property.Filtered, Property.NodeScope, Property.Shared});
 
     public static final Setting<SSLClientAuth> CLIENT_AUTH_SETTING =
-            new Setting<>(setting("transport.ssl.client.auth"), CLIENT_AUTH_DEFAULT,
-                    SSLClientAuth::parse, Property.NodeScope, Property.Filtered);
+            new Setting<>(
+                    setting("transport.ssl.client.auth"),
+                    CLIENT_AUTH_DEFAULT,
+                    SSLClientAuth::parse,
+                    new Property[]{Property.NodeScope, Property.Filtered, Property.Shared});
 
     public static final Setting<Boolean> DEPRECATED_PROFILE_SSL_SETTING =
-            Setting.boolSetting(setting("ssl"), SSL_SETTING, Property.Filtered, Property.NodeScope, Property.Deprecated);
+            Setting.boolSetting(setting("ssl"), SSL_SETTING, Property.Filtered, Property.NodeScope, Property.Deprecated, Property.Shared);
+
     public static final Setting<Boolean> PROFILE_SSL_SETTING =
-            Setting.boolSetting(setting("ssl.enabled"), SSL_DEFAULT, Property.Filtered, Property.NodeScope);
+            Setting.boolSetting(setting("ssl.enabled"), SSL_DEFAULT, Property.Filtered, Property.NodeScope, Property.Shared);
 
     public static final Setting<SSLClientAuth> PROFILE_CLIENT_AUTH_SETTING =
-            new Setting<>(setting("ssl.client.auth"), CLIENT_AUTH_SETTING, SSLClientAuth::parse,
-                    Property.NodeScope, Property.Filtered);
+            new Setting<>(
+                    setting("ssl.client.auth"),
+                    CLIENT_AUTH_SETTING,
+                    SSLClientAuth::parse,
+                    new Property[]{Property.NodeScope, Property.Filtered, Property.Shared});
 
     private final ServerSSLService serverSslService;
     private final ClientSSLService clientSSLService;

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport.netty4;
 
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.socket.SocketChannel;
@@ -107,7 +108,7 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
         }
 
         @Override
-        protected void initChannel(SocketChannel ch) throws Exception {
+        protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
             if (ssl) {
                 final SSLEngine engine = sslService.createSSLEngine(sslSettings);

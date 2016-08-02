@@ -38,6 +38,7 @@ import java.util.Map;
  * Documents of unknown quality - i.e. those that haven't been supplied in the set of annotated documents but have been returned
  * by the search are not taken into consideration when computing precision at n - they are ignored.
  *
+ * TODO get rid of either this or RankEvalResult
  **/
 public class RankEvalResponse extends ActionResponse implements ToXContent {
 

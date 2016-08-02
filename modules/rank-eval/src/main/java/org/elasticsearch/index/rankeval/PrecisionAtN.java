@@ -128,6 +128,7 @@ public class PrecisionAtN extends RankedListQualityMetric {
         return new EvalQueryQuality(precision, unknownDocIds);
     }
 
+    // TODO add abstraction that also works for other metrics
     public enum Rating {
         IRRELEVANT, RELEVANT;
     }

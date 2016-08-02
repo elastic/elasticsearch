@@ -32,6 +32,7 @@ import java.util.Map;
  * for reference. In addition the averaged precision and the ids of all documents returned but not found annotated is returned.
  * */
 // TODO do we need an extra class for this or it RankEvalResponse enough?
+// TODO instead of just returning averages over complete results, think of other statistics, micro avg, macro avg, partial results
 public class RankEvalResult implements Writeable {
     /**ID of QA specification this result was generated for.*/
     private String specId;

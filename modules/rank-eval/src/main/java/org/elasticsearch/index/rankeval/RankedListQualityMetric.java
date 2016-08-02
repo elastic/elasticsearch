@@ -54,6 +54,7 @@ public abstract class RankedListQualityMetric implements NamedWriteable {
         }
         String metricName = parser.currentName();
 
+        // TODO maybe switch to using a plugable registry later?
         switch (metricName) {
         case PrecisionAtN.NAME:
             rc = PrecisionAtN.fromXContent(parser, context);

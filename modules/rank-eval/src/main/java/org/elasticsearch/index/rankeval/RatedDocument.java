@@ -33,6 +33,7 @@ import java.io.IOException;
  * */
 public class RatedDocument implements Writeable {
 
+    // TODO augment with index name and type name
     private final String docId;
     private final int rating;
 

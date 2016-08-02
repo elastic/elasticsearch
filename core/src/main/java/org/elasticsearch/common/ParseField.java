@@ -23,6 +23,7 @@ import org.elasticsearch.common.logging.Loggers;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -108,6 +109,7 @@ public class ParseField {
      *         names for this {@link ParseField}.
      */
     boolean match(String fieldName, boolean strict) {
+        Objects.requireNonNull(fieldName, "fieldName cannot be null");
         // if this parse field has not been completely deprecated then try to
         // match the preferred name
         if (allReplacedWith == null && fieldName.equals(name)) {

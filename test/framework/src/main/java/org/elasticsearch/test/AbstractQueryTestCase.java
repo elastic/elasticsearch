@@ -122,6 +122,7 @@ import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
@@ -310,6 +311,44 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     // mutation produced invalid json
                 }
             }
+        }
+    }
+
+    /**
+     * Test that wraps the randomly generated query into an array as follows: { "query_name" : [{}]}
+     * This causes unexpected situations in parser code that may not be handled properly.
+     */
+    public void testQueryWrappedInArray() throws IOException {
+        QB queryBuilder = createTestQueryBuilder();
+        String validQuery = queryBuilder.toString();
+        String queryName = queryBuilder.getName();
+        int i = validQuery.indexOf("\"" + queryName + "\"");
+        assertThat(i, greaterThan(0));
+
+        int insertionPosition;
+        for (insertionPosition = i; insertionPosition < validQuery.length(); insertionPosition++) {
+            if (validQuery.charAt(insertionPosition) == ':') {
+                break;
+            }
+        }
+        insertionPosition++;
+
+        int endArrayPosition;
+        for (endArrayPosition = validQuery.length() - 1; endArrayPosition >= 0; endArrayPosition--) {
+            if (validQuery.charAt(endArrayPosition) == '}') {
+                break;
+            }
+        }
+
+        String testQuery = validQuery.substring(0, insertionPosition) + "[" +
+                validQuery.substring(insertionPosition, endArrayPosition) + "]" +
+                validQuery.substring(endArrayPosition, validQuery.length());
+
+        try {
+            parseQuery(testQuery);
+            fail("some parsing exception expected for query: " + testQuery);
+        } catch (ParsingException e) {
+            assertEquals("[" + queryName + "] query malformed, no start_object after query name", e.getMessage());
         }
     }
 

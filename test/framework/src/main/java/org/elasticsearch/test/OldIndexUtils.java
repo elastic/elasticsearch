@@ -22,16 +22,22 @@ package org.elasticsearch.test;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.segments.IndexSegments;
+import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.upgrade.get.IndexUpgradeStatus;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.IndexFolderUpgrader;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.engine.Segment;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,16 +51,15 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 
 import static junit.framework.TestCase.assertFalse;
 import static junit.framework.TestCase.assertTrue;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.junit.Assert.assertEquals;
 
 
-public class OldIndexBackwardsCompatibilityUtils {
-
+public class OldIndexUtils {
 
     public static List<String> loadIndexesList(String prefix, Path bwcIndicesPath) throws IOException {
         List<String> indexes = new ArrayList<>();
@@ -69,11 +74,11 @@ public class OldIndexBackwardsCompatibilityUtils {
 
     public static Settings getSettings() {
         return Settings.builder()
-                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false) // disable merging so no segments will be upgraded
-                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 30) //
-                // speed up recoveries
-                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 30)
-                .build();
+            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false) // disable merging so no segments will be upgraded
+            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 30) //
+            // speed up recoveries
+            .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 30)
+            .build();
     }
 
     public static void upgradeIndexFolder(InternalTestCluster cluster, String nodeName) throws Exception {
@@ -110,7 +115,7 @@ public class OldIndexBackwardsCompatibilityUtils {
             // TODO: it would be better for this to be strictly greater, but sometimes an extra flush
             // mysteriously happens after the second round of docs are indexed
             assertTrue("index " + status.getIndex() + " should have recovered some segments from transaction log",
-                    status.getTotalBytes() >= status.getToUpgradeBytes());
+                status.getTotalBytes() >= status.getToUpgradeBytes());
             assertTrue("index " + status.getIndex() + " should need upgrading", status.getToUpgradeBytes() != 0);
         }
     }
@@ -160,12 +165,58 @@ public class OldIndexBackwardsCompatibilityUtils {
         });
     }
 
+    public static void assertUpgraded(Client client, String... index) throws Exception {
+        for (IndexUpgradeStatus status : getUpgradeStatus(client, index)) {
+            assertTrue("index " + status.getIndex() + " should not be zero sized", status.getTotalBytes() != 0);
+            assertEquals("index " + status.getIndex() + " should be upgraded",
+                0, status.getToUpgradeBytes());
+        }
+
+        // double check using the segments api that all segments are actually upgraded
+        IndicesSegmentResponse segsRsp;
+        if (index == null) {
+            segsRsp = client.admin().indices().prepareSegments().execute().actionGet();
+        } else {
+            segsRsp = client.admin().indices().prepareSegments(index).execute().actionGet();
+        }
+        for (IndexSegments indexSegments : segsRsp.getIndices().values()) {
+            for (IndexShardSegments shard : indexSegments) {
+                for (ShardSegments segs : shard.getShards()) {
+                    for (Segment seg : segs.getSegments()) {
+                        assertEquals("Index " + indexSegments.getIndex() + " has unupgraded segment " + seg.toString(),
+                            Version.CURRENT.luceneVersion.major, seg.version.major);
+                        assertEquals("Index " + indexSegments.getIndex() + " has unupgraded segment " + seg.toString(),
+                            Version.CURRENT.luceneVersion.minor, seg.version.minor);
+                    }
+                }
+            }
+        }
+    }
+
+    public static boolean isUpgraded(Client client, String index) throws Exception {
+        ESLogger logger = Loggers.getLogger(OldIndexUtils.class);
+        int toUpgrade = 0;
+        for (IndexUpgradeStatus status : getUpgradeStatus(client, index)) {
+            logger.info("Index: {}, total: {}, toUpgrade: {}", status.getIndex(), status.getTotalBytes(), status.getToUpgradeBytes());
+            toUpgrade += status.getToUpgradeBytes();
+        }
+        return toUpgrade == 0;
+    }
+
+    public static void assertUpgradeWorks(Client client, String indexName, Version version) throws Exception {
+        if (OldIndexUtils.isLatestLuceneVersion(version) == false) {
+            OldIndexUtils.assertNotUpgraded(client, indexName);
+        }
+        assertNoFailures(client.admin().indices().prepareUpgrade(indexName).get());
+        assertUpgraded(client, indexName);
+    }
+
     public static Version extractVersion(String index) {
         return Version.fromString(index.substring(index.indexOf('-') + 1, index.lastIndexOf('.')));
     }
 
     public static boolean isLatestLuceneVersion(Version version) {
         return version.luceneVersion.major == Version.CURRENT.luceneVersion.major &&
-                version.luceneVersion.minor == Version.CURRENT.luceneVersion.minor;
+            version.luceneVersion.minor == Version.CURRENT.luceneVersion.minor;
     }
 }

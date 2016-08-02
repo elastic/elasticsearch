@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
-import org.elasticsearch.action.admin.indices.upgrade.UpgradeIT;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -58,7 +57,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.OldIndexBackwardsCompatibilityUtils;
+import org.elasticsearch.test.OldIndexUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.Matchers;
@@ -77,8 +76,8 @@ import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import static org.elasticsearch.test.OldIndexUtils.assertUpgradeWorks;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 // needs at least 2 nodes since it bumps replicas to 1
@@ -103,8 +102,8 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     @Before
     public void initIndexesList() throws Exception {
-        indexes = OldIndexBackwardsCompatibilityUtils.loadIndexesList("index", getBwcIndicesPath());
-        unsupportedIndexes = OldIndexBackwardsCompatibilityUtils.loadIndexesList("unsupported", getBwcIndicesPath());
+        indexes = OldIndexUtils.loadIndexesList("index", getBwcIndicesPath());
+        unsupportedIndexes = OldIndexUtils.loadIndexesList("unsupported", getBwcIndicesPath());
     }
 
     @AfterClass
@@ -117,7 +116,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     @Override
     public Settings nodeSettings(int ord) {
-        return OldIndexBackwardsCompatibilityUtils.getSettings();
+        return OldIndexUtils.getSettings();
     }
 
     void setupCluster() throws Exception {
@@ -162,8 +161,8 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     }
 
     void upgradeIndexFolder() throws Exception {
-        OldIndexBackwardsCompatibilityUtils.upgradeIndexFolder(internalCluster(), singleDataPathNodeName);
-        OldIndexBackwardsCompatibilityUtils.upgradeIndexFolder(internalCluster(), multiDataPathNodeName);
+        OldIndexUtils.upgradeIndexFolder(internalCluster(), singleDataPathNodeName);
+        OldIndexUtils.upgradeIndexFolder(internalCluster(), multiDataPathNodeName);
     }
 
     void importIndex(String indexName) throws IOException {
@@ -213,7 +212,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     }
 
     void assertOldIndexWorks(String index) throws Exception {
-        Version version = OldIndexBackwardsCompatibilityUtils.extractVersion(index);
+        Version version = OldIndexUtils.extractVersion(index);
         Path[] paths;
         if (randomBoolean()) {
             logger.info("--> injecting index [{}] into single data path", index);
@@ -224,7 +223,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         }
 
         String indexName = index.replace(".zip", "").toLowerCase(Locale.ROOT).replace("unsupported-", "index-");
-        OldIndexBackwardsCompatibilityUtils.loadIndex(indexName, index, createTempDir(), getBwcIndicesPath(), logger, paths);
+        OldIndexUtils.loadIndex(indexName, index, createTempDir(), getBwcIndicesPath(), logger, paths);
         // we explicitly upgrade the index folders as these indices
         // are imported as dangling indices and not available on
         // node startup
@@ -236,7 +235,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         assertBasicAggregationWorks(indexName);
         assertRealtimeGetWorks(indexName);
         assertNewReplicasWork(indexName);
-        assertUpgradeWorks(indexName, OldIndexBackwardsCompatibilityUtils.isLatestLuceneVersion(version));
+        assertUpgradeWorks(client(), indexName, version);
         assertDeleteByQueryWorked(indexName, version);
         assertPositionIncrementGapDefaults(indexName, version);
         unloadIndex(indexName);
@@ -386,14 +385,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         } else {
             StringFieldMapperPositionIncrementGapTests.assertGapIsOneHundred(client(), indexName, "doc");
         }
-    }
-
-    void assertUpgradeWorks(String indexName, boolean alreadyLatest) throws Exception {
-        if (alreadyLatest == false) {
-            OldIndexBackwardsCompatibilityUtils.assertNotUpgraded(client(), indexName);
-        }
-        assertNoFailures(client().admin().indices().prepareUpgrade(indexName).get());
-        UpgradeIT.assertUpgraded(client(), indexName);
     }
 
     private Path getNodeDir(String indexFile) throws IOException {

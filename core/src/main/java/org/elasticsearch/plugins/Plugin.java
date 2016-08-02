@@ -22,12 +22,16 @@ package org.elasticsearch.plugins;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -90,6 +94,14 @@ public abstract class Plugin {
      */
     public Settings additionalSettings() {
         return Settings.Builder.EMPTY_SETTINGS;
+    }
+
+    /**
+     * Returns parsers for {@link NamedWriteable} this plugin will use over the transport protocol.
+     * @see NamedWriteableRegistry
+     */
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return Collections.emptyList();
     }
 
     /**

@@ -842,7 +842,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     /** Creates an IndicesModule for testing with the given mappers and metadata mappers. */
     public static IndicesModule newTestIndicesModule(Map<String, Mapper.TypeParser> extraMappers,
                                                      Map<String, MetadataFieldMapper.TypeParser> extraMetadataMappers) {
-        return new IndicesModule(new NamedWriteableRegistry(), Collections.singletonList(
+        return new IndicesModule(Collections.singletonList(
             new MapperPlugin() {
                 @Override
                 public Map<String, Mapper.TypeParser> getMappers() {

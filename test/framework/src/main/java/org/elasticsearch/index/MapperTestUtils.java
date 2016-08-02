@@ -42,7 +42,7 @@ import static org.elasticsearch.test.ESTestCase.createAnalysisService;
 public class MapperTestUtils {
 
     public static MapperService newMapperService(Path tempDir, Settings indexSettings) throws IOException {
-        IndicesModule indicesModule = new IndicesModule(new NamedWriteableRegistry(), Collections.emptyList());
+        IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
         return newMapperService(tempDir, indexSettings, indicesModule);
     }
 

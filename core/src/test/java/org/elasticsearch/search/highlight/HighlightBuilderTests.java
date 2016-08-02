@@ -83,8 +83,9 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     @BeforeClass
     public static void init() {
-        namedWriteableRegistry = new NamedWriteableRegistry();
-        indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry, false, emptyList()).getQueryParserRegistry();
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+        indicesQueriesRegistry = searchModule.getQueryParserRegistry();
     }
 
     @AfterClass

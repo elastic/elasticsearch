@@ -25,6 +25,7 @@ import io.netty.channel.AdaptiveRecvByteBufAllocator;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
@@ -310,11 +311,11 @@ public class Netty4Transport extends TcpTransport<Channel> {
         serverBootstraps.put(name, serverBootstrap);
     }
 
-    protected ChannelInitializer<SocketChannel> getServerChannelInitializer(String name, Settings settings) {
+    protected ChannelHandler getServerChannelInitializer(String name, Settings settings) {
         return new ServerChannelInitializer(name, settings);
     }
 
-    protected ChannelInitializer<SocketChannel> getClientChannelInitializer() {
+    protected ChannelHandler getClientChannelInitializer() {
         return new ClientChannelInitializer();
     }
 
@@ -506,10 +507,10 @@ public class Netty4Transport extends TcpTransport<Channel> {
         });
     }
 
-    protected class ClientChannelInitializer extends ChannelInitializer<SocketChannel> {
+    protected class ClientChannelInitializer extends ChannelInitializer<Channel> {
 
         @Override
-        protected void initChannel(SocketChannel ch) throws Exception {
+        protected void initChannel(Channel ch) throws Exception {
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
             // using a dot as a prefix means this cannot come from any settings parsed
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, ".client"));
@@ -517,7 +518,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
     }
 
-    protected class ServerChannelInitializer extends ChannelInitializer<SocketChannel> {
+    protected class ServerChannelInitializer extends ChannelInitializer<Channel> {
 
         protected final String name;
         protected final Settings settings;
@@ -528,10 +529,11 @@ public class Netty4Transport extends TcpTransport<Channel> {
         }
 
         @Override
-        protected void initChannel(SocketChannel ch) throws Exception {
+        protected void initChannel(Channel ch) throws Exception {
             ch.pipeline().addLast("open_channels", Netty4Transport.this.serverOpenChannels);
             ch.pipeline().addLast("size", new Netty4SizeHeaderFrameDecoder());
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, name));
         }
     }
+
 }

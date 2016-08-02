@@ -835,7 +835,8 @@ public abstract class ESTestCase extends LuceneTestCase {
                 .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
                 .build();
         Environment environment = new Environment(settings);
-        return new ScriptModule(settings, environment, null, singletonList(new MockScriptEngine()), emptyList());
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));
+        return new ScriptModule(settings, environment, null, singletonList(scriptEngine), emptyList());
     }
 
     /** Creates an IndicesModule for testing with the given mappers and metadata mappers. */

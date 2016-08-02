@@ -1,5 +1,5 @@
 ---
-"Delete operation field":
+"Delete result field":
 
  - do:
       index:
@@ -14,7 +14,7 @@
           type:    test
           id:      1
 
- - match: { _operation: delete }
+ - match: { result: deleted }
 
  - do:
       catch: missing
@@ -23,4 +23,4 @@
           type:    test
           id:      1
 
- - match: { _operation: noop }
+ - match: { result: not_found }

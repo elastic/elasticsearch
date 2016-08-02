@@ -17,15 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.scriptfilter;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -34,19 +35,47 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 @ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.SUITE)
-public class ScriptQuerySearchTests extends ESIntegTestCase {
+public class ScriptQuerySearchIT extends ESIntegTestCase {
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
+        return Collections.singleton(CustomScriptPlugin.class);
+    }
+
+    public static class CustomScriptPlugin extends MockScriptPlugin {
+
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+            scripts.put("doc['num1'].value", vars -> {
+                Map<?, ?> doc = (Map) vars.get("doc");
+                return doc.get("num1");
+            });
+
+            scripts.put("doc['num1'].value > 1", vars -> {
+                Map<?, ?> doc = (Map) vars.get("doc");
+                ScriptDocValues.Doubles num1 = (ScriptDocValues.Doubles) doc.get("num1");
+                return num1.getValue() > 1;
+            });
+
+            scripts.put("doc['num1'].value > param1", vars -> {
+                Integer param1 = (Integer) vars.get("param1");
+
+                Map<?, ?> doc = (Map) vars.get("doc");
+                ScriptDocValues.Doubles num1 = (ScriptDocValues.Doubles) doc.get("num1");
+                return num1.getValue() > param1;
+            });
+
+            return scripts;
+        }
     }
 
     @Override
@@ -62,21 +91,23 @@ public class ScriptQuerySearchTests extends ESIntegTestCase {
         createIndex("test");
         client().prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).endObject())
-                .execute().actionGet();
+                .get();
         flush();
         client().prepareIndex("test", "type1", "2")
                 .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 2.0f).endObject())
-                .execute().actionGet();
+                .get();
         flush();
         client().prepareIndex("test", "type1", "3")
                 .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).endObject())
-                .execute().actionGet();
+                .get();
         refresh();
 
         logger.info("running doc['num1'].value > 1");
         SearchResponse response = client().prepareSearch()
-                .setQuery(scriptQuery(new Script("doc['num1'].value > 1"))).addSort("num1", SortOrder.ASC)
-                .addScriptField("sNum1", new Script("doc['num1'].value")).execute().actionGet();
+                .setQuery(scriptQuery(new Script("doc['num1'].value > 1", ScriptType.INLINE, CustomScriptPlugin.NAME, null)))
+                .addSort("num1", SortOrder.ASC)
+                .addScriptField("sNum1", new Script("doc['num1'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .get();
 
         assertThat(response.getHits().totalHits(), equalTo(2L));
         assertThat(response.getHits().getAt(0).id(), equalTo("2"));
@@ -90,8 +121,10 @@ public class ScriptQuerySearchTests extends ESIntegTestCase {
         logger.info("running doc['num1'].value > param1");
         response = client()
                 .prepareSearch()
-                .setQuery(scriptQuery(new Script("doc['num1'].value > param1", ScriptType.INLINE, null, params)))
-                .addSort("num1", SortOrder.ASC).addScriptField("sNum1", new Script("doc['num1'].value")).execute().actionGet();
+                .setQuery(scriptQuery(new Script("doc['num1'].value > param1", ScriptType.INLINE, CustomScriptPlugin.NAME, params)))
+                .addSort("num1", SortOrder.ASC)
+                .addScriptField("sNum1", new Script("doc['num1'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .get();
 
         assertThat(response.getHits().totalHits(), equalTo(1L));
         assertThat(response.getHits().getAt(0).id(), equalTo("3"));
@@ -102,9 +135,10 @@ public class ScriptQuerySearchTests extends ESIntegTestCase {
         logger.info("running doc['num1'].value > param1");
         response = client()
                 .prepareSearch()
-                .setQuery(
-                        scriptQuery(new Script("doc['num1'].value > param1", ScriptType.INLINE, null, params)))
-                .addSort("num1", SortOrder.ASC).addScriptField("sNum1", new Script("doc['num1'].value")).execute().actionGet();
+                .setQuery(scriptQuery(new Script("doc['num1'].value > param1", ScriptType.INLINE, CustomScriptPlugin.NAME, params)))
+                .addSort("num1", SortOrder.ASC)
+                .addScriptField("sNum1", new Script("doc['num1'].value", ScriptType.INLINE, CustomScriptPlugin.NAME, null))
+                .get();
 
         assertThat(response.getHits().totalHits(), equalTo(3L));
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));

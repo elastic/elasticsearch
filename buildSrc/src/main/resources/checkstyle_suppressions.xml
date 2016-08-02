@@ -1084,13 +1084,6 @@
   <suppress files="modules[/\\]lang-expression[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]expression[/\\]MoreExpressionTests.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]groovy[/\\]GroovyPlugin.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]groovy[/\\]GroovyScriptEngineService.java" checks="LineLength" />
-  <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]IPv4RangeTests.java" checks="LineLength" />
-  <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]IndexLookupTests.java" checks="LineLength" />
-  <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]RandomScoreFunctionTests.java" checks="LineLength" />
-  <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]ScriptedMetricTests.java" checks="LineLength" />
-  <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]SearchFieldsTests.java" checks="LineLength" />
-  <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]SimpleSortTests.java" checks="LineLength" />
-  <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]messy[/\\]tests[/\\]package-info.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]groovy[/\\]GroovyScriptTests.java" checks="LineLength" />
   <suppress files="modules[/\\]lang-groovy[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]script[/\\]groovy[/\\]GroovySecurityTests.java" checks="LineLength" />
   <suppress files="modules[/\\]percolator[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]percolator[/\\]MultiPercolateRequest.java" checks="LineLength" />

@@ -1,5 +1,5 @@
 ---
-"Update operation field":
+"Update result field":
 
   - do:
       update:
@@ -11,7 +11,7 @@
             doc_as_upsert:  true
 
   - match: { _version:   1      }
-  - match: { _operation: create }
+  - match: { result: created }
 
   - do:
       update:
@@ -23,7 +23,7 @@
             doc_as_upsert:  true
 
   - match: { _version:   1    }
-  - match: { _operation: noop }
+  - match: { result: noop }
 
   - do:
       update:
@@ -36,7 +36,7 @@
             detect_noop:    false
 
   - match: { _version:   2     }
-  - match: { _operation: index }
+  - match: { result: updated }
 
   - do:
       update:
@@ -49,4 +49,4 @@
             detect_noop:    true
 
   - match: { _version:   3     }
-  - match: { _operation: index }
+  - match: { result: updated }

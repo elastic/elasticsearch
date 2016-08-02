@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml.parser;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -25,8 +26,12 @@ import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.unmodifiableList;
 
 /**
  * Parser for do sections
@@ -44,6 +49,7 @@ public class DoSectionParser implements ClientYamlTestFragmentParser<DoSection> 
         DoSection doSection = new DoSection(parseContext.parser().getTokenLocation());
         ApiCallSection apiCallSection = null;
         Map<String, String> headers = new HashMap<>();
+        List<String> expectedWarnings = new ArrayList<>();
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -51,6 +57,17 @@ public class DoSectionParser implements ClientYamlTestFragmentParser<DoSection> 
             } else if (token.isValue()) {
                 if ("catch".equals(currentFieldName)) {
                     doSection.setCatch(parser.text());
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if ("warnings".equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) == XContentParser.Token.VALUE_STRING) {
+                        expectedWarnings.add(parser.text());
+                    }
+                    if (token != XContentParser.Token.END_ARRAY) {
+                        throw new ParsingException(parser.getTokenLocation(), "[warnings] must be a string array but saw [" + token + "]");
+                    }
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "unknown array [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("headers".equals(currentFieldName)) {
@@ -97,6 +114,7 @@ public class DoSectionParser implements ClientYamlTestFragmentParser<DoSection> 
                 apiCallSection.addHeaders(headers);
             }
             doSection.setApiCallSection(apiCallSection);
+            doSection.setExpectedWarningHeaders(unmodifiableList(expectedWarnings));
         } finally {
             parser.nextToken();
         }

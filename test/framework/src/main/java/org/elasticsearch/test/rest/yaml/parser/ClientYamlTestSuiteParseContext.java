@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.test.rest.yaml.parser;
 
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -36,7 +38,7 @@ import java.util.Map;
  * Context shared across the whole tests parse phase.
  * Provides shared parse methods and holds information needed to parse the test sections (e.g. es version)
  */
-public class ClientYamlTestSuiteParseContext {
+public class ClientYamlTestSuiteParseContext implements ParseFieldMatcherSupplier {
 
     private static final SetupSectionParser SETUP_SECTION_PARSER = new SetupSectionParser();
     private static final TeardownSectionParser TEARDOWN_SECTION_PARSER = new TeardownSectionParser();
@@ -184,5 +186,10 @@ public class ClientYamlTestSuiteParseContext {
 
         Map.Entry<String, Object> entry = map.entrySet().iterator().next();
         return Tuple.tuple(entry.getKey(), entry.getValue());
+    }
+
+    @Override
+    public ParseFieldMatcher getParseFieldMatcher() {
+        return ParseFieldMatcher.STRICT;
     }
 }

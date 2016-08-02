@@ -1,6 +1,9 @@
 [[lat-lon]]
 === `lat_lon`
 
+deprecated[5.0.0, ????????]
+// https://github.com/elastic/elasticsearch/issues/19792
+
 <<geo-queries,Geo-queries>> are usually performed by plugging the value of
 each <<geo-point,`geo_point`>> field into a formula to determine whether it
 falls into the required area or not. Unlike most queries, the inverted index
@@ -10,7 +13,7 @@ Setting `lat_lon` to `true` causes the latitude and longitude values to be
 indexed as numeric fields (called `.lat` and `.lon`). These fields can be used
 by the <<query-dsl-geo-bounding-box-query,`geo_bounding_box`>> and
 <<query-dsl-geo-distance-query,`geo_distance`>> queries instead of
-performing in-memory calculations.
+performing in-memory calculations. So this mapping:
 
 [source,js]
 --------------------------------------------------
@@ -27,8 +30,15 @@ PUT my_index
     }
   }
 }
+--------------------------------------------------
+// TEST[warning:geo_point lat_lon parameter is deprecated and will be removed in the next major release]
+<1> Setting `lat_lon` to true indexes the geo-point in the `location.lat` and `location.lon` fields.
 
-PUT my_index/my_type/1
+Allows these actions:
+
+[source,js]
+--------------------------------------------------
+PUT my_index/my_type/1?refresh
 {
   "location": {
     "lat": 41.12,
@@ -46,18 +56,17 @@ GET my_index/_search
         "lon": -71
       },
       "distance": "50km",
-      "optimize_bbox": "indexed" <2>
+      "optimize_bbox": "indexed" <1>
     }
   }
 }
 --------------------------------------------------
 // CONSOLE
-<1> Setting `lat_lon` to true indexes the geo-point in the `location.lat` and `location.lon` fields.
-<2> The `indexed` option tells the geo-distance query to use the inverted index instead of the in-memory calculation.
+// TEST[continued]
+<1> The `indexed` option tells the geo-distance query to use the inverted index instead of the in-memory calculation.
 
 Whether the in-memory or indexed operation performs better depends both on
 your dataset and on the types of queries that you are running.
 
 NOTE: The `lat_lon` option only makes sense for single-value `geo_point`
 fields. It will not work with arrays of geo-points.
-

@@ -37,8 +37,9 @@ public class SnippetsTask extends DefaultTask {
     private static final String CATCH = /catch:\s*((?:\/[^\/]+\/)|[^ \]]+)/
     private static final String SKIP = /skip:([^\]]+)/
     private static final String SETUP = /setup:([^ \]]+)/
+    private static final String WARNING = /warning:(.+)/
     private static final String TEST_SYNTAX =
-        /(?:$CATCH|$SUBSTITUTION|$SKIP|(continued)|$SETUP) ?/
+        /(?:$CATCH|$SUBSTITUTION|$SKIP|(continued)|$SETUP|$WARNING) ?/
 
     /**
      * Action to take on each snippet. Called with a single parameter, an
@@ -158,6 +159,10 @@ public class SnippetsTask extends DefaultTask {
                                 snippet.setup = it.group(6)
                                 return
                             }
+                            if (it.group(7) != null) {
+                                snippet.warnings.add(it.group(7))
+                                return
+                            }
                             throw new InvalidUserDataException(
                                     "Invalid test marker: $line")
                         }
@@ -230,6 +235,7 @@ public class SnippetsTask extends DefaultTask {
         String language = null
         String catchPart = null
         String setup = null
+        List warnings = new ArrayList()
 
         @Override
         public String toString() {
@@ -253,6 +259,9 @@ public class SnippetsTask extends DefaultTask {
                 }
                 if (setup) {
                     result += "[setup:$setup]"
+                }
+                for (String warning in warnings) {
+                    result += "[warning:$warning]"
                 }
             }
             if (testResponse) {

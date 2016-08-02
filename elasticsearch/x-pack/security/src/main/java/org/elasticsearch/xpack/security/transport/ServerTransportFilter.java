@@ -91,8 +91,10 @@ public interface ServerTransportFilter {
                 } else if (((TcpTransportChannel) unwrappedChannel).getChannel() instanceof io.netty.channel.Channel) {
                     io.netty.channel.Channel channel = (io.netty.channel.Channel) ((TcpTransportChannel) unwrappedChannel).getChannel();
                     io.netty.handler.ssl.SslHandler sslHandler = channel.pipeline().get(io.netty.handler.ssl.SslHandler.class);
-                    assert sslHandler != null : "channel [" + channel + "] did not have a ssl handler. pipeline " + channel.pipeline();
-                    extactClientCertificates(sslHandler.engine(), channel);
+                    if (channel.isOpen()) {
+                        assert sslHandler != null : "channel [" + channel + "] did not have a ssl handler. pipeline " + channel.pipeline();
+                        extactClientCertificates(sslHandler.engine(), channel);
+                    }
                 }
             }
 

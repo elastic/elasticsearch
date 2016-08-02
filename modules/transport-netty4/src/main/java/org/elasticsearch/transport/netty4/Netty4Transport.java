@@ -417,9 +417,14 @@ public class Netty4Transport extends TcpTransport<Channel> {
         return nodeChannels;
     }
 
+    /**
+     * Allows for logic to be executed after a connection has been made on all channels. While this method is being executed, the node is
+     * not listed as being connected to.
+     * @param nodeChannels the {@link NodeChannels} that have been connected
+     */
     protected void onAfterChannelsConnected(NodeChannels nodeChannels) {
-
     }
+
     private class ChannelCloseListener implements ChannelFutureListener {
 
         private final DiscoveryNode node;

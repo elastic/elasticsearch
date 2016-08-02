@@ -163,7 +163,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
             } else {
                 BulkRequest modifiedBulkRequest = new BulkRequest();
                 modifiedBulkRequest.setRefreshPolicy(bulkRequest.getRefreshPolicy());
-                modifiedBulkRequest.consistencyLevel(bulkRequest.consistencyLevel());
+                modifiedBulkRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 modifiedBulkRequest.timeout(bulkRequest.timeout());
 
                 int slot = 0;

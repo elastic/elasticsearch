@@ -398,7 +398,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
         private final ReplicationGroup replicationGroup;
 
         public IndexingOp(IndexRequest request, ActionListener<IndexingResult> listener, ReplicationGroup replicationGroup) {
-            super(request, new PrimaryRef(replicationGroup), listener, true, false, new ReplicasRef(replicationGroup),
+            super(request, new PrimaryRef(replicationGroup), listener, true, new ReplicasRef(replicationGroup),
                 () -> null, logger, "indexing");
             this.replicationGroup = replicationGroup;
             request.process(null, true, request.index());
@@ -409,6 +409,10 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
             return replicationGroup.shardRoutings();
         }
 
+        @Override
+        protected String checkActiveShardCount() {
+            return null;
+        }
     }
 
     private static class PrimaryRef implements ReplicationOperation.Primary<IndexRequest, IndexRequest, IndexingResult> {

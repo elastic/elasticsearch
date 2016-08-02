@@ -70,11 +70,6 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     }
 
     @Override
-    protected boolean checkWriteConsistency() {
-        return false;
-    }
-
-    @Override
     protected ClusterBlockLevel globalBlockLevel() {
         return ClusterBlockLevel.METADATA_WRITE;
     }

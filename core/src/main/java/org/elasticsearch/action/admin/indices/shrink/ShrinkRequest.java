@@ -144,6 +144,15 @@ public class ShrinkRequest extends AcknowledgedRequest<ShrinkRequest> implements
         this.getShrinkIndexRequest().waitForActiveShards(waitForActiveShards);
     }
 
+    /**
+     * A shortcut for {@link #setWaitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    public void setWaitForActiveShards(final int waitForActiveShards) {
+        setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    }
+
     public void source(BytesReference source) {
         XContentType xContentType = XContentFactory.xContentType(source);
         if (xContentType != null) {

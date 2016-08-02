@@ -762,7 +762,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected final void doClose() {
     }
 
-    @SuppressForbidden(reason = "Ignore Thread.interrupted for now. It will be removed with #19675")
     @Override
     protected final void doStop() {
         final CountDownLatch latch = new CountDownLatch(1);

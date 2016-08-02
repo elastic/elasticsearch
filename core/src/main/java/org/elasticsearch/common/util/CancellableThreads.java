@@ -21,7 +21,6 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -65,7 +64,6 @@ public class CancellableThreads {
         throw e;
     }
 
-    @SuppressForbidden(reason = "Use Thread.interrupted() to implement this class' interruption policy (forbid external interrupts).")
     private synchronized boolean add() {
         checkForCancel();
         threads.add(Thread.currentThread());
@@ -94,7 +92,6 @@ public class CancellableThreads {
      *
      * @param interruptable code to run
      */
-    @SuppressForbidden(reason = "Use Thread.interrupted() to implement this class' interruption policy (forbid external interrupts).")
     public void executeIO(IOInterruptable interruptable) throws IOException {
         boolean wasInterrupted = add();
         RuntimeException runtimeException = null;

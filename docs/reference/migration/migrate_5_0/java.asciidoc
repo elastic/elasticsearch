@@ -91,6 +91,26 @@ language `org.codehaus.groovy:groovy` artifact.
 error description). This will influence code that use the `IndexRequest.opType()` or `IndexRequest.create()`
 to index a document only if it doesn't already exist.
 
+==== writeConsistencyLevel removed on write requests
+
+In previous versions of Elasticsearch, the various write requests had a
+`setWriteConsistencyLevel` method to set the shard consistency level for
+write operations. However, the semantics of write consistency were ambiguous 
+as this is just a pre-operation check to ensure the specified number of
+shards were available before the operation commenced. The write consistency
+level did not guarantee that the data would be replicated to those number
+of copies by the time the operation finished. The `setWriteConsistencyLevel`
+method on these write requests has been changed to `setWaitForActiveShards`,
+which can take a numerical value up to the total number of shard copies or 
+`ActiveShardCount.ALL` for all shard copies. The default is to just wait
+for the primary shard to be active before proceeding with the operation. 
+See the section on <<index-wait-for-active-shards,wait for active shards>> 
+for more details.
+
+This change affects `IndexRequest`, `IndexRequestBuilder`, `BulkRequest`, 
+`BulkRequestBuilder`, `UpdateRequest`, `UpdateRequestBuilder`, `DeleteRequest`, 
+and `DeleteRequestBuilder`.
+
 ==== Changes to Query Builders
 
 ===== BoostingQueryBuilder

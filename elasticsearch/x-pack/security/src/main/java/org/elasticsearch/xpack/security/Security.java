@@ -350,7 +350,6 @@ public class Security implements ActionPlugin, IngestPlugin {
         settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME + "4");
         settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, Security.NAME);
         settingsBuilder.put(NetworkModule.HTTP_TYPE_SETTING.getKey(), Security.NAME + "4");
-        // nocommit
         SecurityNetty4HttpServerTransport.overrideSettings(settingsBuilder, settings);
         addUserSettings(settings, settingsBuilder);
         addTribeSettings(settings, settingsBuilder);

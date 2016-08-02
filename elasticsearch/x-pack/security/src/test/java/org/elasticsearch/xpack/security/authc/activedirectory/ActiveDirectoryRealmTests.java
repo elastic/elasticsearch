@@ -31,6 +31,7 @@ import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory.HOSTNAME_VERIFICATION_SETTING;
 import static org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory.URLS_SETTING;
@@ -38,6 +39,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
@@ -224,6 +226,26 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         User user = realm.authenticate(new UsernamePasswordToken("CN=Thor", SecuredStringTests.build(PASSWORD)));
         assertThat(user, is(notNullValue()));
         assertThat(user.roles(), arrayContainingInAnyOrder(equalTo("group_role"), equalTo("user_role")));
+    }
+
+    public void testRealmUsageStats() throws Exception {
+        String loadBalanceType = randomFrom("failover", "round_robin");
+        Settings settings = settings(Settings.builder()
+                .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, getDataPath("role_mapping.yml"))
+                .put("load_balance.type", loadBalanceType)
+                .build());
+        RealmConfig config = new RealmConfig("testRealmUsageStats", settings, globalSettings);
+        ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, null);
+        DnRoleMapper roleMapper = new DnRoleMapper(ActiveDirectoryRealm.TYPE, config, resourceWatcherService, null);
+        ActiveDirectoryRealm realm = new ActiveDirectoryRealm(config, sessionFactory, roleMapper);
+
+        Map<String, Object> stats = realm.usageStats();
+        assertThat(stats, is(notNullValue()));
+        assertThat(stats, hasEntry("name", realm.name()));
+        assertThat(stats, hasEntry("order", realm.order()));
+        assertThat(stats, hasEntry("size", 0));
+        assertThat(stats, hasEntry("ssl", false));
+        assertThat(stats, hasEntry("load_balance_type", loadBalanceType));
     }
 
     private Settings settings() throws Exception {

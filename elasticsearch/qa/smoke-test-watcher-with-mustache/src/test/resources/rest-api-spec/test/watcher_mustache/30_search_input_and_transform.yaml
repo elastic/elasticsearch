@@ -1,0 +1,157 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+  - do: {xpack.watcher.stats:{}}
+  - do:
+      index:
+        index: idx
+        type: type
+        id: 1
+        body: >
+          {
+            "date" : "2015-01-01T00:00:00",
+            "value" : "val_1"
+          }
+  - do:
+      index:
+        index: idx
+        type: type
+        id: 2
+        body: >
+          {
+            "date" : "2015-01-02T00:00:00",
+            "value" : "val_2"
+          }
+  - do:
+      index:
+        index: idx
+        type: type
+        id: 3
+        body: >
+          {
+            "date" : "2015-01-03T00:00:00",
+            "value" : "val_3"
+          }
+  - do:
+      index:
+        index: idx
+        type: type
+        id: 4
+        body: >
+          {
+            "date" : "2015-01-04T00:00:00",
+            "value" : "val_4"
+          }
+  - do:
+      indices.refresh:
+        index: idx
+
+---
+"Test input mustache integration":
+  - do:
+      xpack.watcher.execute_watch:
+        body: >
+          {
+            "trigger_data" : {
+              "scheduled_time" : "2015-01-04T00:00:00"
+            },
+            "watch" : {
+              "trigger" : { "schedule" : { "interval" : "10s" } },
+              "actions" : {
+                "dummy" : {
+                  "logging" : {
+                    "text" : "executed!"
+                  }
+                }
+              },
+              "input" : {
+                "search" : {
+                  "request" : {
+                    "indices" : "idx",
+                    "body" : {
+                      "query" : {
+                        "bool" : {
+                          "filter" : [
+                            {
+                              "range" : {
+                                "date" : {
+                                  "lte" : "{{ctx.trigger.scheduled_time}}",
+                                  "gte" : "{{ctx.trigger.scheduled_time}}||-3d"
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - match: { "watch_record.result.input.type": "search" }
+  - match: { "watch_record.result.input.status": "success" }
+  - match: { "watch_record.result.input.payload.hits.total": 4 }
+  # makes sure that the mustache template snippets have been resolved  correctly:
+  - match: { "watch_record.result.input.search.request.body.query.bool.filter.0.range.date.from": "2015-01-04T00:00:00.000Z||-3d" }
+  - match: { "watch_record.result.input.search.request.body.query.bool.filter.0.range.date.to": "2015-01-04T00:00:00.000Z" }
+
+---
+"Test transform mustache integration":
+  - do:
+      xpack.watcher.execute_watch:
+        body: >
+          {
+            "trigger_data" : {
+              "scheduled_time" : "2015-01-04T00:00:00"
+            },
+            "watch" : {
+              "trigger" : { "schedule" : { "interval" : "10s" } },
+              "input" : { "simple" : { "value" : "val_3" } },
+              "actions" : {
+                "dummy" : {
+                  "logging" : {
+                    "text" : "executed!"
+                  }
+                }
+              },
+              "transform" : {
+                "search" : {
+                  "request" : {
+                    "indices" : "idx",
+                    "body" : {
+                      "query" : {
+                        "bool" : {
+                          "filter" : [
+                            {
+                              "range" : {
+                                "date" : {
+                                  "lte" : "{{ctx.trigger.scheduled_time}}",
+                                  "gte" : "{{ctx.trigger.scheduled_time}}||-1d"
+                                }
+                              }
+                            },
+                            {
+                              "term" : {
+                                "value" : "{{ctx.payload.value}}"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - match: { "watch_record.result.transform.type": "search" }
+  - match: { "watch_record.result.transform.status": "success" }
+  - match: { "watch_record.result.transform.payload.hits.total": 1 }
+  - match: { "watch_record.result.transform.payload.hits.hits.0._id": "3" }
+  # makes sure that the mustache template snippets have been resolved  correctly:
+  - match: { "watch_record.result.transform.search.request.body.query.bool.filter.0.range.date.from": "2015-01-04T00:00:00.000Z||-1d" }
+  - match: { "watch_record.result.transform.search.request.body.query.bool.filter.0.range.date.to": "2015-01-04T00:00:00.000Z" }
+  - match: { "watch_record.result.transform.search.request.body.query.bool.filter.1.term.value.value": "val_3" }

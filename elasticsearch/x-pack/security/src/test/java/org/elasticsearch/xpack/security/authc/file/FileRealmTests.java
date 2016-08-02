@@ -10,7 +10,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
-import org.elasticsearch.xpack.security.authc.support.UsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.test.ESTestCase;
@@ -177,11 +176,9 @@ public class FileRealmTests extends ESTestCase {
 
         Map<String, Object> usage = realm.usageStats();
         assertThat(usage, is(notNullValue()));
-        assertThat(usage, hasEntry("type", "file"));
         assertThat(usage, hasEntry("name", "file-realm"));
         assertThat(usage, hasEntry("order", order));
-        assertThat(usage, hasEntry("size", UsernamePasswordRealm.UserbaseSize.resolve(userCount)));
-
+        assertThat(usage, hasEntry("size", userCount));
     }
 
     static class UserPasswdStore extends FileUserPasswdStore {

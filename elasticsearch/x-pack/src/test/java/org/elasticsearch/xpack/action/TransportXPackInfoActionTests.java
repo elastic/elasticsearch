@@ -10,7 +10,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackInfoResponse;
-import org.elasticsearch.license.core.License;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.test.ESTestCase;

@@ -89,7 +89,6 @@ public abstract class Realm implements Comparable<Realm> {
 
     public Map<String, Object> usageStats() {
         Map<String, Object> stats = new HashMap<>();
-        stats.put("type", type);
         stats.put("name", name());
         stats.put("order", order());
         return stats;

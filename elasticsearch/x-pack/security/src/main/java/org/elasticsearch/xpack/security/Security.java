@@ -333,7 +333,10 @@ public class Security implements ActionPlugin, IngestPlugin {
 
     public Settings additionalSettings() {
         if (enabled == false) {
-            return Settings.EMPTY;
+            return Settings.builder()
+                    .put(NetworkModule.HTTP_TYPE_KEY, "netty3")
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty3")
+                    .build();
         }
 
         return additionalSettings(settings);

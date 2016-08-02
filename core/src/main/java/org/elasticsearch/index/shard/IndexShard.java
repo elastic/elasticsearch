@@ -832,31 +832,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws NoSuchFileException        if one or more files referenced by a commit are not present.
      */
     public Store.MetadataSnapshot snapshotStoreMetadata() throws IOException {
-        synchronized (mutex) {
-            // if the engine is not running, we can access the store directly, but we need to make sure no one starts
-            // the engine on us. If the engine is running, we can get a snapshot via the deletion policy which is initialized.
-            // That can be done out of mutex, since the engine can be closed half way.
-            Engine engine = getEngineOrNull();
-            if (engine == null) {
-                store.incRef();
-                try (Lock ignored = store.directory().obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-                    return store.getMetadata(null);
-                } finally {
-                    store.decRef();
-                }
-            }
-        }
         IndexCommit indexCommit = null;
+        Store.MetadataSnapshot result = null;
         store.incRef();
         try {
-            indexCommit = deletionPolicy.snapshot();
-            return store.getMetadata(indexCommit);
+            synchronized (mutex) {
+                // if the engine is not running, we can access the store directly, but we need to make sure no one starts
+                // the engine on us. If the engine is running, we can get a snapshot via the deletion policy which is initialized.
+                // That can be done out of mutex, since the engine can be closed half way.
+                Engine engine = getEngineOrNull();
+                if (engine == null) {
+                    try (Lock ignored = store.directory().obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
+                        result = store.getMetadata(null);
+                    }
+                }
+            }
+            if (result == null) {
+                indexCommit = deletionPolicy.snapshot();
+                result = store.getMetadata(indexCommit);
+            }
         } finally {
             store.decRef();
             if (indexCommit != null) {
                 deletionPolicy.release(indexCommit);
             }
         }
+        return result;
     }
 
     /**

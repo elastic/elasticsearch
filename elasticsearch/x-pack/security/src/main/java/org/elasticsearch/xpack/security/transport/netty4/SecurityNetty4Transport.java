@@ -45,7 +45,7 @@ import static org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Tr
 import static org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport.SSL_SETTING;
 
 /**
- *
+ * Implementation of a transport that extends the {@link Netty4Transport} to add SSL and IP Filtering
  */
 public class SecurityNetty4Transport extends Netty4Transport {
 
@@ -86,6 +86,10 @@ public class SecurityNetty4Transport extends Netty4Transport {
         return new SecurityClientChannelInitializer();
     }
 
+    /**
+     * This method ensures that all channels have their SSL handshakes completed. This is necessary to prevent the application from
+     * writing data while the handshake is in progress which could cause the handshake to fail.
+     */
     @Override
     protected void onAfterChannelsConnected(NodeChannels nodeChannels) {
         for (Channel channel : nodeChannels.allChannels) {

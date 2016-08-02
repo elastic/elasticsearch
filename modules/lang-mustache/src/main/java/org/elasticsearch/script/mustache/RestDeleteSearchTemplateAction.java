@@ -22,7 +22,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.admin.cluster.storedscripts.RestDeleteStoredScriptAction;
+import org.elasticsearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 

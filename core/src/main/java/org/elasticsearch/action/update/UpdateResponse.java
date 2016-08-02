@@ -40,28 +40,14 @@ public class UpdateResponse extends DocWriteResponse {
      * Constructor to be used when a update didn't translate in a write.
      * For example: update script with operation set to none
      */
-    public UpdateResponse(ShardId shardId, String type, String id, long version, Operation operation) {
-        this(new ShardInfo(0, 0), shardId, type, id, version, operation);
+    public UpdateResponse(ShardId shardId, String type, String id, long version, Result result) {
+        this(new ShardInfo(0, 0), shardId, type, id, version, result);
     }
 
     public UpdateResponse(ShardInfo shardInfo, ShardId shardId, String type, String id,
-                          long version, Operation operation) {
-        super(shardId, type, id, version, operation);
+                          long version, Result result) {
+        super(shardId, type, id, version, result);
         setShardInfo(shardInfo);
-    }
-
-    public static Operation convert(UpdateHelper.Operation op) {
-        switch(op) {
-            case UPSERT:
-                return Operation.CREATE;
-            case INDEX:
-                return Operation.INDEX;
-            case DELETE:
-                return Operation.DELETE;
-            case NONE:
-                return Operation.NOOP;
-        }
-        throw new IllegalArgumentException();
     }
 
     public void setGetResult(GetResult getResult) {
@@ -72,16 +58,9 @@ public class UpdateResponse extends DocWriteResponse {
         return this.getResult;
     }
 
-    /**
-     * Returns true if document was created due to an UPSERT operation
-     */
-    public boolean isCreated() {
-        return this.operation == Operation.CREATE;
-    }
-
     @Override
     public RestStatus status() {
-        return isCreated() ? RestStatus.CREATED : super.status();
+        return this.result == Result.CREATED ? RestStatus.CREATED : super.status();
     }
 
     @Override
@@ -127,7 +106,7 @@ public class UpdateResponse extends DocWriteResponse {
         builder.append(",type=").append(getType());
         builder.append(",id=").append(getId());
         builder.append(",version=").append(getVersion());
-        builder.append(",operation=").append(getOperation().getLowercase());
+        builder.append(",result=").append(getResult().getLowercase());
         builder.append(",shards=").append(getShardInfo());
         return builder.append("]").toString();
     }

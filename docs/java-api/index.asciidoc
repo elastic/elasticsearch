@@ -1,6 +1,7 @@
 [[java-api]]
 = Java API
 :ref: http://www.elastic.co/guide/en/elasticsearch/reference/master
+:version: 5.0.0-alpha4
 
 [preface]
 == Preface
@@ -25,12 +26,12 @@ Central].
 
 For example, you can define the latest version in your `pom.xml` file:
 
-[source,xml]
+["source","xml",subs="attributes"]
 --------------------------------------------------
 <dependency>
-    <groupId>org.elasticsearch</groupId>
-    <artifactId>elasticsearch</artifactId>
-    <version>${es.version}</version>
+    <groupId>org.elasticsearch.client</groupId>
+    <artifactId>transport</artifactId>
+    <version>{version}</version>
 </dependency>
 --------------------------------------------------
 

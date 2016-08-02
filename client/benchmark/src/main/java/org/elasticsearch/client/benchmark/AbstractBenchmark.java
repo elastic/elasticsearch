@@ -25,6 +25,9 @@ import org.elasticsearch.client.benchmark.ops.search.SearchRequestExecutor;
 import org.elasticsearch.common.SuppressForbidden;
 
 import java.io.Closeable;
+import java.lang.management.GarbageCollectorMXBean;
+import java.lang.management.ManagementFactory;
+import java.util.List;
 
 public abstract class AbstractBenchmark<T extends Closeable> {
     private static final int SEARCH_BENCHMARK_ITERATIONS = 10_000;
@@ -70,9 +73,8 @@ public abstract class AbstractBenchmark<T extends Closeable> {
                     System.out.println("=============");
 
                     for (int throughput = 100; throughput <= 100_000; throughput *= 10) {
-                        //request a GC between trials to reduce the likelihood of a GC occurring in the middle of a trial.
-                        System.gc();
-
+                        //GC between trials to reduce the likelihood of a GC occurring in the middle of a trial.
+                        runGc();
                         BenchmarkRunner searchBenchmark = new BenchmarkRunner(SEARCH_BENCHMARK_ITERATIONS, SEARCH_BENCHMARK_ITERATIONS,
                             new SearchBenchmarkTask(
                                 searchRequestExecutor(client, indexName), searchBody, 2 * SEARCH_BENCHMARK_ITERATIONS, throughput));
@@ -84,5 +86,32 @@ public abstract class AbstractBenchmark<T extends Closeable> {
         } finally {
             client.close();
         }
+    }
+
+    /**
+     * Requests a full GC and checks whether the GC did actually run after a request. It retries up to 5 times in case the GC did not
+     * run in time.
+     */
+    @SuppressForbidden(reason = "we need to request a system GC for the benchmark")
+    private void runGc() {
+        long previousCollections = getTotalGcCount();
+        int attempts = 0;
+        do {
+            // request a full GC ...
+            System.gc();
+            // ... and give GC a chance to run
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            attempts++;
+        } while (previousCollections == getTotalGcCount() || attempts < 5);
+    }
+
+    private long getTotalGcCount() {
+        List<GarbageCollectorMXBean> gcMxBeans = ManagementFactory.getGarbageCollectorMXBeans();
+        return gcMxBeans.stream().mapToLong(GarbageCollectorMXBean::getCollectionCount).sum();
     }
 }

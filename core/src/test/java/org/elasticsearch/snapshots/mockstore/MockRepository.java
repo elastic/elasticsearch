@@ -40,7 +40,6 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -48,6 +47,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 
@@ -112,8 +112,8 @@ public class MockRepository extends FsRepository {
     }
 
     @Override
-    public void initializeSnapshot(SnapshotId snapshotId, List<String> indices, MetaData clusterMetadata) {
-        if (blockOnInitialization ) {
+    public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData clusterMetadata) {
+        if (blockOnInitialization) {
             blockExecution();
         }
         super.initializeSnapshot(snapshotId, indices, clusterMetadata);
@@ -315,12 +315,6 @@ public class MockRepository extends FsRepository {
             public void move(String sourceBlob, String targetBlob) throws IOException {
                 maybeIOExceptionOrBlock(targetBlob);
                 super.move(sourceBlob, targetBlob);
-            }
-
-            @Override
-            public void writeBlob(String blobName, BytesReference bytes) throws IOException {
-                maybeIOExceptionOrBlock(blobName);
-                super.writeBlob(blobName, bytes);
             }
 
             @Override

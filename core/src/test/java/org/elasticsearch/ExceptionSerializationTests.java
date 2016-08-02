@@ -64,7 +64,7 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesNotFoundException;
+import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchParseException;
@@ -760,7 +760,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(110, org.elasticsearch.index.engine.FlushNotAllowedEngineException.class);
         ids.put(111, org.elasticsearch.common.settings.NoClassSettingsException.class);
         ids.put(112, org.elasticsearch.transport.BindTransportException.class);
-        ids.put(113, org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesNotFoundException.class);
+        ids.put(113, org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException.class);
         ids.put(114, org.elasticsearch.index.shard.IndexShardRecoveringException.class);
         ids.put(115, org.elasticsearch.index.translog.TranslogException.class);
         ids.put(116, org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException.class);

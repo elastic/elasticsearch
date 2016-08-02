@@ -71,20 +71,17 @@ Example response:
 [source,js]
 --------------------------------------------------
 {
-  "pipelines": [ {
-    "id": "my-pipeline-id",
-    "config": {
-      "description": "describe pipeline",
-      "processors": [
-        {
-          "set" : {
-            "field": "foo",
-            "value": "bar"
-          }
+  "my-pipeline-id" : {
+    "description" : "describe pipeline",
+    "processors" : [
+      {
+        "set" : {
+          "field" : "foo",
+          "value" : "bar"
         }
-      ]
-    }
-  } ]
+      }
+    ]
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE

@@ -136,3 +136,9 @@ shrink process begins. When the shrink operation completes, the shard will
 become `active`. At that  point, Elasticsearch will try to allocate any
 replicas and may decide to relocate the primary shard to another node.
 
+[float]
+=== Wait For Active Shards
+
+Because the shrink operation creates a new index to shrink the shards to, 
+the <<create-index-wait-for-active-shards,wait for active shards>> setting 
+on index creation applies to the shrink index action as well.

@@ -75,6 +75,15 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
         }
 
         @Override
+        protected boolean needsSourceDocumentVersions() {
+            /*
+             * We always need the version of the source document so we can report a version conflict if we try to delete it and it has been
+             * changed.
+             */
+            return true;
+        }
+
+        @Override
         protected boolean accept(ScrollableHitSource.Hit doc) {
             // Delete-by-query does not require the source to delete a document
             // and the default implementation checks for it

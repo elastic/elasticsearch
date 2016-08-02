@@ -23,6 +23,7 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.util.English;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -118,7 +119,8 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         for (int i = 0; i < numDocs; i++) {
             String routingKey = routing ? randomRealisticUnicodeOfLength(10) : null;
             String id = Integer.toString(i);
-            assertThat(id, client().prepareIndex("test", "type1", id).setRouting(routingKey).setSource("field1", English.intToEnglish(i)).get().isCreated(), is(true));
+            assertEquals(id, DocWriteResponse.Result.CREATED, client().prepareIndex("test", "type1", id)
+                .setRouting(routingKey).setSource("field1", English.intToEnglish(i)).get().getResult());
             GetResponse get = client().prepareGet("test", "type1", id).setRouting(routingKey).setVersion(1).get();
             assertThat("Document with ID " + id + " should exist but doesn't", get.isExists(), is(true));
             assertThat(get.getVersion(), equalTo(1L));
@@ -476,7 +478,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs));
 
         DeleteResponse deleteResponse = client().prepareDelete("test", "test", firstDocId).setRouting("routing").get();
-        assertThat(deleteResponse.isFound(), equalTo(true));
+        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         GetResponse getResponse = client().prepareGet("test", "test", firstDocId).setRouting("routing").get();
         assertThat(getResponse.isExists(), equalTo(false));
         refresh();
@@ -491,7 +493,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         int numDocs = iterations(10, 50);
         for (int i = 0; i < numDocs; i++) {
             IndexResponse indexResponse = client().prepareIndex(indexOrAlias(), "type", Integer.toString(i)).setSource("field", "value-" + i).get();
-            assertThat(indexResponse.isCreated(), equalTo(true));
+            assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
             assertThat(indexResponse.getIndex(), equalTo("test"));
             assertThat(indexResponse.getType(), equalTo("type"));
             assertThat(indexResponse.getId(), equalTo(Integer.toString(i)));
@@ -506,7 +508,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertThat(getResponse.getId(), equalTo(docId));
 
         DeleteResponse deleteResponse = client().prepareDelete(indexOrAlias(), "type", docId).get();
-        assertThat(deleteResponse.isFound(), equalTo(true));
+        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         assertThat(deleteResponse.getIndex(), equalTo("test"));
         assertThat(deleteResponse.getType(), equalTo("type"));
         assertThat(deleteResponse.getId(), equalTo(docId));
@@ -530,7 +532,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertThat(updateResponse.getIndex(), equalTo("test"));
         assertThat(updateResponse.getType(), equalTo("type1"));
         assertThat(updateResponse.getId(), equalTo("1"));
-        assertThat(updateResponse.isCreated(), equalTo(true));
+        assertEquals(DocWriteResponse.Result.CREATED, updateResponse.getResult());
 
         GetResponse getResponse = client().prepareGet("test", "type1", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));
@@ -541,7 +543,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
         assertThat(updateResponse.getIndex(), equalTo("test"));
         assertThat(updateResponse.getType(), equalTo("type1"));
         assertThat(updateResponse.getId(), equalTo("1"));
-        assertThat(updateResponse.isCreated(), equalTo(false));
+        assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
 
         getResponse = client().prepareGet("test", "type1", "1").get();
         assertThat(getResponse.isExists(), equalTo(true));

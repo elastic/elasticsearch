@@ -29,6 +29,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
@@ -253,7 +254,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
                 final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", Integer.toString(docId.incrementAndGet()))
                     .source("{}");
                 final IndexResponse response = index(indexRequest);
-                assertThat(response.isCreated(), equalTo(true));
+                assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
             }
             return numOfDoc;
         }
@@ -410,7 +411,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
         private final ReplicationGroup replicationGroup;
 
         public IndexingOp(IndexRequest request, ActionListener<IndexingResult> listener, ReplicationGroup replicationGroup) {
-            super(request, new PrimaryRef(replicationGroup), listener, true, false, new ReplicasRef(replicationGroup),
+            super(request, new PrimaryRef(replicationGroup), listener, true, new ReplicasRef(replicationGroup),
                 () -> null, logger, "indexing");
             this.replicationGroup = replicationGroup;
             request.process(null, true, request.index());
@@ -421,6 +422,10 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
             return replicationGroup.shardRoutings();
         }
 
+        @Override
+        protected String checkActiveShardCount() {
+            return null;
+        }
     }
 
     private static class PrimaryRef implements ReplicationOperation.Primary<IndexRequest, IndexRequest, IndexingResult> {

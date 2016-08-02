@@ -234,7 +234,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         client().prepareIndex(indexOrAlias, "type", "id").setSource("field", "value").get();
         UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").doc("field1", "value1");
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
-        assertThat(updateResponse.isCreated(), equalTo(false));
+        assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
 
         clearInterceptedActions();
         assertSameIndices(updateRequest, updateShardActions);
@@ -248,7 +248,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         String indexOrAlias = randomIndexOrAlias();
         UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").upsert("field", "value").doc("field1", "value1");
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
-        assertThat(updateResponse.isCreated(), equalTo(true));
+        assertEquals(DocWriteResponse.Result.CREATED, updateResponse.getResult());
 
         clearInterceptedActions();
         assertSameIndices(updateRequest, updateShardActions);
@@ -264,7 +264,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id")
                 .script(new Script("ctx.op='delete'", ScriptService.ScriptType.INLINE, CustomScriptPlugin.NAME, Collections.emptyMap()));
         UpdateResponse updateResponse = internalCluster().coordOnlyNodeClient().update(updateRequest).actionGet();
-        assertThat(updateResponse.isCreated(), equalTo(false));
+        assertEquals(DocWriteResponse.Result.DELETED, updateResponse.getResult());
 
         clearInterceptedActions();
         assertSameIndices(updateRequest, updateShardActions);

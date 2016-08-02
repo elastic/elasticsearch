@@ -126,3 +126,9 @@ POST logs_write/_rollover?dry_run
 --------------------------------------------------
 // CONSOLE
 
+[float]
+=== Wait For Active Shards
+
+Because the rollover operation creates a new index to rollover to, the 
+<<create-index-wait-for-active-shards,wait for active shards>> setting on 
+index creation applies to the rollover action as well.

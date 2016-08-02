@@ -121,6 +121,7 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
 
     @Override
     protected void resolveRequest(MetaData metaData, IndexMetaData indexMetaData, IndexRequest request) {
+        super.resolveRequest(metaData, indexMetaData, request);
         MappingMetaData mappingMd =indexMetaData.mappingOrDefault(request.type());
         request.resolveRouting(metaData);
         request.process(mappingMd, allowIdGeneration, indexMetaData.getIndex().getName());

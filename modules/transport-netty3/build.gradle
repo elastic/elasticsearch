@@ -36,6 +36,15 @@ dependencies {
     compile 'io.netty:netty:3.10.6.Final'
 }
 
+integTest {
+    includePackaged = true
+    cluster {
+        setting 'http.type', 'netty3'
+        setting 'transport.type', 'netty3'
+        numNodes = 2
+    }
+}
+
 thirdPartyAudit.excludes = [
         // uses internal java api: sun.security.x509 (X509CertInfo, X509CertImpl, X500Name)
         'org.jboss.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',

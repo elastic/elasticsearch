@@ -80,8 +80,8 @@ public class PreBuiltTransportClient extends TransportClient {
         @Override
         public Settings additionalSettings() {
             return Settings.builder()
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, Netty3Plugin.NETTY_TRANSPORT_NAME)
-                    .put(NetworkModule.HTTP_TYPE_KEY, Netty3Plugin.NETTY_HTTP_TRANSPORT_NAME)
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, Netty4Plugin.NETTY_TRANSPORT_NAME)
+                    .put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME)
                     .put("netty.assert.buglevel", true)
                     .build();
         }

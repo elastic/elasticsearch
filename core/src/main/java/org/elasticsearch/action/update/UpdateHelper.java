@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.update;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Requests;
@@ -116,9 +117,9 @@ public class UpdateHelper extends AbstractComponent {
                                 request.script.getScript());
                     }
                     UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(),
-                            getResult.getVersion(), false);
+                            getResult.getVersion(), DocWriteResponse.Result.NOOP);
                     update.setGetResult(getResult);
-                    return new Result(update, Operation.NONE, upsertDoc, XContentType.JSON);
+                    return new Result(update, DocWriteResponse.Result.NOOP, upsertDoc, XContentType.JSON);
                 }
                 indexRequest.source((Map) ctx.get("_source"));
             }
@@ -135,7 +136,7 @@ public class UpdateHelper extends AbstractComponent {
                 // in all but the internal versioning mode, we want to create the new document using the given version.
                 indexRequest.version(request.version()).versionType(request.versionType());
             }
-            return new Result(indexRequest, Operation.UPSERT, null, null);
+            return new Result(indexRequest, DocWriteResponse.Result.CREATED, null, null);
         }
 
         long updateVersion = getResult.getVersion();
@@ -226,21 +227,21 @@ public class UpdateHelper extends AbstractComponent {
                     .consistencyLevel(request.consistencyLevel())
                     .timestamp(timestamp).ttl(ttl)
                     .setRefreshPolicy(request.getRefreshPolicy());
-            return new Result(indexRequest, Operation.INDEX, updatedSourceAsMap, updateSourceContentType);
+            return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
         } else if ("delete".equals(operation)) {
             DeleteRequest deleteRequest = Requests.deleteRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .version(updateVersion).versionType(request.versionType())
                     .consistencyLevel(request.consistencyLevel())
                     .setRefreshPolicy(request.getRefreshPolicy());
-            return new Result(deleteRequest, Operation.DELETE, updatedSourceAsMap, updateSourceContentType);
+            return new Result(deleteRequest, DocWriteResponse.Result.DELETED, updatedSourceAsMap, updateSourceContentType);
         } else if ("none".equals(operation)) {
-            UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(), getResult.getVersion(), false);
+            UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(), getResult.getVersion(), DocWriteResponse.Result.NOOP);
             update.setGetResult(extractGetResult(request, request.index(), getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
-            return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
+            return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
             logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script.getScript());
-            UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(), getResult.getVersion(), false);
-            return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
+            UpdateResponse update = new UpdateResponse(shardId, getResult.getType(), getResult.getId(), getResult.getVersion(), DocWriteResponse.Result.NOOP);
+            return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         }
     }
 
@@ -309,13 +310,13 @@ public class UpdateHelper extends AbstractComponent {
     public static class Result {
 
         private final Streamable action;
-        private final Operation operation;
+        private final DocWriteResponse.Result result;
         private final Map<String, Object> updatedSourceAsMap;
         private final XContentType updateSourceContentType;
 
-        public Result(Streamable action, Operation operation, Map<String, Object> updatedSourceAsMap, XContentType updateSourceContentType) {
+        public Result(Streamable action, DocWriteResponse.Result result, Map<String, Object> updatedSourceAsMap, XContentType updateSourceContentType) {
             this.action = action;
-            this.operation = operation;
+            this.result = result;
             this.updatedSourceAsMap = updatedSourceAsMap;
             this.updateSourceContentType = updateSourceContentType;
         }
@@ -325,8 +326,8 @@ public class UpdateHelper extends AbstractComponent {
             return (T) action;
         }
 
-        public Operation operation() {
-            return operation;
+        public DocWriteResponse.Result getResponseResult() {
+            return result;
         }
 
         public Map<String, Object> updatedSourceAsMap() {
@@ -338,10 +339,4 @@ public class UpdateHelper extends AbstractComponent {
         }
     }
 
-    public enum Operation {
-        UPSERT,
-        INDEX,
-        DELETE,
-        NONE
-    }
 }

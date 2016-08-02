@@ -314,7 +314,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         };
         ScrollableHitSource.Response response = new ScrollableHitSource.Response(false, emptyList(), 0, emptyList(), null);
         simulateScrollResponse(new DummyAbstractAsyncBulkByScrollAction(), timeValueNanos(System.nanoTime()), 10, response);
-        ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get()); 
+        ExecutionException e = expectThrows(ExecutionException.class, () -> listener.get());
         assertThat(e.getMessage(), equalTo("EsRejectedExecutionException[test]"));
         assertThat(client.scrollsCleared, contains(scrollId));
 
@@ -660,6 +660,11 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
 
         @Override
+        protected boolean needsSourceDocumentVersions() {
+            return randomBoolean();
+        }
+
+        @Override
         protected BulkRequest buildBulk(Iterable<? extends ScrollableHitSource.Hit> docs) {
             return new BulkRequest();
         }
@@ -773,7 +778,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                         UpdateRequest update = (UpdateRequest) item;
                         opType = "update";
                         response = new UpdateResponse(shardId, update.type(), update.id(),
-                                randomIntBetween(0, Integer.MAX_VALUE), true);
+                                randomIntBetween(0, Integer.MAX_VALUE), DocWriteResponse.Result.CREATED);
                     } else if (item instanceof DeleteRequest) {
                         DeleteRequest delete = (DeleteRequest) item;
                         opType = "delete";

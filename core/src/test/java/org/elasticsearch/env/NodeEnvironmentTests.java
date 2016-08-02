@@ -74,10 +74,10 @@ public class NodeEnvironmentTests extends ESTestCase {
     }
 
     public void testNodeLockSingleEnvironment() throws IOException {
-        NodeEnvironment env = newNodeEnvironment(Settings.builder()
-                .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 1).build());
-        Settings settings = env.getSettings();
-        List<String> dataPaths = Environment.PATH_DATA_SETTING.get(env.getSettings());
+        final Settings settings = buildEnvSettings(Settings.builder()
+            .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 1).build());
+        NodeEnvironment env = newNodeEnvironment(settings);
+        List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
 
         try {
             // Reuse the same location and attempt to lock again
@@ -121,9 +121,10 @@ public class NodeEnvironmentTests extends ESTestCase {
     }
 
     public void testNodeLockMultipleEnvironment() throws IOException {
-        final NodeEnvironment first = newNodeEnvironment();
-        List<String> dataPaths = Environment.PATH_DATA_SETTING.get(first.getSettings());
-        NodeEnvironment second = new NodeEnvironment(first.getSettings(), new Environment(first.getSettings()));
+        final Settings settings = buildEnvSettings(Settings.EMPTY);
+        final NodeEnvironment first = newNodeEnvironment(settings);
+        List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
+        NodeEnvironment second = new NodeEnvironment(settings, new Environment(settings));
         assertEquals(first.nodeDataPaths().length, dataPaths.size());
         assertEquals(second.nodeDataPaths().length, dataPaths.size());
         for (int i = 0; i < dataPaths.size(); i++) {
@@ -388,21 +389,20 @@ public class NodeEnvironmentTests extends ESTestCase {
         assertThat("index paths uses the regular template",
                 env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID())));
 
-        env.close();
-        NodeEnvironment env2 = newNodeEnvironment(dataPaths, "/tmp",
+        IndexSettings s3 = new IndexSettings(s2.getIndexMetaData(),
                 Settings.builder().put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), false).build());
 
-        assertThat(env2.availableShardPaths(sid), equalTo(env2.availableShardPaths(sid)));
-        assertThat(env2.resolveCustomLocation(s2, sid), equalTo(PathUtils.get("/tmp/foo/" + index.getUUID() + "/0")));
+        assertThat(env.availableShardPaths(sid), equalTo(env.availableShardPaths(sid)));
+        assertThat(env.resolveCustomLocation(s3, sid), equalTo(PathUtils.get("/tmp/foo/" + index.getUUID() + "/0")));
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
-                env2.availableShardPaths(sid),
+                env.availableShardPaths(sid),
                 equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID() + "/0")));
 
         assertThat("index paths uses the regular template",
-                env2.indexPaths(index), equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID())));
+                env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID())));
 
-        env2.close();
+        env.close();
     }
 
     public void testWhetherClusterFolderShouldBeUsed() throws Exception {
@@ -495,11 +495,15 @@ public class NodeEnvironmentTests extends ESTestCase {
 
     @Override
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
-        Settings build = Settings.builder()
-                .put(settings)
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
-                .putArray(Environment.PATH_DATA_SETTING.getKey(), tmpPaths()).build();
+        Settings build = buildEnvSettings(settings);
         return new NodeEnvironment(build, new Environment(build));
+    }
+
+    public Settings buildEnvSettings(Settings settings) {
+        return Settings.builder()
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+                    .putArray(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
+                    .put(settings).build();
     }
 
     public NodeEnvironment newNodeEnvironment(String[] dataPaths, Settings settings) throws IOException {

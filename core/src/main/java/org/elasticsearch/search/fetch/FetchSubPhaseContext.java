@@ -19,11 +19,13 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.elasticsearch.search.fetch.docvalues.DocValueFieldsContext;
+
 /**
  * All configuration and context needed by the FetchSubPhase to execute on hits.
  * The only required information in this base class is whether or not the sub phase needs to be run at all.
  * It can be extended by FetchSubPhases to hold information the phase needs to execute on hits.
- * See {@link org.elasticsearch.search.fetch.FetchSubPhase.ContextFactory} and also {@link org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext} for an example.
+ * See {@link org.elasticsearch.search.fetch.FetchSubPhase.ContextFactory} and also {@link DocValueFieldsContext} for an example.
  */
 public class FetchSubPhaseContext {
 

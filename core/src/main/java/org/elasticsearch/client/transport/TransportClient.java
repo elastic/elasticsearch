@@ -19,15 +19,6 @@
 
 package org.elasticsearch.client.transport;
 
-import java.io.Closeable;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -62,6 +53,15 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.Closeable;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
@@ -100,12 +100,15 @@ public abstract class TransportClient extends AbstractClient {
 
     private static ClientTemplate buildTemplate(Settings providedSettings, Settings defaultSettings,
                                                 Collection<Class<? extends Plugin>> plugins) {
+        if (Node.NODE_NAME_SETTING.exists(providedSettings) == false) {
+            providedSettings = Settings.builder().put(providedSettings).put(Node.NODE_NAME_SETTING.getKey(), "_client_").build();
+        }
         final PluginsService pluginsService = newPluginService(providedSettings, plugins);
         final Settings settings = Settings.builder().put(defaultSettings).put(pluginsService.updatedSettings()).build();
         final List<Closeable> resourcesToClose = new ArrayList<>();
         final ThreadPool threadPool = new ThreadPool(settings);
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
-        final NetworkService networkService = new NetworkService(settings);
+        final NetworkService networkService = new NetworkService(settings, Collections.emptyList());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         try {
             final List<Setting<?>> additionalSettings = new ArrayList<>();

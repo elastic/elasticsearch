@@ -32,9 +32,9 @@ import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.repositories.hdfs.HdfsBlobStore.Operation;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.NoSuchFileException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -68,16 +68,16 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void deleteBlob(String blobName) throws IOException {
-        try {
-            store.execute(new Operation<Boolean>() {
-                @Override
-                public Boolean run(FileContext fileContext) throws IOException {
-                    return fileContext.delete(new Path(path, blobName), true);
-                }
-            });
-        } catch (FileNotFoundException ok) {
-            // behaves like Files.deleteIfExists
+        if (!blobExists(blobName)) {
+            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
         }
+
+        store.execute(new Operation<Boolean>() {
+            @Override
+            public Boolean run(FileContext fileContext) throws IOException {
+                return fileContext.delete(new Path(path, blobName), true);
+            }
+        });
     }
 
     @Override
@@ -93,6 +93,9 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public InputStream readBlob(String blobName) throws IOException {
+        if (!blobExists(blobName)) {
+            throw new NoSuchFileException("Blob [" + blobName + "] does not exist");
+        }
         // FSDataInputStream does buffering internally
         return store.execute(new Operation<InputStream>() {
             @Override

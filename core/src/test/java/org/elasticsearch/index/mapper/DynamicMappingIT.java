@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -99,7 +100,8 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 public void run() {
                     try {
                         startLatch.await();
-                        assertTrue(client().prepareIndex("index", "type", id).setSource("field" + id, "bar").get().isCreated());
+                        assertEquals(DocWriteResponse.Result.CREATED, client().prepareIndex("index", "type", id)
+                            .setSource("field" + id, "bar").get().getResult());
                     } catch (Exception e) {
                         error.compareAndSet(null, e);
                     }
@@ -140,7 +142,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 () -> client().prepareIndex("index_2", "bar", "1").setSource("field", "abc").get());
         assertEquals("type[bar] missing", e1.getMessage());
         assertEquals("trying to auto create mapping, but dynamic mapping is disabled", e1.getCause().getMessage());
-        
+
         // make sure no mappings were created for bar
         GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices("index_2").get();
         assertFalse(getIndexResponse.mappings().containsKey("bar"));

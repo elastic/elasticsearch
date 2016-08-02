@@ -27,11 +27,10 @@ import org.elasticsearch.painless.Executable;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Locals.Variable;
-import org.elasticsearch.painless.node.SFunction.Reserved;
-import org.elasticsearch.painless.WriterConstants;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.SimpleChecksAdapter;
+import org.elasticsearch.painless.WriterConstants;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
@@ -60,20 +59,72 @@ import static org.elasticsearch.painless.WriterConstants.MAP_TYPE;
  */
 public final class SSource extends AStatement {
 
-    final String name;
-    final String source;
-    final Printer debugStream;
-    final CompilerSettings settings;
-    final MainMethodReserved reserved;
-    final List<SFunction> functions;
-    final Globals globals;
-    final List<AStatement> statements;
+    /**
+     * Tracks reserved variables.  Must be given to any source of input
+     * prior to beginning the analysis phase so that reserved variables
+     * are known ahead of time to assign appropriate slots without
+     * being wasteful.
+     */
+    public interface Reserved {
+        void markReserved(String name);
+        boolean isReserved(String name);
+
+        void setMaxLoopCounter(int max);
+        int getMaxLoopCounter();
+    }
+
+    public static final class MainMethodReserved implements Reserved {
+        private boolean score = false;
+        private boolean ctx = false;
+        private int maxLoopCounter = 0;
+
+        @Override
+        public void markReserved(String name) {
+            if (Locals.SCORE.equals(name)) {
+                score = true;
+            } else if (Locals.CTX.equals(name)) {
+                ctx = true;
+            }
+        }
+
+        @Override
+        public boolean isReserved(String name) {
+            return Locals.KEYWORDS.contains(name);
+        }
+
+        public boolean usesScore() {
+            return score;
+        }
+
+        public boolean usesCtx() {
+            return ctx;
+        }
+
+        @Override
+        public void setMaxLoopCounter(int max) {
+            maxLoopCounter = max;
+        }
+
+        @Override
+        public int getMaxLoopCounter() {
+            return maxLoopCounter;
+        }
+    }
+
+    private final CompilerSettings settings;
+    private final String name;
+    private final String source;
+    private final Printer debugStream;
+    private final MainMethodReserved reserved;
+    private final List<SFunction> functions;
+    private final Globals globals;
+    private final List<AStatement> statements;
 
     private Locals mainMethod;
     private byte[] bytes;
 
-    public SSource(CompilerSettings settings, String name, String source, Printer debugStream, 
-                   MainMethodReserved reserved, Location location, 
+    public SSource(CompilerSettings settings, String name, String source, Printer debugStream,
+                   MainMethodReserved reserved, Location location,
                    List<SFunction> functions, Globals globals, List<AStatement> statements) {
         super(location);
         this.settings = Objects.requireNonNull(settings);
@@ -88,18 +139,18 @@ public final class SSource extends AStatement {
         this.statements = Collections.unmodifiableList(statements);
         this.globals = globals;
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         // we should never be extracting from a function, as functions are top-level!
-        throw new IllegalStateException("Illegal tree structure");
+        throw new IllegalStateException("Illegal tree structure.");
     }
 
     public void analyze() {
         Map<MethodKey, Method> methods = new HashMap<>();
 
         for (SFunction function : functions) {
-            function.generate();
+            function.generateSignature();
 
             MethodKey key = new MethodKey(function.name, function.parameters.size());
 
@@ -114,7 +165,7 @@ public final class SSource extends AStatement {
     @Override
     void analyze(Locals program) {
         for (SFunction function : functions) {
-            Locals functionLocals = Locals.newFunctionScope(program, function.rtnType, function.parameters, 
+            Locals functionLocals = Locals.newFunctionScope(program, function.rtnType, function.parameters,
                                                             function.reserved.getMaxLoopCounter());
             function.analyze(functionLocals);
         }
@@ -154,7 +205,7 @@ public final class SSource extends AStatement {
 
         ClassWriter writer = new ClassWriter(classFrames);
         ClassVisitor visitor = writer;
-        
+
         // if picky is enabled, turn on some checks. instead of VerifyError at the end, you get a helpful stacktrace.
         if (settings.isPicky()) {
             visitor = new SimpleChecksAdapter(visitor);
@@ -180,12 +231,12 @@ public final class SSource extends AStatement {
         execute.visitCode();
         write(execute, globals);
         execute.endMethod();
-        
+
         // Write all functions:
         for (SFunction function : functions) {
             function.write(visitor, settings, globals);
         }
-        
+
         // Write all synthetic functions. Note that this process may add more :)
         while (!globals.getSyntheticMethods().isEmpty()) {
             List<SFunction> current = new ArrayList<>(globals.getSyntheticMethods().values());
@@ -210,7 +261,7 @@ public final class SSource extends AStatement {
             }
 
             // Initialize the constants in a static initializer
-            final MethodWriter clinit = new MethodWriter(Opcodes.ACC_STATIC, 
+            final MethodWriter clinit = new MethodWriter(Opcodes.ACC_STATIC,
                     WriterConstants.CLINIT, visitor, globals.getStatements(), settings);
             clinit.visitCode();
             for (Constant constant : inits) {
@@ -220,13 +271,13 @@ public final class SSource extends AStatement {
             clinit.returnValue();
             clinit.endMethod();
         }
-        
+
         // End writing the class and store the generated bytes.
 
         visitor.visitEnd();
         bytes = writer.toByteArray();
     }
-    
+
     @Override
     void write(MethodWriter writer, Globals globals) {
         if (reserved.usesScore()) {
@@ -280,44 +331,5 @@ public final class SSource extends AStatement {
 
     public byte[] getBytes() {
         return bytes;
-    }
-    
-    
-    public static final class MainMethodReserved implements Reserved {
-        private boolean score = false;
-        private boolean ctx = false;
-        private int maxLoopCounter = 0;
-
-        @Override
-        public void markReserved(String name) {
-            if (Locals.SCORE.equals(name)) {
-                score = true;
-            } else if (Locals.CTX.equals(name)) {
-                ctx = true;
-            }
-        }
-
-        @Override
-        public boolean isReserved(String name) {
-            return Locals.KEYWORDS.contains(name);
-        }
-
-        public boolean usesScore() {
-            return score;
-        }
-
-        public boolean usesCtx() {
-            return ctx;
-        }
-
-        @Override
-        public void setMaxLoopCounter(int max) {
-            maxLoopCounter = max;
-        }
-
-        @Override
-        public int getMaxLoopCounter() {
-            return maxLoopCounter;
-        }
     }
 }

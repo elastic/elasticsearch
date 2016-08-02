@@ -21,22 +21,24 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
+import org.objectweb.asm.Opcodes;
 
 import java.util.Objects;
 import java.util.Set;
-
-import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a do-while loop.
  */
 public final class SDo extends AStatement {
 
-    final SBlock block;
-    AExpression condition;
+    private final SBlock block;
+    private AExpression condition;
+
+    private boolean continuous = false;
 
     public SDo(Location location, SBlock block, AExpression condition) {
         super(location);
@@ -44,10 +46,11 @@ public final class SDo extends AStatement {
         this.condition = Objects.requireNonNull(condition);
         this.block = block;
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         condition.extractVariables(variables);
+
         if (block != null) {
             block.extractVariables(variables);
         }
@@ -75,7 +78,7 @@ public final class SDo extends AStatement {
         condition = condition.cast(locals);
 
         if (condition.constant != null) {
-            final boolean continuous = (boolean)condition.constant;
+            continuous = (boolean)condition.constant;
 
             if (!continuous) {
                 throw createError(new IllegalArgumentException("Extraneous do while loop."));
@@ -110,8 +113,10 @@ public final class SDo extends AStatement {
 
         writer.mark(begin);
 
-        condition.fals = end;
-        condition.write(writer, globals);
+        if (!continuous) {
+            condition.write(writer, globals);
+            writer.ifZCmp(Opcodes.IFEQ, end);
+        }
 
         if (loopCounter != null) {
             writer.writeLoopCounter(loopCounter.getSlot(), Math.max(1, block.statementCount), location);

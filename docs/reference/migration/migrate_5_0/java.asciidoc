@@ -4,6 +4,30 @@
 [[breaking_50_java_api_changes]]
 === Java API changes
 
+==== Transport client  has been moved
+
+The Java transport client has been moved to its own module which can be referenced using:
+
+[source,xml]
+-----
+<dependency>
+    <groupId>org.elasticsearch.client</groupId>
+    <artifactId>transport</artifactId>
+    <version>5.0.0-alpha5</version>
+</dependency>
+-----
+
+The transport client is now created using the following snippet:
+
+[source,java]
+-----
+TransportClient client = new PreBuiltTransportClient(Settings.EMPTY)
+        .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("host1"), 9300))
+        .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("host2"), 9300));
+-----
+
+For more information please see the {javaclient}java-api.html[Java client documentation]
+
 ==== Count api has been removed
 
 The deprecated count api has been removed from the Java api, use the search api instead and set size to 0.

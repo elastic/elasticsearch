@@ -30,8 +30,8 @@ import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.MethodWriter;
 
 /**
- * Represents a constant.  Note this replaces any other expression
- * node with a constant value set during a cast.  (Internal only.)
+ * Represents a constant inserted into the tree replacing
+ * other constants during constant folding.  (Internal only.)
  */
 final class EConstant extends AExpression {
 
@@ -40,9 +40,11 @@ final class EConstant extends AExpression {
 
         this.constant = constant;
     }
-    
+
     @Override
-    void extractVariables(Set<String> variables) {}
+    void extractVariables(Set<String> variables) {
+        throw new IllegalStateException("Illegal tree structure.");
+    }
 
     @Override
     void analyze(Locals locals) {
@@ -82,22 +84,9 @@ final class EConstant extends AExpression {
             case CHAR:   writer.push((char)constant);    break;
             case SHORT:  writer.push((short)constant);   break;
             case BYTE:   writer.push((byte)constant);    break;
-            case BOOL:
-                if (tru != null && (boolean)constant) {
-                    writer.goTo(tru);
-                } else if (fals != null && !(boolean)constant) {
-                    writer.goTo(fals);
-                } else if (tru == null && fals == null) {
-                    writer.push((boolean)constant);
-                }
-
-                break;
+            case BOOL:   writer.push((boolean)constant); break;
             default:
                 throw createError(new IllegalStateException("Illegal tree structure."));
-        }
-
-        if (sort != Sort.BOOL) {
-            writer.writeBranch(tru, fals);
         }
     }
 }

@@ -34,8 +34,8 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.docvalues.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.docvalues.DocValueFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.HighlightBuilder;
@@ -574,12 +574,12 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
             }
         }
         if (docValueFields != null) {
-            FieldDataFieldsContext fieldDataFieldsContext = innerHitsContext
-                    .getFetchSubPhaseContext(FieldDataFieldsFetchSubPhase.CONTEXT_FACTORY);
+            DocValueFieldsContext docValueFieldsContext = innerHitsContext
+                    .getFetchSubPhaseContext(DocValueFieldsFetchSubPhase.CONTEXT_FACTORY);
             for (String field : docValueFields) {
-                fieldDataFieldsContext.add(new FieldDataFieldsContext.FieldDataField(field));
+                docValueFieldsContext.add(new DocValueFieldsContext.DocValueField(field));
             }
-            fieldDataFieldsContext.setHitExecutionNeeded(true);
+            docValueFieldsContext.setHitExecutionNeeded(true);
         }
         if (scriptFields != null) {
             for (ScriptField field : scriptFields) {

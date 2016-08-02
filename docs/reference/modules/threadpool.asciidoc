@@ -59,7 +59,7 @@ There are several thread pools, but the important ones include:
 Changing a specific thread pool can be done by setting its type-specific parameters; for example, changing the `index`
 thread pool to have more threads:
 
-[source,js]
+[source,yaml]
 --------------------------------------------------
 thread_pool:
     index:
@@ -87,7 +87,7 @@ requests that have no threads to execute them. By default, it is set to
 `-1` which means its unbounded. When a request comes in and the queue is
 full, it will abort the request.
 
-[source,js]
+[source,yaml]
 --------------------------------------------------
 thread_pool:
     index:
@@ -105,7 +105,7 @@ the `core` and `max` parameters.
 The `keep_alive` parameter determines how long a thread should be kept
 around in the thread pool without it doing any work.
 
-[source,js]
+[source,yaml]
 --------------------------------------------------
 thread_pool:
     warmer:
@@ -121,6 +121,11 @@ The number of processors is automatically detected, and the thread pool
 settings are automatically set based on it. Sometimes, the number of processors
 are wrongly detected, in such cases, the number of processors can be
 explicitly set using the `processors` setting.
+
+[source,yaml]
+--------------------------------------------------
+processors: 2
+--------------------------------------------------
 
 In order to check the number of processors detected, use the nodes info
 API with the `os` flag.

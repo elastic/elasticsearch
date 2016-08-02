@@ -45,7 +45,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.action.admin.cluster.node.tasks.RestListTasksAction.generateListTasksRequest;
+import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.generateListTasksRequest;
 
 public class RestTasksAction extends AbstractCatAction {
     private final ClusterService clusterService;

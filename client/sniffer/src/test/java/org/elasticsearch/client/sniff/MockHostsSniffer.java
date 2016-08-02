@@ -22,18 +22,15 @@ package org.elasticsearch.client.sniff;
 import org.apache.http.HttpHost;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
-class MockHostsSniffer extends HostsSniffer {
-    MockHostsSniffer() {
-        super(null, -1, null);
-    }
-
+/**
+ * Mock implementation of {@link HostsSniffer}. Useful to prevent any connection attempt while testing builders etc.
+ */
+class MockHostsSniffer implements HostsSniffer {
     @Override
     public List<HttpHost> sniffHosts() throws IOException {
-        List<HttpHost> hosts = new ArrayList<>();
-        hosts.add(new HttpHost("localhost", 9200));
-        return hosts;
+        return Collections.singletonList(new HttpHost("localhost", 9200));
     }
 }

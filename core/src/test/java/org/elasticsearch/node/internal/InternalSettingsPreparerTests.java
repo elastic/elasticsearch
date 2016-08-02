@@ -54,13 +54,13 @@ public class InternalSettingsPreparerTests extends ESTestCase {
 
     public void testEmptySettings() {
         Settings settings = InternalSettingsPreparer.prepareSettings(Settings.EMPTY);
-        assertNotNull(settings.get("node.name")); // a name was set
+        assertNull(settings.get("node.name")); // a name was not set
         assertNotNull(settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey())); // a cluster name was set
         int size = settings.names().size();
 
         Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null);
         settings = env.settings();
-        assertNotNull(settings.get("node.name")); // a name was set
+        assertNull(settings.get("node.name")); // a name was not set
         assertNotNull(settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey())); // a cluster name was set
         assertEquals(settings.toString(), size + 1 /* path.home is in the base settings */, settings.names().size());
         String home = Environment.PATH_HOME_SETTING.get(baseEnvSettings);

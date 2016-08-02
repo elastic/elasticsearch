@@ -103,7 +103,18 @@ public class EquivalenceIT extends ESIntegTestCase {
             }
         }
 
-        createIndex("idx");
+        prepareCreate("idx")
+                .addMapping("type", jsonBuilder()
+                        .startObject()
+                            .startObject("type")
+                                .startObject("properties")
+                                    .startObject("values")
+                                        .field("type", "double")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()).execute().actionGet();
+
         for (int i = 0; i < docs.length; ++i) {
             XContentBuilder source = jsonBuilder()
                     .startObject()
@@ -202,6 +213,9 @@ public class EquivalenceIT extends ESIntegTestCase {
                         .startObject()
                             .startObject("type")
                                 .startObject("properties")
+                                    .startObject("num")
+                                        .field("type", "double")
+                                        .endObject()
                                     .startObject("string_values")
                                         .field("type", "keyword")
                                         .startObject("fields")
@@ -323,7 +337,18 @@ public class EquivalenceIT extends ESIntegTestCase {
 
     // Duel between histograms and scripted terms
     public void testDuelTermsHistogram() throws Exception {
-        createIndex("idx");
+        prepareCreate("idx")
+                .addMapping("type", jsonBuilder()
+                        .startObject()
+                            .startObject("type")
+                                .startObject("properties")
+                                    .startObject("num")
+                                        .field("type", "double")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()).execute().actionGet();
+
 
         final int numDocs = scaledRandomIntBetween(500, 5000);
         final int maxNumTerms = randomIntBetween(10, 2000);
@@ -383,7 +408,17 @@ public class EquivalenceIT extends ESIntegTestCase {
 
     public void testLargeNumbersOfPercentileBuckets() throws Exception {
         // test high numbers of percentile buckets to make sure paging and release work correctly
-        createIndex("idx");
+        prepareCreate("idx")
+                .addMapping("type", jsonBuilder()
+                        .startObject()
+                            .startObject("type")
+                                .startObject("properties")
+                                    .startObject("double_value")
+                                        .field("type", "double")
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()).execute().actionGet();
 
         final int numDocs = scaledRandomIntBetween(2500, 5000);
         logger.info("Indexing [{}] docs", numDocs);

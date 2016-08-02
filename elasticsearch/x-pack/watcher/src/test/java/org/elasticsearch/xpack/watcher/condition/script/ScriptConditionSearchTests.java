@@ -3,15 +3,17 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.xpack.watcher.condition.script;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.groovy.GroovyPlugin;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -19,45 +21,55 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.watcher.condition.script.ExecutableScriptCondition;
-import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.watch.Payload;
-import org.junit.After;
-import org.junit.Before;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.when;
 
-/**
- */
-public class ScriptConditionSearchIT extends AbstractWatcherIntegrationTestCase {
-    private ThreadPool tp = null;
-    private ScriptService scriptService;
+public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected List<Class<? extends Plugin>> pluginTypes() {
         List<Class<? extends Plugin>> types = super.pluginTypes();
-        types.add(GroovyPlugin.class);
+        types.add(CustomScriptPlugin.class);
         return types;
     }
 
-    @Before
-    public void init() throws Exception {
-        tp = new TestThreadPool(ThreadPool.Names.SAME);
-        scriptService = MessyTestUtils.createScriptService(tp);
-    }
+    public static class CustomScriptPlugin extends MockScriptPlugin {
 
-    @After
-    public void cleanup() {
-        tp.shutdownNow();
+        @Override
+        @SuppressWarnings("unchecked")
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+            scripts.put("ctx.payload.aggregations.rate.buckets[0]?.doc_count >= 5", vars -> {
+                List<?> buckets = (List<?>) XContentMapValues.extractValue("ctx.payload.aggregations.rate.buckets", vars);
+                int docCount = (int) XContentMapValues.extractValue("doc_count", (Map<String, Object>) buckets.get(0));
+                return docCount >= 5;
+            });
+
+            scripts.put("ctx.payload.hits?.hits[0]?._score == 1.0", vars -> {
+                List<SearchHit> searchHits = (List<SearchHit>) XContentMapValues.extractValue("ctx.payload.hits.hits", vars);
+                double score = (double) XContentMapValues.extractValue("_score", (Map<String, Object>) searchHits.get(0));
+                return score == 1.0;
+            });
+
+            return scripts;
+        }
+
+        @Override
+        public String pluginScriptLang() {
+            return WatcherScript.DEFAULT_LANG;
+        }
     }
 
     public void testExecuteWithAggs() throws Exception {
@@ -72,6 +84,7 @@ public class ScriptConditionSearchIT extends AbstractWatcherIntegrationTestCase 
                         .dateHistogramInterval(DateHistogramInterval.HOUR).order(Histogram.Order.COUNT_DESC))
                 .get();
 
+        ScriptService scriptService = internalCluster().getInstance(ScriptService.class);
         ExecutableScriptCondition condition = new ExecutableScriptCondition(
                 new ScriptCondition(WatcherScript.inline("ctx.payload.aggregations.rate.buckets[0]?.doc_count >= 5").build()),
                 logger, scriptService);
@@ -91,6 +104,7 @@ public class ScriptConditionSearchIT extends AbstractWatcherIntegrationTestCase 
     }
 
     public void testExecuteAccessHits() throws Exception {
+        ScriptService scriptService = internalCluster().getInstance(ScriptService.class);
         ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(
                 WatcherScript.inline("ctx.payload.hits?.hits[0]?._score == 1.0").build()), logger, scriptService);
         InternalSearchHit hit = new InternalSearchHit(0, "1", new Text("type"), null);

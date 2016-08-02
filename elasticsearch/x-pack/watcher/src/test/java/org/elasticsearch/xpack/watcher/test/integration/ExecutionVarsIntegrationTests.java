@@ -5,19 +5,22 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.util.Callback;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -27,16 +30,88 @@ import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.script
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTestCase {
+
     @Override
     protected boolean timeWarped() {
         return true;
+    }
+
+    @Override
+    protected List<Class<? extends Plugin>> pluginTypes() {
+        List<Class<? extends Plugin>> types = super.pluginTypes();
+        types.add(CustomScriptPlugin.class);
+        return types;
+    }
+
+    public static class CustomScriptPlugin extends MockScriptPlugin {
+
+        @Override
+        @SuppressWarnings("unchecked")
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+            scripts.put("ctx.vars.condition_value = ctx.payload.value + 5; return ctx.vars.condition_value > 5;", vars -> {
+                int value = (int) XContentMapValues.extractValue("ctx.payload.value", vars);
+
+                Map<String, Object> ctxVars = (Map<String, Object>) XContentMapValues.extractValue("ctx.vars", vars);
+                ctxVars.put("condition_value", value + 5);
+
+                return (int) XContentMapValues.extractValue("condition_value", ctxVars) > 5;
+            });
+
+            scripts.put("ctx.vars.watch_transform_value = ctx.vars.condition_value + 5; return ctx.payload;", vars -> {
+                Map<String, Object> ctxVars = (Map<String, Object>) XContentMapValues.extractValue("ctx.vars", vars);
+                ctxVars.put("watch_transform_value", (int) XContentMapValues.extractValue("condition_value", ctxVars) + 5);
+
+                return XContentMapValues.extractValue("ctx.payload", vars);
+            });
+
+            // Transforms the value of a1, equivalent to:
+            //      ctx.vars.a1_transform_value = ctx.vars.watch_transform_value + 10;
+            //      ctx.payload.a1_transformed_value = ctx.vars.a1_transform_value;
+            //      return ctx.payload;
+            scripts.put("transform a1", vars -> {
+                Map<String, Object> ctxVars = (Map<String, Object>) XContentMapValues.extractValue("ctx.vars", vars);
+                Map<String, Object> ctxPayload = (Map<String, Object>) XContentMapValues.extractValue("ctx.payload", vars);
+
+                int value = (int) XContentMapValues.extractValue("watch_transform_value", ctxVars);
+                ctxVars.put("a1_transform_value", value + 10);
+
+                value = (int) XContentMapValues.extractValue("a1_transform_value", ctxVars);
+                ctxPayload.put("a1_transformed_value", value);
+
+                return XContentMapValues.extractValue("ctx.payload", vars);
+            });
+
+            // Transforms the value of a2, equivalent to:
+            //      ctx.vars.a2_transform_value = ctx.vars.watch_transform_value + 20;
+            //      ctx.payload.a2_transformed_value = ctx.vars.a2_transform_value;
+            //      return ctx.payload;
+            scripts.put("transform a2", vars -> {
+                Map<String, Object> ctxVars = (Map<String, Object>) XContentMapValues.extractValue("ctx.vars", vars);
+                Map<String, Object> ctxPayload = (Map<String, Object>) XContentMapValues.extractValue("ctx.payload", vars);
+
+                int value = (int) XContentMapValues.extractValue("watch_transform_value", ctxVars);
+                ctxVars.put("a2_transform_value", value + 20);
+
+                value = (int) XContentMapValues.extractValue("a2_transform_value", ctxVars);
+                ctxPayload.put("a2_transformed_value", value);
+
+                return XContentMapValues.extractValue("ctx.payload", vars);
+            });
+
+            return scripts;
+        }
+
+        @Override
+        public String pluginScriptLang() {
+            return WatcherScript.DEFAULT_LANG;
+        }
     }
 
     public void testVars() throws Exception {
@@ -49,14 +124,12 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
                 .transform(scriptTransform("ctx.vars.watch_transform_value = ctx.vars.condition_value + 5; return ctx.payload;"))
                 .addAction(
                         "a1",
-                        scriptTransform("ctx.vars.a1_transform_value = ctx.vars.watch_transform_value + 10; return ctx.payload;"),
-                        loggingAction("condition_value={{ctx.vars.condition_value}}, watch_transform_value={{ctx.vars" +
-                                ".watch_transform_value}}, a1_transform_value={{ctx.vars.a1_transform_value}}"))
+                        scriptTransform("transform a1"),
+                        loggingAction("_text"))
                 .addAction(
                         "a2",
-                        scriptTransform("ctx.vars.a2_transform_value = ctx.vars.watch_transform_value + 20; return ctx.payload;"),
-                        loggingAction("condition_value={{ctx.vars.condition_value}}, watch_transform_value={{ctx.vars" +
-                                ".watch_transform_value}}, a2_transform_value={{ctx.vars.a2_transform_value}}")))
+                        scriptTransform("transform a2"),
+                        loggingAction("_text")))
                 .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
@@ -66,11 +139,8 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
         flush();
         refresh();
 
-        SearchResponse searchResponse = searchWatchRecords(new Callback<SearchRequestBuilder>() {
-            @Override
-            public void handle(SearchRequestBuilder builder) {
-                // defaults to match all;
-            }
+        SearchResponse searchResponse = searchWatchRecords(builder -> {
+            // defaults to match all;
         });
 
         assertThat(searchResponse.getHits().getTotalHits(), is(1L));
@@ -93,12 +163,12 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
                 case "a1":
                     assertValue(action, "status", is("success"));
                     assertValue(action, "transform.status", is("success"));
-                    assertValue(action, "logging.logged_text", is("condition_value=10, watch_transform_value=15, a1_transform_value=25"));
+                    assertValue(action, "transform.payload.a1_transformed_value", equalTo(25));
                     break;
                 case "a2":
                     assertValue(action, "status", is("success"));
                     assertValue(action, "transform.status", is("success"));
-                    assertValue(action, "logging.logged_text", is("condition_value=10, watch_transform_value=15, a2_transform_value=35"));
+                    assertValue(action, "transform.payload.a2_transformed_value", equalTo(35));
                     break;
                 default:
                     fail("there should not be an action result for action with an id other than a1 or a2");
@@ -116,14 +186,12 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
                 .transform(scriptTransform("ctx.vars.watch_transform_value = ctx.vars.condition_value + 5; return ctx.payload;"))
                 .addAction(
                         "a1",
-                        scriptTransform("ctx.vars.a1_transform_value = ctx.vars.watch_transform_value + 10; return ctx.payload;"),
-                        loggingAction("condition_value={{ctx.vars.condition_value}}, watch_transform_value={{ctx.vars" +
-                                ".watch_transform_value}}, a1_transform_value={{ctx.vars.a1_transform_value}}"))
+                        scriptTransform("transform a1"),
+                        loggingAction("_text"))
                 .addAction(
                         "a2",
-                        scriptTransform("ctx.vars.a2_transform_value = ctx.vars.watch_transform_value + 20; return ctx.payload;"),
-                        loggingAction("condition_value={{ctx.vars.condition_value}}, watch_transform_value={{ctx.vars" +
-                                ".watch_transform_value}}, a2_transform_value={{ctx.vars.a2_transform_value}}")))
+                        scriptTransform("transform a2"),
+                        loggingAction("_text")))
                 .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
@@ -157,12 +225,12 @@ public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTes
                 case "a1":
                     assertValue(action, "status", is("success"));
                     assertValue(action, "transform.status", is("success"));
-                    assertValue(action, "logging.logged_text", is("condition_value=10, watch_transform_value=15, a1_transform_value=25"));
+                    assertValue(action, "transform.payload.a1_transformed_value", equalTo(25));
                     break;
                 case "a2":
                     assertValue(action, "status", is("success"));
                     assertValue(action, "transform.status", is("success"));
-                    assertValue(action, "logging.logged_text", is("condition_value=10, watch_transform_value=15, a2_transform_value=35"));
+                    assertValue(action, "transform.payload.a2_transformed_value", equalTo(35));
                     break;
                 default:
                     fail("there should not be an action result for action with an id other than a1 or a2");

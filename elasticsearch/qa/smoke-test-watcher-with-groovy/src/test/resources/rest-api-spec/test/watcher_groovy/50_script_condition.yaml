@@ -1,0 +1,137 @@
+---
+"Test the execution of a Groovy closure in script condition":
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": ".monitoring", "_type": "cluster_stats"}}
+          { "status": "green", "@timestamp": "2005-01-01T00:00:00" }
+          {"index": {"_index": ".monitoring", "_type": "cluster_stats"}}
+          { "status": "yellow", "@timestamp": "2005-01-01T00:00:05" }
+          {"index": {"_index": ".monitoring", "_type": "cluster_stats"}}
+          { "status": "green", "@timestamp": "2005-01-01T00:00:55" }
+
+  - do:
+      xpack.watcher.put_watch:
+        id: "watch_with_groovy_closure"
+        body:  >
+          {
+            "trigger" : {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input" : {
+              "search" : {
+                "request" : {
+                  "indices" : [ ".monitoring" ],
+                  "body" : {
+                    "query" : {
+                      "match_all" : {
+                      }
+                    },
+                    "aggregations" : {
+                      "minutes" : {
+                        "date_histogram" : {
+                          "field" : "@timestamp",
+                          "interval" : "5s",
+                          "order" : {
+                            "_count" : "desc"
+                          }
+                        },
+                        "aggregations": {
+                          "status" : {
+                            "terms" : {
+                              "field" : "status.keyword",
+                              "size" : 3
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "condition" : {
+              "script" : {
+                "inline" : "if (ctx.payload.hits.total < 1) return false; def rows = ctx.payload.hits.hits; if (ctx.payload.aggregations.minutes.buckets.size() < 12) return false; def last60Seconds = ctx.payload.aggregations.minutes.buckets[-12..-1]; return last60Seconds.every { it.status.buckets.every { s -> s.key == 'red' } }",
+                "lang": "groovy"
+              }
+            },
+            "actions" : {
+              "log" : {
+                "logging" : {
+                  "text" : "executed at {{ctx.execution_time}}"
+                }
+              }
+            }
+          }
+
+  - match: { _id: "watch_with_groovy_closure" }
+
+  - do:
+      xpack.watcher.execute_watch:
+        id: "watch_with_groovy_closure"
+        body: >
+          {
+            "trigger_data" : {
+              "scheduled_time" : "2015-05-05T20:58:02.443Z",
+              "triggered_time" : "2015-05-05T20:58:02.443Z"
+            },
+            "ignore_condition" : false,
+            "action_modes" : {
+              "_all" : "force_simulate"
+            },
+            "record_execution" : false
+          }
+
+  - match: { "watch_record.state": "execution_not_needed" }
+  - match: { "watch_record.result.condition.met": false }
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": ".monitoring", "_type": "cluster_stats"}}
+          { "status": "red", "@timestamp": "2005-01-01T00:01:00" }
+          {"index": {"_index": ".monitoring", "_type": "cluster_stats"}}
+          { "status": "red", "@timestamp": "2005-01-01T00:01:05" }
+          {"index": {"_index": ".monitoring", "_type": "cluster_stats"}}
+          { "status": "red", "@timestamp": "2005-01-01T00:01:10" }
+          {"index": {"_index": ".monitoring", "_type": "cluster_stats"}}
+          { "status": "red", "@timestamp": "2005-01-01T00:01:15" }
+          {"index": {"_index": ".monitoring", "_type": "cluster_stats"}}
+          { "status": "red", "@timestamp": "2005-01-01T00:01:20" }
+          {"index": {"_index": ".monitoring", "_type": "cluster_stats"}}
+          { "status": "red", "@timestamp": "2005-01-01T00:01:25" }
+          {"index": {"_index": ".monitoring", "_type": "cluster_stats"}}
+          { "status": "red", "@timestamp": "2005-01-01T00:01:30" }
+          {"index": {"_index": ".monitoring", "_type": "cluster_stats"}}
+          { "status": "red", "@timestamp": "2005-01-01T00:01:35" }
+          {"index": {"_index": ".monitoring", "_type": "cluster_stats"}}
+          { "status": "red", "@timestamp": "2005-01-01T00:01:40" }
+          {"index": {"_index": ".monitoring", "_type": "cluster_stats"}}
+          { "status": "red", "@timestamp": "2005-01-01T00:01:45" }
+          {"index": {"_index": ".monitoring", "_type": "cluster_stats"}}
+          { "status": "red", "@timestamp": "2005-01-01T00:01:50" }
+          {"index": {"_index": ".monitoring", "_type": "cluster_stats"}}
+          { "status": "red", "@timestamp": "2005-01-01T00:01:55" }
+
+  - do:
+      xpack.watcher.execute_watch:
+        id: "watch_with_groovy_closure"
+        body: >
+          {
+            "trigger_data" : {
+              "scheduled_time" : "2015-05-05T20:58:02.443Z",
+              "triggered_time" : "2015-05-05T20:58:02.443Z"
+            },
+            "ignore_condition" : false,
+            "action_modes" : {
+              "_all" : "force_simulate"
+            },
+            "record_execution" : false
+          }
+
+  - match: { "watch_record.state": "executed" }
+  - match: { "watch_record.result.condition.met": true }

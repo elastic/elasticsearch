@@ -525,12 +525,12 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         return new HttpChannelHandler(this, detailedErrorsEnabled, threadPool.getThreadContext());
     }
 
-    static class HttpChannelHandler extends ChannelInitializer<SocketChannel> {
+    protected static class HttpChannelHandler extends ChannelInitializer<SocketChannel> {
 
         private final Netty4HttpServerTransport transport;
         private final Netty4HttpRequestHandler requestHandler;
 
-        HttpChannelHandler(
+        protected HttpChannelHandler(
             final Netty4HttpServerTransport transport,
             final boolean detailedErrorsEnabled,
             final ThreadContext threadContext) {

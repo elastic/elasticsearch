@@ -22,6 +22,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
@@ -59,8 +60,13 @@ public class DoSection implements ExecutableSection {
 
     private static final ESLogger logger = Loggers.getLogger(DoSection.class);
 
+    private final XContentLocation location;
     private String catchParam;
     private ApiCallSection apiCallSection;
+
+    public DoSection(XContentLocation location) {
+        this.location = location;
+    }
 
     public String getCatch() {
         return catchParam;
@@ -76,6 +82,11 @@ public class DoSection implements ExecutableSection {
 
     public void setApiCallSection(ApiCallSection apiCallSection) {
         this.apiCallSection = apiCallSection;
+    }
+
+    @Override
+    public XContentLocation getLocation() {
+        return location;
     }
 
     @Override

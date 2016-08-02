@@ -21,6 +21,7 @@ package org.elasticsearch.test.rest.yaml.section;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.XContentLocation;
 
 import java.util.List;
 import java.util.Locale;
@@ -45,8 +46,8 @@ public class MatchAssertion extends Assertion {
 
     private static final ESLogger logger = Loggers.getLogger(MatchAssertion.class);
 
-    public MatchAssertion(String field, Object expectedValue) {
-        super(field, expectedValue);
+    public MatchAssertion(XContentLocation location, String field, Object expectedValue) {
+        super(location, field, expectedValue);
     }
 
     @Override

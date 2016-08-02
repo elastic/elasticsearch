@@ -128,7 +128,6 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/15579")
     public void testVerifyOverwriteFails() throws IOException {
         try (final BlobStore store = newBlobStore()) {
             final String blobName = "foobar";

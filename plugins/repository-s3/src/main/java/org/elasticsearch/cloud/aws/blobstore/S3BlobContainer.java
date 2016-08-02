@@ -39,6 +39,7 @@ import org.elasticsearch.common.io.Streams;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
@@ -100,6 +101,9 @@ public class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+        if (blobExists(blobName)) {
+            throw new FileAlreadyExistsException("blob [" + blobName + "] already exists, cannot overwrite");
+        }
         try (OutputStream stream = createOutput(blobName)) {
             Streams.copy(inputStream, stream);
         }

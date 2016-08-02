@@ -24,7 +24,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -88,14 +87,6 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         logger.trace("writeBlob({}, stream, {})", blobName, blobSize);
         try (OutputStream stream = createOutput(blobName)) {
             Streams.copy(inputStream, stream);
-        }
-    }
-
-    @Override
-    public void writeBlob(String blobName, BytesReference bytes) throws IOException {
-        logger.trace("writeBlob({}, bytes)", blobName);
-        try (OutputStream stream = createOutput(blobName)) {
-            bytes.writeTo(stream);
         }
     }
 

@@ -49,7 +49,7 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
         try(final BlobStore store = newBlobStore()) {
             final BlobContainer container = store.blobContainer(new BlobPath());
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
-            container.writeBlob("foobar", new BytesArray(data));
+            writeBlob(container, "foobar", new BytesArray(data));
             try (InputStream stream = container.readBlob("foobar")) {
                 BytesRefBuilder target = new BytesRefBuilder();
                 while (target.length() < data.length) {
@@ -120,7 +120,7 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
 
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
             final BytesArray bytesArray = new BytesArray(data);
-            container.writeBlob(blobName, bytesArray);
+            writeBlob(container, blobName, bytesArray);
             container.deleteBlob(blobName); // should not raise
 
             // blob deleted, so should raise again
@@ -135,11 +135,17 @@ public abstract class ESBlobStoreContainerTestCase extends ESTestCase {
             final BlobContainer container = store.blobContainer(new BlobPath());
             byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
             final BytesArray bytesArray = new BytesArray(data);
-            container.writeBlob(blobName, bytesArray);
+            writeBlob(container, blobName, bytesArray);
             // should not be able to overwrite existing blob
-            expectThrows(IOException.class, () -> container.writeBlob(blobName, bytesArray));
+            expectThrows(IOException.class, () -> writeBlob(container, blobName, bytesArray));
             container.deleteBlob(blobName);
-            container.writeBlob(blobName, bytesArray); // after deleting the previous blob, we should be able to write to it again
+            writeBlob(container, blobName, bytesArray); // after deleting the previous blob, we should be able to write to it again
+        }
+    }
+
+    private void writeBlob(final BlobContainer container, final String blobName, final BytesArray bytesArray) throws IOException {
+        try (InputStream stream = bytesArray.streamInput()) {
+            container.writeBlob(blobName, stream, bytesArray.length());
         }
     }
 

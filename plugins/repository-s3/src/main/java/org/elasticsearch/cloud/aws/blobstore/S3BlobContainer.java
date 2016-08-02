@@ -33,7 +33,6 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
 
@@ -103,13 +102,6 @@ public class S3BlobContainer extends AbstractBlobContainer {
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
         try (OutputStream stream = createOutput(blobName)) {
             Streams.copy(inputStream, stream);
-        }
-    }
-
-    @Override
-    public void writeBlob(String blobName, BytesReference bytes) throws IOException {
-        try (OutputStream stream = createOutput(blobName)) {
-            bytes.writeTo(stream);
         }
     }
 

@@ -34,6 +34,7 @@ import org.elasticsearch.repositories.hdfs.HdfsBlobStore.Operation;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -107,6 +108,9 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+        if (blobExists(blobName)) {
+            throw new FileAlreadyExistsException("blob [" + blobName + "] already exists, cannot overwrite");
+        }
         store.execute(new Operation<Void>() {
             @Override
             public Void run(FileContext fileContext) throws IOException {

@@ -21,6 +21,7 @@ package org.elasticsearch.common.blobstore;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Map;
 
@@ -68,8 +69,8 @@ public interface BlobContainer {
      * @param   blobSize
      *          The size of the blob to be written, in bytes.  It is implementation dependent whether
      *          this value is used in writing the blob to the repository.
-     * @throws  IOException if the input stream could not be read, a blob by the same name already exists,
-     *          or the target blob could not be written to.
+     * @throws  FileAlreadyExistsException if a blob by the same name already exists
+     * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
      */
     void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException;
 

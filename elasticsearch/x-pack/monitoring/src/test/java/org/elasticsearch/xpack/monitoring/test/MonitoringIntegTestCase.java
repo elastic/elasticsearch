@@ -11,6 +11,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -79,6 +80,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
      * <p>
      * Control this by overriding {@link #enableSecurity()}, which defaults to enabling it randomly.
      */
+    // TODO: what is going on here?
     // SCARY: This needs to be static or lots of tests randomly fail, but it's not used statically!
     protected static Boolean securityEnabled;
     /**

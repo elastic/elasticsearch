@@ -47,6 +47,15 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  */
 public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
 
+    private boolean useSecurity3;
+
+    @Override
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        useSecurity3 = randomBoolean();
+    }
+
     private static final String USER = "test_user";
     private static final String PASS = "changeme";
     private static final String KEYSTORE_PASS = "keypass";
@@ -59,13 +68,18 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
 
     @Override
     protected Settings externalClusterClientSettings() {
-        return Settings.builder()
+        final Settings.Builder builder =
+                Settings.builder()
                 .put(Security.USER_SETTING.getKey(), USER + ":" + PASS)
                 .put(SecurityNetty3Transport.SSL_SETTING.getKey(), true)
                 .put("xpack.security.ssl.keystore.path", clientKeyStore)
-                .put("xpack.security.ssl.keystore.password", KEYSTORE_PASS)
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME)
-                .build();
+                .put("xpack.security.ssl.keystore.password", KEYSTORE_PASS);
+        if (useSecurity3) {
+            builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME3);
+        } else {
+            builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4);
+        }
+        return builder.build();
     }
 
     @Before

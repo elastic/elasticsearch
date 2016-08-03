@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -137,6 +138,8 @@ public class Security implements ActionPlugin, IngestPlugin {
     private static final ESLogger logger = Loggers.getLogger(XPackPlugin.class);
 
     public static final String NAME = "security";
+    public static final String NAME3 = NAME + "3";
+    public static final String NAME4 = NAME + "4";
     public static final String DLS_FLS_FEATURE = "security.dls_fls";
     public static final Setting<Optional<String>> USER_SETTING = OptionalSettings.createString(setting("user"), Property.NodeScope);
 
@@ -344,13 +347,32 @@ public class Security implements ActionPlugin, IngestPlugin {
         return additionalSettings(settings);
     }
 
-    // pkg private for testing
+    @SuppressWarnings("StatementWithEmptyBody")
+    // visible for tests
     static Settings additionalSettings(Settings settings) {
-        Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME + "4");
+        final Settings.Builder settingsBuilder = Settings.builder();
+
+        if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
+            // for symmetry with http.type
+        } else {
+            // default to security4
+            settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, NAME4);
+        }
+
+        if (NetworkModule.HTTP_TYPE_SETTING.exists(settings)) {
+            final String httpType = NetworkModule.HTTP_TYPE_SETTING.get(settings);
+            if (httpType.equals(NAME3)) {
+                SecurityNetty3HttpServerTransport.overrideSettings(settingsBuilder, settings);
+            } else if (httpType.equals(NAME4)) {
+                SecurityNetty4HttpServerTransport.overrideSettings(settingsBuilder, settings);
+            }
+        } else {
+            // default to security4
+            settingsBuilder.put(NetworkModule.HTTP_TYPE_KEY, NAME4);
+            SecurityNetty4HttpServerTransport.overrideSettings(settingsBuilder, settings);
+        }
+
         settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, Security.NAME);
-        settingsBuilder.put(NetworkModule.HTTP_TYPE_SETTING.getKey(), Security.NAME + "4");
-        SecurityNetty4HttpServerTransport.overrideSettings(settingsBuilder, settings);
         addUserSettings(settings, settingsBuilder);
         addTribeSettings(settings, settingsBuilder);
         return settingsBuilder.build();
@@ -502,19 +524,19 @@ public class Security implements ActionPlugin, IngestPlugin {
 
         if (transportClientMode) {
             if (enabled) {
-                module.registerTransport(Security.NAME, SecurityNetty3Transport.class);
-                module.registerTransport(Security.NAME + "4", SecurityNetty4Transport.class);
+                module.registerTransport(Security.NAME3, SecurityNetty3Transport.class);
+                module.registerTransport(Security.NAME4, SecurityNetty4Transport.class);
                 module.registerTransportService(Security.NAME, SecurityClientTransportService.class);
             }
             return;
         }
 
         if (enabled) {
-            module.registerTransport(Security.NAME, SecurityNetty3Transport.class);
-            module.registerTransport(Security.NAME + "4", SecurityNetty4Transport.class);
+            module.registerTransport(Security.NAME3, SecurityNetty3Transport.class);
+            module.registerTransport(Security.NAME4, SecurityNetty4Transport.class);
             module.registerTransportService(Security.NAME, SecurityServerTransportService.class);
-            module.registerHttpTransport(Security.NAME, SecurityNetty3HttpServerTransport.class);
-            module.registerHttpTransport(Security.NAME + "4", SecurityNetty4HttpServerTransport.class);
+            module.registerHttpTransport(Security.NAME3, SecurityNetty3HttpServerTransport.class);
+            module.registerHttpTransport(Security.NAME4, SecurityNetty4HttpServerTransport.class);
         }
     }
 

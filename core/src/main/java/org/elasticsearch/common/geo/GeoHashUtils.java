@@ -300,4 +300,14 @@ public class GeoHashUtils {
 
         return neighbors;
     }
+
+    /** returns the latitude value from the string based geohash */
+    public static final double decodeLatitude(final String geohash) {
+        return GeoPointField.decodeLatitude(mortonEncode(geohash));
+    }
+
+    /** returns the latitude value from the string based geohash */
+    public static final double decodeLongitude(final String geohash) {
+        return GeoPointField.decodeLongitude(mortonEncode(geohash));
+    }
 }

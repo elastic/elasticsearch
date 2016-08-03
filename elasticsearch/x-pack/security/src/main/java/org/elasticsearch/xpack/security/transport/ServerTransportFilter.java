@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLPeerUnverifiedException;
 import java.io.IOException;
 import java.security.cert.Certificate;
@@ -81,29 +82,43 @@ public interface ServerTransportFilter {
                 unwrappedChannel = ((DelegatingTransportChannel) unwrappedChannel).getChannel();
             }
 
-            if (extractClientCert && (unwrappedChannel instanceof TcpTransportChannel)
-                    && ((TcpTransportChannel) unwrappedChannel).getChannel() instanceof Channel) {
-                Channel channel = (Channel) ((TcpTransportChannel) unwrappedChannel).getChannel();
-                SslHandler sslHandler = channel.getPipeline().get(SslHandler.class);
-                assert sslHandler != null;
-
-                try {
-                    Certificate[] certs = sslHandler.getEngine().getSession().getPeerCertificates();
-                    if (certs instanceof X509Certificate[]) {
-                        threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, certs);
-                    }
-                } catch (SSLPeerUnverifiedException e) {
-                    // this happens when we only request client authentication and the client does not provide it
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("SSL Peer did not present a certificate on channel [{}]", e, channel);
-                    } else if (logger.isDebugEnabled()) {
-                        logger.debug("SSL Peer did not present a certificate on channel [{}]", channel);
+            if (extractClientCert && (unwrappedChannel instanceof TcpTransportChannel)) {
+                if (((TcpTransportChannel) unwrappedChannel).getChannel() instanceof Channel) {
+                    Channel channel = (Channel) ((TcpTransportChannel) unwrappedChannel).getChannel();
+                    SslHandler sslHandler = channel.getPipeline().get(SslHandler.class);
+                    assert sslHandler != null;
+                    extactClientCertificates(sslHandler.getEngine(), channel);
+                } else if (((TcpTransportChannel) unwrappedChannel).getChannel() instanceof io.netty.channel.Channel) {
+                    io.netty.channel.Channel channel = (io.netty.channel.Channel) ((TcpTransportChannel) unwrappedChannel).getChannel();
+                    io.netty.handler.ssl.SslHandler sslHandler = channel.pipeline().get(io.netty.handler.ssl.SslHandler.class);
+                    if (channel.isOpen()) {
+                        assert sslHandler != null : "channel [" + channel + "] did not have a ssl handler. pipeline " + channel.pipeline();
+                        extactClientCertificates(sslHandler.engine(), channel);
                     }
                 }
             }
 
             Authentication authentication = authcService.authenticate(securityAction, request, null);
             authzService.authorize(authentication, securityAction, request);
+        }
+
+        private void extactClientCertificates(SSLEngine sslEngine, Object channel) {
+            try {
+                Certificate[] certs = sslEngine.getSession().getPeerCertificates();
+                if (certs instanceof X509Certificate[]) {
+                    threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, certs);
+                }
+            } catch (SSLPeerUnverifiedException e) {
+                // this happens when client authentication is optional and the client does not provide credentials. If client
+                // authentication was required then this connection should be closed before ever getting into this class
+                assert sslEngine.getNeedClientAuth() == false;
+                assert sslEngine.getWantClientAuth();
+                if (logger.isTraceEnabled()) {
+                    logger.trace("SSL Peer did not present a certificate on channel [{}]", e, channel);
+                } else if (logger.isDebugEnabled()) {
+                    logger.debug("SSL Peer did not present a certificate on channel [{}]", channel);
+                }
+            }
         }
     }
 

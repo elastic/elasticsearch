@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 
 public class SecurityTests extends ESTestCase {
@@ -125,5 +127,50 @@ public class SecurityTests extends ESTestCase {
             .put(Security.AUDIT_OUTPUTS_SETTING.getKey(), "foo").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createComponents(settings));
         assertEquals("Unknown audit trail output [foo]", e.getMessage());
+    }
+
+    public void testTransportTypeSetting() throws Exception {
+        Settings defaultSettings = Security.additionalSettings(Settings.EMPTY);
+        assertEquals(Security.NAME4, NetworkModule.TRANSPORT_TYPE_SETTING.get(defaultSettings));
+        assertEquals(Security.NAME4, NetworkModule.HTTP_TYPE_SETTING.get(defaultSettings));
+
+        // set transport back to security3
+        Settings transport3 = Security.additionalSettings(Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME3).build());
+        assertFalse(NetworkModule.TRANSPORT_TYPE_SETTING.exists(transport3));
+        assertEquals(Security.NAME4, NetworkModule.HTTP_TYPE_SETTING.get(transport3));
+
+        // set http back to security3
+        Settings http3 = Security.additionalSettings(Settings.builder().put(NetworkModule.HTTP_TYPE_KEY, Security.NAME3).build());
+        assertEquals(Security.NAME4, NetworkModule.TRANSPORT_TYPE_SETTING.get(http3));
+        assertFalse(NetworkModule.HTTP_TYPE_SETTING.exists(http3));
+
+        // set both to security3
+        Settings both3 = Security.additionalSettings(Settings.builder()
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME3)
+                .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME3)
+                .build());
+        assertFalse(NetworkModule.TRANSPORT_TYPE_SETTING.exists(both3));
+        assertFalse(NetworkModule.HTTP_TYPE_SETTING.exists(both3));
+
+        // set both to 4
+        Settings both4 = Security.additionalSettings(Settings.builder()
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4)
+                .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4)
+                .build());
+        assertFalse(NetworkModule.TRANSPORT_TYPE_SETTING.exists(both4));
+        assertFalse(NetworkModule.HTTP_TYPE_SETTING.exists(both4));
+
+        final String badType = randomFrom("netty3", "netty4", "other", "security1");
+        IllegalArgumentException badTransport = expectThrows(IllegalArgumentException.class,
+                () -> Security.additionalSettings(Settings.builder().put(NetworkModule.TRANSPORT_TYPE_KEY, badType).build()));
+        assertThat(badTransport.getMessage(), containsString(Security.NAME3));
+        assertThat(badTransport.getMessage(), containsString(Security.NAME4));
+        assertThat(badTransport.getMessage(), containsString(NetworkModule.TRANSPORT_TYPE_KEY));
+
+        IllegalArgumentException badHttp = expectThrows(IllegalArgumentException.class,
+                () -> Security.additionalSettings(Settings.builder().put(NetworkModule.HTTP_TYPE_KEY, badType).build()));
+        assertThat(badHttp.getMessage(), containsString(Security.NAME3));
+        assertThat(badHttp.getMessage(), containsString(Security.NAME4));
+        assertThat(badHttp.getMessage(), containsString(NetworkModule.HTTP_TYPE_KEY));
     }
 }

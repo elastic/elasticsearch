@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -22,7 +23,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackTransportClient;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -39,6 +39,7 @@ public class CustomRealmIT extends ESIntegTestCase {
         return Settings.builder()
                 .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER)
                 .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW)
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, randomFrom("security3", "security4"))
                 .build();
     }
 

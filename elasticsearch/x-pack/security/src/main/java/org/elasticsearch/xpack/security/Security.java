@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -120,6 +121,8 @@ import org.elasticsearch.xpack.security.transport.SecurityTransportModule;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
+import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
+import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -135,6 +138,8 @@ public class Security implements ActionPlugin, IngestPlugin {
     private static final ESLogger logger = Loggers.getLogger(XPackPlugin.class);
 
     public static final String NAME = "security";
+    public static final String NAME3 = NAME + "3";
+    public static final String NAME4 = NAME + "4";
     public static final String DLS_FLS_FEATURE = "security.dls_fls";
     public static final Setting<Optional<String>> USER_SETTING = OptionalSettings.createString(setting("user"), Property.NodeScope);
 
@@ -334,21 +339,46 @@ public class Security implements ActionPlugin, IngestPlugin {
     public Settings additionalSettings() {
         if (enabled == false) {
             return Settings.builder()
-                    .put(NetworkModule.HTTP_TYPE_KEY, "netty3")
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty3")
+                    .put(NetworkModule.HTTP_TYPE_KEY, "netty4")
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, "netty4")
                     .build();
         }
 
         return additionalSettings(settings);
     }
 
-    // pkg private for testing
+    // visible for tests
     static Settings additionalSettings(Settings settings) {
-        Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME);
+        final Settings.Builder settingsBuilder = Settings.builder();
+
+        if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
+            final String transportType = NetworkModule.TRANSPORT_TYPE_SETTING.get(settings);
+            if (NAME3.equals(transportType) == false && NAME4.equals(transportType) == false) {
+                throw new IllegalArgumentException("transport type setting [" + NetworkModule.TRANSPORT_TYPE_KEY + "] must be one of [" +
+                        NAME3 + "," + NAME4 + "]");
+            }
+        } else {
+            // default to security4
+            settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, NAME4);
+        }
+
+        if (NetworkModule.HTTP_TYPE_SETTING.exists(settings)) {
+            final String httpType = NetworkModule.HTTP_TYPE_SETTING.get(settings);
+            if (httpType.equals(NAME3)) {
+                SecurityNetty3HttpServerTransport.overrideSettings(settingsBuilder, settings);
+            } else if (httpType.equals(NAME4)) {
+                SecurityNetty4HttpServerTransport.overrideSettings(settingsBuilder, settings);
+            } else {
+                throw new IllegalArgumentException("http type setting [" + NetworkModule.HTTP_TYPE_KEY + "] must be one of [" +
+                        NAME3 + "," + NAME4 + "]");
+            }
+        } else {
+            // default to security4
+            settingsBuilder.put(NetworkModule.HTTP_TYPE_KEY, NAME4);
+            SecurityNetty4HttpServerTransport.overrideSettings(settingsBuilder, settings);
+        }
+
         settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, Security.NAME);
-        settingsBuilder.put(NetworkModule.HTTP_TYPE_SETTING.getKey(), Security.NAME);
-        SecurityNetty3HttpServerTransport.overrideSettings(settingsBuilder, settings);
         addUserSettings(settings, settingsBuilder);
         addTribeSettings(settings, settingsBuilder);
         return settingsBuilder.build();
@@ -500,16 +530,19 @@ public class Security implements ActionPlugin, IngestPlugin {
 
         if (transportClientMode) {
             if (enabled) {
-                module.registerTransport(Security.NAME, SecurityNetty3Transport.class);
+                module.registerTransport(Security.NAME3, SecurityNetty3Transport.class);
+                module.registerTransport(Security.NAME4, SecurityNetty4Transport.class);
                 module.registerTransportService(Security.NAME, SecurityClientTransportService.class);
             }
             return;
         }
 
         if (enabled) {
-            module.registerTransport(Security.NAME, SecurityNetty3Transport.class);
+            module.registerTransport(Security.NAME3, SecurityNetty3Transport.class);
+            module.registerTransport(Security.NAME4, SecurityNetty4Transport.class);
             module.registerTransportService(Security.NAME, SecurityServerTransportService.class);
-            module.registerHttpTransport(Security.NAME, SecurityNetty3HttpServerTransport.class);
+            module.registerHttpTransport(Security.NAME3, SecurityNetty3HttpServerTransport.class);
+            module.registerHttpTransport(Security.NAME4, SecurityNetty4HttpServerTransport.class);
         }
     }
 

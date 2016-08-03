@@ -15,8 +15,8 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Callback;
@@ -114,6 +114,13 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     private static ScheduleModule.Engine scheduleEngine;
 
+    private boolean useSecurity3;
+
+    @Before
+    public void setUseSecurity3() {
+        useSecurity3 = randomBoolean();
+    }
+
     @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         if (securityEnabled == null) {
@@ -135,7 +142,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 .put("index.store.mock.check_index_on_close", false)
                 .put("xpack.watcher.execution.scroll.size", randomIntBetween(1, 100))
                 .put("xpack.watcher.watch.scroll.size", randomIntBetween(1, 100))
-                .put(SecuritySettings.settings(securityEnabled))
+                .put(SecuritySettings.settings(securityEnabled, useSecurity3))
                 .put("xpack.watcher.trigger.schedule.engine", scheduleImplName)
                 .put("script.inline", "true")
                 .build();
@@ -266,6 +273,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         return Settings.builder()
                 .put("client.transport.sniff", false)
                 .put(Security.USER_SETTING.getKey(), "admin:changeme")
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, useSecurity3 ? Security.NAME3 : Security.NAME4)
+                .put(NetworkModule.HTTP_TYPE_KEY, useSecurity3 ? Security.NAME3 : Security.NAME4)
                 .build();
     }
 
@@ -672,7 +681,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 ;
 
 
-        public static Settings settings(boolean enabled)  {
+        public static Settings settings(boolean enabled, boolean useSecurity3)  {
             Settings.Builder builder = Settings.builder();
             if (!enabled) {
                 return builder.put("xpack.security.enabled", false).build();
@@ -680,7 +689,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             try {
                 Path folder = createTempDir().resolve("watcher_security");
                 Files.createDirectories(folder);
-                return builder.put("xpack.security.enabled", true)
+                builder.put("xpack.security.enabled", true)
                         .put("xpack.security.authc.realms.esusers.type", FileRealm.TYPE)
                         .put("xpack.security.authc.realms.esusers.order", 0)
                         .put("xpack.security.authc.realms.esusers.files.users", writeFile(folder, "users", USERS))
@@ -688,8 +697,17 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                         .put(FileRolesStore.ROLES_FILE_SETTING.getKey(), writeFile(folder, "roles.yml", ROLES))
                         .put(CryptoService.FILE_SETTING.getKey(), writeFile(folder, "system_key.yml", systemKey))
                         .put("xpack.security.authc.sign_user_header", false)
-                        .put("xpack.security.audit.enabled", auditLogsEnabled)
-                        .build();
+                        .put("xpack.security.audit.enabled", auditLogsEnabled);
+                if (useSecurity3) {
+                    builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME3);
+                    builder.put(NetworkModule.HTTP_TYPE_KEY, Security.NAME3);
+                } else {
+                    // security should always use one of its transports so if it is enabled explicitly declare one otherwise a local
+                    // transport could be used
+                    builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4);
+                    builder.put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4);
+                }
+                return builder.build();
             } catch (IOException ex) {
                 throw new RuntimeException("failed to build settings for security", ex);
             }

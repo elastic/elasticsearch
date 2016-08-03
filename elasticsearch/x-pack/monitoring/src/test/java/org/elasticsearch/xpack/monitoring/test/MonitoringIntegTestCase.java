@@ -11,6 +11,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -79,6 +80,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
      * <p>
      * Control this by overriding {@link #enableSecurity()}, which defaults to enabling it randomly.
      */
+    // TODO: what is going on here?
     // SCARY: This needs to be static or lots of tests randomly fail, but it's not used statically!
     protected static Boolean securityEnabled;
     /**
@@ -123,6 +125,8 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                     .put(super.transportClientSettings())
                     .put("client.transport.sniff", false)
                     .put(Security.USER_SETTING.getKey(), "test:changeme")
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4)
+                    .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4)
                     .build();
         }
         return Settings.builder().put(super.transportClientSettings())
@@ -539,7 +543,9 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                         .put(FileRolesStore.ROLES_FILE_SETTING.getKey(), writeFile(folder, "roles.yml", ROLES))
                         .put(CryptoService.FILE_SETTING.getKey(), writeFile(folder, "system_key.yml", systemKey))
                         .put("xpack.security.authc.sign_user_header", false)
-                        .put("xpack.security.audit.enabled", auditLogsEnabled);
+                        .put("xpack.security.audit.enabled", auditLogsEnabled)
+                        .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4)
+                        .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4);
             } catch (IOException ex) {
                 throw new RuntimeException("failed to build settings for security", ex);
             }

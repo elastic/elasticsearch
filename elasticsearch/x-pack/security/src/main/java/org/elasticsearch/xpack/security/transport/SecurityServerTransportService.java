@@ -28,6 +28,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -110,7 +111,7 @@ public class SecurityServerTransportService extends TransportService {
     }
 
     protected Map<String, ServerTransportFilter> initializeProfileFilters() {
-        if (!(transport instanceof SecurityNetty3Transport)) {
+        if ((transport instanceof SecurityNetty3Transport) == false && (transport instanceof SecurityNetty4Transport) == false) {
             return Collections.<String, ServerTransportFilter>singletonMap(TransportSettings.DEFAULT_PROFILE,
                     new ServerTransportFilter.NodeProfile(authcService, authzService, actionMapper, threadPool.getThreadContext(), false));
         }

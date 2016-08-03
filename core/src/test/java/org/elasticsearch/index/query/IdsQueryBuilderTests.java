@@ -98,14 +98,14 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
             new IdsQueryBuilder((String[])null);
             fail("must be not null");
         } catch(IllegalArgumentException e) {
-            //all good
+            assertEquals("[ids] types cannot be null", e.getMessage());
         }
 
         try {
             new IdsQueryBuilder().addIds((String[])null);
             fail("must be not null");
         } catch(IllegalArgumentException e) {
-            //all good
+            assertEquals("[ids] ids cannot be null", e.getMessage());
         }
     }
 

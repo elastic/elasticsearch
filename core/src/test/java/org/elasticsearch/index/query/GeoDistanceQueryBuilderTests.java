@@ -23,6 +23,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.search.GeoPointDistanceQuery;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -473,5 +474,25 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         failingQueryBuilder.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(shardContext));
         assertThat(e.getMessage(), containsString("failed to find geo_point field [unmapped]"));
+    }
+
+    public void testParseFailsWithMultipleFields() throws IOException {
+        String json = "{\n" +
+                "  \"geo_distance\" : {\n" +
+                "    \"point1\" : {\n" +
+                "      \"lat\" : 30, \"lon\" : 12\n" +
+                "    },\n" +
+                "    \"point2\" : {\n" +
+                "      \"lat\" : 30, \"lon\" : 12\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+
+        try {
+            parseQuery(json);
+            fail("parseQuery should have failed");
+        } catch(ParsingException e) {
+            assertEquals("[geo_distance] query doesn't support multiple fields, found [point1] and [point2]", e.getMessage());
+        }
     }
 }

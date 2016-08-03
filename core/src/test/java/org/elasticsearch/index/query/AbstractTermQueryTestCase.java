@@ -38,14 +38,14 @@ public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<
             }
             fail("fieldname cannot be null or empty");
         } catch (IllegalArgumentException e) {
-            // expected
+            assertEquals("field name is null or empty", e.getMessage());
         }
 
         try {
             createQueryBuilder("field", null);
             fail("value cannot be null or empty");
         } catch (IllegalArgumentException e) {
-            // expected
+            assertEquals("value cannot be null", e.getMessage());
         }
     }
 

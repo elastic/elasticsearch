@@ -316,7 +316,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
                 // OK!
                 result = Store.MetadataSnapshot.EMPTY;
             } catch (IOException e) {
-                logger.warn("{} failed read store, treating as empty", e);
+                logger.warn("failed read store, treating as empty", e);
                 result = Store.MetadataSnapshot.EMPTY;
             }
             return result;

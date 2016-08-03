@@ -133,6 +133,9 @@ public class PathTrie<T> {
             return namedWildcard != null;
         }
 
+        /**
+         * Retrieve both explicitly mapped and wildcard nodes.
+         */
         public T retrieve(String[] path, int index, Map<String, String> params) {
             if (index >= path.length)
                 return null;
@@ -147,8 +150,10 @@ public class PathTrie<T> {
                 }
                 usedWildcard = true;
             } else {
-                // If we are at the end of the path, the current node does not have a value but there
-                // is a child wildcard node, use the child wildcard node
+                /*
+                 * If we are at the end of the path, the current node does not have a value but
+                 * there is a child wildcard node, use the child wildcard node.
+                 */
                 if (index + 1 == path.length && node.value == null && children.get(wildcard) != null) {
                     node = children.get(wildcard);
                     usedWildcard = true;
@@ -173,6 +178,33 @@ public class PathTrie<T> {
             }
 
             return res;
+        }
+
+        /**
+         * Retrive only explicitly mapped nodes (ie. wildcards are only allowed
+         * as leaf nodes).
+         */
+        public T retrieveExplicit(String[] path, int index, Map<String, String> params) {
+            if (index >= path.length)
+                return null;
+
+            String token = path[index];
+            TrieNode node = children.get(token);
+            if (node == null) {
+                return null;
+            } else {
+                if (index + 1 == path.length && node.value == null && children.get(wildcard) != null) {
+                    node = children.get(wildcard);
+                }
+            }
+
+            put(params, node, token);
+
+            if (index == (path.length - 1)) {
+                return node.value;
+            }
+
+            return node.retrieveExplicit(path, index + 1, params);
         }
 
         private void put(Map<String, String> params, TrieNode node, String value) {
@@ -202,10 +234,14 @@ public class PathTrie<T> {
     }
 
     public T retrieve(String path) {
-        return retrieve(path, null);
+        return retrieve(path, null, false);
     }
 
     public T retrieve(String path, Map<String, String> params) {
+        return retrieve(path, params, false);
+    }
+
+    public T retrieve(String path, Map<String, String> params, boolean ignoreWildcards) {
         if (path.length() == 0) {
             return rootValue;
         }
@@ -218,6 +254,10 @@ public class PathTrie<T> {
         if (strings.length > 0 && strings[0].isEmpty()) {
             index = 1;
         }
-        return root.retrieve(strings, index, params);
+        if (ignoreWildcards == true) {
+            return root.retrieveExplicit(strings, index, params);
+        } else {
+            return root.retrieve(strings, index, params);
+        }
     }
 }

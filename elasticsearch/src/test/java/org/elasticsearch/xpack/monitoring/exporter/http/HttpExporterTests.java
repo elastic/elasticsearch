@@ -300,7 +300,7 @@ public class HttpExporterTests extends ESTestCase {
         // expected number of resources
         assertThat(multiResource.getResources().size(), equalTo(version + templates.size() + pipelines.size() + bwc.size()));
         assertThat(version, equalTo(1));
-        assertThat(templates, hasSize(3));
+        assertThat(templates, hasSize(4));
         assertThat(pipelines, hasSize(useIngest ? 1 : 0));
         assertThat(bwc, hasSize(1));
 

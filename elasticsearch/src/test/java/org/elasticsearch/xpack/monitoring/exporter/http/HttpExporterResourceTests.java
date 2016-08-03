@@ -37,7 +37,7 @@ import static org.mockito.Mockito.when;
  */
 public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTestCase {
 
-    private final int EXPECTED_TEMPLATES = 3;
+    private final int EXPECTED_TEMPLATES = 4;
 
     private final RestClient client = mock(RestClient.class);
     private final Response versionResponse = mock(Response.class);

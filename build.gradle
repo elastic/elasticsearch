@@ -32,10 +32,13 @@ subprojects {
 
 task bundlePack(type: Zip) {
   onlyIf { project('kibana').bundlePlugin.enabled }
+  onlyIf { project('logstash').bundlePlugin.enabled }
   dependsOn 'elasticsearch:bundlePlugin'
   dependsOn 'kibana:bundlePlugin'
+  dependsOn 'logstash:bundlePlugin'
   from { zipTree(project('elasticsearch').bundlePlugin.outputs.files.singleFile) }
   from { zipTree(project('kibana').bundlePlugin.outputs.files.singleFile) }
+  from { zipTree(project('logstash').bundlePlugin.outputs.files.singleFile) }
   destinationDir file('build/distributions')
   baseName = 'x-pack'
   version = VersionProperties.elasticsearch

@@ -18,6 +18,9 @@
     },
     "node": {
       "enabled": false
+    },
+    "logstash": {
+      "enabled": false
     }
   }
 }

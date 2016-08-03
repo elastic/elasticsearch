@@ -34,6 +34,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.shard.ShardStateMetaData;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.OldIndexUtils;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -175,7 +176,7 @@ public class MultiDataPathUpgraderTests extends ESTestCase {
                 multiDataPath[i++] = nodePath.indicesPath;
             }
             logger.info("--> injecting index [{}] into multiple data paths", indexName);
-            OldIndexBackwardsCompatibilityIT.copyIndex(logger, src, indexName, multiDataPath);
+            OldIndexUtils.copyIndex(logger, src, indexName, multiDataPath);
             final ShardPath shardPath = new ShardPath(false, nodeEnvironment.availableShardPaths(new ShardId(indexName, 0))[0], nodeEnvironment.availableShardPaths(new ShardId(indexName, 0))[0], IndexMetaData.INDEX_UUID_NA_VALUE, new ShardId(indexName, 0));
 
             logger.info("{}", FileSystemUtils.files(shardPath.resolveIndex()));

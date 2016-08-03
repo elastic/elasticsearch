@@ -37,7 +37,7 @@ public class OffsetRoundingTests extends ESTestCase {
         final long interval = 10;
         final long offset = 7;
         Rounding.OffsetRounding rounding = new Rounding.OffsetRounding(
-                new TimeZoneRounding.TimeIntervalRounding(interval, DateTimeZone.UTC), offset);
+                new Rounding.TimeIntervalRounding(interval, DateTimeZone.UTC), offset);
         assertEquals(-3, rounding.round(6));
         assertEquals(7, rounding.nextRoundingValue(-3));
         assertEquals(7, rounding.round(7));
@@ -53,7 +53,7 @@ public class OffsetRoundingTests extends ESTestCase {
     public void testOffsetRoundingRandom() {
         for (int i = 0; i < 1000; ++i) {
             final long interval = randomIntBetween(1, 100);
-            Rounding internalRounding = new TimeZoneRounding.TimeIntervalRounding(interval, DateTimeZone.UTC);
+            Rounding internalRounding = new Rounding.TimeIntervalRounding(interval, DateTimeZone.UTC);
             final long offset = randomIntBetween(-100, 100);
             Rounding.OffsetRounding rounding = new Rounding.OffsetRounding(internalRounding, offset);
             long safetyMargin = Math.abs(interval) + Math.abs(offset); // to prevent range overflow

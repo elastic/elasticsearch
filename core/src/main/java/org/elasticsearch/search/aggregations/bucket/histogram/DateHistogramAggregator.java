@@ -24,7 +24,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.rounding.Rounding;
-import org.elasticsearch.common.rounding.TimeZoneRounding;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -45,8 +44,9 @@ import java.util.Map;
 
 /**
  * An aggregator for date values. Every date is rounded down using a configured
- * {@link TimeZoneRounding}.
- * @see TimeZoneRounding
+ * {@link Rounding}.
+ * 
+ * @see Rounding
  */
 class DateHistogramAggregator extends BucketsAggregator {
 

@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
-import org.elasticsearch.common.rounding.TimeZoneRounding;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -95,19 +94,19 @@ public final class DateHistogramAggregatorFactory
     }
 
     private Rounding createRounding() {
-        TimeZoneRounding.Builder tzRoundingBuilder;
+        Rounding.Builder tzRoundingBuilder;
         if (dateHistogramInterval != null) {
             DateTimeUnit dateTimeUnit = DATE_FIELD_UNITS.get(dateHistogramInterval.toString());
             if (dateTimeUnit != null) {
-                tzRoundingBuilder = TimeZoneRounding.builder(dateTimeUnit);
+                tzRoundingBuilder = Rounding.builder(dateTimeUnit);
             } else {
                 // the interval is a time value?
-                tzRoundingBuilder = TimeZoneRounding.builder(
+                tzRoundingBuilder = Rounding.builder(
                         TimeValue.parseTimeValue(dateHistogramInterval.toString(), null, getClass().getSimpleName() + ".interval"));
             }
         } else {
             // the interval is an integer time value in millis?
-            tzRoundingBuilder = TimeZoneRounding.builder(TimeValue.timeValueMillis(interval));
+            tzRoundingBuilder = Rounding.builder(TimeValue.timeValueMillis(interval));
         }
         if (timeZone() != null) {
             tzRoundingBuilder.timeZone(timeZone());

@@ -29,6 +29,7 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -40,7 +41,9 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -116,6 +119,19 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             matchQuery.cutoffFrequency((float) 10 / randomIntBetween(1, 100));
         }
         return matchQuery;
+    }
+
+    @Override
+    protected Map<String, MatchQueryBuilder> getAlternateVersions() {
+        Map<String, MatchQueryBuilder> alternateVersions = new HashMap<>();
+        MatchQueryBuilder matchQuery = new MatchQueryBuilder(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+        String contentString = "{\n" +
+                "    \"match\" : {\n" +
+                "        \"" + matchQuery.fieldName() + "\" : \"" + matchQuery.value() + "\"\n" +
+                "    }\n" +
+                "}";
+        alternateVersions.put(contentString, matchQuery);
+        return alternateVersions;
     }
 
     @Override
@@ -405,5 +421,25 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 e.getMessage());
         query.lenient(true);
         query.toQuery(context); // no exception
+    }
+
+    public void testParseFailsWithMultipleFields() throws IOException {
+        String json = "{\n" +
+                "  \"match\" : {\n" +
+                "    \"message1\" : {\n" +
+                "      \"query\" : \"this is a test\"\n" +
+                "    },\n" +
+                "    \"message2\" : {\n" +
+                "      \"query\" : \"this is a test\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+
+        try {
+            parseQuery(json);
+            fail("parseQuery should have failed");
+        } catch(ParsingException e) {
+            assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+        }
     }
 }

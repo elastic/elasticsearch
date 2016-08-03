@@ -65,6 +65,7 @@ public class QuerySpecTests extends ESTestCase {
         aggsParsers = null;
     }
 
+    // TODO add some sort of roundtrip testing like we have now for queries?
     public void testParseFromXContent() throws IOException {
         String querySpecString = " {\n"
          + "   \"id\": \"my_qa_query\",\n"

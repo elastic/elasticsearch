@@ -92,6 +92,9 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             String[] indices = new String[spec.getIndices().size()];
             spec.getIndices().toArray(indices);
             SearchRequest templatedRequest = new SearchRequest(indices, specRequest);
+            String[] types = new String[spec.getTypes().size()];
+            spec.getTypes().toArray(types);
+            templatedRequest.types(types);
 
             TransportSearchAction transportSearchAction = new TransportSearchAction(settings, threadPool, searchPhaseController,
                     transportService, searchTransportService, clusterService, actionFilters, indexNameExpressionResolver);
@@ -103,6 +106,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             unknownDocs.put(spec.getSpecId(), intentQuality.getUnknownDocs());
         }
         RankEvalResponse response = new RankEvalResponse();
+        // TODO move averaging to actual metric, also add other statistics
         RankEvalResult result = new RankEvalResult(qualityTask.getTaskId(), qualitySum / specifications.size(), unknownDocs);
         response.setRankEvalResult(result);
         listener.onResponse(response);

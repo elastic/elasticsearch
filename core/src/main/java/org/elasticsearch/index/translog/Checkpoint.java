@@ -18,16 +18,18 @@
  */
 package org.elasticsearch.index.translog;
 
-import org.apache.lucene.store.ByteArrayDataOutput;
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
-import org.apache.lucene.store.InputStreamDataInput;
-import org.elasticsearch.common.io.Channels;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.OutputStreamIndexOutput;
+import org.apache.lucene.store.SimpleFSDirectory;
 
 import java.io.IOException;
-import java.io.InputStream;
+import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
-import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 
@@ -35,30 +37,21 @@ import java.nio.file.Path;
  */
 class Checkpoint {
 
-   static final int BUFFER_SIZE = Integer.BYTES  // ops
-            + Long.BYTES // offset
-            + Long.BYTES;// generation
+    static final int BUFFER_SIZE = Integer.BYTES  // ops
+        + Long.BYTES // offset
+        + Long.BYTES;// generation
     final long offset;
     final int numOps;
     final long generation;
+
+    private static final int INITIAL_VERSION = 1; // start with 1, just to recognize there was some magic serialization logic before
+
+    private static final String CHECKPOINT_CODEC = "ckp";
 
     Checkpoint(long offset, int numOps, long generation) {
         this.offset = offset;
         this.numOps = numOps;
         this.generation = generation;
-    }
-
-    Checkpoint(DataInput in) throws IOException {
-        offset = in.readLong();
-        numOps = in.readInt();
-        generation = in.readLong();
-    }
-
-    private void write(FileChannel channel) throws IOException {
-        byte[] buffer = new byte[BUFFER_SIZE];
-        final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
-        write(out);
-        Channels.writeToChannel(buffer, channel);
     }
 
     void write(DataOutput out) throws IOException {
@@ -67,37 +60,70 @@ class Checkpoint {
         out.writeLong(generation);
     }
 
+    static Checkpoint readChecksummed(DataInput in) throws IOException {
+        return new Checkpoint(in.readLong(), in.readInt(), in.readLong());
+    }
+
+    static Checkpoint readNonChecksummed(DataInput in) throws IOException {
+        return new Checkpoint(in.readLong(), in.readInt(), in.readLong());
+    }
+
     @Override
     public String toString() {
         return "Checkpoint{" +
-                "offset=" + offset +
-                ", numOps=" + numOps +
-                ", translogFileGeneration= " + generation +
-                '}';
+            "offset=" + offset +
+            ", numOps=" + numOps +
+            ", translogFileGeneration= " + generation +
+            '}';
     }
 
     public static Checkpoint read(Path path) throws IOException {
-        try (InputStream in = Files.newInputStream(path)) {
-            return new Checkpoint(new InputStreamDataInput(in));
+        try (Directory dir = new SimpleFSDirectory(path.getParent())) {
+            try (final IndexInput indexInput = dir.openInput(path.getFileName().toString(), IOContext.DEFAULT)) {
+                if (indexInput.length() == 20) {
+                    // OLD unchecksummed file that was written < ES 5.0.0
+                    return Checkpoint.readNonChecksummed(indexInput);
+                }
+                // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
+                CodecUtil.checksumEntireFile(indexInput);
+                final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, INITIAL_VERSION, INITIAL_VERSION);
+                assert fileVersion == INITIAL_VERSION : "trust no one! " + fileVersion;
+                return Checkpoint.readChecksummed(indexInput);
+
+            }
         }
     }
 
     public static void write(ChannelFactory factory, Path checkpointFile, Checkpoint checkpoint, OpenOption... options) throws IOException {
+        final String resourceDesc = "checkpoint(path=\"" + checkpointFile + "\", gen=" + checkpoint + ")";
         try (FileChannel channel = factory.open(checkpointFile, options)) {
-            checkpoint.write(channel);
+            try (OutputStreamIndexOutput out =
+                     new OutputStreamIndexOutput(resourceDesc, checkpointFile.toString(), Channels.newOutputStream(channel), BUFFER_SIZE)) {
+                CodecUtil.writeHeader(out, CHECKPOINT_CODEC, INITIAL_VERSION);
+                checkpoint.write(out);
+                CodecUtil.writeFooter(out);
+            }
             channel.force(false);
         }
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         Checkpoint that = (Checkpoint) o;
 
-        if (offset != that.offset) return false;
-        if (numOps != that.numOps) return false;
+        if (offset != that.offset) {
+            return false;
+        }
+        if (numOps != that.numOps) {
+            return false;
+        }
         return generation == that.generation;
 
     }

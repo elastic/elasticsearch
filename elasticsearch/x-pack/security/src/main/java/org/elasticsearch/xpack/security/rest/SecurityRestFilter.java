@@ -101,7 +101,10 @@ public class SecurityRestFilter extends RestFilter {
                 threadContext.putTransient(PkiRealm.PKI_CERT_HEADER_NAME, certs);
             }
         } catch (SSLPeerUnverifiedException e) {
-            // this happens when we only request client authentication and the client does not provide it
+            // this happens when client authentication is optional and the client does not provide credentials. If client
+            // authentication was required then this connection should be closed before ever getting into this class
+            assert sslEngine.getNeedClientAuth() == false;
+            assert sslEngine.getWantClientAuth();
             if (logger.isTraceEnabled()) {
                 logger.trace("SSL Peer did not present a certificate on channel [{}]", e, channel);
             } else if (logger.isDebugEnabled()) {

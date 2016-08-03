@@ -21,9 +21,12 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.commonTermsQuery;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
@@ -82,6 +85,20 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     }
 
     @Override
+    protected Map<String, CommonTermsQueryBuilder> getAlternateVersions() {
+        Map<String, CommonTermsQueryBuilder> alternateVersions = new HashMap<>();
+        CommonTermsQueryBuilder commonTermsQuery = new CommonTermsQueryBuilder(randomAsciiOfLengthBetween(1, 10),
+                randomAsciiOfLengthBetween(1, 10));
+        String contentString = "{\n" +
+                "    \"common\" : {\n" +
+                "        \"" + commonTermsQuery.fieldName() + "\" : \"" + commonTermsQuery.value() + "\"\n" +
+                "    }\n" +
+                "}";
+        alternateVersions.put(contentString, commonTermsQuery);
+        return alternateVersions;
+    }
+
+    @Override
     protected void doAssertLuceneQuery(CommonTermsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery extendedCommonTermsQuery = (ExtendedCommonTermsQuery) query;
@@ -98,14 +115,14 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
             }
             fail("must be non null");
         } catch (IllegalArgumentException e) {
-            // okay
+            assertEquals("field name is null or empty", e.getMessage());
         }
 
         try {
             new CommonTermsQueryBuilder("fieldName", null);
             fail("must be non null");
         } catch (IllegalArgumentException e) {
-            // okay
+            assertEquals("text cannot be null", e.getMessage());
         }
     }
 
@@ -172,5 +189,25 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
         assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
         assertThat(ectQuery.isCoordDisabled(), equalTo(disableCoord));
+    }
+
+    public void testParseFailsWithMultipleFields() throws IOException {
+        String json = "{\n" +
+                "  \"common\" : {\n" +
+                "    \"message1\" : {\n" +
+                "      \"query\" : \"nelly the elephant not as a cartoon\"\n" +
+                "    },\n" +
+                "    \"message2\" : {\n" +
+                "      \"query\" : \"nelly the elephant not as a cartoon\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+
+        try {
+            parseQuery(json);
+            fail("parseQuery should have failed");
+        } catch(ParsingException e) {
+            assertEquals("[common] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+        }
     }
 }

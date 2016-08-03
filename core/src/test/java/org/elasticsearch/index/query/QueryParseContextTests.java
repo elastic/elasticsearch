@@ -113,7 +113,7 @@ public class QueryParseContextTests extends ESTestCase {
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(source)) {
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
             ParsingException exception = expectThrows(ParsingException.class, () ->  context.parseInnerQueryBuilder());
-            assertEquals("[_na] query malformed, no start_object after query name", exception.getMessage());
+            assertEquals("[foo] query malformed, no start_object after query name", exception.getMessage());
         }
 
         source = "{ \"foo\" : {} }";

@@ -1,0 +1,11 @@
+[[release-notes-2.3.5]]
+== 2.3.5 Release Notes
+
+There are no changes in Elasticsearch 2.3.5 except for the version bump.  This
+is a compatibility release for bug fixes in Marvel, Watcher, and Shield.
+
+Also see <<breaking-changes-2.3>>.
+
+
+
+

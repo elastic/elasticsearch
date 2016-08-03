@@ -149,4 +149,24 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
                 e.getMessage());
     }
+
+    public void testParseFailsWithMultipleFields() throws IOException {
+        String json = "{\n" +
+                "  \"term\" : {\n" +
+                "    \"message1\" : {\n" +
+                "      \"value\" : \"this\"\n" +
+                "    },\n" +
+                "    \"message2\" : {\n" +
+                "      \"value\" : \"this\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+
+        try {
+            parseQuery(json);
+            fail("parseQuery should have failed");
+        } catch(ParsingException e) {
+            assertEquals("[term] query does not support different field names, use [bool] query instead", e.getMessage());
+        }
+    }
 }

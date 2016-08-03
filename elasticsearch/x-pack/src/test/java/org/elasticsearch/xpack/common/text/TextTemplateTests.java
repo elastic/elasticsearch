@@ -47,7 +47,7 @@ public class TextTemplateTests extends ESTestCase {
     public void init() throws Exception {
         service = mock(ScriptService.class);
         script = mock(ExecutableScript.class);
-        engine = new DefaultTextTemplateEngine(Settings.EMPTY, service);
+        engine = new TextTemplateEngine(Settings.EMPTY, service);
     }
 
     public void testRender() throws Exception {

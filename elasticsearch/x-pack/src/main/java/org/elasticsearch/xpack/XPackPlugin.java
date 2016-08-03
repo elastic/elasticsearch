@@ -27,13 +27,13 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -62,7 +62,7 @@ import org.elasticsearch.xpack.common.http.auth.HttpAuthFactory;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
-import org.elasticsearch.xpack.common.text.TextTemplateModule;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
 import org.elasticsearch.xpack.graph.Graph;
@@ -70,9 +70,17 @@ import org.elasticsearch.xpack.graph.GraphFeatureSet;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringFeatureSet;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.notification.Notification;
 import org.elasticsearch.xpack.notification.email.Account;
+import org.elasticsearch.xpack.notification.email.EmailService;
+import org.elasticsearch.xpack.notification.email.attachment.DataAttachmentParser;
+import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentParser;
+import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentsParser;
+import org.elasticsearch.xpack.notification.email.attachment.HttpEmailAttachementParser;
 import org.elasticsearch.xpack.notification.email.support.BodyPartSource;
+import org.elasticsearch.xpack.notification.hipchat.HipChatService;
+import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
+import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
+import org.elasticsearch.xpack.notification.slack.SlackService;
 import org.elasticsearch.xpack.rest.action.RestXPackInfoAction;
 import org.elasticsearch.xpack.rest.action.RestXPackUsageAction;
 import org.elasticsearch.xpack.security.InternalClient;
@@ -137,7 +145,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     protected Monitoring monitoring;
     protected Watcher watcher;
     protected Graph graph;
-    protected Notification notification;
 
     public XPackPlugin(Settings settings) throws IOException {
         this.settings = settings;
@@ -150,7 +157,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         this.monitoring = new Monitoring(settings, env, licenseState);
         this.watcher = new Watcher(settings);
         this.graph = new Graph(settings);
-        this.notification = new Notification(settings);
         // Check if the node is a transport client.
         if (transportClientMode == false) {
             this.extensionsService = new XPackExtensionsService(settings, resolveXPackExtensionsFile(env), getExtensions());
@@ -173,15 +179,12 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     public Collection<Module> createGuiceModules() {
         ArrayList<Module> modules = new ArrayList<>();
         modules.add(b -> b.bind(Clock.class).toInstance(getClock()));
-        modules.addAll(notification.nodeModules());
         modules.addAll(security.nodeModules());
         modules.addAll(watcher.nodeModules());
         modules.addAll(monitoring.nodeModules());
         modules.addAll(graph.createGuiceModules());
 
-        if (transportClientMode == false) {
-            modules.add(new TextTemplateModule());
-        } else {
+        if (transportClientMode) {
             modules.add(b -> b.bind(XPackLicenseState.class).toProvider(Providers.of(null)));
         }
         return modules;
@@ -208,8 +211,31 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         httpAuthFactories.put(BasicAuth.TYPE, new BasicAuthFactory(security.getCryptoService()));
         // TODO: add more auth types, or remove this indirection
         HttpAuthRegistry httpAuthRegistry = new HttpAuthRegistry(httpAuthFactories);
-        components.add(new HttpRequestTemplate.Parser(httpAuthRegistry));
-        components.add(new HttpClient(settings, httpAuthRegistry, env));
+        HttpRequestTemplate.Parser httpTemplateParser = new HttpRequestTemplate.Parser(httpAuthRegistry);
+        components.add(httpTemplateParser);
+        final HttpClient httpClient = new HttpClient(settings, httpAuthRegistry, env);
+        components.add(httpClient);
+
+        components.addAll(createNotificationComponents(clusterService.getClusterSettings(), httpClient,
+            httpTemplateParser, scriptService));
+
+        return components;
+    }
+
+    private Collection<Object> createNotificationComponents(ClusterSettings clusterSettings, HttpClient httpClient,
+                                                            HttpRequestTemplate.Parser httpTemplateParser, ScriptService scriptService) {
+        List<Object> components = new ArrayList<>();
+        components.add(new EmailService(settings, security.getCryptoService(), clusterSettings));
+        components.add(new HipChatService(settings, httpClient, clusterSettings));
+        components.add(new SlackService(settings, httpClient, clusterSettings));
+        components.add(new PagerDutyService(settings, httpClient, clusterSettings));
+
+        TextTemplateEngine textTemplateEngine = new TextTemplateEngine(settings, scriptService);
+        components.add(textTemplateEngine);
+        Map<String, EmailAttachmentParser> parsers = new HashMap<>();
+        parsers.put(HttpEmailAttachementParser.TYPE, new HttpEmailAttachementParser(httpClient, httpTemplateParser, textTemplateEngine));
+        parsers.put(DataAttachmentParser.TYPE, new DataAttachmentParser());
+        components.add(new EmailAttachmentsParser(parsers));
 
         return components;
     }
@@ -245,7 +271,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     @Override
     public List<Setting<?>> getSettings() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
-        settings.addAll(notification.getSettings());
         settings.addAll(security.getSettings());
         settings.addAll(MonitoringSettings.getSettings());
         settings.addAll(watcher.getSettings());
@@ -253,6 +278,12 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         settings.addAll(licensing.getSettings());
         // we add the `xpack.version` setting to all internal indices
         settings.add(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
+
+        // notification services
+        settings.add(SlackService.SLACK_ACCOUNT_SETTING);
+        settings.add(EmailService.EMAIL_ACCOUNT_SETTING);
+        settings.add(HipChatService.HIPCHAT_ACCOUNT_SETTING);
+        settings.add(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING);
 
         // http settings
         settings.add(Setting.simpleString("xpack.http.default_read_timeout", Setting.Property.NodeScope));
@@ -265,7 +296,12 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     @Override
     public List<String> getSettingsFilter() {
         List<String> filters = new ArrayList<>();
-        filters.addAll(notification.getSettingsFilter());
+        filters.add("xpack.notification.email.account.*.smtp.password");
+        filters.add("xpack.notification.slack.account.*.url");
+        filters.add("xpack.notification.pagerduty.account.*.url");
+        filters.add("xpack.notification.pagerduty." + PagerDutyAccount.SERVICE_KEY_SETTING);
+        filters.add("xpack.notification.pagerduty.account.*." + PagerDutyAccount.SERVICE_KEY_SETTING);
+        filters.add("xpack.notification.hipchat.account.*.auth_token");
         filters.addAll(security.getSettingsFilter());
         filters.addAll(MonitoringSettings.getSettingsFilter());
         return filters;
@@ -334,6 +370,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     public void onIndexModule(IndexModule module) {
         security.onIndexModule(module);
     }
+
+
 
     public static void bindFeatureSet(Binder binder, Class<? extends XPackFeatureSet> featureSet) {
         binder.bind(featureSet).asEagerSingleton();

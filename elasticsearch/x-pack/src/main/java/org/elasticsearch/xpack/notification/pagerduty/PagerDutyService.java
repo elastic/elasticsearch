@@ -23,7 +23,6 @@ public class PagerDutyService extends AbstractComponent {
     private final HttpClient httpClient;
     private volatile PagerDutyAccounts accounts;
 
-    @Inject
     public PagerDutyService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
         super(settings);
         this.httpClient = httpClient;

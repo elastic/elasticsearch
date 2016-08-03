@@ -22,7 +22,6 @@ public class SlackService extends AbstractComponent {
         Setting.groupSetting("xpack.notification.slack.", Setting.Property.Dynamic, Setting.Property.NodeScope);
     private volatile SlackAccounts accounts;
 
-    @Inject
     public SlackService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
         super(settings);
         this.httpClient = httpClient;

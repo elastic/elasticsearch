@@ -17,9 +17,8 @@ import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.common.text.DefaultTextTemplateEngine;
-import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -52,7 +51,7 @@ public class WatcherTemplateIT extends ESTestCase {
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, registry);
         ScriptService scriptService = new ScriptService(setting, environment, resourceWatcherService, scriptEngineRegistry,
                 registry, scriptSettings);
-        engine = new DefaultTextTemplateEngine(Settings.EMPTY, scriptService);
+        engine = new TextTemplateEngine(Settings.EMPTY, scriptService);
     }
 
     public void testEscaping() throws Exception {

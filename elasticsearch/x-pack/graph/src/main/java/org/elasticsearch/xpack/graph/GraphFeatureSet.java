@@ -5,15 +5,14 @@
  */
 package org.elasticsearch.xpack.graph;
 
+import java.io.IOException;
+
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackFeatureSet;
-
-import java.io.IOException;
 
 /**
  *
@@ -24,10 +23,9 @@ public class GraphFeatureSet implements XPackFeatureSet {
     private final XPackLicenseState licenseState;
 
     @Inject
-    public GraphFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, NamedWriteableRegistry namedWriteableRegistry) {
+    public GraphFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState) {
         this.enabled = Graph.enabled(settings);
         this.licenseState = licenseState;
-        namedWriteableRegistry.register(Usage.class, Usage.writeableName(Graph.NAME), Usage::new);
     }
 
     @Override
@@ -55,7 +53,7 @@ public class GraphFeatureSet implements XPackFeatureSet {
         return new Usage(available(), enabled());
     }
 
-    static class Usage extends XPackFeatureSet.Usage {
+    public static class Usage extends XPackFeatureSet.Usage {
 
         public Usage(StreamInput input) throws IOException {
             super(input);

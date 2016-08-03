@@ -347,13 +347,16 @@ public class Security implements ActionPlugin, IngestPlugin {
         return additionalSettings(settings);
     }
 
-    @SuppressWarnings("StatementWithEmptyBody")
     // visible for tests
     static Settings additionalSettings(Settings settings) {
         final Settings.Builder settingsBuilder = Settings.builder();
 
         if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
-            // for symmetry with http.type
+            final String transportType = NetworkModule.TRANSPORT_TYPE_SETTING.get(settings);
+            if (NAME3.equals(transportType) == false && NAME4.equals(transportType) == false) {
+                throw new IllegalArgumentException("transport type setting [" + NetworkModule.TRANSPORT_TYPE_KEY + "] must be one of [" +
+                        NAME3 + "," + NAME4 + "]");
+            }
         } else {
             // default to security4
             settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, NAME4);
@@ -365,6 +368,9 @@ public class Security implements ActionPlugin, IngestPlugin {
                 SecurityNetty3HttpServerTransport.overrideSettings(settingsBuilder, settings);
             } else if (httpType.equals(NAME4)) {
                 SecurityNetty4HttpServerTransport.overrideSettings(settingsBuilder, settings);
+            } else {
+                throw new IllegalArgumentException("http type setting [" + NetworkModule.HTTP_TYPE_KEY + "] must be one of [" +
+                        NAME3 + "," + NAME4 + "]");
             }
         } else {
             // default to security4

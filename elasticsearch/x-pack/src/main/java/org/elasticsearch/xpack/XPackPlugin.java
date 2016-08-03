@@ -181,13 +181,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     }
 
     @Override
-    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
-        ArrayList<Class<? extends LifecycleComponent>> services = new ArrayList<>();
-        services.addAll(notification.nodeServices());
-        return services;
-    }
-
-    @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService) {
         List<Object> components = new ArrayList<>();

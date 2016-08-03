@@ -352,4 +352,17 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         Map<String, Object> f = (Map<String, Object>) properties.get("f");
         assertEquals("n/a", f.get("null_value"));
     }
+
+    public void testDotsInFieldNames() throws IOException {
+        assertAcked(prepareCreate("index").addMapping("type", "a.b", "type=keyword"));
+        GetMappingsResponse mappings = client().admin().indices().prepareGetMappings("index").setTypes("type").get();
+        MappingMetaData typeMapping = mappings.getMappings().get("index").get("type").get();
+        Map<String, Object> properties = (Map<String, Object>) typeMapping.sourceAsMap().get("properties");
+        Map<String, Object> a = (Map<String, Object>) properties.get("a");
+        assertNotNull(a);
+        properties = (Map<String, Object>) a.get("properties");
+        Map<String, Object> b = (Map<String, Object>) properties.get("b");
+        assertNotNull(b);
+        assertEquals("keyword", b.get("type"));
+    }
 }

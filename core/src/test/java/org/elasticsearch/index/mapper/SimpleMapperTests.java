@@ -17,12 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.simple;
+package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
@@ -35,6 +36,8 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
@@ -73,7 +76,8 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
 
     public void testSimpleParser() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/simple/test-mapping.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
+                .parse("person", new CompressedXContent(mapping));
 
         assertThat((String) docMapper.meta().get("param1"), equalTo("value1"));
 
@@ -85,7 +89,8 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
 
     public void testSimpleParserNoTypeNoId() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/simple/test-mapping.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser()
+                .parse("person", new CompressedXContent(mapping));
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1-notype-noid.json"));
         Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
         assertThat(doc.get(docMapper.uidMapper().fieldType().name()), equalTo(Uid.createUid("person", "1")));
@@ -123,11 +128,14 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
     public void testHazardousFieldNames() throws Exception {
         IndexService indexService = createIndex("test");
         DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-            .startObject("foo.bar").field("type", "text").endObject()
-            .endObject().endObject().endObject().string();
+        Map<String, Object> mapping = new HashMap<>();
+        Map<String, Object> properties = new HashMap<>();
+        mapping.put("properties", properties);
+        Map<String, Object> fieldMapping = new HashMap<>();
+        properties.put("a.b", fieldMapping);
+        fieldMapping.put("type", "text");
         try {
-            mapperParser.parse("type", new CompressedXContent(mapping));
+            mapperParser.parse("type", mapping, null);
             fail("Mapping parse should have failed");
         } catch (MapperParsingException e) {
             assertTrue(e.getMessage(), e.getMessage().contains("cannot contain '.'"));

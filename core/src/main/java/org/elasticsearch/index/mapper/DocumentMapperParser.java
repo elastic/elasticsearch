@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -35,14 +34,19 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.unmodifiableMap;
 
 public class DocumentMapperParser {
+
+    private static final String PROPERTIES_KEY = "properties";
 
     final MapperService mapperService;
     final AnalysisService analysisService;
@@ -93,7 +97,7 @@ public class DocumentMapperParser {
     }
 
     @SuppressWarnings({"unchecked"})
-    private DocumentMapper parse(String type, Map<String, Object> mapping, String defaultSource) throws MapperParsingException {
+    DocumentMapper parse(String type, Map<String, Object> mapping, String defaultSource) throws MapperParsingException {
         if (type == null) {
             throw new MapperParsingException("Failed to derive type");
         }
@@ -172,13 +176,121 @@ public class DocumentMapperParser {
             // if we don't have any keys throw an exception
             throw new MapperParsingException("malformed mapping no root object found");
         }
+        String actualType;
+        Map<String, Object> mapping;
+
         String rootName = root.keySet().iterator().next();
-        Tuple<String, Map<String, Object>> mapping;
         if (type == null || type.equals(rootName)) {
-            mapping = new Tuple<>(rootName, (Map<String, Object>) root.get(rootName));
+            actualType = rootName;
+            mapping = (Map<String, Object>) root.get(rootName);
         } else {
-            mapping = new Tuple<>(type, root);
+            actualType = type;
+            mapping = root;
         }
-        return mapping;
+
+        mapping = removeDotsInFieldNames(mapping);
+        return new Tuple<>(actualType, mapping);
+    }
+
+    static Map<String,Object> removeDotsInFieldNames(Map<String, ?> mapping) {
+        Map<String, Object> result = new HashMap<>(mapping);
+        Object propertiesObject = result.get(PROPERTIES_KEY);
+        if (propertiesObject instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, ?> properties = (Map<String, ?>) propertiesObject;
+            properties = removeDotsInFieldNamesFromProperties(properties);
+            result.put(PROPERTIES_KEY, properties);
+        }
+        return result;
+    }
+
+    /**
+     * Called when we are right under a `properties` object.
+     */
+    private static Map<String,Object> removeDotsInFieldNamesFromProperties(Map<String, ?> mapping) {
+        List<Map.Entry<String, ?>> fieldsWithDotsInFieldNames = new ArrayList<>();
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        for (Map.Entry<String, ?> entry : mapping.entrySet()) {
+            final String fieldName = entry.getKey();
+            if (fieldName.contains(".")) {
+                fieldsWithDotsInFieldNames.add(entry);
+            } else {
+                Object fieldMapping = entry.getValue();
+                if (fieldMapping instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> fieldMappingAsMap = (Map<String, Object>) fieldMapping;
+                    if (fieldMappingAsMap.containsKey(PROPERTIES_KEY)) {
+                        final Object propertiesObject = fieldMappingAsMap.get(PROPERTIES_KEY);
+                        if (propertiesObject instanceof Map) {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> properties = (Map<String, Object>) propertiesObject;
+                            properties = removeDotsInFieldNamesFromProperties(properties);
+                            fieldMappingAsMap = new HashMap<>(fieldMappingAsMap);
+                            fieldMappingAsMap.put(PROPERTIES_KEY, properties);
+                            fieldMapping = fieldMappingAsMap;
+                        }
+                    }
+                }
+                result.put(fieldName, fieldMapping);
+            }
+        }
+
+        for (Map.Entry<String, ?> entry : fieldsWithDotsInFieldNames) {
+            final String fieldName = entry.getKey();
+            final Object fieldMapping = entry.getValue();
+            final String[] splits = fieldName.split("\\.");
+            assert splits.length > 1;
+
+            Map<String, Object> innerMapping = result;
+            for (int i = 0; i < splits.length - 1; ++i) {
+                innerMapping = addObjectMapping(innerMapping, splits[i], fieldName);
+            }
+            if (innerMapping.containsKey(splits[splits.length - 1])) {
+                throw new IllegalArgumentException("Mapping contains two definitions for field [" + fieldName + "]");
+            }
+            innerMapping.put(splits[splits.length - 1], fieldMapping);
+        }
+
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> addObjectMapping(Map<String, Object> mapping, String name, String fullName) {
+        Object fieldMapping = mapping.get(name);
+        Map<String, Object> objectMapping;
+        if (fieldMapping == null) {
+            // no mapping for the current name yet, let's add it
+            Map<String, Object> properties = new HashMap<>();
+            objectMapping = new HashMap<>();
+            objectMapping.put(PROPERTIES_KEY, properties);
+            mapping.put(name, objectMapping);
+            return properties;
+        } else if (fieldMapping instanceof Map) {
+            objectMapping = (Map<String, Object>) fieldMapping;
+        } else {
+            throw new IllegalArgumentException("Expected an object for mapping definition of field ["
+                    + name + "] but got [" + fieldMapping + "]");
+        }
+
+        final Object type = objectMapping.get("type");
+        if (type != null && type.equals("object") == false) {
+            throw new IllegalArgumentException("Need to create an object mapping called [" + name
+                    + "] for field [" + fullName + "] but this field already exists and is a [" + type + "]");
+        }
+
+        Object propertiesObject = objectMapping.get(PROPERTIES_KEY);
+        Map<String, Object> properties;
+        if (propertiesObject == null) {
+            properties = new HashMap<>();
+            objectMapping.put(PROPERTIES_KEY, properties);
+        } else if (propertiesObject instanceof Map) {
+            properties = (Map<String, Object>) propertiesObject;
+        } else {
+            throw new IllegalArgumentException("Expected an object for properties of object ["
+                    + name + "] but got [" + propertiesObject + "]");
+        }
+
+        return properties;
     }
 }

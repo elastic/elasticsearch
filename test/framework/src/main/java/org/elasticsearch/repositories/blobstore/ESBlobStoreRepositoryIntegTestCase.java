@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
@@ -172,8 +171,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
 
         logger.info("-->  creating repository");
         final String repoName = "test-repo";
-        assertAcked(client.admin().cluster().preparePutRepository(repoName)
-                        .setType("fs").setSettings(Settings.builder().put("location", randomRepoPath())));
+        createTestRepository(repoName);
 
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();
@@ -205,24 +203,17 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
                                      .get();
         assertEquals(createSnapshotResponse.getSnapshotInfo().successfulShards(), createSnapshotResponse.getSnapshotInfo().totalShards());
 
-        logger.info("--> verify index directories exist in the repository");
+        logger.info("--> delete a snapshot");
+        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, "test-snap").get());
+
+        logger.info("--> verify index folder deleted from blob container");
         RepositoriesService repositoriesSvc = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
         @SuppressWarnings("unchecked") BlobStoreRepository repository = (BlobStoreRepository) repositoriesSvc.repository(repoName);
         BlobContainer indicesBlobContainer = repository.blobStore().blobContainer(repository.basePath().add("indices"));
         RepositoryData repositoryData = repository.getRepositoryData();
         for (IndexId indexId : repositoryData.getIndices().values()) {
-            assertTrue(indicesBlobContainer.blobExists(indexId.getId()));
-        }
-
-        logger.info("--> delete first snapshot");
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, "test-snap").get());
-
-        logger.info("--> verify index folder deleted from blob container");
-        for (IndexId indexId : repositoryData.getIndices().values()) {
             if (indexId.getName().equals("test-idx-3")) {
                 assertFalse(indicesBlobContainer.blobExists(indexId.getId())); // deleted index
-            } else {
-                assertTrue(indicesBlobContainer.blobExists(indexId.getId()));
             }
         }
     }

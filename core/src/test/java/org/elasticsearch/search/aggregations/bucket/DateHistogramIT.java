@@ -841,7 +841,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
         Histogram.Bucket bucket = buckets.get(1);
         assertThat(bucket, Matchers.notNullValue());
-        assertThat(bucket.getKeyAsString(), equalTo("1"));
+        assertThat(bucket.getKeyAsString(), equalTo("1.0"));
 
         Histogram dateHisto = bucket.getAggregations().get("date_histo");
         assertThat(dateHisto, Matchers.notNullValue());

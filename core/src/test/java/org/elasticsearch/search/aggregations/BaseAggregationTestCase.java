@@ -60,6 +60,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -126,7 +127,6 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
             .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
             .build();
 
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         final ThreadPool threadPool = new ThreadPool(settings);
         final ClusterService clusterService = createClusterService(threadPool);
@@ -136,6 +136,22 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         List<Setting<?>> scriptSettings = scriptModule.getSettings();
         scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
         SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, Collections.emptyList());
+        IndicesModule indicesModule = new IndicesModule(Collections.emptyList()) {
+            @Override
+            protected void configure() {
+                bindMapperExtension();
+            }
+        };
+        SearchModule searchModule = new SearchModule(settings, false, emptyList()) {
+            @Override
+            protected void configureSearch() {
+                // Skip me
+            }
+        };
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.addAll(indicesModule.getNamedWriteables());
+        entries.addAll(searchModule.getNamedWriteables());
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
         return new ModulesBuilder().add(
             (b) -> {
                 b.bind(Environment.class).toInstance(new Environment(settings));
@@ -145,20 +161,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
                 b.bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
                 b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
             },
-            settingsModule,
-            new IndicesModule(namedWriteableRegistry, Collections.emptyList()) {
-                @Override
-                protected void configure() {
-                    bindMapperExtension();
-                }
-            },
-            new SearchModule(settings, namedWriteableRegistry, false, emptyList()) {
-                @Override
-                protected void configureSearch() {
-                    // Skip me
-                }
-            },
-            new IndexSettingsModule(index, settings)
+            settingsModule, indicesModule, searchModule, new IndexSettingsModule(index, settings)
         ).createInjector();
     }
 

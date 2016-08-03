@@ -42,8 +42,7 @@ public class QueryParseContextTests extends ESTestCase {
 
     @BeforeClass
     public static void init() {
-        indicesQueriesRegistry = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false, emptyList())
-                .getQueryParserRegistry();
+        indicesQueriesRegistry = new SearchModule(Settings.EMPTY, false, emptyList()).getQueryParserRegistry();
     }
 
     public void testParseTopLevelBuilder() throws IOException {

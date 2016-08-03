@@ -19,6 +19,19 @@
 
 package org.elasticsearch.test;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.lucene.search.BoostQuery;
@@ -47,7 +60,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -105,18 +117,6 @@ import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
-
-import java.io.Closeable;
-import java.io.IOException;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.containsString;
@@ -860,46 +860,43 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     Client.class.getClassLoader(),
                     new Class[]{Client.class},
                     clientInvocationHandler);
-            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
             ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
             List<Setting<?>> scriptSettings = scriptModule.getSettings();
             scriptSettings.addAll(pluginsService.getPluginSettings());
             scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
             SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, pluginsService.getPluginSettingsFilter());
-            searchModule = new SearchModule(settings, namedWriteableRegistry, false, pluginsService.filterPlugins(SearchPlugin.class)) {
+            searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class)) {
                 @Override
                 protected void configureSearch() {
                     // Skip me
                 }
             };
+            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class)) {
+                @Override
+                public void configure() {
+                    // skip services
+                    bindMapperExtension();
+                }
+            };
+            List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+            entries.addAll(indicesModule.getNamedWriteables());
+            entries.addAll(searchModule.getNamedWriteables());
+            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
             ModulesBuilder modulesBuilder = new ModulesBuilder();
             for (Module pluginModule : pluginsService.createGuiceModules()) {
                 modulesBuilder.add(pluginModule);
             }
             modulesBuilder.add(
-                    (b) -> {
+                    b -> {
                         b.bind(PluginsService.class).toInstance(pluginsService);
                         b.bind(Environment.class).toInstance(new Environment(settings));
                         b.bind(ThreadPool.class).toInstance(threadPool);
+                        b.bind(Client.class).toInstance(proxy);
+                        b.bind(ClusterService.class).toProvider(Providers.of(clusterService));
+                        b.bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
+                        b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                     },
-                    settingsModule, new IndicesModule(namedWriteableRegistry, pluginsService.filterPlugins(MapperPlugin.class)) {
-                        @Override
-                        public void configure() {
-                            // skip services
-                            bindMapperExtension();
-                        }
-                    },
-                    new IndexSettingsModule(index, indexSettings),
-                    searchModule,
-                    new AbstractModule() {
-                        @Override
-                        protected void configure() {
-                            bind(Client.class).toInstance(proxy);
-                            bind(ClusterService.class).toProvider(Providers.of(clusterService));
-                            bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
-                            bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
-                        }
-                    }
+                    settingsModule, indicesModule, searchModule, new IndexSettingsModule(index, indexSettings)
             );
             pluginsService.processModules(modulesBuilder);
             injector = modulesBuilder.createInjector();

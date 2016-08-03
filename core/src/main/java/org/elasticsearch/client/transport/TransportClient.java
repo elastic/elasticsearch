@@ -109,7 +109,6 @@ public abstract class TransportClient extends AbstractClient {
         final ThreadPool threadPool = new ThreadPool(settings);
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
         final NetworkService networkService = new NetworkService(settings, Collections.emptyList());
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         try {
             final List<Setting<?>> additionalSettings = new ArrayList<>();
             final List<String> additionalSettingsFilter = new ArrayList<>();
@@ -120,14 +119,21 @@ public abstract class TransportClient extends AbstractClient {
             }
             SettingsModule settingsModule = new SettingsModule(settings, additionalSettings, additionalSettingsFilter);
 
+            NetworkModule networkModule = new NetworkModule(networkService, settings, true);
+            SearchModule searchModule = new SearchModule(settings, true, pluginsService.filterPlugins(SearchPlugin.class));
+            List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+            entries.addAll(networkModule.getNamedWriteables());
+            entries.addAll(searchModule.getNamedWriteables());
+            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
+
             ModulesBuilder modules = new ModulesBuilder();
             // plugin modules must be added here, before others or we can get crazy injection errors...
             for (Module pluginModule : pluginsService.createGuiceModules()) {
                 modules.add(pluginModule);
             }
-            modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));
+            modules.add(networkModule);
             modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
-            modules.add(new SearchModule(settings, namedWriteableRegistry, true, pluginsService.filterPlugins(SearchPlugin.class)));
+            modules.add(searchModule);
             ActionModule actionModule = new ActionModule(false, true, settings, null, settingsModule.getClusterSettings(),
                 pluginsService.filterPlugins(ActionPlugin.class));
             modules.add(actionModule);
@@ -143,6 +149,7 @@ public abstract class TransportClient extends AbstractClient {
                 b.bind(BigArrays.class).toInstance(bigArrays);
                 b.bind(PluginsService.class).toInstance(pluginsService);
                 b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
+                b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
             }));
 
             Injector injector = modules.createInjector();

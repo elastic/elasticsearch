@@ -41,7 +41,7 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class ExtendedBounds implements ToXContent, Writeable {
-    static final ParseField EXTENDED_BOUNDS_FIELD = new ParseField("extended_bounds");
+    static final ParseField EXTENDED_BOUNDS_FIELD = Histogram.EXTENDED_BOUNDS_FIELD;
     static final ParseField MIN_FIELD = new ParseField("min");
     static final ParseField MAX_FIELD = new ParseField("max");
 

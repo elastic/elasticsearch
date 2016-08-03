@@ -19,6 +19,7 @@
 package org.elasticsearch.index.replication;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -299,12 +300,26 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
             replica.prepareForIndexRecovery();
             RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
             StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), pNode, rNode,
-                replica.store().getMetadataOrEmpty(), RecoveryState.Type.REPLICA, 0);
+                getMetadataSnapshotOrEmpty(replica), RecoveryState.Type.REPLICA, 0);
             RecoverySourceHandler recovery = new RecoverySourceHandler(primary, recoveryTarget, request, () -> 0L, e -> () -> {},
                 (int) ByteSizeUnit.MB.toKB(1), logger);
             recovery.recoverToTarget();
             recoveryTarget.markAsDone();
             replica.updateRoutingEntry(ShardRoutingHelper.moveToStarted(replica.routingEntry()));
+        }
+
+        private Store.MetadataSnapshot getMetadataSnapshotOrEmpty(IndexShard replica) throws IOException {
+            Store.MetadataSnapshot result;
+            try {
+                result = replica.snapshotStoreMetadata();
+            } catch (IndexNotFoundException e) {
+                // OK!
+                result = Store.MetadataSnapshot.EMPTY;
+            } catch (IOException e) {
+                logger.warn("{} failed read store, treating as empty", e);
+                result = Store.MetadataSnapshot.EMPTY;
+            }
+            return result;
         }
 
         public synchronized DiscoveryNode getPrimaryNode() {

@@ -23,6 +23,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
+import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
@@ -40,14 +41,38 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.BlobMetaData;
+import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.compress.NotXContentException;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
@@ -61,37 +86,13 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.RepositoryData;
-import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
-import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.compress.NotXContentException;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.metrics.CounterMetric;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.snapshots.SnapshotCreationException;
 import org.elasticsearch.snapshots.SnapshotException;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
@@ -1444,7 +1445,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private class RestoreContext extends Context {
 
-        private final Store store;
+        private final IndexShard targetShard;
 
         private final RecoveryState recoveryState;
 
@@ -1460,13 +1461,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         public RestoreContext(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
             super(snapshotId, version, indexId, shard.shardId(), snapshotShardId);
             this.recoveryState = recoveryState;
-            store = shard.store();
+            this.targetShard = shard;
         }
 
         /**
          * Performs restore operation
          */
         public void restore() throws IOException {
+            final Store store = targetShard.store();
             store.incRef();
             try {
                 logger.debug("[{}] [{}] restoring to [{}] ...", snapshotId, metadata.name(), shardId);
@@ -1491,12 +1493,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
 
                 SnapshotFiles snapshotFiles = new SnapshotFiles(snapshot.snapshot(), snapshot.indexFiles());
-                final Store.MetadataSnapshot recoveryTargetMetadata;
+                Store.MetadataSnapshot recoveryTargetMetadata;
                 try {
-                    recoveryTargetMetadata = store.getMetadataOrEmpty();
-                } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException e) {
-                    logger.warn("{} Can't read metadata from store", e, shardId);
-                    throw new IndexShardRestoreFailedException(shardId, "Can't restore corrupted shard", e);
+                    recoveryTargetMetadata = targetShard.snapshotStoreMetadata();
+                } catch (IndexNotFoundException e) {
+                    // happens when restore to an empty shard, not a big deal
+                    logger.trace("[{}] [{}] restoring from to an empty shard", shardId, snapshotId);
+                    recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
+                } catch (IOException e) {
+                    logger.warn("{} Can't read metadata from store, will not reuse any local file while restoring", e, shardId);
+                    recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
                 }
 
                 final List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover = new ArrayList<>();
@@ -1550,7 +1556,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 try {
                     for (final BlobStoreIndexShardSnapshot.FileInfo fileToRecover : filesToRecover) {
                         logger.trace("[{}] [{}] restoring file [{}]", shardId, snapshotId, fileToRecover.name());
-                        restoreFile(fileToRecover);
+                        restoreFile(fileToRecover, store);
                     }
                 } catch (IOException ex) {
                     throw new IndexShardRestoreFailedException(shardId, "Failed to recover index", ex);
@@ -1597,7 +1603,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
          *
          * @param fileInfo file to be restored
          */
-        private void restoreFile(final BlobStoreIndexShardSnapshot.FileInfo fileInfo) throws IOException {
+        private void restoreFile(final BlobStoreIndexShardSnapshot.FileInfo fileInfo, final Store store) throws IOException {
             boolean success = false;
 
             try (InputStream partSliceStream = new PartSliceStream(blobContainer, fileInfo)) {

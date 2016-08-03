@@ -139,13 +139,13 @@ def start_node(version, release_dir, data_dir, repo_dir, tcp_port=DEFAULT_TRANSP
     prefix = '-E'
   cmd = [
     os.path.join(release_dir, 'bin/elasticsearch'),
-    '%spath.data=%s' %(prefix, data_dir),
-    '%spath.logs=logs' %prefix,
-    '%scluster.name=%s' %(prefix, cluster_name),
-    '%snetwork.host=localhost' %prefix,
-    '%stransport.tcp.port=%s' %(prefix, tcp_port),
-    '%shttp.port=%s' %(prefix, http_port),
-    '%spath.repo=%s' %(prefix, repo_dir)
+    '%spath.data=%s' % (prefix, data_dir),
+    '%spath.logs=logs' % prefix,
+    '%scluster.name=%s' % (prefix, cluster_name),
+    '%snetwork.host=localhost' % prefix,
+    '%stransport.tcp.port=%s' % (prefix, tcp_port),
+    '%shttp.port=%s' % (prefix, http_port),
+    '%spath.repo=%s' % (prefix, repo_dir)
   ]
   if version.startswith('0.') or version.startswith('1.0.0.Beta') :
     cmd.append('-f') # version before 1.0 start in background automatically

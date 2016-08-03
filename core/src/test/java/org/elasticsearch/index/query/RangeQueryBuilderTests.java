@@ -27,6 +27,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
@@ -518,5 +519,28 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, sameInstance(query));
+    }
+
+    public void testParseFailsWithMultipleFields() throws IOException {
+        String json =
+                "{\n" +
+                "    \"range\": {\n" +
+                "      \"age\": {\n" +
+                "        \"gte\": 30,\n" +
+                "        \"lte\": 40\n" +
+                "      },\n" +
+                "      \"price\": {\n" +
+                "        \"gte\": 10,\n" +
+                "        \"lte\": 30\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }";
+
+        try {
+            parseQuery(json);
+            fail("parseQuery should have failed");
+        } catch(ParsingException e) {
+            assertEquals("[range] query doesn't support multiple fields, found [age] and [price]", e.getMessage());
+        }
     }
 }

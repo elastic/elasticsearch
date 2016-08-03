@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
@@ -36,7 +35,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation.FailedShard;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -50,6 +51,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -64,6 +66,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -115,52 +118,46 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
      * scenario.
      */
     public void testJoiningNewClusterOnlyRemovesInMemoryIndexStructures() {
-        // we have an IndicesClusterStateService per node in the cluster
-        final Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap = new HashMap<>();
-        ClusterState previousState = randomInitialClusterState(clusterStateServiceMap, RecordingIndicesService::new);
-        ClusterState newClusterState = ClusterState.builder(previousState)
-                                           .metaData(MetaData.builder(previousState.metaData()).clusterUUID(UUIDs.randomBase64UUID()))
+        // a cluster state derived from the initial state that includes a created index
+        String name = "index_" + randomAsciiOfLength(8).toLowerCase(Locale.ROOT);
+        ShardRoutingState[] replicaStates = new ShardRoutingState[randomIntBetween(0, 3)];
+        Arrays.fill(replicaStates, ShardRoutingState.INITIALIZING);
+        ClusterState stateWithIndex = ClusterStateCreationUtils.state(name, randomBoolean(), ShardRoutingState.INITIALIZING, replicaStates);
+
+        // the initial state which is derived from the newly created cluster state but doesn't contain the index
+        ClusterState initialState = ClusterState.builder(stateWithIndex)
+                                        .metaData(MetaData.builder(stateWithIndex.metaData()).remove(name))
+                                        .routingTable(RoutingTable.builder().build())
+                                        .build();
+
+        // pick a data node to simulate the adding an index cluster state change event on, that has shards assigned to it
+        DiscoveryNode node = stateWithIndex.nodes().get(
+            randomFrom(stateWithIndex.routingTable().index(name).shardsWithState(INITIALIZING)).currentNodeId());
+
+        // simulate the cluster state change on the node
+        ClusterState localState = adaptClusterStateToLocalNode(stateWithIndex, node);
+        ClusterState previousLocalState = adaptClusterStateToLocalNode(initialState, node);
+        IndicesClusterStateService indicesCSSvc = createIndicesClusterStateService(RecordingIndicesService::new);
+        indicesCSSvc.start();
+        indicesCSSvc.clusterChanged(new ClusterChangedEvent("cluster state change that adds the index", localState, previousLocalState));
+
+        // create a new empty cluster state with a brand new cluster UUID
+        ClusterState newClusterState = ClusterState.builder(initialState)
+                                           .metaData(MetaData.builder(initialState.metaData()).clusterUUID(UUIDs.randomBase64UUID()))
                                            .build();
 
-        // add index to the cluster
-        String name = "index_" + randomAsciiOfLength(8).toLowerCase(Locale.ROOT);
-        CreateIndexRequest request = new CreateIndexRequest(name, Settings.builder()
-                                                                      .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
-                                                                      .put(SETTING_NUMBER_OF_REPLICAS, 1)
-                                                                      .build());
-        ClusterState state = cluster.createIndex(previousState, request);
-        assertTrue(state.metaData().hasIndex(name));
-
-        // pick a data node to simulate the cluster state change on
-        DiscoveryNode node = null;
-        for (DiscoveryNode discoveryNode : clusterStateServiceMap.keySet()) {
-            if (discoveryNode.isDataNode()) {
-                node = discoveryNode;
-                break;
-            }
-        }
-        assertNotNull(node);
-        IndicesClusterStateService indicesClusterStateService = clusterStateServiceMap.get(node);
-        ClusterState localState = adaptClusterStateToLocalNode(state, node);
-        ClusterState previousLocalState = adaptClusterStateToLocalNode(previousState, node);
-        indicesClusterStateService.clusterChanged(
-            new ClusterChangedEvent("simulated change 1", localState, previousLocalState));
-
-        // check that cluster state has been properly applied to node
-        assertClusterStateMatchesNodeState(localState, indicesClusterStateService);
-
-        indicesClusterStateService = clusterStateServiceMap.get(node);
+        // simulate the cluster state change on the node
         localState = adaptClusterStateToLocalNode(newClusterState, node);
-        previousLocalState = adaptClusterStateToLocalNode(state, node);
-        indicesClusterStateService.clusterChanged(
-            new ClusterChangedEvent("simulated change 2", localState, previousLocalState));
+        previousLocalState = adaptClusterStateToLocalNode(stateWithIndex, node);
+        indicesCSSvc.clusterChanged(new ClusterChangedEvent("cluster state change with a new cluster UUID (and doesn't contain the index)",
+                                                            localState, previousLocalState));
 
-        // check that in memory data structures have been removed with the new cluster,
+        // check that in memory data structures have been removed once the new cluster state is applied,
         // but the persistent data is still there
-        RecordingIndicesService indicesService = (RecordingIndicesService) indicesClusterStateService.indicesService;
-        for (ObjectCursor<IndexMetaData> indexMetaData : state.metaData().getIndices().values()) {
-            Index index = indexMetaData.value.getIndex();
-            assertNull(indicesClusterStateService.indicesService.indexService(index));
+        RecordingIndicesService indicesService = (RecordingIndicesService) indicesCSSvc.indicesService;
+        for (IndexMetaData indexMetaData : stateWithIndex.metaData()) {
+            Index index = indexMetaData.getIndex();
+            assertNull(indicesService.indexService(index));
             assertFalse(indicesService.isDeleted(index));
         }
     }

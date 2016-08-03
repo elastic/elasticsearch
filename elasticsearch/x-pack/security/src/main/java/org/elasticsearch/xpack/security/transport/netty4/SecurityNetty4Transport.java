@@ -8,18 +8,19 @@ package org.elasticsearch.xpack.security.transport.netty4;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
-import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.ssl.SslHandler;
+import io.netty.util.concurrent.Future;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -35,13 +36,13 @@ import javax.net.ssl.SSLParameters;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.security.Security.featureEnabledSetting;
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.Security.settingPrefix;
-
-import org.elasticsearch.common.settings.Setting.Property;
 
 
 /**
@@ -141,13 +142,18 @@ public class SecurityNetty4Transport extends Netty4Transport {
      */
     @Override
     protected void onAfterChannelsConnected(NodeChannels nodeChannels) {
+        List<Tuple<Future<Channel>, Channel>> handshakes = new ArrayList<>();
         for (Channel channel : nodeChannels.allChannels) {
             SslHandler handler = channel.pipeline().get(SslHandler.class);
             if (handler != null) {
-                handler.handshakeFuture().awaitUninterruptibly(30L, TimeUnit.SECONDS);
-                if (!handler.handshakeFuture().isSuccess()) {
-                    throw new ElasticsearchException("handshake failed for channel [{}]", channel);
-                }
+                handshakes.add(Tuple.tuple(handler.handshakeFuture(), channel));
+            }
+        }
+
+        for (Tuple<Future<Channel>, Channel> handshake : handshakes) {
+            handshake.v1().awaitUninterruptibly(30L, TimeUnit.SECONDS);
+            if (!handshake.v1().isSuccess()) {
+                throw new ElasticsearchException("handshake failed for channel [{}]", handshake.v2());
             }
         }
     }

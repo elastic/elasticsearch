@@ -29,7 +29,7 @@ import java.util.Queue;
  * NOTE: This class assumes that the transport will not use a closed channel again or attempt to reconnect, which
  * is the way that Netty3Transport currently works
  */
-public class HandshakeWaitingHandler extends SimpleChannelHandler {
+public class Netty3HandshakeWaitingHandler extends SimpleChannelHandler {
 
     private final ESLogger logger;
 
@@ -39,7 +39,7 @@ public class HandshakeWaitingHandler extends SimpleChannelHandler {
     /**
      * @param logger    We pass a context aware logger here (logger that is aware of the node name &amp; env)
      */
-    public HandshakeWaitingHandler(ESLogger logger) {
+    public Netty3HandshakeWaitingHandler(ESLogger logger) {
         this.logger = logger;
     }
 
@@ -56,13 +56,13 @@ public class HandshakeWaitingHandler extends SimpleChannelHandler {
 
                     // We synchronize here to allow all pending writes to be processed prior to any writes coming from
                     // another thread
-                    synchronized (HandshakeWaitingHandler.this) {
+                    synchronized (Netty3HandshakeWaitingHandler.this) {
                         handshaken = true;
                         while (!pendingWrites.isEmpty()) {
                             MessageEvent event = pendingWrites.remove();
                             ctx.sendDownstream(event);
                         }
-                        ctx.getPipeline().remove(HandshakeWaitingHandler.class);
+                        ctx.getPipeline().remove(Netty3HandshakeWaitingHandler.class);
                     }
 
                     ctx.sendUpstream(e);
@@ -74,7 +74,7 @@ public class HandshakeWaitingHandler extends SimpleChannelHandler {
                         logger.error("SSL/TLS handshake failed, closing channel: {}", cause.getMessage());
                     }
 
-                    synchronized (HandshakeWaitingHandler.this) {
+                    synchronized (Netty3HandshakeWaitingHandler.this) {
                         // Set failure on the futures of each message so that listeners are called
                         while (!pendingWrites.isEmpty()) {
                             DownstreamMessageEvent event = (DownstreamMessageEvent) pendingWrites.remove();

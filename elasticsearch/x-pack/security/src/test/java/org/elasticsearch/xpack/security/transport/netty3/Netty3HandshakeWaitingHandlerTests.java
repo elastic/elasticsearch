@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class HandshakeWaitingHandlerTests extends ESTestCase {
+public class Netty3HandshakeWaitingHandlerTests extends ESTestCase {
     private static final int CONCURRENT_CLIENT_REQUESTS = 20;
 
     private int iterations;
@@ -145,7 +145,7 @@ public class HandshakeWaitingHandlerTests extends ESTestCase {
                 engine.setUseClientMode(true);
                 return Channels.pipeline(
                         new SslHandler(engine),
-                        new HandshakeWaitingHandler(Loggers.getLogger(HandshakeWaitingHandler.class)));
+                        new Netty3HandshakeWaitingHandler(Loggers.getLogger(Netty3HandshakeWaitingHandler.class)));
             }
         });
 
@@ -162,7 +162,7 @@ public class HandshakeWaitingHandlerTests extends ESTestCase {
 
                 // Wait for pending writes to prevent IOExceptions
                 Channel channel = handshakeFuture.getChannel();
-                HandshakeWaitingHandler handler = channel.getPipeline().get(HandshakeWaitingHandler.class);
+                Netty3HandshakeWaitingHandler handler = channel.getPipeline().get(Netty3HandshakeWaitingHandler.class);
                 if (handler != null) {
                     boolean noMoreWrites = awaitBusy(() -> handler.hasPendingWrites() == false);
                     assertTrue(noMoreWrites);

@@ -235,7 +235,7 @@ public class SecurityNetty3Transport extends Netty3Transport {
 
                 sslEngine.setUseClientMode(true);
                 ctx.getPipeline().replace(this, "ssl", new SslHandler(sslEngine));
-                ctx.getPipeline().addAfter("ssl", "handshake", new HandshakeWaitingHandler(logger));
+                ctx.getPipeline().addAfter("ssl", "handshake", new Netty3HandshakeWaitingHandler(logger));
 
                 ctx.sendDownstream(e);
             }

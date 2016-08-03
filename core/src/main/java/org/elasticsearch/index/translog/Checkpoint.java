@@ -27,6 +27,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 
+import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
@@ -96,14 +97,21 @@ class Checkpoint {
 
     public static void write(ChannelFactory factory, Path checkpointFile, Checkpoint checkpoint, OpenOption... options) throws IOException {
         final String resourceDesc = "checkpoint(path=\"" + checkpointFile + "\", gen=" + checkpoint + ")";
-        try (FileChannel channel = factory.open(checkpointFile, options)) {
-            try (OutputStreamIndexOutput out =
-                     new OutputStreamIndexOutput(resourceDesc, checkpointFile.toString(), Channels.newOutputStream(channel), BUFFER_SIZE)) {
-                CodecUtil.writeHeader(out, CHECKPOINT_CODEC, INITIAL_VERSION);
-                checkpoint.write(out);
-                CodecUtil.writeFooter(out);
-            }
-            channel.force(false);
+        try (
+            final FileChannel channel = factory.open(checkpointFile, options);
+            final OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(resourceDesc, checkpointFile.toString(),
+                new FilterOutputStream(Channels.newOutputStream(channel)) {
+                    @Override
+                    public void close() throws IOException {
+                        // sync the checkpoint before we close.
+                        channel.force(false);
+                        super.close();
+                    }
+                },
+                BUFFER_SIZE)) {
+            CodecUtil.writeHeader(indexOutput, CHECKPOINT_CODEC, INITIAL_VERSION);
+            checkpoint.write(indexOutput);
+            CodecUtil.writeFooter(indexOutput);
         }
     }
 

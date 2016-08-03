@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -588,10 +589,11 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         assertThat("watcher should only run on the elected master node, but it is running on [" + running + "] nodes", running, equalTo(1));
     }
 
-    public static class NoopEmailService extends AbstractLifecycleComponent implements EmailService {
+    public static class NoopEmailService extends EmailService {
 
         public NoopEmailService() {
-            super(Settings.EMPTY);
+            super(Settings.EMPTY, null,
+                new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
         }
 
         @Override
@@ -603,15 +605,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         public EmailSent send(Email email, Authentication auth, Profile profile, String accountName) {
             return new EmailSent(accountName, email);
         }
-
-        @Override
-        protected void doStart() {}
-
-        @Override
-        protected void doStop() {}
-
-        @Override
-        protected void doClose() {}
     }
 
     protected static class TimeWarp {

@@ -22,7 +22,7 @@ public class ProfileTests extends ESTestCase {
     public void testThatInlineAttachmentsAreCreated() throws Exception {
         String path = "/org/elasticsearch/xpack/watcher/actions/email/service/logo.png";
         Attachment attachment = new Attachment.Stream("inline.png", "inline.png", true,
-                () -> InternalEmailServiceTests.class.getResourceAsStream(path));
+                () -> EmailServiceTests.class.getResourceAsStream(path));
 
         Email email = Email.builder()
                 .id("foo")

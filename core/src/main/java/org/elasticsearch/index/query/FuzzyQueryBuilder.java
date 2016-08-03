@@ -303,7 +303,8 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
                         } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                             queryName = parser.text();
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "[fuzzy] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parser.getTokenLocation(),
+                                    "[fuzzy] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }

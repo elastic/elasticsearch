@@ -133,16 +133,19 @@ def start_node(version, release_dir, data_dir, repo_dir, tcp_port=DEFAULT_TRANSP
   logging.info('Starting node from %s on port %s/%s, data_dir %s' % (release_dir, tcp_port, http_port, data_dir))
   if cluster_name is None:
     cluster_name = 'bwc_index_' + version
-    
+  if parse_version(version) < parse_version("5.0.0-alpha1"):
+    prefix = '-Des.'
+  else:
+    prefix = '-E'
   cmd = [
     os.path.join(release_dir, 'bin/elasticsearch'),
-    '-Epath.data=%s' % data_dir,
-    '-Epath.logs=logs',
-    '-Ecluster.name=%s' % cluster_name,
-    '-Enetwork.host=localhost',
-    '-Etransport.tcp.port=%s' % tcp_port,
-    '-Ehttp.port=%s' % http_port,
-    '-Epath.repo=%s' % repo_dir
+    '%spath.data=%s' % (prefix, data_dir),
+    '%spath.logs=logs' % prefix,
+    '%scluster.name=%s' % (prefix, cluster_name),
+    '%snetwork.host=localhost' % prefix,
+    '%stransport.tcp.port=%s' % (prefix, tcp_port),
+    '%shttp.port=%s' % (prefix, http_port),
+    '%spath.repo=%s' % (prefix, repo_dir)
   ]
   if version.startswith('0.') or version.startswith('1.0.0.Beta') :
     cmd.append('-f') # version before 1.0 start in background automatically

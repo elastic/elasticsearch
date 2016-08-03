@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.rounding;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -36,8 +35,6 @@ import java.util.Objects;
  * daylight saving times.
  */
 public abstract class TimeZoneRounding extends Rounding {
-    public static final ParseField INTERVAL_FIELD = new ParseField("interval");
-    public static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
 
     public static Builder builder(DateTimeUnit unit) {
         return new Builder(unit);
@@ -53,8 +50,6 @@ public abstract class TimeZoneRounding extends Rounding {
         private final long interval;
 
         private DateTimeZone timeZone = DateTimeZone.UTC;
-
-        private float factor = 1.0f;
 
         private long offset;
 
@@ -83,11 +78,6 @@ public abstract class TimeZoneRounding extends Rounding {
             return this;
         }
 
-        public Builder factor(float factor) {
-            this.factor = factor;
-            return this;
-        }
-
         public Rounding build() {
             Rounding timeZoneRounding;
             if (unit != null) {
@@ -97,9 +87,6 @@ public abstract class TimeZoneRounding extends Rounding {
             }
             if (offset != 0) {
                 timeZoneRounding = new OffsetRounding(timeZoneRounding, offset);
-            }
-            if (factor != 1.0f) {
-                timeZoneRounding = new FactorRounding(timeZoneRounding, factor);
             }
             return timeZoneRounding;
         }
@@ -215,7 +202,7 @@ public abstract class TimeZoneRounding extends Rounding {
         @Override
         public long round(long utcMillis) {
             long timeLocal = timeZone.convertUTCToLocal(utcMillis);
-            long rounded = Rounding.Interval.roundValue(Rounding.Interval.roundKey(timeLocal, interval), interval);
+            long rounded = roundKey(timeLocal, interval) * interval;
             long roundedUTC;
             if (isInDSTGap(rounded) == false) {
                 roundedUTC  = timeZone.convertLocalToUTC(rounded, true, utcMillis);
@@ -236,6 +223,14 @@ public abstract class TimeZoneRounding extends Rounding {
                 roundedUTC = timeZone.previousTransition(utcMillis) + 1;
             }
             return roundedUTC;
+        }
+
+        private static long roundKey(long value, long interval) {
+            if (value < 0) {
+                return (value - interval + 1) / interval;
+            } else {
+                return value / interval;
+            }
         }
 
         /**

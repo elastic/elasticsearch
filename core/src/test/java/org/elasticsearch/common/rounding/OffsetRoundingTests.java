@@ -20,37 +20,13 @@
 package org.elasticsearch.common.rounding;
 
 import org.elasticsearch.test.ESTestCase;
+import org.joda.time.DateTimeZone;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class RoundingTests extends ESTestCase {
-    /**
-     * simple test case to illustrate how Rounding.Interval works on readable input
-     */
-    public void testInterval() {
-        int interval = 10;
-        Rounding.Interval rounding = new Rounding.Interval(interval);
-        int value = 24;
-        final long r = rounding.round(24);
-        String message = "round(" + value + ", interval=" + interval + ") = " + r;
-        assertEquals(value/interval * interval, r);
-        assertEquals(message, 0, r % interval);
-    }
-
-    public void testIntervalRandom() {
-        final long interval = randomIntBetween(1, 100);
-        Rounding.Interval rounding = new Rounding.Interval(interval);
-        for (int i = 0; i < 1000; ++i) {
-            long l = Math.max(randomLong(), Long.MIN_VALUE + interval);
-            final long r = rounding.round(l);
-            String message = "round(" + l + ", interval=" + interval + ") = " + r;
-            assertEquals(message, 0, r % interval);
-            assertThat(message, r, lessThanOrEqualTo(l));
-            assertThat(message, r + interval, greaterThan(l));
-        }
-    }
+public class OffsetRoundingTests extends ESTestCase {
 
     /**
      * Simple test case to illustrate how Rounding.Offset works on readable input.
@@ -60,7 +36,8 @@ public class RoundingTests extends ESTestCase {
     public void testOffsetRounding() {
         final long interval = 10;
         final long offset = 7;
-        Rounding.OffsetRounding rounding = new Rounding.OffsetRounding(new Rounding.Interval(interval), offset);
+        Rounding.OffsetRounding rounding = new Rounding.OffsetRounding(
+                new TimeZoneRounding.TimeIntervalRounding(interval, DateTimeZone.UTC), offset);
         assertEquals(-3, rounding.round(6));
         assertEquals(7, rounding.nextRoundingValue(-3));
         assertEquals(7, rounding.round(7));
@@ -76,7 +53,7 @@ public class RoundingTests extends ESTestCase {
     public void testOffsetRoundingRandom() {
         for (int i = 0; i < 1000; ++i) {
             final long interval = randomIntBetween(1, 100);
-            Rounding.Interval internalRounding = new Rounding.Interval(interval);
+            Rounding internalRounding = new TimeZoneRounding.TimeIntervalRounding(interval, DateTimeZone.UTC);
             final long offset = randomIntBetween(-100, 100);
             Rounding.OffsetRounding rounding = new Rounding.OffsetRounding(internalRounding, offset);
             long safetyMargin = Math.abs(interval) + Math.abs(offset); // to prevent range overflow

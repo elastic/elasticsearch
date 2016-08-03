@@ -19,7 +19,6 @@
 package org.elasticsearch.common.rounding;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -54,156 +53,9 @@ public abstract class Rounding implements Streamable {
     @Override
     public abstract int hashCode();
 
-    /**
-     * Rounding strategy which is based on an interval
-     *
-     * {@code rounded = value - (value % interval) }
-     */
-    public static class Interval extends Rounding {
-
-        static final byte ID = 0;
-
-        public static final ParseField INTERVAL_FIELD = new ParseField("interval");
-
-        private long interval;
-
-        public Interval() { // for serialization
-        }
-
-        /**
-         * Creates a new interval rounding.
-         *
-         * @param interval The interval
-         */
-        public Interval(long interval) {
-            this.interval = interval;
-        }
-
-        @Override
-        public byte id() {
-            return ID;
-        }
-
-        public static long roundKey(long value, long interval) {
-            if (value < 0) {
-                return (value - interval + 1) / interval;
-            } else {
-                return value / interval;
-            }
-        }
-
-        public static long roundValue(long key, long interval) {
-            return key * interval;
-        }
-
-        @Override
-        public long round(long value) {
-            return roundKey(value, interval) * interval;
-        }
-
-        @Override
-        public long nextRoundingValue(long value) {
-            assert value == round(value);
-            return value + interval;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            interval = in.readVLong();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(interval);
-        }
-        
-        @Override
-        public int hashCode() {
-            return Objects.hash(interval);
-        }
-        
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            Interval other = (Interval) obj;
-            return Objects.equals(interval, other.interval);
-        }
-    }
-
-    public static class FactorRounding extends Rounding {
-
-        static final byte ID = 7;
-
-        public static final ParseField FACTOR_FIELD = new ParseField("factor");
-
-        private Rounding rounding;
-
-        private float factor;
-
-        FactorRounding() { // for serialization
-        }
-
-        FactorRounding(Rounding rounding, float factor) {
-            this.rounding = rounding;
-            this.factor = factor;
-        }
-
-        @Override
-        public byte id() {
-            return ID;
-        }
-
-        @Override
-        public long round(long utcMillis) {
-            return rounding.round((long) (factor * utcMillis));
-        }
-
-        @Override
-        public long nextRoundingValue(long value) {
-            return rounding.nextRoundingValue(value);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            rounding = Rounding.Streams.read(in);
-            factor = in.readFloat();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            Rounding.Streams.write(rounding, out);
-            out.writeFloat(factor);
-        }
-        
-        @Override
-        public int hashCode() {
-            return Objects.hash(rounding, factor);
-        }
-        
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            FactorRounding other = (FactorRounding) obj;
-            return Objects.equals(rounding, other.rounding)
-                    && Objects.equals(factor, other.factor);
-        }
-    }
-
     public static class OffsetRounding extends Rounding {
 
         static final byte ID = 8;
-
-        public static final ParseField OFFSET_FIELD = new ParseField("offset");
 
         private Rounding rounding;
 
@@ -274,10 +126,8 @@ public abstract class Rounding implements Streamable {
             Rounding rounding = null;
             byte id = in.readByte();
             switch (id) {
-                case Interval.ID: rounding = new Interval(); break;
                 case TimeZoneRounding.TimeUnitRounding.ID: rounding = new TimeZoneRounding.TimeUnitRounding(); break;
                 case TimeZoneRounding.TimeIntervalRounding.ID: rounding = new TimeZoneRounding.TimeIntervalRounding(); break;
-                case TimeZoneRounding.FactorRounding.ID: rounding = new FactorRounding(); break;
                 case OffsetRounding.ID: rounding = new OffsetRounding(); break;
                 default: throw new ElasticsearchException("unknown rounding id [" + id + "]");
             }

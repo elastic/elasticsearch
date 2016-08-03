@@ -328,15 +328,14 @@ public class StoreTests extends ESTestCase {
         Store.MetadataSnapshot metadata;
         // check before we committed
         try {
-            store.getMetadata();
+            store.getMetadata(null);
             fail("no index present - expected exception");
         } catch (IndexNotFoundException ex) {
             // expected
         }
-        assertThat(store.getMetadataOrEmpty(), is(Store.MetadataSnapshot.EMPTY)); // nothing committed
         writer.commit();
         writer.close();
-        metadata = store.getMetadata();
+        metadata = store.getMetadata(null);
         assertThat(metadata.asMap().isEmpty(), is(false));
         for (StoreFileMetaData meta : metadata) {
             try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
@@ -579,7 +578,7 @@ public class StoreTests extends ESTestCase {
             }
             writer.commit();
             writer.close();
-            first = store.getMetadata();
+            first = store.getMetadata(null);
             assertDeleteContent(store, directoryService);
             store.close();
         }
@@ -609,7 +608,7 @@ public class StoreTests extends ESTestCase {
             }
             writer.commit();
             writer.close();
-            second = store.getMetadata();
+            second = store.getMetadata(null);
         }
         Store.RecoveryDiff diff = first.recoveryDiff(second);
         assertThat(first.size(), equalTo(second.size()));
@@ -639,7 +638,7 @@ public class StoreTests extends ESTestCase {
         writer.deleteDocuments(new Term("id", Integer.toString(random().nextInt(numDocs))));
         writer.commit();
         writer.close();
-        Store.MetadataSnapshot metadata = store.getMetadata();
+        Store.MetadataSnapshot metadata = store.getMetadata(null);
         StoreFileMetaData delFile = null;
         for (StoreFileMetaData md : metadata) {
             if (md.name().endsWith(".liv")) {
@@ -674,7 +673,7 @@ public class StoreTests extends ESTestCase {
         writer.addDocument(docs.get(0));
         writer.close();
 
-        Store.MetadataSnapshot newCommitMetaData = store.getMetadata();
+        Store.MetadataSnapshot newCommitMetaData = store.getMetadata(null);
         Store.RecoveryDiff newCommitDiff = newCommitMetaData.recoveryDiff(metadata);
         if (delFile != null) {
             assertThat(newCommitDiff.identical.size(), equalTo(newCommitMetaData.size() - 5)); // segments_N, del file, cfs, cfe, si for the new segment
@@ -723,7 +722,7 @@ public class StoreTests extends ESTestCase {
             writer.addDocument(doc);
         }
 
-        Store.MetadataSnapshot firstMeta = store.getMetadata();
+        Store.MetadataSnapshot firstMeta = store.getMetadata(null);
 
         if (random().nextBoolean()) {
             for (int i = 0; i < docs; i++) {
@@ -738,7 +737,7 @@ public class StoreTests extends ESTestCase {
         writer.commit();
         writer.close();
 
-        Store.MetadataSnapshot secondMeta = store.getMetadata();
+        Store.MetadataSnapshot secondMeta = store.getMetadata(null);
 
 
         if (randomBoolean()) {
@@ -785,13 +784,10 @@ public class StoreTests extends ESTestCase {
         final AtomicInteger count = new AtomicInteger(0);
         final ShardLock lock = new DummyShardLock(shardId);
 
-        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, lock, new Store.OnClose() {
-            @Override
-            public void handle(ShardLock theLock) {
-                assertEquals(shardId, theLock.getShardId());
-                assertEquals(lock, theLock);
-                count.incrementAndGet();
-            }
+        Store store = new Store(shardId, INDEX_SETTINGS, directoryService, lock, theLock -> {
+            assertEquals(shardId, theLock.getShardId());
+            assertEquals(lock, theLock);
+            count.incrementAndGet();
         });
         assertEquals(count.get(), 0);
 
@@ -917,11 +913,7 @@ public class StoreTests extends ESTestCase {
         writer.commit();
         writer.close();
         Store.MetadataSnapshot metadata;
-        if (randomBoolean()) {
-            metadata = store.getMetadata();
-        } else {
-            metadata = store.getMetadata(deletionPolicy.snapshot());
-        }
+        metadata = store.getMetadata(randomBoolean() ? null : deletionPolicy.snapshot());
         assertFalse(metadata.asMap().isEmpty());
         // do not check for correct files, we have enough tests for that above
         assertThat(metadata.getCommitUserData().get(Engine.SYNC_COMMIT_ID), equalTo(syncId));
@@ -982,7 +974,7 @@ public class StoreTests extends ESTestCase {
 
         try {
             if (randomBoolean()) {
-                store.getMetadata();
+                store.getMetadata(null);
             } else {
                 store.readLastCommittedSegmentsInfo();
             }

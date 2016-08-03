@@ -73,6 +73,7 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.Closeable;
@@ -209,43 +210,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Returns a new MetadataSnapshot for the latest commit in this store or
-     * an empty snapshot if no index exists or can not be opened.
-     *
-     * @throws CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum mismatch or an
-     *                                    unexpected exception when opening the index reading the segments file.
-     * @throws IndexFormatTooOldException if the lucene index is too old to be opened.
-     * @throws IndexFormatTooNewException if the lucene index is too new to be opened.
-     */
-    public MetadataSnapshot getMetadataOrEmpty() throws IOException {
-        try {
-            return getMetadata(null);
-        } catch (IndexNotFoundException ex) {
-            // that's fine - happens all the time no need to log
-        } catch (FileNotFoundException | NoSuchFileException ex) {
-            logger.info("Failed to open / find files while reading metadata snapshot");
-        }
-        return MetadataSnapshot.EMPTY;
-    }
-
-    /**
-     * Returns a new MetadataSnapshot for the latest commit in this store.
-     *
-     * @throws CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum mismatch or an
-     *                                    unexpected exception when opening the index reading the segments file.
-     * @throws IndexFormatTooOldException if the lucene index is too old to be opened.
-     * @throws IndexFormatTooNewException if the lucene index is too new to be opened.
-     * @throws FileNotFoundException      if one or more files referenced by a commit are not present.
-     * @throws NoSuchFileException        if one or more files referenced by a commit are not present.
-     * @throws IndexNotFoundException     if no index / valid commit-point can be found in this store
-     */
-    public MetadataSnapshot getMetadata() throws IOException {
-        return getMetadata(null);
-    }
-
-    /**
      * Returns a new MetadataSnapshot for the given commit. If the given commit is <code>null</code>
      * the latest commit point is used.
+     *
+     * Note that this method requires the caller verify it has the right to access the store and
+     * no concurrent file changes are happening. If in doubt, you probably want to use one of the following:
+     *
+     * {@link #readMetadataSnapshot(Path, ShardId, NodeEnvironment.ShardLocker, ESLogger)} to read a meta data while locking
+     * {@link IndexShard#snapshotStoreMetadata()} to safely read from an existing shard
+     * {@link IndexShard#acquireIndexCommit(boolean)} to get an {@link IndexCommit} which is safe to use but has to be freed
      *
      * @throws CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum mismatch or an
      *                                    unexpected exception when opening the index reading the segments file.
@@ -634,7 +607,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // ignore, we don't really care, will get deleted later on
                 }
             }
-            final Store.MetadataSnapshot metadataOrEmpty = getMetadata();
+            final Store.MetadataSnapshot metadataOrEmpty = getMetadata(null);
             verifyAfterCleanup(sourceMetaData, metadataOrEmpty);
         } finally {
             metadataLock.writeLock().unlock();

@@ -23,6 +23,7 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
@@ -156,6 +157,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Simple unit-test IndexShard related operations.
@@ -474,6 +476,76 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     public static void write(ShardStateMetaData shardStateMetaData,
                              Path... shardPaths) throws IOException {
         ShardStateMetaData.FORMAT.write(shardStateMetaData, shardPaths);
+    }
+
+    public void testAcquireIndexCommit() throws IOException {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService(resolveIndex("test"));
+        final IndexShard shard = test.getShardOrNull(0);
+        int numDocs = randomInt(20);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test", "type", "id_" + i).setSource("{}").get();
+        }
+        final boolean flushFirst = randomBoolean();
+        IndexCommit commit = shard.acquireIndexCommit(flushFirst);
+        int moreDocs = randomInt(20);
+        for (int i = 0; i < moreDocs; i++) {
+            client().prepareIndex("test", "type", "id_" + numDocs + i).setSource("{}").get();
+        }
+        shard.flush(new FlushRequest("index"));
+        // check that we can still read the commit that we captured
+        try (IndexReader reader = DirectoryReader.open(commit)) {
+            assertThat(reader.numDocs(), equalTo(flushFirst ? numDocs : 0));
+        }
+        shard.releaseIndexCommit(commit);
+        shard.flush(new FlushRequest("index").force(true));
+        // check it's clean up
+        assertThat(DirectoryReader.listCommits(shard.store().directory()), hasSize(1));
+    }
+
+    /***
+     * test one can snapshot the store at various lifecycle stages
+     */
+    public void testSnapshotStore() throws IOException {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService(resolveIndex("test"));
+        final IndexShard shard = test.getShardOrNull(0);
+        client().prepareIndex("test", "test", "0").setSource("{}").setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
+        client().admin().indices().prepareFlush().get();
+        ShardRouting routing = shard.routingEntry();
+        test.removeShard(0, "b/c simon says so");
+        routing = ShardRoutingHelper.reinit(routing);
+        IndexShard newShard = test.createShard(routing);
+        newShard.updateRoutingEntry(routing);
+        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+
+        Store.MetadataSnapshot snapshot = newShard.snapshotStoreMetadata();
+        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
+
+        newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode,
+            localNode));
+
+        snapshot = newShard.snapshotStoreMetadata();
+        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
+
+        assertTrue(newShard.recoverFromStore());
+
+        snapshot = newShard.snapshotStoreMetadata();
+        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
+
+        newShard.updateRoutingEntry(getInitializingShardRouting(routing).moveToStarted());
+
+        snapshot = newShard.snapshotStoreMetadata();
+        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
+
+        newShard.close("test", false);
+
+        snapshot = newShard.snapshotStoreMetadata();
+        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
     }
 
     public void testDurableFlagHasEffect() {

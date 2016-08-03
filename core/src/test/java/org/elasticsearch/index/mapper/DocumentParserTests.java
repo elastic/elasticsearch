@@ -873,5 +873,8 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
             mapper.parse("test", "type", "1", bytes)
         );
         assertTrue(e.getMessage(), e.getMessage().contains("cannot be added inside a document"));
+
+        BytesReference bytes2 = XContentFactory.jsonBuilder().startObject().field("foo._ttl", 0).endObject().bytes();
+        mapper.parse("test", "type", "1", bytes2); // parses without error
     }
 }

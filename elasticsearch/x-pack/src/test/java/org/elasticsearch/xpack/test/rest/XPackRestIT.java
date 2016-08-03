@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.test.rest;
 
-import org.elasticsearch.test.rest.RestTestCandidate;
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 
 /** Runs rest tests against external cluster */
 public class XPackRestIT extends XPackRestTestCase {
 
-    public XPackRestIT(RestTestCandidate testCandidate) {
+    public XPackRestIT(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

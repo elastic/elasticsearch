@@ -12,8 +12,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
 
@@ -25,16 +25,15 @@ public abstract class AbstractCollector extends AbstractLifecycleComponent imple
 
     protected final ClusterService clusterService;
     protected final MonitoringSettings monitoringSettings;
-    protected final MonitoringLicensee licensee;
+    protected final XPackLicenseState licenseState;
 
-    @Inject
     public AbstractCollector(Settings settings, String name, ClusterService clusterService,
-                             MonitoringSettings monitoringSettings, MonitoringLicensee licensee) {
+                             MonitoringSettings monitoringSettings, XPackLicenseState licenseState) {
         super(settings);
         this.name = name;
         this.clusterService = clusterService;
         this.monitoringSettings = monitoringSettings;
-        this.licensee = licensee;
+        this.licenseState = licenseState;
     }
 
     @Override
@@ -61,7 +60,7 @@ public abstract class AbstractCollector extends AbstractLifecycleComponent imple
      * Indicates if the current collector is allowed to collect data
      */
     protected boolean shouldCollect() {
-        if (!licensee.collectionEnabled()) {
+        if (licenseState.isMonitoringAllowed() == false) {
             logger.trace("collector [{}] can not collect data due to invalid license", name());
             return false;
         }

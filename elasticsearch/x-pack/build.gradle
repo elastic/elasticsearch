@@ -1,6 +1,5 @@
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.NodeInfo
-
 import java.nio.charset.StandardCharsets
 
 group 'org.elasticsearch.plugin'
@@ -21,13 +20,15 @@ ext.compactProfile = 'full'
 
 dependencyLicenses.enabled = false
 
-dependencies {
-  // license deps
-  compile project(':x-plugins:elasticsearch:license:base')
-  testCompile project(':x-plugins:elasticsearch:license:licensor')
+licenseHeaders {
+  approvedLicenses << 'BCrypt (BSD-like)'
+  additionalLicense 'BCRYP', 'BCrypt (BSD-like)', 'Copyright (c) 2006 Damien Miller <djm@mindrot.org>'
+}
 
+dependencies {
   // security deps
   compile project(path: ':modules:transport-netty3', configuration: 'runtime')
+  compile project(path: ':modules:transport-netty4', configuration: 'runtime')
   compile 'dk.brics.automaton:automaton:1.11-8'
   compile 'com.unboundid:unboundid-ldapsdk:3.1.1'
   compile 'org.bouncycastle:bcprov-jdk15on:1.54'
@@ -73,6 +74,11 @@ for (String module : ['', 'license-plugin/', 'security/', 'watcher/', 'monitorin
   }
 }
 
+// make LicenseSigner available for testing signed licenses
+sourceSets.test.java {
+  srcDir '../license-tools/src/main/java'
+}
+
 compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 
@@ -112,8 +118,10 @@ forbiddenPatterns {
 
 // TODO: standardize packaging config for plugins
 bundlePlugin {
-  from(projectDir) {
+  from(project(':x-plugins').projectDir) {
     include 'LICENSE.txt'
+  }
+  from(projectDir) {
     include 'NOTICE.txt'
   }
   from('bin/x-pack') {
@@ -231,32 +239,3 @@ thirdPartyAudit.excludes = [
     'javax.activation.URLDataSource',
     'javax.activation.UnsupportedDataTypeException'    
 ]
-
-// someone figure out what the x-plugins logic should be
-licenseHeaders.enabled = false
-
-modifyPom { MavenPom pom ->
-  pom.withXml { XmlProvider xml ->
-    // first find if we have dependencies at all, and grab the node
-    NodeList depsNodes = xml.asNode().get('dependencies')
-    if (depsNodes.isEmpty()) {
-      return
-    }
-
-    // find the 'base' dependency and replace it with the correct name because the project name is
-    // always used even when the pom of the other project is correct
-    Iterator<Node> childNodeIter = depsNodes.get(0).children().iterator()
-    while (childNodeIter.hasNext()) {
-      Node depNode = childNodeIter.next()
-      String groupId = depNode.get('groupId').get(0).text()
-      Node artifactIdNode = depNode.get('artifactId').get(0)
-      String artifactId = artifactIdNode.text()
-      String scope = depNode.get("scope").get(0).text()
-      if (groupId.equals('org.elasticsearch') && artifactId.equals('base')) {
-        artifactIdNode.replaceNode(new Node(null, 'artifactId', 'license-core'))
-      } else if ('test'.equals(scope)) {
-        childNodeIter.remove()
-      }
-    }
-  }
-}

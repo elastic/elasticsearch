@@ -104,7 +104,7 @@ public class MonitoringPluginTests extends MonitoringIntegTestCase {
             fail("should have thrown an exception about missing implementation");
         } catch (Exception ce) {
             assertThat("message contains error about missing implementation: " + ce.getMessage(),
-                    ce.getMessage().contains("No implementation"), equalTo(true));
+                    ce.getMessage().contains("Could not find a suitable constructor"), equalTo(true));
         }
     }
 }

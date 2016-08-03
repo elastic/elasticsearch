@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.transport.actions.put;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -16,11 +17,12 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.plugin.core.LicenseUtils;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.WatcherService;
-import org.elasticsearch.xpack.watcher.WatcherLicensee;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
 
@@ -34,9 +36,9 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
     public TransportPutWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver, WatcherService watcherService,
-                                   WatcherLicensee watcherLicensee) {
-        super(settings, PutWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                watcherLicensee, PutWatchRequest::new);
+                                   XPackLicenseState licenseState) {
+        super(settings, PutWatchAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            indexNameExpressionResolver, licenseState, PutWatchRequest::new);
         this.watcherService = watcherService;
     }
 
@@ -53,15 +55,16 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
     @Override
     protected void masterOperation(PutWatchRequest request, ClusterState state, ActionListener<PutWatchResponse> listener) throws
             ElasticsearchException {
-        if (!watcherLicensee.isPutWatchAllowed()) {
-            listener.onFailure(LicenseUtils.newComplianceException(WatcherLicensee.ID));
+        if (licenseState.isWatcherAllowed() == false) {
+            listener.onFailure(LicenseUtils.newComplianceException(Watcher.NAME));
             return;
         }
 
         try {
             IndexResponse indexResponse = watcherService.putWatch(request.getId(), request.getSource(), request.masterNodeTimeout(),
                     request.isActive());
-            listener.onResponse(new PutWatchResponse(indexResponse.getId(), indexResponse.getVersion(), indexResponse.isCreated()));
+            boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+            listener.onResponse(new PutWatchResponse(indexResponse.getId(), indexResponse.getVersion(), created));
         } catch (Exception e) {
             listener.onFailure(e);
         }

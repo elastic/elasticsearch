@@ -8,17 +8,12 @@ package org.elasticsearch.xpack.notification;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.xpack.notification.email.EmailService;
-import org.elasticsearch.xpack.notification.email.HtmlSanitizer;
-import org.elasticsearch.xpack.notification.email.InternalEmailService;
 import org.elasticsearch.xpack.notification.email.attachment.DataAttachmentParser;
 import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentParser;
 import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentsParser;
 import org.elasticsearch.xpack.notification.email.attachment.HttpEmailAttachementParser;
 import org.elasticsearch.xpack.notification.hipchat.HipChatService;
-import org.elasticsearch.xpack.notification.hipchat.InternalHipChatService;
-import org.elasticsearch.xpack.notification.pagerduty.InternalPagerDutyService;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
-import org.elasticsearch.xpack.notification.slack.InternalSlackService;
 import org.elasticsearch.xpack.notification.slack.SlackService;
 
 import java.util.HashMap;
@@ -40,9 +35,7 @@ public class NotificationModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        // email
-        bind(InternalEmailService.class).asEagerSingleton();
-        bind(EmailService.class).to(InternalEmailService.class).asEagerSingleton();
+        bind(EmailService.class).asEagerSingleton();
 
         MapBinder<String, EmailAttachmentParser> emailParsersBinder = MapBinder.newMapBinder(binder(), String.class,
                 EmailAttachmentParser.class);
@@ -51,16 +44,8 @@ public class NotificationModule extends AbstractModule {
         }
         bind(EmailAttachmentsParser.class).asEagerSingleton();
 
-        // hipchat
-        bind(InternalHipChatService.class).asEagerSingleton();
-        bind(HipChatService.class).to(InternalHipChatService.class);
-
-        // slack
-        bind(InternalSlackService.class).asEagerSingleton();
-        bind(SlackService.class).to(InternalSlackService.class);
-
-        // pager duty
-        bind(InternalPagerDutyService.class).asEagerSingleton();
-        bind(PagerDutyService.class).to(InternalPagerDutyService.class);
+        bind(HipChatService.class).asEagerSingleton();
+        bind(SlackService.class).asEagerSingleton();
+        bind(PagerDutyService.class).asEagerSingleton();
     }
 }

@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.precommit.LicenseHeadersTask
+
 File checkstyleSuppressions = file('checkstyle_suppressions.xml')
 subprojects {
   tasks.withType(Checkstyle) {
@@ -6,5 +8,10 @@ subprojects {
     configProperties = [
       suppressions: checkstyleSuppressions
     ]
+  }
+
+  tasks.withType(LicenseHeadersTask.class) {
+    approvedLicenses = ['Elasticsearch Confidential']
+    additionalLicense 'ESCON', 'Elasticsearch Confidential', 'ELASTICSEARCH CONFIDENTIAL'
   }
 }

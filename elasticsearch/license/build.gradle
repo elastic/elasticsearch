@@ -1,9 +1,0 @@
-subprojects {
-  project.afterEvaluate {
-    project.forbiddenPatterns {
-      exclude '**/*.key'
-    }
-    // someone figure out what the x-plugins logic should be
-    project.licenseHeaders.enabled = false
-  }
-}

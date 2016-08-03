@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.xpack.MockNetty3Plugin;
+import org.elasticsearch.xpack.MockNetty4Plugin;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -161,7 +162,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
     @Override
     public Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(xpackPluginClass(), MockNetty3Plugin.class);
+        return Arrays.asList(xpackPluginClass(), MockNetty3Plugin.class, MockNetty4Plugin.class);
     }
 
     @Override

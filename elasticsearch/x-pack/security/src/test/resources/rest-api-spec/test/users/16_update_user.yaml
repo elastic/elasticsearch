@@ -35,7 +35,7 @@ teardown:
 ---
 "Test create user and update without and with password":
   - skip:
-      features: headers
+      features: [headers, catch_unauthorized]
 
 # test that the role actually works
   - do:
@@ -108,7 +108,7 @@ teardown:
 
 # validate old password doesn't work
   - do:
-      catch: request
+      catch: unauthorized
       headers:
         Authorization: "Basic am9lOnMza3JpdA=="
       cluster.health: {}

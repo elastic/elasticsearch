@@ -35,7 +35,6 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SparseFixedBitSet;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -44,7 +43,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -61,9 +59,8 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
-import org.elasticsearch.xpack.security.SecurityLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.security.user.User;
@@ -104,7 +101,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
     private ScriptService scriptService;
     private SecurityIndexSearcherWrapper securityIndexSearcherWrapper;
     private ElasticsearchDirectoryReader esIn;
-    private SecurityLicenseState licenseState;
+    private XPackLicenseState licenseState;
     private IndexSettings indexSettings;
 
     @Before
@@ -116,11 +113,11 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
                 Collections.emptyMap(), Collections.emptyMap());
         SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
         mapperService = new MapperService(indexSettings, analysisService, similarityService,
-                new IndicesModule(new NamedWriteableRegistry(), emptyList()).getMapperRegistry(), () -> null);
+                new IndicesModule(emptyList()).getMapperRegistry(), () -> null);
 
         ShardId shardId = new ShardId(index, 0);
-        licenseState = mock(SecurityLicenseState.class);
-        when(licenseState.documentAndFieldLevelSecurityEnabled()).thenReturn(true);
+        licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         threadContext = new ThreadContext(Settings.EMPTY);
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(shardId);
@@ -175,7 +172,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
     }
 
     public void testWrapReaderWhenFeatureDisabled() throws Exception {
-        when(licenseState.documentAndFieldLevelSecurityEnabled()).thenReturn(false);
+        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(false);
         securityIndexSearcherWrapper =
                 new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, scriptService);
         DirectoryReader reader = securityIndexSearcherWrapper.wrap(esIn);

@@ -43,7 +43,7 @@ public class SecurityNetty3HttpServerTransportTests extends ESTestCase {
                 .put("xpack.security.ssl.keystore.password", "testnode")
                 .build();
         Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
-        serverSSLService = new ServerSSLService(settings, env, new Global(settings), null);
+        serverSSLService = new ServerSSLService(settings, env, new Global(settings));
     }
 
     public void testDefaultClientAuth() throws Exception {

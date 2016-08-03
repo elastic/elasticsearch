@@ -7,31 +7,31 @@ package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.RestTestCandidate;
-import org.elasticsearch.test.rest.parser.RestTestParseException;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 
-public class GraphWithSecurityIT extends ESRestTestCase {
+public class GraphWithSecurityIT extends ESClientYamlSuiteTestCase {
 
     private static final String TEST_ADMIN_USERNAME = "test_admin";
     private static final String TEST_ADMIN_PASSWORD = "changeme";
 
-    public GraphWithSecurityIT(@Name("yaml") RestTestCandidate testCandidate) {
+    public GraphWithSecurityIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
-        return ESRestTestCase.createParameters(0, 1);
+    public static Iterable<Object[]> parameters() throws IOException, ClientYamlTestParseException {
+        return ESClientYamlSuiteTestCase.createParameters(0, 1);
     }
     
     protected String[] getCredentials() {

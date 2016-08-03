@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -42,6 +43,8 @@ import org.junit.rules.ExpectedException;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -87,9 +90,12 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         CapturingTransport transport = new CapturingTransport();
+        Set<Setting<?>>  clusterSettings = new HashSet<>();
+        clusterSettings.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        clusterSettings.add(MonitoringSettings.EXPORTERS_SETTINGS);
         clusterService =  new ClusterService(Settings.builder().put("cluster.name",
                 TransportMonitoringBulkActionTests.class.getName()).build(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool);
+                new ClusterSettings(Settings.EMPTY, clusterSettings), threadPool);
         clusterService.setLocalNode(new DiscoveryNode("node", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(),
                 Version.CURRENT));
         clusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
@@ -257,8 +263,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         private final Collection<MonitoringDoc> exported = ConcurrentCollections.newConcurrentSet();
 
         public CapturingExporters() {
-            super(Settings.EMPTY, Collections.emptyMap(), clusterService,
-                    new ClusterSettings(Settings.EMPTY, Collections.singleton(MonitoringSettings.EXPORTERS_SETTINGS)));
+            super(Settings.EMPTY, Collections.emptyMap(), clusterService);
         }
 
         @Override
@@ -279,8 +284,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         private final Consumer<Collection<? extends MonitoringDoc>> consumer;
 
         public ConsumingExporters(Consumer<Collection<? extends MonitoringDoc>> consumer) {
-            super(Settings.EMPTY, Collections.emptyMap(), clusterService,
-                    new ClusterSettings(Settings.EMPTY, Collections.singleton(MonitoringSettings.EXPORTERS_SETTINGS)));
+            super(Settings.EMPTY, Collections.emptyMap(), clusterService);
             this.consumer = consumer;
         }
 

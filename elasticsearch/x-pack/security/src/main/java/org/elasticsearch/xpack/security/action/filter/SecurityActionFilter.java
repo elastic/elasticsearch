@@ -18,7 +18,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.plugin.core.LicenseUtils;
+import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.privilege.HealthAndStatsPrivilege;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
-import org.elasticsearch.xpack.security.SecurityLicenseState;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -55,13 +55,13 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
     private final AuditTrail auditTrail;
     private final SecurityActionMapper actionMapper;
     private final Set<RequestInterceptor> requestInterceptors;
-    private final SecurityLicenseState licenseState;
+    private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final SecurityContext securityContext;
 
     @Inject
     public SecurityActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService,
-                                CryptoService cryptoService, AuditTrailService auditTrail, SecurityLicenseState licenseState,
+                                CryptoService cryptoService, AuditTrailService auditTrail, XPackLicenseState licenseState,
                                 SecurityActionMapper actionMapper, Set<RequestInterceptor> requestInterceptors, ThreadPool threadPool,
                                 SecurityContext securityContext) {
         super(settings);
@@ -83,7 +83,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
          A functional requirement - when the license of security is disabled (invalid/expires), security will continue
          to operate normally, except all read operations will be blocked.
          */
-        if (!licenseState.statsAndHealthEnabled() && LICENSE_EXPIRATION_ACTION_MATCHER.test(action)) {
+        if (licenseState.isStatsAndHealthAllowed() == false && LICENSE_EXPIRATION_ACTION_MATCHER.test(action)) {
             logger.error("blocking [{}] operation due to expired license. Cluster health, cluster stats and indices stats \n" +
                     "operations are blocked on license expiration. All data operations (read and write) continue to work. \n" +
                     "If you have a new license, please update it. Otherwise, please reach out to your support contact.", action);
@@ -95,7 +95,7 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
         final ThreadContext.StoredContext original = threadContext.newStoredContext();
         final boolean restoreOriginalContext = securityContext.getAuthentication() != null;
         try {
-            if (licenseState.authenticationAndAuthorizationEnabled()) {
+            if (licenseState.isAuthAllowed()) {
                 if (AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action)) {
                     try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
                         applyInternal(task, action, request, new SigningListener(this, listener, original), chain);

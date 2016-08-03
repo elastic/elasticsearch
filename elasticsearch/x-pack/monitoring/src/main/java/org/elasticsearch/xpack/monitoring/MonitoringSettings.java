@@ -34,7 +34,6 @@ public class MonitoringSettings extends AbstractComponent {
      * The minimum amount of time allowed for the history duration.
      */
     public static final TimeValue HISTORY_DURATION_MINIMUM = TimeValue.timeValueHours(24);
-    public static final TimeValue MAX_LICENSE_GRACE_PERIOD = TimeValue.timeValueHours(7 * 24);
 
     /**
      * Determines whether monitoring is enabled/disabled
@@ -123,7 +122,7 @@ public class MonitoringSettings extends AbstractComponent {
      * Settings/Options per configured exporter
      */
     public static final Setting<Settings> EXPORTERS_SETTINGS =
-            groupSetting(collectionKey("exporters."), Property.Dynamic, Property.NodeScope);
+            groupSetting(key("exporters."), Property.Dynamic, Property.NodeScope);
 
     public static List<Setting<?>> getSettings() {
         return Arrays.asList(INDICES,
@@ -141,7 +140,7 @@ public class MonitoringSettings extends AbstractComponent {
     }
 
     public static List<String> getSettingsFilter() {
-        return Arrays.asList("xpack.monitoring.collection.exporters.*.auth.*", "xpack.monitoring.collection.exporters.*.ssl.*");
+        return Arrays.asList(key("exporters.*.auth.*"), key("exporters.*.ssl.*"));
     }
 
 
@@ -153,7 +152,6 @@ public class MonitoringSettings extends AbstractComponent {
     private volatile boolean recoveryActiveOnly;
     private volatile String[] indices;
 
-    @Inject
     public MonitoringSettings(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
 

@@ -10,6 +10,8 @@ admin:
 # Search and write on both source and destination indices. It should work if you could just search on the source and
 # write to the destination but that isn't how security works.
 minimal:
+  cluster:
+    - cluster:monitor/main
   indices:
     - names: source
       privileges:
@@ -26,18 +28,24 @@ minimal:
 
 # Read only operations on indices
 readonly:
+  cluster:
+    - cluster:monitor/main
   indices:
     - names: '*'
       privileges: [ read ]
 
 # Write operations on destination index, none on source index
 dest_only:
+  cluster:
+    - cluster:monitor/main
   indices:
     - names: dest
       privileges: [ write ]
 
 # Search and write on both source and destination indices with document level security filtering out some docs.
 can_not_see_hidden_docs:
+  cluster:
+    - cluster:monitor/main
   indices:
     - names: source
       privileges:
@@ -59,6 +67,8 @@ can_not_see_hidden_docs:
 
 # Search and write on both source and destination indices with field level security.
 can_not_see_hidden_fields:
+  cluster:
+    - cluster:monitor/main
   indices:
     - names: source
       privileges:

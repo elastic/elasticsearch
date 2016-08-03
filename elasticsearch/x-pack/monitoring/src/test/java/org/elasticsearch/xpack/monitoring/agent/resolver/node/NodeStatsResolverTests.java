@@ -63,8 +63,6 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
         doc.setSourceNode(new DiscoveryNode("id", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
         doc.setNodeMaster(randomBoolean());
         doc.setNodeId(UUID.randomUUID().toString());
-        doc.setDiskThresholdDeciderEnabled(randomBoolean());
-        doc.setDiskThresholdWaterMarkHigh(randomDouble());
         doc.setMlockall(randomBoolean());
         doc.setNodeStats(randomNodeStats());
         return doc;

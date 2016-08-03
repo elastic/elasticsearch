@@ -5,28 +5,22 @@
  */
 package org.elasticsearch.xpack.notification;
 
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.xpack.common.http.HttpClient;
-import org.elasticsearch.xpack.notification.email.EmailService;
-import org.elasticsearch.xpack.notification.email.InternalEmailService;
-import org.elasticsearch.xpack.notification.hipchat.HipChatService;
-import org.elasticsearch.xpack.notification.hipchat.InternalHipChatService;
-import org.elasticsearch.xpack.notification.pagerduty.InternalPagerDutyService;
-import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
-import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
-import org.elasticsearch.xpack.notification.slack.InternalSlackService;
-import org.elasticsearch.xpack.notification.slack.SlackService;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+
+import org.elasticsearch.client.Client;
+import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.notification.email.EmailService;
+import org.elasticsearch.xpack.notification.hipchat.HipChatService;
+import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
+import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
+import org.elasticsearch.xpack.notification.slack.SlackService;
 
 public class Notification {
 
@@ -37,10 +31,10 @@ public class Notification {
     }
 
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(InternalSlackService.SLACK_ACCOUNT_SETTING,
-        InternalEmailService.EMAIL_ACCOUNT_SETTING,
-        InternalHipChatService.HIPCHAT_ACCOUNT_SETTING,
-        InternalPagerDutyService.PAGERDUTY_ACCOUNT_SETTING);
+        return Arrays.asList(SlackService.SLACK_ACCOUNT_SETTING,
+        EmailService.EMAIL_ACCOUNT_SETTING,
+        HipChatService.HIPCHAT_ACCOUNT_SETTING,
+        PagerDutyService.PAGERDUTY_ACCOUNT_SETTING);
     }
 
     public List<String> getSettingsFilter() {
@@ -52,18 +46,6 @@ public class Notification {
         settingsFilter.add("xpack.notification.pagerduty.account.*." + PagerDutyAccount.SERVICE_KEY_SETTING);
         settingsFilter.add("xpack.notification.hipchat.account.*.auth_token");
         return settingsFilter;
-    }
-
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        if (transportClient) {
-            return Collections.emptyList();
-        }
-        return Arrays.<Class<? extends LifecycleComponent>>asList(
-                EmailService.class,
-                HipChatService.class,
-                SlackService.class,
-                PagerDutyService.class
-        );
     }
 
     public Collection<? extends Module> nodeModules() {

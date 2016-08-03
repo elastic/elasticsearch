@@ -113,7 +113,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
                 Collections.emptyMap(), Collections.emptyMap());
         SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
         mapperService = new MapperService(indexSettings, analysisService, similarityService,
-                new IndicesModule(new NamedWriteableRegistry(), emptyList()).getMapperRegistry(), () -> null);
+                new IndicesModule(emptyList()).getMapperRegistry(), () -> null);
 
         ShardId shardId = new ShardId(index, 0);
         licenseState = mock(XPackLicenseState.class);

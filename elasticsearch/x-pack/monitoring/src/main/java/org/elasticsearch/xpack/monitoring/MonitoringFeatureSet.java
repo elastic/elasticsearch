@@ -5,9 +5,12 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -16,10 +19,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.monitoring.agent.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.agent.exporter.Exporters;
-
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  *
@@ -31,12 +30,10 @@ public class MonitoringFeatureSet implements XPackFeatureSet {
     private final Exporters exporters;
 
     @Inject
-    public MonitoringFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, @Nullable Exporters exporters,
-                                NamedWriteableRegistry namedWriteableRegistry) {
+    public MonitoringFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, @Nullable Exporters exporters) {
         this.enabled = MonitoringSettings.ENABLED.get(settings);
         this.licenseState = licenseState;
         this.exporters = exporters;
-        namedWriteableRegistry.register(Usage.class, Usage.writeableName(Monitoring.NAME), Usage::new);
     }
 
     @Override
@@ -79,7 +76,7 @@ public class MonitoringFeatureSet implements XPackFeatureSet {
         return usage;
     }
 
-    static class Usage extends XPackFeatureSet.Usage {
+    public static class Usage extends XPackFeatureSet.Usage {
 
         private static final String ENABLED_EXPORTERS_XFIELD = "enabled_exporters";
 

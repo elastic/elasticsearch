@@ -5,8 +5,12 @@
  */
 package org.elasticsearch.xpack.security;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -23,20 +27,12 @@ import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class SecurityFeatureSetTests extends ESTestCase {
@@ -44,7 +40,6 @@ public class SecurityFeatureSetTests extends ESTestCase {
     private Settings settings;
     private XPackLicenseState licenseState;
     private Realms realms;
-    private NamedWriteableRegistry namedWriteableRegistry;
     private IPFilter ipFilter;
     private CompositeRolesStore rolesStore;
     private AuditTrailService auditTrail;
@@ -55,7 +50,6 @@ public class SecurityFeatureSetTests extends ESTestCase {
         settings = Settings.builder().put("path.home", createTempDir()).build();
         licenseState = mock(XPackLicenseState.class);
         realms = mock(Realms.class);
-        namedWriteableRegistry = mock(NamedWriteableRegistry.class);
         ipFilter = mock(IPFilter.class);
         rolesStore = mock(CompositeRolesStore.class);
         auditTrail = mock(AuditTrailService.class);
@@ -67,13 +61,8 @@ public class SecurityFeatureSetTests extends ESTestCase {
         AnonymousUser.initialize(Settings.EMPTY);
     }
 
-    public void testWritableRegistration() throws Exception {
-        new SecurityFeatureSet(settings, licenseState, realms, namedWriteableRegistry, rolesStore, ipFilter, auditTrail, cryptoService);
-        verify(namedWriteableRegistry).register(eq(SecurityFeatureSet.Usage.class), eq("xpack.usage.security"), anyObject());
-    }
-
     public void testAvailable() throws Exception {
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, namedWriteableRegistry, rolesStore,
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, rolesStore,
                 ipFilter, auditTrail, cryptoService);
         boolean available = randomBoolean();
         when(licenseState.isAuthAllowed()).thenReturn(available);
@@ -86,13 +75,13 @@ public class SecurityFeatureSetTests extends ESTestCase {
                 .put(this.settings)
                 .put("xpack.security.enabled", enabled)
                 .build();
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, namedWriteableRegistry, rolesStore,
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, rolesStore,
                 ipFilter, auditTrail, cryptoService);
         assertThat(featureSet.enabled(), is(enabled));
     }
 
     public void testEnabledDefault() throws Exception {
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, namedWriteableRegistry, rolesStore,
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, rolesStore,
                         ipFilter, auditTrail, cryptoService);
         assertThat(featureSet.enabled(), is(true));
     }
@@ -164,7 +153,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
             AnonymousUser.initialize(Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "foo").build());
         }
 
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState, realms, namedWriteableRegistry, rolesStore,
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState, realms, rolesStore,
                 ipFilter, auditTrail, cryptoService);
         XPackFeatureSet.Usage usage = featureSet.usage();
         assertThat(usage, is(notNullValue()));

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -34,6 +35,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 public class RestHttpResponseHeadersTests extends ESTestCase {
 
@@ -71,16 +73,16 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
          */
         List<RestRequest.Method> invalidHttpMethodArray = new ArrayList<RestRequest.Method>(Arrays.asList(RestRequest.Method.values()));
         invalidHttpMethodArray.removeAll(validHttpMethodArray);
-        assertTrue(invalidHttpMethodArray.size() > 0);
+        assert(invalidHttpMethodArray.size() > 0);
 
         // Initialize test candidate RestController
-        RestController restController = new RestController(Settings.EMPTY);
+        RestController restController = new RestController(Settings.EMPTY, Collections.emptySet());
 
         // A basic RestHandler handles requests to the endpoint
         RestHandler restHandler = new RestHandler() {
 
             @Override
-            public void handleRequest(RestRequest request, RestChannel channel) throws Exception {
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 channel.sendResponse(new TestResponse());
             }
 
@@ -92,11 +94,14 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         }
 
         // Generate a test request with an invalid HTTP method
-        RestRequest restRequest = new FakeRestRequest(null, null, null, invalidHttpMethodArray.get(0));
+        FakeRestRequest.Builder fakeRestRequestBuilder = new FakeRestRequest.Builder();
+        fakeRestRequestBuilder.withMethod(invalidHttpMethodArray.get(0));
+        RestRequest restRequest = fakeRestRequestBuilder.build();
 
         // Send the request and verify the response status code
         FakeRestChannel restChannel = new FakeRestChannel(restRequest, false, 1);
-        restController.executeHandler(restRequest, restChannel);
+        NodeClient client = mock(NodeClient.class);
+        restController.executeHandler(restRequest, restChannel, client);
         assertThat(restChannel.capturedResponse().status().getStatus(), is(405));
 
         /*

@@ -116,6 +116,33 @@ public class PathTrieTests extends ESTestCase {
         assertThat(trie.retrieve("/v/x", params), equalTo("test5"));
         assertThat(trie.retrieve("/v/x/c", params), equalTo("test6"));
     }
+    
+    // https://github.com/elastic/elasticsearch/pull/17916
+    public void testIgnoreNonTerminalWildcardExecution() {
+        PathTrie<String> trie = new PathTrie<>(NO_DECODER);
+        trie.insert("{testA}", "test1");
+        trie.insert("{testA}/{testB}", "test2");
+        trie.insert("a/{testA}", "test3");
+        trie.insert("{testA}/b", "test4");
+        trie.insert("{testA}/b/c", "test5");
+        trie.insert("a/{testB}/c", "test6");
+        trie.insert("a/b/{testC}", "test7");
+        trie.insert("{testA}/b/{testB}", "test8");
+        trie.insert("x/{testA}/z", "test9");
+        trie.insert("{testA}/{testB}/{testC}", "test10");
+
+        Map<String, String> params = new HashMap<>();
+        assertThat(trie.retrieve("/a", params, true), equalTo("test1"));
+        assertThat(trie.retrieve("/a", params, false), equalTo("test1"));
+        assertThat(trie.retrieve("/a/b", params, true), equalTo("test3"));
+        assertThat(trie.retrieve("/a/b", params, false), equalTo("test3"));
+        assertThat(trie.retrieve("/a/b/c", params, true), nullValue());
+        assertThat(trie.retrieve("/a/b/c", params, false), equalTo("test7"));
+        assertThat(trie.retrieve("/x/y/z", params, true), nullValue());
+        assertThat(trie.retrieve("/x/y/z", params, false), equalTo("test9"));
+        assertThat(trie.retrieve("/d/e/f", params, true), nullValue());
+        assertThat(trie.retrieve("/d/e/f", params, false), equalTo("test10"));
+    }
 
     public void testSamePathConcreteResolution() {
         PathTrie<String> trie = new PathTrie<>(NO_DECODER);

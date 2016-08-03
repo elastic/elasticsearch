@@ -24,10 +24,13 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -67,6 +70,20 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
     }
 
     @Override
+    protected Map<String, MatchPhraseQueryBuilder> getAlternateVersions() {
+        Map<String, MatchPhraseQueryBuilder> alternateVersions = new HashMap<>();
+        MatchPhraseQueryBuilder matchPhraseQuery = new MatchPhraseQueryBuilder(randomAsciiOfLengthBetween(1, 10),
+                randomAsciiOfLengthBetween(1, 10));
+        String contentString = "{\n" +
+                "    \"match_phrase\" : {\n" +
+                "        \"" + matchPhraseQuery.fieldName() + "\" : \"" + matchPhraseQuery.value() + "\"\n" +
+                "    }\n" +
+                "}";
+        alternateVersions.put(contentString, matchPhraseQuery);
+        return alternateVersions;
+    }
+
+    @Override
     protected void doAssertLuceneQuery(MatchPhraseQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, notNullValue());
         assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(PhraseQuery.class))
@@ -76,16 +93,16 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
     public void testIllegalValues() {
         try {
             new MatchPhraseQueryBuilder(null, "value");
-            fail("value must not be non-null");
+            fail("field must not be non-null");
         } catch (IllegalArgumentException ex) {
-            // expected
+            assertEquals("[match_phrase] requires fieldName", ex.getMessage());
         }
 
         try {
             new MatchPhraseQueryBuilder("fieldName", null);
             fail("value must not be non-null");
         } catch (IllegalArgumentException ex) {
-            // expected
+            assertEquals("[match_phrase] requires query value", ex.getMessage());
         }
     }
 
@@ -118,5 +135,25 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
                 "}";
         MatchPhraseQueryBuilder qb = (MatchPhraseQueryBuilder) parseQuery(json1);
         checkGeneratedJson(expected, qb);
+    }
+
+    public void testParseFailsWithMultipleFields() throws IOException {
+        String json = "{\n" +
+                "  \"match_phrase\" : {\n" +
+                "    \"message1\" : {\n" +
+                "      \"query\" : \"this is a test\"\n" +
+                "    },\n" +
+                "    \"message2\" : {\n" +
+                "      \"query\" : \"this is a test\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+
+        try {
+            parseQuery(json);
+            fail("parseQuery should have failed");
+        } catch(ParsingException e) {
+            assertEquals("[match_phrase] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+        }
     }
 }

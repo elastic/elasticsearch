@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.watch;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -93,14 +92,6 @@ public class WatchStatus implements ToXContent, Streamable {
         return lastChecked;
     }
 
-    public boolean metCondition() {
-        return lastMetCondition != null;
-    }
-
-    public DateTime lastMetCondition() {
-        return lastMetCondition;
-    }
-
     public ActionStatus actionStatus(String actionId) {
         return actions.get(actionId);
     }
@@ -151,13 +142,9 @@ public class WatchStatus implements ToXContent, Streamable {
      */
     public void onCheck(boolean metCondition, DateTime timestamp) {
         lastChecked = timestamp;
+        dirty = true;
         if (metCondition) {
             lastMetCondition = timestamp;
-            dirty = true;
-        } else {
-            for (ActionStatus status : actions.values()) {
-                dirty |= status.resetAckStatus(timestamp);
-            }
         }
     }
 
@@ -222,10 +209,8 @@ public class WatchStatus implements ToXContent, Streamable {
             out.writeString(entry.getKey());
             ActionStatus.writeTo(entry.getValue(), out);
         }
-        if (out.getVersion().onOrAfter(Version.V_2_0_0)) {
-            out.writeBoolean(state.active);
-            writeDate(out, state.timestamp);
-        }
+        out.writeBoolean(state.active);
+        writeDate(out, state.timestamp);
     }
 
     @Override
@@ -239,11 +224,7 @@ public class WatchStatus implements ToXContent, Streamable {
             actions.put(in.readString(), ActionStatus.readFrom(in));
         }
         this.actions = unmodifiableMap(actions);
-        if (in.getVersion().onOrAfter(Version.V_2_0_0)) {
-            state = new State(in.readBoolean(), readDate(in, DateTimeZone.UTC));
-        } else {
-            state = new State(true, new DateTime(SystemClock.INSTANCE.millis(), DateTimeZone.UTC));
-        }
+        state = new State(in.readBoolean(), readDate(in, DateTimeZone.UTC));
     }
 
     public static WatchStatus read(StreamInput in) throws IOException {
@@ -276,7 +257,6 @@ public class WatchStatus implements ToXContent, Streamable {
     }
 
     public static WatchStatus parse(String watchId, XContentParser parser) throws IOException {
-
         State state = null;
         DateTime lastChecked = null;
         DateTime lastMetCondition = null;

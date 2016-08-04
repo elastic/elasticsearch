@@ -56,12 +56,18 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
     private DiscoveryNodes discoveryNodes;
 
     public ListTasksResponse() {
+        this(null, null, null, null);
+    }
+
+    public ListTasksResponse(DiscoveryNodes discoveryNodes) {
+        this(null, null, null, discoveryNodes);
     }
 
     public ListTasksResponse(List<TaskInfo> tasks, List<TaskOperationFailure> taskFailures,
-            List<? extends FailedNodeException> nodeFailures) {
+            List<? extends FailedNodeException> nodeFailures, DiscoveryNodes discoveryNodes) {
         super(taskFailures, nodeFailures);
         this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
+        this.discoveryNodes = discoveryNodes;
     }
 
     @Override
@@ -125,15 +131,6 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
         return tasks;
     }
 
-    /**
-     * Set a reference to the {@linkplain DiscoveryNodes}. Used for calling {@link #toXContent(XContentBuilder, ToXContent.Params)} with
-     * {@code group_by=nodes}.
-     */
-    public void setDiscoveryNodes(DiscoveryNodes discoveryNodes) {
-        //WTF is this? Why isn't this set by default;
-        this.discoveryNodes = discoveryNodes;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (getTaskFailures() != null && getTaskFailures().size() > 0) {
@@ -157,9 +154,6 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
         }
         String groupBy = params.param("group_by", "nodes");
         if ("nodes".equals(groupBy)) {
-            if (discoveryNodes == null) {
-                throw new IllegalStateException("discoveryNodes must be set before calling toXContent with group_by=nodes");
-            }
             builder.startObject("nodes");
             for (Map.Entry<String, List<TaskInfo>> entry : getPerNodeTasks().entrySet()) {
                 DiscoveryNode node = discoveryNodes.get(entry.getKey());
@@ -201,27 +195,12 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
                 group.toXContent(builder, params);
             }
             builder.endObject();
-        } else {
-            builder.startObject("tasks");
-            if (tasks != null) {
-                for(TaskInfo task : tasks) {
-                    builder.field(task.getTaskId().toString());
-                    task.toXContent(builder, params);
-                }
-            }
-            builder.endObject();
         }
         return builder;
     }
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = JsonXContent.contentBuilder();
-            toXContent(builder, new MapParams(Collections.singletonMap("group_by", "none")));
-            return builder.string();
-        } catch (IOException e) {
-            return "Error building toString out of XContent: " + ExceptionsHelper.stackTrace(e);
-        }
+        return Strings.toString(this);
     }
 }

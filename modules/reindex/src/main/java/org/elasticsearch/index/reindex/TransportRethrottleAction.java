@@ -41,7 +41,8 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
     public TransportRethrottleAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
             TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, RethrottleAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, RethrottleRequest::new, ListTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+                indexNameExpressionResolver, RethrottleRequest::new, () -> new ListTasksResponse(clusterService.state().nodes()),
+            ThreadPool.Names.MANAGEMENT);
     }
 
     @Override
@@ -59,7 +60,7 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
     @Override
     protected ListTasksResponse newResponse(RethrottleRequest request, List<TaskInfo> tasks,
             List<TaskOperationFailure> taskOperationFailures, List<FailedNodeException> failedNodeExceptions) {
-        return new ListTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
+        return new ListTasksResponse(tasks, taskOperationFailures, failedNodeExceptions, clusterService.state().nodes());
     }
 
     @Override

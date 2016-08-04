@@ -66,7 +66,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
                                       TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver
                                           indexNameExpressionResolver) {
         super(settings, CancelTasksAction.NAME, threadPool, clusterService, transportService, actionFilters,
-            indexNameExpressionResolver, CancelTasksRequest::new, CancelTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+            indexNameExpressionResolver, CancelTasksRequest::new, () -> new CancelTasksResponse(clusterService.state().nodes()),
+            ThreadPool.Names.MANAGEMENT);
         transportService.registerRequestHandler(BAN_PARENT_ACTION_NAME, BanParentTaskRequest::new, ThreadPool.Names.SAME, new
             BanParentRequestHandler());
     }
@@ -74,7 +75,7 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     @Override
     protected CancelTasksResponse newResponse(CancelTasksRequest request, List<TaskInfo> tasks, List<TaskOperationFailure>
         taskOperationFailures, List<FailedNodeException> failedNodeExceptions) {
-        return new CancelTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
+        return new CancelTasksResponse(tasks, taskOperationFailures, failedNodeExceptions, clusterService.state().nodes());
     }
 
     @Override

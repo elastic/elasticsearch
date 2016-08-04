@@ -35,8 +35,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
@@ -57,13 +59,14 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
     public TransportListTasksAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
             TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ListTasksAction.NAME, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, ListTasksRequest::new, ListTasksResponse::new, ThreadPool.Names.MANAGEMENT);
+            indexNameExpressionResolver, ListTasksRequest::new, () -> new ListTasksResponse(clusterService.state().nodes()),
+            ThreadPool.Names.MANAGEMENT);
     }
 
     @Override
     protected ListTasksResponse newResponse(ListTasksRequest request, List<TaskInfo> tasks,
             List<TaskOperationFailure> taskOperationFailures, List<FailedNodeException> failedNodeExceptions) {
-        return new ListTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
+        return new ListTasksResponse(tasks, taskOperationFailures, failedNodeExceptions, clusterService.state().nodes());
     }
 
     @Override

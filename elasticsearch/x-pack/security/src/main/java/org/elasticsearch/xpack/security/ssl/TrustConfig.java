@@ -24,34 +24,18 @@ abstract class TrustConfig {
 
     protected final boolean includeSystem;
 
-    X509ExtendedTrustManager[] trustManagers = null;
-
     TrustConfig(boolean includeSystem) {
         this.includeSystem = includeSystem;
     }
 
-    final synchronized X509ExtendedTrustManager[] trustManagers(@Nullable Environment environment) {
-        if (trustManagers == null) {
-            X509ExtendedTrustManager loadedTrustManager = loadAndMergeIfNecessary(environment);
-            setTrustManagers(loadedTrustManager);
+    final X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
+        X509ExtendedTrustManager trustManager = nonSystemTrustManager(environment);
+        if (includeSystem) {
+            trustManager = mergeWithSystem(trustManager);
+        } else if (trustManager == null) {
+            return null;
         }
-        return trustManagers;
-    }
-
-    synchronized void reload(@Nullable Environment environment) {
-        X509ExtendedTrustManager loadedTrustManager = loadAndMergeIfNecessary(environment);
-        setTrustManagers(loadedTrustManager);
-    }
-
-    final synchronized void setTrustManagers(X509ExtendedTrustManager loadedTrustManager) {
-        if (loadedTrustManager == null) {
-            this.trustManagers = new X509ExtendedTrustManager[0];
-        } else if (this.trustManagers == null || this.trustManagers.length == 0) {
-            this.trustManagers = new X509ExtendedTrustManager[] { new ReloadableTrustManager(loadedTrustManager) };
-        } else {
-            assert this.trustManagers[0] instanceof ReloadableTrustManager;
-            ((ReloadableTrustManager)this.trustManagers[0]).setTrustManager(loadedTrustManager);
-        }
+        return trustManager;
     }
 
     abstract X509ExtendedTrustManager nonSystemTrustManager(@Nullable Environment environment);
@@ -61,16 +45,6 @@ abstract class TrustConfig {
     abstract List<Path> filesToMonitor(@Nullable Environment environment);
 
     public abstract String toString();
-
-    final X509ExtendedTrustManager loadAndMergeIfNecessary(@Nullable Environment environment) {
-        X509ExtendedTrustManager trustManager = nonSystemTrustManager(environment);
-        if (includeSystem) {
-            trustManager = mergeWithSystem(trustManager);
-        } else if (trustManager == null) {
-            return null;
-        }
-        return trustManager;
-    }
 
     private X509ExtendedTrustManager mergeWithSystem(X509ExtendedTrustManager nonSystemTrustManager) {
         try {
@@ -177,58 +151,6 @@ abstract class TrustConfig {
         @Override
         public X509Certificate[] getAcceptedIssuers() {
             return acceptedIssuers;
-        }
-    }
-
-    final class ReloadableTrustManager extends X509ExtendedTrustManager {
-
-        private volatile X509ExtendedTrustManager trustManager;
-
-        ReloadableTrustManager(X509ExtendedTrustManager trustManager) {
-            this.trustManager = trustManager;
-        }
-
-        @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
-            trustManager.checkClientTrusted(x509Certificates, s, socket);
-        }
-
-        @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, Socket socket) throws CertificateException {
-            trustManager.checkServerTrusted(x509Certificates, s, socket);
-        }
-
-        @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
-            trustManager.checkClientTrusted(x509Certificates, s, sslEngine);
-        }
-
-        @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) throws CertificateException {
-            trustManager.checkServerTrusted(x509Certificates, s, sslEngine);
-        }
-
-        @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-            trustManager.checkClientTrusted(x509Certificates, s);
-        }
-
-        @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s) throws CertificateException {
-            trustManager.checkServerTrusted(x509Certificates, s);
-        }
-
-        @Override
-        public X509Certificate[] getAcceptedIssuers() {
-            return trustManager.getAcceptedIssuers();
-        }
-
-        synchronized void setTrustManager(X509ExtendedTrustManager trustManager) {
-            this.trustManager = trustManager;
-        }
-
-        X509ExtendedTrustManager getTrustManager() {
-            return trustManager;
         }
     }
 }

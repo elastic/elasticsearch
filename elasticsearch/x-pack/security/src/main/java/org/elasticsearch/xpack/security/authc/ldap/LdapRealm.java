@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.ldap.support.AbstractLdapRealm;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
-import org.elasticsearch.xpack.security.ssl.ClientSSLService;
+import org.elasticsearch.xpack.security.ssl.SSLService;
 
 
 /**
@@ -25,8 +25,8 @@ public class LdapRealm extends AbstractLdapRealm {
 
     public static final String TYPE = "ldap";
 
-    public LdapRealm(RealmConfig config, ResourceWatcherService watcherService, ClientSSLService clientSSLService) {
-        this(config, sessionFactory(config, clientSSLService), new DnRoleMapper(TYPE, config, watcherService, null));
+    public LdapRealm(RealmConfig config, ResourceWatcherService watcherService, SSLService sslService) {
+        this(config, sessionFactory(config, sslService), new DnRoleMapper(TYPE, config, watcherService, null));
     }
 
     // pkg private for testing
@@ -34,7 +34,7 @@ public class LdapRealm extends AbstractLdapRealm {
         super(TYPE, config, sessionFactory, roleMapper);
     }
 
-    static SessionFactory sessionFactory(RealmConfig config, ClientSSLService clientSSLService) {
+    static SessionFactory sessionFactory(RealmConfig config, SSLService sslService) {
         Settings searchSettings = userSearchSettings(config);
         try {
             if (!searchSettings.names().isEmpty()) {
@@ -43,9 +43,9 @@ public class LdapRealm extends AbstractLdapRealm {
                         "Please remove the settings for the mode you do not wish to use. For more details refer to the ldap " +
                         "authentication section of the X-Pack guide.");
                 }
-                return new LdapUserSearchSessionFactory(config, clientSSLService);
+                return new LdapUserSearchSessionFactory(config, sslService);
             }
-            return new LdapSessionFactory(config, clientSSLService);
+            return new LdapSessionFactory(config, sslService);
         } catch (LDAPException e) {
             throw new ElasticsearchException("failed to create realm [{}/{}]", e, LdapRealm.TYPE, config.name());
         }

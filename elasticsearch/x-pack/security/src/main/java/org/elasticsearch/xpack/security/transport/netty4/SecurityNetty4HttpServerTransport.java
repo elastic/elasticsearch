@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.transport.netty4;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.ssl.SslHandler;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
@@ -18,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.security.ssl.ServerSSLService;
+import org.elasticsearch.xpack.security.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
@@ -44,13 +43,13 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
             new Setting<>(setting("http.ssl.client.auth"), CLIENT_AUTH_DEFAULT, SSLClientAuth::parse, Property.NodeScope);
 
     private final IPFilter ipFilter;
-    private final ServerSSLService sslService;
+    private final SSLService sslService;
     private final boolean ssl;
     private final Settings sslSettings;
 
     @Inject
     public SecurityNetty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, IPFilter ipFilter,
-                                             ServerSSLService sslService, ThreadPool threadPool) {
+                                             SSLService sslService, ThreadPool threadPool) {
         super(settings, networkService, bigArrays, threadPool);
         this.ipFilter = ipFilter;
         this.ssl = SSL_SETTING.get(settings);
@@ -105,6 +104,9 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
         HttpSslChannelHandler(Netty4HttpServerTransport transport) {
             super(transport, detailedErrorsEnabled, threadPool.getThreadContext());
             clientAuth = CLIENT_AUTH_SETTING.get(settings);
+            if (ssl && sslService.isConfigurationValidForServerUsage(sslSettings) == false) {
+                throw new IllegalArgumentException("a key must be provided to run as a server");
+            }
         }
 
         @Override
@@ -132,5 +134,4 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
             settingsBuilder.put(SETTING_HTTP_COMPRESSION.getKey(), false);
         }
     }
-
 }

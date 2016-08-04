@@ -31,56 +31,32 @@ import static org.elasticsearch.xpack.security.support.OptionalSettings.createTi
 /**
  * Class that contains all configuration related to SSL use within x-pack
  */
-public abstract class SSLConfiguration {
+abstract class SSLConfiguration {
 
-    public abstract KeyConfig keyConfig();
+    abstract KeyConfig keyConfig();
 
-    public abstract TrustConfig trustConfig();
+    abstract TrustConfig trustConfig();
 
-    public abstract String protocol();
+    abstract String protocol();
 
-    public abstract int sessionCacheSize();
+    abstract int sessionCacheSize();
 
-    public abstract TimeValue sessionCacheTimeout();
+    abstract TimeValue sessionCacheTimeout();
 
-    public abstract List<String> ciphers();
+    abstract List<String> ciphers();
 
-    public abstract List<String> supportedProtocols();
+    abstract List<String> supportedProtocols();
 
     /**
      * Provides the list of paths to files that back this configuration
      */
-    public List<Path> filesToMonitor(@Nullable Environment environment) {
+    List<Path> filesToMonitor(@Nullable Environment environment) {
         if (keyConfig() == trustConfig()) {
             return keyConfig().filesToMonitor(environment);
         }
         List<Path> paths = new ArrayList<>(keyConfig().filesToMonitor(environment));
         paths.addAll(trustConfig().filesToMonitor(environment));
         return paths;
-    }
-
-    /**
-     * Reloads the portion of this configuration that makes use of the modified file
-     */
-    public void reload(Path file, @Nullable Environment environment) {
-        if (keyConfig() == trustConfig()) {
-            keyConfig().reload(environment);
-            return;
-        }
-
-        for (Path path : keyConfig().filesToMonitor(environment)) {
-            if (file.equals(path)) {
-                keyConfig().reload(environment);
-                break;
-            }
-        }
-
-        for (Path path : trustConfig().filesToMonitor(environment)) {
-            if (file.equals(path)) {
-                trustConfig().reload(environment);
-                break;
-            }
-        }
     }
 
     @Override
@@ -125,14 +101,14 @@ public abstract class SSLConfiguration {
         return result;
     }
 
-    public static class Global extends SSLConfiguration {
+    static class Global extends SSLConfiguration {
 
-        public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1", "TLSv1.1", "TLSv1.2");
-        public static final List<String> DEFAULT_CIPHERS =
+        static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1", "TLSv1.1", "TLSv1.2");
+        static final List<String> DEFAULT_CIPHERS =
                 Arrays.asList("TLS_RSA_WITH_AES_128_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA");
-        public static final TimeValue DEFAULT_SESSION_CACHE_TIMEOUT = TimeValue.timeValueHours(24);
-        public static final int DEFAULT_SESSION_CACHE_SIZE = 1000;
-        public static final String DEFAULT_PROTOCOL = "TLSv1.2";
+        static final TimeValue DEFAULT_SESSION_CACHE_TIMEOUT = TimeValue.timeValueHours(24);
+        static final int DEFAULT_SESSION_CACHE_SIZE = 1000;
+        static final String DEFAULT_PROTOCOL = "TLSv1.2";
 
         // common settings
         static final Setting<List<String>> CIPHERS_SETTING = Setting.listSetting(globalKey(Custom.CIPHERS_SETTING), DEFAULT_CIPHERS,
@@ -145,8 +121,6 @@ public abstract class SSLConfiguration {
                 DEFAULT_SESSION_CACHE_SIZE, Property.NodeScope, Property.Filtered);
         static final Setting<TimeValue> SESSION_CACHE_TIMEOUT_SETTING = Setting.timeSetting(globalKey(Custom.CACHE_TIMEOUT_SETTING),
                 DEFAULT_SESSION_CACHE_TIMEOUT, Property.NodeScope, Property.Filtered);
-        static final Setting<Boolean> RELOAD_ENABLED_SETTING =
-                Setting.boolSetting(globalKey(Custom.RELOAD_ENABLED_SETTING), true, Property.NodeScope, Property.Filtered);
 
         // keystore settings
         static final Setting<Optional<String>> KEYSTORE_PATH_SETTING = createString(globalKey(Custom.KEYSTORE_PATH_SETTING),
@@ -185,27 +159,6 @@ public abstract class SSLConfiguration {
         static final Setting<Boolean> INCLUDE_JDK_CERTS_SETTING = Setting.boolSetting(globalKey(Custom.INCLUDE_JDK_CERTS_SETTING), true,
                 Property.NodeScope, Property.Filtered);
 
-        public static void addSettings(List<Setting<?>> settings) {
-            settings.add(Global.CIPHERS_SETTING);
-            settings.add(Global.SUPPORTED_PROTOCOLS_SETTING);
-            settings.add(Global.KEYSTORE_PATH_SETTING);
-            settings.add(Global.KEYSTORE_PASSWORD_SETTING);
-            settings.add(Global.KEYSTORE_ALGORITHM_SETTING);
-            settings.add(Global.KEYSTORE_KEY_PASSWORD_SETTING);
-            settings.add(Global.KEY_PATH_SETTING);
-            settings.add(Global.KEY_PASSWORD_SETTING);
-            settings.add(Global.CERT_SETTING);
-            settings.add(Global.TRUSTSTORE_PATH_SETTING);
-            settings.add(Global.TRUSTSTORE_PASSWORD_SETTING);
-            settings.add(Global.TRUSTSTORE_ALGORITHM_SETTING);
-            settings.add(Global.PROTOCOL_SETTING);
-            settings.add(Global.SESSION_CACHE_SIZE_SETTING);
-            settings.add(Global.SESSION_CACHE_TIMEOUT_SETTING);
-            settings.add(Global.CA_PATHS_SETTING);
-            settings.add(Global.INCLUDE_JDK_CERTS_SETTING);
-            settings.add(Global.RELOAD_ENABLED_SETTING);
-        }
-
         private final KeyConfig keyConfig;
         private final TrustConfig trustConfig;
         private final String sslProtocol;
@@ -219,7 +172,7 @@ public abstract class SSLConfiguration {
          *
          * @param settings the global settings to build the SSL configuration from
          */
-        public Global(Settings settings) {
+        Global(Settings settings) {
             this.keyConfig = createGlobalKeyConfig(settings);
             this.trustConfig = createGlobalTrustConfig(settings, keyConfig);
             this.sslProtocol = PROTOCOL_SETTING.get(settings);
@@ -230,44 +183,44 @@ public abstract class SSLConfiguration {
         }
 
         @Override
-        public KeyConfig keyConfig() {
+        KeyConfig keyConfig() {
             return keyConfig;
         }
 
         @Override
-        public TrustConfig trustConfig() {
+        TrustConfig trustConfig() {
             return trustConfig;
         }
 
         @Override
-        public String protocol() {
+        String protocol() {
             return sslProtocol;
         }
 
         @Override
-        public int sessionCacheSize() {
+        int sessionCacheSize() {
             return sessionCacheSize;
         }
 
         @Override
-        public TimeValue sessionCacheTimeout() {
+        TimeValue sessionCacheTimeout() {
             return sessionCacheTimeout;
         }
 
         @Override
-        public List<String> ciphers() {
+        List<String> ciphers() {
             return ciphers;
         }
 
         @Override
-        public List<String> supportedProtocols() {
+        List<String> supportedProtocols() {
             return supportedProtocols;
         }
 
         @Override
         public String toString() {
             return "SSLConfiguration{" +
-                    ", keyConfig=[" + keyConfig +
+                    "keyConfig=[" + keyConfig +
                     "], trustConfig=" + trustConfig +
                     "], sslProtocol=['" + sslProtocol + '\'' +
                     "], sessionCacheSize=[" + sessionCacheSize +
@@ -291,7 +244,6 @@ public abstract class SSLConfiguration {
             }
 
             boolean includeSystem = INCLUDE_JDK_CERTS_SETTING.get(settings);
-            boolean reloadEnabled = RELOAD_ENABLED_SETTING.get(settings);
             if (keyPath != null) {
                 String keyPassword = KEY_PASSWORD_SETTING.get(settings).orElse(null);
                 List<String> certPaths = getListOrNull(CERT_SETTING, settings);
@@ -330,7 +282,7 @@ public abstract class SSLConfiguration {
         }
     }
 
-    public static class Custom extends SSLConfiguration {
+    static class Custom extends SSLConfiguration {
 
         static final Setting<Optional<String>> PROTOCOL_SETTING = createString("protocol");
         static final Setting<Optional<Integer>> CACHE_SIZE_SETTING = createInt("session.cache_size");
@@ -360,7 +312,6 @@ public abstract class SSLConfiguration {
 
         static final Setting<List<String>> CA_PATHS_SETTING = Setting.listSetting("ca", Collections.emptyList(), s -> s);
         static final Setting<Boolean> INCLUDE_JDK_CERTS_SETTING = Setting.boolSetting("trust_cacerts", true);
-        static final Setting<Boolean> RELOAD_ENABLED_SETTING = Setting.boolSetting("reload.enabled", true);
 
         private final KeyConfig keyConfig;
         private final TrustConfig trustConfig;
@@ -376,7 +327,7 @@ public abstract class SSLConfiguration {
          * @param settings the profile settings to get the SSL configuration for
          * @param defaultConfig   the default SSL configuration
          */
-        public Custom(Settings settings, SSLConfiguration defaultConfig) {
+        Custom(Settings settings, SSLConfiguration defaultConfig) {
             Objects.requireNonNull(settings);
             this.keyConfig = createKeyConfig(settings, defaultConfig);
             this.trustConfig = createTrustConfig(settings, keyConfig, defaultConfig);
@@ -388,44 +339,44 @@ public abstract class SSLConfiguration {
         }
 
         @Override
-        public KeyConfig keyConfig() {
+        KeyConfig keyConfig() {
             return keyConfig;
         }
 
         @Override
-        public TrustConfig trustConfig() {
+        TrustConfig trustConfig() {
             return trustConfig;
         }
 
         @Override
-        public String protocol() {
+        String protocol() {
             return sslProtocol;
         }
 
         @Override
-        public int sessionCacheSize() {
+        int sessionCacheSize() {
             return sessionCacheSize;
         }
 
         @Override
-        public TimeValue sessionCacheTimeout() {
+        TimeValue sessionCacheTimeout() {
             return sessionCacheTimeout;
         }
 
         @Override
-        public List<String> ciphers() {
+        List<String> ciphers() {
             return ciphers;
         }
 
         @Override
-        public List<String> supportedProtocols() {
+        List<String> supportedProtocols() {
             return supportedProtocols;
         }
 
         @Override
         public String toString() {
             return "SSLConfiguration{" +
-                    ", keyConfig=[" + keyConfig +
+                    "keyConfig=[" + keyConfig +
                     "], trustConfig=" + trustConfig +
                     "], sslProtocol=['" + sslProtocol + '\'' +
                     "], sessionCacheSize=[" + sessionCacheSize +
@@ -445,7 +396,6 @@ public abstract class SSLConfiguration {
             }
 
             boolean includeSystem = INCLUDE_JDK_CERTS_SETTING.get(settings);
-            boolean reloadEnabled = RELOAD_ENABLED_SETTING.get(settings);
             if (keyPath != null) {
                 String keyPassword = KEY_PASSWORD_SETTING.get(settings).orElse(null);
                 List<String> certPaths = getListOrNull(CERT_SETTING, settings);

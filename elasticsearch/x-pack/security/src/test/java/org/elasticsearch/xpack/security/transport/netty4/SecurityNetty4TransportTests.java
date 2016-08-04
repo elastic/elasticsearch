@@ -17,23 +17,23 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4MockUtil;
-import org.elasticsearch.xpack.security.ssl.ClientSSLService;
-import org.elasticsearch.xpack.security.ssl.SSLConfiguration.Global;
-import org.elasticsearch.xpack.security.ssl.ServerSSLService;
+import org.elasticsearch.xpack.security.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
 import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.Locale;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class SecurityNetty4TransportTests extends ESTestCase {
-    private ServerSSLService serverSSLService;
-    private ClientSSLService clientSSLService;
+
+    private Environment env;
+    private SSLService sslService;
 
     @Before
     public void createSSLService() throws Exception {
@@ -41,11 +41,10 @@ public class SecurityNetty4TransportTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("xpack.security.ssl.keystore.path", testnodeStore)
                 .put("xpack.security.ssl.keystore.password", "testnode")
+                .put("path.home", createTempDir())
                 .build();
-        Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
-        Global globalSSLConfiguration = new Global(settings);
-        serverSSLService = new ServerSSLService(settings, env, globalSSLConfiguration);
-        clientSSLService = new ClientSSLService(settings, env, globalSSLConfiguration);
+        env = new Environment(settings);
+        sslService = new SSLService(settings, env);
     }
 
     private SecurityNetty4Transport createTransport(boolean sslEnabled) {
@@ -66,8 +65,7 @@ public class SecurityNetty4TransportTests extends ESTestCase {
                 mock(NamedWriteableRegistry.class),
                 mock(CircuitBreakerService.class),
                 null,
-                serverSSLService,
-                clientSSLService);
+                sslService);
     }
 
     public void testThatSSLCanBeDisabledByProfile() throws Exception {
@@ -171,4 +169,35 @@ public class SecurityNetty4TransportTests extends ESTestCase {
         assertThat(ch.pipeline().get(SslHandler.class).engine().getWantClientAuth(), is(true));
     }
 
+    public void testThatExceptionIsThrownWhenConfiguredWithoutSslKey() throws Exception {
+        Settings settings = Settings.builder()
+                .put("xpack.security.ssl.truststore.path",
+                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
+                .put("xpack.security.ssl.truststore.password", "testnode")
+                .put(SecurityNetty4Transport.SSL_SETTING.getKey(), true)
+                .put("path.home", createTempDir())
+                .build();
+        env = new Environment(settings);
+        sslService = new SSLService(settings, env);
+        SecurityNetty4Transport transport = new SecurityNetty4Transport(settings, mock(ThreadPool.class), mock(NetworkService.class),
+                mock(BigArrays.class), mock(NamedWriteableRegistry.class), mock(CircuitBreakerService.class), null, sslService);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> transport.getServerChannelInitializer(randomAsciiOfLength(6), Settings.EMPTY));
+        assertThat(e.getMessage(), containsString("key must be provided"));
+    }
+
+    public void testNoExceptionWhenConfiguredWithoutSslKeySSLDisabled() throws Exception {
+        Settings settings = Settings.builder()
+                .put("xpack.security.ssl.truststore.path",
+                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
+                .put("xpack.security.ssl.truststore.password", "testnode")
+                .put(SecurityNetty4Transport.SSL_SETTING.getKey(), false)
+                .put("path.home", createTempDir())
+                .build();
+        env = new Environment(settings);
+        sslService = new SSLService(settings, env);
+        SecurityNetty4Transport transport = new SecurityNetty4Transport(settings, mock(ThreadPool.class), mock(NetworkService.class),
+                mock(BigArrays.class), mock(NamedWriteableRegistry.class), mock(CircuitBreakerService.class), null, sslService);
+        assertNotNull(transport.getServerChannelInitializer(randomAsciiOfLength(6), Settings.EMPTY));
+    }
 }

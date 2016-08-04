@@ -22,18 +22,21 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackTransportClient;
 import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.ssl.ClientSSLService;
-import org.elasticsearch.xpack.security.ssl.SSLConfiguration.Global;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.TrustManagerFactory;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.KeyStore;
+import java.security.SecureRandom;
 import java.security.cert.CertPathBuilderException;
 
-import static org.elasticsearch.test.SecuritySettingsSource.getSSLSettingsForStore;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -71,11 +74,7 @@ public class SslClientAuthTests extends SecurityIntegTestCase {
     }
 
     public void testThatHttpWorksWithSslClientAuth() throws IOException {
-        Settings settings = Settings.builder()
-                .put(getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient"))
-                .build();
-        ClientSSLService sslService = new ClientSSLService(settings, null, new Global(settings));
-        SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslService.sslContext(), NoopHostnameVerifier.INSTANCE);
+        SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(getSSLContext(), NoopHostnameVerifier.INSTANCE);
         try (RestClient restClient = createRestClient(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy), "https")) {
             Response response = restClient.performRequest("GET", "/",
                     new BasicHeader("Authorization", basicAuthHeaderValue(transportClientUsername(), transportClientPassword())));
@@ -106,6 +105,23 @@ public class SslClientAuthTests extends SecurityIntegTestCase {
             client.addTransportAddress(transportAddress);
 
             assertGreenClusterState(client);
+        }
+    }
+
+    private SSLContext getSSLContext() {
+        try (InputStream in =
+                     Files.newInputStream(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks"))) {
+            KeyStore keyStore = KeyStore.getInstance("jks");
+            keyStore.load(in, "testclient".toCharArray());
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+            tmf.init(keyStore);
+            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+            kmf.init(keyStore, "testclient".toCharArray());
+            SSLContext context = SSLContext.getInstance("TLSv1.2");
+            context.init(kmf.getKeyManagers(), tmf.getTrustManagers(), new SecureRandom());
+            return context;
+        } catch (Exception e) {
+            throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }
     }
 }

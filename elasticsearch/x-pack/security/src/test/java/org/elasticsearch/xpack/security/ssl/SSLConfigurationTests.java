@@ -21,8 +21,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class SSLConfigurationTests extends ESTestCase {
@@ -42,24 +40,6 @@ public class SSLConfigurationTests extends ESTestCase {
         assertThat(globalConfig.sessionCacheSize(), is(equalTo(Global.DEFAULT_SESSION_CACHE_SIZE)));
         assertThat(globalConfig.sessionCacheTimeout(), is(equalTo(Global.DEFAULT_SESSION_CACHE_TIMEOUT)));
         assertThat(globalConfig.protocol(), is(equalTo(Global.DEFAULT_PROTOCOL)));
-    }
-
-    public void testThatSSLConfigurationWithoutAutoGenHasCorrectDefaults() {
-        SSLConfiguration globalSettings = new Global(Settings.EMPTY);
-        SSLConfiguration scopedSettings = new Custom(Settings.EMPTY, globalSettings);
-        for (SSLConfiguration sslConfiguration : Arrays.asList(globalSettings, scopedSettings)) {
-            assertThat(sslConfiguration.keyConfig(), sameInstance(KeyConfig.NONE));
-            assertThat(sslConfiguration.sessionCacheSize(), is(equalTo(Global.DEFAULT_SESSION_CACHE_SIZE)));
-            assertThat(sslConfiguration.sessionCacheTimeout(), is(equalTo(Global.DEFAULT_SESSION_CACHE_TIMEOUT)));
-            assertThat(sslConfiguration.protocol(), is(equalTo(Global.DEFAULT_PROTOCOL)));
-            assertThat(sslConfiguration.trustConfig(), notNullValue());
-            assertThat(sslConfiguration.trustConfig(), is(instanceOf(StoreTrustConfig.class)));
-
-            StoreTrustConfig ksTrustInfo = (StoreTrustConfig) sslConfiguration.trustConfig();
-            assertThat(ksTrustInfo.trustStorePath, is(nullValue()));
-            assertThat(ksTrustInfo.trustStorePassword, is(nullValue()));
-            assertThat(ksTrustInfo.trustStoreAlgorithm, is(nullValue()));
-        }
     }
 
     public void testThatOnlyKeystoreInSettingsSetsTruststoreSettings() {
@@ -246,11 +226,11 @@ public class SSLConfigurationTests extends ESTestCase {
         SSLConfiguration config = new Global(settings);
         assertThat(config.keyConfig(), instanceOf(PEMKeyConfig.class));
         PEMKeyConfig keyConfig = (PEMKeyConfig) config.keyConfig();
-        KeyManager[] keyManagers = keyConfig.keyManagers(env);
-        assertThat(keyManagers.length, is(1));
+        KeyManager keyManager = keyConfig.createKeyManager(env);
+        assertNotNull(keyManager);
         assertThat(config.trustConfig(), sameInstance(keyConfig));
-        TrustManager[] trustManagers = keyConfig.trustManagers(env);
-        assertThat(trustManagers.length, is(1));
+        TrustManager trustManager = keyConfig.createTrustManager(env);
+        assertNotNull(trustManager);
     }
 
     public void testConfigurationUsingPEMKeyAndTrustFiles() {
@@ -269,11 +249,11 @@ public class SSLConfigurationTests extends ESTestCase {
         SSLConfiguration config = new Global(settings);
         assertThat(config.keyConfig(), instanceOf(PEMKeyConfig.class));
         PEMKeyConfig keyConfig = (PEMKeyConfig) config.keyConfig();
-        KeyManager[] keyManagers = keyConfig.keyManagers(env);
-        assertThat(keyManagers.length, is(1));
+        KeyManager keyManager = keyConfig.createKeyManager(env);
+        assertNotNull(keyManager);
         assertThat(config.trustConfig(), not(sameInstance(keyConfig)));
         assertThat(config.trustConfig(), instanceOf(PEMTrustConfig.class));
-        TrustManager[] trustManagers = keyConfig.trustManagers(env);
-        assertThat(trustManagers.length, is(1));
+        TrustManager trustManager = keyConfig.createTrustManager(env);
+        assertNotNull(trustManager);
     }
 }

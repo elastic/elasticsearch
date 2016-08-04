@@ -10,10 +10,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.env.Environment;
 
 import javax.net.ssl.X509ExtendedTrustManager;
-import java.io.InputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.KeyStore;
 import java.util.Collections;
 import java.util.List;
 

@@ -37,7 +37,7 @@ class StoreKeyConfig extends KeyConfig {
     }
 
     @Override
-    X509ExtendedKeyManager loadKeyManager(@Nullable Environment environment) {
+    X509ExtendedKeyManager createKeyManager(@Nullable Environment environment) {
         try (InputStream in = Files.newInputStream(CertUtils.resolvePath(keyStorePath, environment))) {
             // TODO remove reliance on JKS since we can PKCS12 stores...
             KeyStore ks = KeyStore.getInstance("jks");

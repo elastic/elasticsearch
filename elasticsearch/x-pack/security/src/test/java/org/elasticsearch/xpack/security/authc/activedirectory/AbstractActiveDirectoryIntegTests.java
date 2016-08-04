@@ -8,10 +8,9 @@ package org.elasticsearch.xpack.security.authc.activedirectory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
-import org.elasticsearch.xpack.security.ssl.ClientSSLService;
-import org.elasticsearch.xpack.security.ssl.SSLConfiguration.Global;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.xpack.security.ssl.SSLService;
 import org.junit.Before;
 
 import java.nio.file.Path;
@@ -23,7 +22,7 @@ public class AbstractActiveDirectoryIntegTests extends ESTestCase {
     public static final String PASSWORD = "NickFuryHeartsES";
     public static final String AD_DOMAIN = "ad.test.elasticsearch.com";
 
-    protected ClientSSLService clientSSLService;
+    protected SSLService sslService;
     protected Settings globalSettings;
     protected boolean useGlobalSSL;
 
@@ -40,10 +39,14 @@ public class AbstractActiveDirectoryIntegTests extends ESTestCase {
         if (useGlobalSSL) {
             builder.put("xpack.security.ssl.keystore.path", keystore)
                     .put("xpack.security.ssl.keystore.password", "changeit");
+        } else {
+            // fake a realm so ssl will get loaded
+            builder.put("xpack.security.authc.realms.foo.ssl.truststore.path", keystore);
+            builder.put("xpack.security.authc.realms.foo.ssl.truststore.password", "changeit");
         }
         globalSettings = builder.build();
         Environment environment = new Environment(globalSettings);
-        clientSSLService = new ClientSSLService(globalSettings, environment, new Global(globalSettings));
+        sslService = new SSLService(globalSettings, environment);
     }
 
     Settings buildAdSettings(String ldapUrl, String adDomainName, String userSearchDN, LdapSearchScope scope,

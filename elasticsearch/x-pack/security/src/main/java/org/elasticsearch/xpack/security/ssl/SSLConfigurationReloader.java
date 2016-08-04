@@ -12,14 +12,12 @@ import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.watcher.ResourceWatcherService.Frequency;
+import org.elasticsearch.xpack.security.ssl.SSLService.SSLContextHolder;
 
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSessionContext;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -30,28 +28,19 @@ import java.util.concurrent.CopyOnWriteArraySet;
  * Ensures that the files backing an {@link SSLConfiguration} are monitored for changes and the underlying key/trust material is reloaded
  * and the {@link SSLContext} has existing sessions invalidated to force the use of the new key/trust material
  */
-public class SSLConfigurationReloader extends AbstractComponent implements AbstractSSLService.Listener {
+public class SSLConfigurationReloader extends AbstractComponent {
 
     private final ConcurrentHashMap<Path, ChangeListener> pathToChangeListenerMap = new ConcurrentHashMap<>();
     private final Environment environment;
     private final ResourceWatcherService resourceWatcherService;
-    private final ServerSSLService serverSSLService;
-    private final ClientSSLService clientSSLService;
+    private final SSLService sslService;
 
-    public SSLConfigurationReloader(Settings settings, Environment env, ServerSSLService serverSSLService,
-                                    ClientSSLService clientSSLService, ResourceWatcherService resourceWatcher) {
+    public SSLConfigurationReloader(Settings settings, Environment env, SSLService sslService, ResourceWatcherService resourceWatcher) {
         super(settings);
         this.environment = env;
         this.resourceWatcherService = resourceWatcher;
-        this.serverSSLService = serverSSLService;
-        this.clientSSLService = clientSSLService;
-        serverSSLService.setListener(this);
-        clientSSLService.setListener(this);
-    }
-
-    @Override
-    public void onSSLContextLoaded(SSLConfiguration sslConfiguration) {
-        startWatching(Collections.singleton(sslConfiguration));
+        this.sslService = sslService;
+        startWatching(sslService.getLoadedSSLConfigurations());
     }
 
     /**
@@ -84,24 +73,11 @@ public class SSLConfigurationReloader extends AbstractComponent implements Abstr
     }
 
     /**
-     * Invalidates all of the sessions in the provided {@link SSLContext}
+     * Reloads the ssl context associated with this configuration. It is visible so that tests can override as needed
      */
-    private static void invalidateAllSessions(SSLContext context) {
-        if (context != null) {
-            invalidateSessions(context.getClientSessionContext());
-            invalidateSessions(context.getServerSessionContext());
-        }
-    }
-
-    /**
-     * Invalidates the sessions in the provided {@link SSLSessionContext}
-     */
-    private static void invalidateSessions(SSLSessionContext sslSessionContext) {
-        Enumeration<byte[]> sessionIds = sslSessionContext.getIds();
-        while (sessionIds.hasMoreElements()) {
-            byte[] sessionId = sessionIds.nextElement();
-            sslSessionContext.getSession(sessionId).invalidate();
-        }
+    void reloadSSLContext(SSLConfiguration configuration) {
+        logger.debug("reloading ssl configuration [{}]", configuration);
+        sslService.sslContextHolder(configuration).reload();
     }
 
     /**
@@ -140,9 +116,7 @@ public class SSLConfigurationReloader extends AbstractComponent implements Abstr
         public void onFileChanged(Path file) {
             for (SSLConfiguration sslConfiguration : sslConfigurations) {
                 if (sslConfiguration.filesToMonitor(environment).contains(file)) {
-                    sslConfiguration.reload(file, environment);
-                    invalidateAllSessions(serverSSLService.getSSLContext(sslConfiguration));
-                    invalidateAllSessions(clientSSLService.getSSLContext(sslConfiguration));
+                    reloadSSLContext(sslConfiguration);
                 }
             }
         }

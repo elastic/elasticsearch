@@ -58,7 +58,7 @@ public enum SSLClientAuth {
             case "true":
                 return REQUIRED;
             default:
-                throw new IllegalArgumentException("could not resolve ssl client auth auth. unknown ssl client auth value [" + value + "]");
+                throw new IllegalArgumentException("could not resolve ssl client auth. unknown ssl client auth value [" + value + "]");
         }
     }
 }

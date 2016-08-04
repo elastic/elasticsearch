@@ -36,7 +36,7 @@ class PEMKeyConfig extends KeyConfig {
     }
 
     @Override
-    X509ExtendedKeyManager loadKeyManager(@Nullable Environment environment) {
+    X509ExtendedKeyManager createKeyManager(@Nullable Environment environment) {
         // password must be non-null for keystore...
         char[] password = keyPassword == null ? new char[0] : keyPassword.toCharArray();
         try {

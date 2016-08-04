@@ -11,8 +11,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.netty3.Netty3HttpMockUtil;
-import org.elasticsearch.xpack.security.ssl.SSLConfiguration.Global;
-import org.elasticsearch.xpack.security.ssl.ServerSSLService;
+import org.elasticsearch.xpack.security.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.test.ESTestCase;
@@ -26,6 +25,7 @@ import java.nio.file.Path;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -33,7 +33,8 @@ import static org.mockito.Mockito.mock;
 
 public class SecurityNetty3HttpServerTransportTests extends ESTestCase {
 
-    private ServerSSLService serverSSLService;
+    private SSLService sslService;
+    private Environment env;
 
     @Before
     public void createSSLService() throws Exception {
@@ -41,15 +42,16 @@ public class SecurityNetty3HttpServerTransportTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put("xpack.security.ssl.keystore.path", testnodeStore)
                 .put("xpack.security.ssl.keystore.password", "testnode")
+                .put("path.home", createTempDir())
                 .build();
-        Environment env = new Environment(Settings.builder().put("path.home", createTempDir()).build());
-        serverSSLService = new ServerSSLService(settings, env, new Global(settings));
+        env = new Environment(settings);
+        sslService = new SSLService(settings, env);
     }
 
     public void testDefaultClientAuth() throws Exception {
         Settings settings = Settings.builder().put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true).build();
         SecurityNetty3HttpServerTransport transport = new SecurityNetty3HttpServerTransport(settings, mock(NetworkService.class),
-                mock(BigArrays.class), mock(IPFilter.class), serverSSLService, mock(ThreadPool.class));
+                mock(BigArrays.class), mock(IPFilter.class), sslService, mock(ThreadPool.class));
         Netty3HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory();
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(false));
@@ -62,7 +64,7 @@ public class SecurityNetty3HttpServerTransportTests extends ESTestCase {
                 .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true)
                 .put(SecurityNetty3HttpServerTransport.CLIENT_AUTH_SETTING.getKey(), value).build();
         SecurityNetty3HttpServerTransport transport = new SecurityNetty3HttpServerTransport(settings, mock(NetworkService.class),
-                mock(BigArrays.class), mock(IPFilter.class), serverSSLService, mock(ThreadPool.class));
+                mock(BigArrays.class), mock(IPFilter.class), sslService, mock(ThreadPool.class));
         Netty3HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory();
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(false));
@@ -75,7 +77,7 @@ public class SecurityNetty3HttpServerTransportTests extends ESTestCase {
                 .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true)
                 .put(SecurityNetty3HttpServerTransport.CLIENT_AUTH_SETTING.getKey(), value).build();
         SecurityNetty3HttpServerTransport transport = new SecurityNetty3HttpServerTransport(settings, mock(NetworkService.class),
-                mock(BigArrays.class), mock(IPFilter.class), serverSSLService, mock(ThreadPool.class));
+                mock(BigArrays.class), mock(IPFilter.class), sslService, mock(ThreadPool.class));
         Netty3HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory();
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(true));
@@ -88,7 +90,7 @@ public class SecurityNetty3HttpServerTransportTests extends ESTestCase {
                 .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true)
                 .put(SecurityNetty3HttpServerTransport.CLIENT_AUTH_SETTING.getKey(), value).build();
         SecurityNetty3HttpServerTransport transport = new SecurityNetty3HttpServerTransport(settings, mock(NetworkService.class),
-                mock(BigArrays.class), mock(IPFilter.class), serverSSLService, mock(ThreadPool.class));
+                mock(BigArrays.class), mock(IPFilter.class), sslService, mock(ThreadPool.class));
         Netty3HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory();
         assertThat(factory.getPipeline().get(SslHandler.class).getEngine().getNeedClientAuth(), is(false));
@@ -99,17 +101,19 @@ public class SecurityNetty3HttpServerTransportTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true).build();
         SecurityNetty3HttpServerTransport transport = new SecurityNetty3HttpServerTransport(settings, mock(NetworkService.class),
-                mock(BigArrays.class), mock(IPFilter.class), serverSSLService, mock(ThreadPool.class));
+                mock(BigArrays.class), mock(IPFilter.class), sslService, mock(ThreadPool.class));
         Netty3HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         ChannelPipelineFactory factory = transport.configureServerChannelPipelineFactory();
         SSLEngine defaultEngine = factory.getPipeline().get(SslHandler.class).getEngine();
 
         settings = Settings.builder()
+                .put(env.settings())
                 .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true)
                 .put("xpack.security.http.ssl.supported_protocols", "TLSv1.2")
                 .build();
+        sslService = new SSLService(settings, new Environment(settings));
         transport = new SecurityNetty3HttpServerTransport(settings, mock(NetworkService.class),
-                mock(BigArrays.class), mock(IPFilter.class), serverSSLService, mock(ThreadPool.class));
+                mock(BigArrays.class), mock(IPFilter.class), sslService, mock(ThreadPool.class));
         Netty3HttpMockUtil.setOpenChannelsHandlerToMock(transport);
         factory = transport.configureServerChannelPipelineFactory();
         SSLEngine customEngine = factory.getPipeline().get(SslHandler.class).getEngine();
@@ -143,5 +147,35 @@ public class SecurityNetty3HttpServerTransportTests extends ESTestCase {
         Settings.Builder pluginSettingsBuilder = Settings.builder();
         SecurityNetty3HttpServerTransport.overrideSettings(pluginSettingsBuilder, settings);
         assertThat(pluginSettingsBuilder.build().isEmpty(), is(true));
+    }
+
+    public void testThatExceptionIsThrownWhenConfiguredWithoutSslKey() throws Exception {
+        Settings settings = Settings.builder()
+                .put("xpack.security.ssl.truststore.path",
+                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
+                .put("xpack.security.ssl.truststore.password", "testnode")
+                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true)
+                .put("path.home", createTempDir())
+                .build();
+        env = new Environment(settings);
+        sslService = new SSLService(settings, env);
+        SecurityNetty3HttpServerTransport transport = new SecurityNetty3HttpServerTransport(settings, mock(NetworkService.class),
+                mock(BigArrays.class), mock(IPFilter.class), sslService, mock(ThreadPool.class));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, transport::configureServerChannelPipelineFactory);
+        assertThat(e.getMessage(), containsString("key must be provided"));
+    }
+
+    public void testNoExceptionWhenConfiguredWithoutSslKeySSLDisabled() throws Exception {
+        Settings settings = Settings.builder()
+                .put("xpack.security.ssl.truststore.path",
+                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
+                .put("xpack.security.ssl.truststore.password", "testnode")
+                .put("path.home", createTempDir())
+                .build();
+        env = new Environment(settings);
+        sslService = new SSLService(settings, env);
+        SecurityNetty3HttpServerTransport transport = new SecurityNetty3HttpServerTransport(settings, mock(NetworkService.class),
+                mock(BigArrays.class), mock(IPFilter.class), sslService, mock(ThreadPool.class));
+        assertNotNull(transport.configureServerChannelPipelineFactory());
     }
 }

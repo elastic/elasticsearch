@@ -11,7 +11,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.xpack.security.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.hamcrest.Matcher;
 
@@ -56,7 +55,7 @@ public class SettingsFilterTests extends ESTestCase {
 
         configureFilteredSetting("xpack.security.ssl.keystore.path", "/path/to/keystore");
         configureFilteredSetting("xpack.security.ssl.ciphers", "_ciphers");
-        configureFilteredSetting("xpack.security.ssl.supported_protocols", randomFrom(SSLConfiguration.Global.DEFAULT_SUPPORTED_PROTOCOLS));
+        configureFilteredSetting("xpack.security.ssl.supported_protocols", randomFrom("TLSv1", "TLSv1.1", "TLSv1.2"));
         configureFilteredSetting("xpack.security.ssl.keystore.password", randomAsciiOfLength(5));
         configureFilteredSetting("xpack.security.ssl.keystore.algorithm", "_algorithm");
         configureFilteredSetting("xpack.security.ssl.keystore.key_password", randomAsciiOfLength(5));
@@ -68,7 +67,7 @@ public class SettingsFilterTests extends ESTestCase {
         configureFilteredSetting("transport.profiles.client.xpack.security.keystore.path", "/path/to/keystore");
         configureFilteredSetting("transport.profiles.client.xpack.security.ciphers", "_ciphers");
         configureFilteredSetting("transport.profiles.client.xpack.security.supported_protocols",
-                randomFrom(SSLConfiguration.Global.DEFAULT_SUPPORTED_PROTOCOLS));
+                randomFrom("TLSv1", "TLSv1.1", "TLSv1.2"));
         configureFilteredSetting("transport.profiles.client.xpack.security.keystore.password", randomAsciiOfLength(5));
         configureFilteredSetting("transport.profiles.client.xpack.security.keystore.algorithm", "_algorithm");
         configureFilteredSetting("transport.profiles.client.xpack.security.keystore.key_password", randomAsciiOfLength(5));

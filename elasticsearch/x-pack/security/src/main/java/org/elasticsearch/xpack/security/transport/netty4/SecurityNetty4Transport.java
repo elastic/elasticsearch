@@ -26,8 +26,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Transport;
-import org.elasticsearch.xpack.security.ssl.ClientSSLService;
-import org.elasticsearch.xpack.security.ssl.ServerSSLService;
+import org.elasticsearch.xpack.security.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
@@ -98,8 +97,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
                     SSLClientAuth::parse,
                     new Property[]{Property.NodeScope, Property.Filtered, Property.Shared});
 
-    private final ServerSSLService serverSslService;
-    private final ClientSSLService clientSSLService;
+    private final SSLService sslService;
     @Nullable private final IPFilter authenticator;
     private final SSLClientAuth clientAuth;
     private final boolean ssl;
@@ -107,14 +105,12 @@ public class SecurityNetty4Transport extends Netty4Transport {
     @Inject
     public SecurityNetty4Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                                    NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService,
-                                   @Nullable IPFilter authenticator, @Nullable ServerSSLService serverSSLService,
-                                   ClientSSLService clientSSLService) {
+                                   @Nullable IPFilter authenticator, SSLService sslService) {
         super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
         this.authenticator = authenticator;
         this.ssl = SSL_SETTING.get(settings);
         this.clientAuth = CLIENT_AUTH_SETTING.get(settings);
-        this.serverSslService = serverSSLService;
-        this.clientSSLService = clientSSLService;
+        this.sslService = sslService;
     }
 
     @Override
@@ -160,18 +156,22 @@ public class SecurityNetty4Transport extends Netty4Transport {
     class SecurityServerChannelInitializer extends ServerChannelInitializer {
 
         private final boolean sslEnabled;
+        private final Settings securityProfileSettings;
 
         protected SecurityServerChannelInitializer(String name, Settings settings) {
             super(name, settings);
             this.sslEnabled = profileSSL(settings, ssl);
+            this.securityProfileSettings = settings.getByPrefix(settingPrefix());
+            if (sslEnabled && sslService.isConfigurationValidForServerUsage(securityProfileSettings) == false) {
+                throw new IllegalArgumentException("a key must be provided to run as a server");
+            }
         }
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
             if (sslEnabled) {
-                Settings securityProfileSettings = settings.getByPrefix(settingPrefix());
-                SSLEngine serverEngine = serverSslService.createSSLEngine(securityProfileSettings);
+                SSLEngine serverEngine = sslService.createSSLEngine(securityProfileSettings);
                 serverEngine.setUseClientMode(false);
                 final SSLClientAuth profileClientAuth = profileClientAuth(settings, clientAuth);
                 profileClientAuth.configure(serverEngine);
@@ -201,7 +201,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
             final SSLEngine sslEngine;
             if (HOSTNAME_VERIFICATION_SETTING.get(settings)) {
                 InetSocketAddress inetSocketAddress = (InetSocketAddress) remoteAddress;
-                sslEngine = clientSSLService.createSSLEngine(Settings.EMPTY, getHostname(inetSocketAddress), inetSocketAddress.getPort());
+                sslEngine = sslService.createSSLEngine(Settings.EMPTY, getHostname(inetSocketAddress), inetSocketAddress.getPort());
 
                 // By default, a SSLEngine will not perform hostname verification. In order to perform hostname verification
                 // we need to specify a EndpointIdentificationAlgorithm. We use the HTTPS algorithm to prevent against
@@ -210,7 +210,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
                 parameters.setEndpointIdentificationAlgorithm("HTTPS");
                 sslEngine.setSSLParameters(parameters);
             } else {
-                sslEngine = clientSSLService.createSSLEngine();
+                sslEngine = sslService.createSSLEngine(Settings.EMPTY);
             }
 
             sslEngine.setUseClientMode(true);
@@ -235,7 +235,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
         }
     }
 
-    static boolean profileSSL(Settings profileSettings, boolean defaultSSL) {
+    public static boolean profileSSL(Settings profileSettings, boolean defaultSSL) {
         if (PROFILE_SSL_SETTING.exists(profileSettings)) {
             return PROFILE_SSL_SETTING.get(profileSettings);
         } else if (DEPRECATED_PROFILE_SSL_SETTING.exists(profileSettings)) {
@@ -251,5 +251,4 @@ public class SecurityNetty4Transport extends Netty4Transport {
         }
         return clientAuth;
     }
-
 }

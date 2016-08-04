@@ -14,14 +14,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.security.ssl.KeyConfig.ReloadableX509KeyManager;
 import org.elasticsearch.xpack.security.ssl.SSLConfiguration.Global;
-import org.elasticsearch.xpack.security.ssl.TrustConfig.ReloadableTrustManager;
-import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
 
-import javax.net.ssl.SSLContext;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
@@ -44,7 +40,6 @@ import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.Is.is;
@@ -301,40 +296,24 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         Environment env = randomBoolean() ? null : new Environment(settings);
-        final Global config = new Global(settings);
-        final ServerSSLService serverSSLService = new ServerSSLService(settings, env, config) {
+        final SSLService sslService = new SSLService(settings, env);
+        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
+        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
             @Override
-            SSLContext getSSLContext(SSLConfiguration configuration) {
-                fail("get should not be called! [keystore reload exception]");
-                return super.getSSLContext(configuration);
+            void reloadSSLContext(SSLConfiguration configuration) {
+                fail("reload should not be called! [keystore reload exception]");
             }
         };
-        final ClientSSLService clientSSLService = new ClientSSLService(settings, env, config) {
-            @Override
-            SSLContext getSSLContext(SSLConfiguration configuration) {
-                fail("get should not be called! [keystore reload exception]");
-                return super.getSSLContext(configuration);
-            }
-        };
-        final SSLConfigurationReloader reloader =
-                new SSLConfigurationReloader(settings, env, serverSSLService, clientSSLService, resourceWatcherService);
-        reloader.onSSLContextLoaded(config);
 
         // key manager checks
-        X509ExtendedKeyManager keyManager = ((ReloadableX509KeyManager)config.keyConfig().keyManagers(env)[0]).getKeyManager();
-        String[] aliases = keyManager.getServerAliases("RSA", null);
-        assertNotNull(aliases);
-        assertThat(aliases.length, is(1));
-        assertThat(aliases[0], is("testnode"));
-        PrivateKey privateKey = keyManager.getPrivateKey("testnode");
+        final X509ExtendedKeyManager keyManager = sslService.sslContextHolder(config).keyManager().getKeyManager();
 
         // truncate the keystore
         try (OutputStream out = Files.newOutputStream(keystorePath, StandardOpenOption.TRUNCATE_EXISTING)) {
         }
 
         // we intentionally don't wait here as we rely on concurrency to catch a failure
-        assertThat(keyManager.getServerAliases("RSA", null), equalTo(aliases));
-        assertThat(keyManager.getPrivateKey("testnode"), is(equalTo(privateKey)));
+        assertThat(sslService.sslContextHolder(config).keyManager().getKeyManager(), sameInstance(keyManager));
     }
 
     /**
@@ -357,39 +336,23 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         Environment env = randomBoolean() ? null : new Environment(settings);
-        final Global config = new Global(settings);
-        final ServerSSLService serverSSLService = new ServerSSLService(settings, env, config) {
+        final SSLService sslService = new SSLService(settings, env);
+        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
+        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
             @Override
-            SSLContext getSSLContext(SSLConfiguration configuration) {
-                fail("get should not be called! [pem key reload exception]");
-                return super.getSSLContext(configuration);
+            void reloadSSLContext(SSLConfiguration configuration) {
+                fail("reload should not be called! [pem key reload exception]");
             }
         };
-        final ClientSSLService clientSSLService = new ClientSSLService(settings, env, config) {
-            @Override
-            SSLContext getSSLContext(SSLConfiguration configuration) {
-                fail("get should not be called! [pem key reload exception]");
-                return super.getSSLContext(configuration);
-            }
-        };
-        final SSLConfigurationReloader reloader =
-                new SSLConfigurationReloader(settings, env, serverSSLService, clientSSLService, resourceWatcherService);
-        reloader.onSSLContextLoaded(config);
 
-        X509ExtendedKeyManager keyManager = ((ReloadableX509KeyManager)config.keyConfig().keyManagers(env)[0]).getKeyManager();
-        String[] aliases = keyManager.getServerAliases("RSA", null);
-        assertNotNull(aliases);
-        assertThat(aliases.length, is(1));
-        assertThat(aliases[0], is("key"));
-        PrivateKey privateKey = keyManager.getPrivateKey("key");
+        final X509ExtendedKeyManager keyManager = sslService.sslContextHolder(config).keyManager().getKeyManager();
 
         // truncate the file
         try (OutputStream os = Files.newOutputStream(keyPath, StandardOpenOption.TRUNCATE_EXISTING)) {
         }
 
         // we intentionally don't wait here as we rely on concurrency to catch a failure
-        assertThat(keyManager.getServerAliases("RSA", null), equalTo(aliases));
-        assertThat(keyManager.getPrivateKey("key"), is(equalTo(privateKey)));
+        assertThat(sslService.sslContextHolder(config).keyManager().getKeyManager(), sameInstance(keyManager));
     }
 
     /**
@@ -406,36 +369,23 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         Environment env = randomBoolean() ? null : new Environment(settings);
-        final Global config = new Global(settings);
-        final ServerSSLService serverSSLService = new ServerSSLService(settings, env, config) {
+        final SSLService sslService = new SSLService(settings, env);
+        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
+        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
             @Override
-            SSLContext getSSLContext(SSLConfiguration configuration) {
-                fail("get should not be called! [truststore reload exception]");
-                return super.getSSLContext(configuration);
+            void reloadSSLContext(SSLConfiguration configuration) {
+                fail("reload should not be called! [truststore reload exception]");
             }
         };
-        final ClientSSLService clientSSLService = new ClientSSLService(settings, env, config) {
-            @Override
-            SSLContext getSSLContext(SSLConfiguration configuration) {
-                fail("get should not be called! [truststore reload exception]");
-                return super.getSSLContext(configuration);
-            }
-        };
-        final SSLConfigurationReloader reloader =
-                new SSLConfigurationReloader(settings, env, serverSSLService, clientSSLService, resourceWatcherService);
-        reloader.onSSLContextLoaded(config);
 
-        X509ExtendedTrustManager trustManager = ((ReloadableTrustManager)config.trustConfig().trustManagers(env)[0]).getTrustManager();
-        final Certificate[] certificates = trustManager.getAcceptedIssuers();
-        assertContainsCertificateWithMatchingName(certificates, containsString("Test Node"));
+        final X509ExtendedTrustManager trustManager = sslService.sslContextHolder(config).trustManager().getTrustManager();
 
         // truncate the truststore
         try (OutputStream os = Files.newOutputStream(trustStorePath, StandardOpenOption.TRUNCATE_EXISTING)) {
         }
 
         // we intentionally don't wait here as we rely on concurrency to catch a failure
-        assertThat(trustManager.getAcceptedIssuers(), equalTo(certificates));
-        assertContainsCertificateWithMatchingName(trustManager.getAcceptedIssuers(), containsString("Test Node"));
+        assertThat(sslService.sslContextHolder(config).trustManager().getTrustManager(), sameInstance(trustManager));
     }
 
     /**
@@ -451,28 +401,16 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         Environment env = randomBoolean() ? null : new Environment(settings);
-        final Global config = new Global(settings);
-        final ServerSSLService serverSSLService = new ServerSSLService(settings, env, config) {
+        final SSLService sslService = new SSLService(settings, env);
+        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
+        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
             @Override
-            SSLContext getSSLContext(SSLConfiguration configuration) {
-                fail("get should not be called! [pem trust reload exception]");
-                return super.getSSLContext(configuration);
+            void reloadSSLContext(SSLConfiguration configuration) {
+                fail("reload should not be called! [pem trust reload exception]");
             }
         };
-        final ClientSSLService clientSSLService = new ClientSSLService(settings, env, config) {
-            @Override
-            SSLContext getSSLContext(SSLConfiguration configuration) {
-                fail("get should not be called! [pem trust reload exception]");
-                return super.getSSLContext(configuration);
-            }
-        };
-        final SSLConfigurationReloader reloader =
-                new SSLConfigurationReloader(settings, env, serverSSLService, clientSSLService, resourceWatcherService);
-        reloader.onSSLContextLoaded(config);
 
-        X509ExtendedTrustManager trustManager = ((ReloadableTrustManager)config.trustConfig().trustManagers(env)[0]).getTrustManager();
-        final Certificate[] certificates = trustManager.getAcceptedIssuers();
-        assertContainsCertificateWithMatchingName(certificates, containsString("Test Client"));
+        final X509ExtendedTrustManager trustManager = sslService.sslContextHolder(config).trustManager().getTrustManager();
 
         // write bad file
         Path updatedCert = tempDir.resolve("updated.crt");
@@ -482,8 +420,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         atomicMoveIfPossible(updatedCert, clientCertPath);
 
         // we intentionally don't wait here as we rely on concurrency to catch a failure
-        assertThat(trustManager.getAcceptedIssuers(), equalTo(certificates));
-        assertContainsCertificateWithMatchingName(trustManager.getAcceptedIssuers(), containsString("Test Client"));
+        assertThat(sslService.sslContextHolder(config).trustManager().getTrustManager(), sameInstance(trustManager));
     }
 
     /**
@@ -532,114 +469,60 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                                                     BiFunction<X509ExtendedTrustManager, SSLConfiguration, Void> trustManagerPostChecks)
                                                     throws Exception {
 
-        final AtomicInteger serverCounter = new AtomicInteger(0);
-        final AtomicInteger clientCounter = new AtomicInteger(0);
-        final Global config = new Global(settings);
-        final ServerSSLService serverSSLService = new ServerSSLService(settings, env, config) {
+        final AtomicInteger counter = new AtomicInteger(0);
+        final SSLService sslService = new SSLService(settings, env);
+        final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
+        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
             @Override
-            SSLContext getSSLContext(SSLConfiguration sslConfiguration) {
-                serverCounter.incrementAndGet();
-                return super.getSSLContext(sslConfiguration);
+            void reloadSSLContext(SSLConfiguration configuration) {
+                counter.incrementAndGet();
+                super.reloadSSLContext(configuration);
             }
         };
-        final ClientSSLService clientSSLService = new ClientSSLService(settings, env, config) {
-            @Override
-            SSLContext getSSLContext(SSLConfiguration sslConfiguration) {
-                clientCounter.incrementAndGet();
-                return super.getSSLContext(sslConfiguration);
-            }
-        };
-
-        final SSLConfigurationReloader reloader =
-                new SSLConfigurationReloader(settings, env, serverSSLService, clientSSLService, resourceWatcherService);
 
         final X509ExtendedKeyManager keyManager;
-        final X509ExtendedKeyManager[] originalKeyManagers;
         if (checkKeys) {
-            originalKeyManagers = config.keyConfig().keyManagers(env);
-            assertThat(originalKeyManagers.length, is(1));
-            keyManager = ((ReloadableX509KeyManager) originalKeyManagers[0]).getKeyManager();
+            keyManager = sslService.sslContextHolder(config).keyManager().getKeyManager();
         } else {
-            originalKeyManagers = null;
             keyManager = null;
         }
 
-        final X509ExtendedTrustManager[] originalTrustManagers;
         final X509ExtendedTrustManager trustManager;
         if (checkTrust) {
-            originalTrustManagers = config.trustConfig().trustManagers(env);
-            assertThat(originalTrustManagers.length, is(1));
-            trustManager = ((ReloadableTrustManager) originalTrustManagers[0]).getTrustManager();
+            trustManager = sslService.sslContextHolder(config).trustManager().getTrustManager();
         } else {
-            originalTrustManagers = null;
             trustManager = null;
         }
 
-        // register configuration with reloader
-        reloader.onSSLContextLoaded(config);
-
         // key manager checks
         if (checkKeys) {
-            assertKeyManagersSame(keyManager, config.keyConfig().keyManagers(env));
             keyManagerPreChecks.apply(keyManager, config);
         }
 
         // trust manager checks
         if (checkTrust) {
-            assertTrustManagersSame(trustManager, config.trustConfig().trustManagers(env));
             trustManagerPreChecks.apply(trustManager, config);
         }
 
-        assertEquals(0, clientSSLService.getLoadedSSLConfigurations().size());
-        assertEquals(0, serverSSLService.getLoadedSSLConfigurations().size());
-        assertEquals("nothing should have called get", 0, clientCounter.get());
-        assertEquals("nothing should have called get", 0, serverCounter.get());
+        assertEquals("nothing should have called get", 0, counter.get());
 
         // modify
         modificationFunction.run();
-        assertTrue(awaitBusy(() -> clientCounter.get() > 0 && serverCounter.get() > 0));
+        assertTrue(awaitBusy(() -> counter.get() > 0));
 
         // check key manager
         if (checkKeys) {
-            final X509ExtendedKeyManager[] updatedKeyManagers = config.keyConfig().keyManagers(env);
-            assertThat(updatedKeyManagers, sameInstance(originalKeyManagers));
-            final X509ExtendedKeyManager updatedKeyManager = ((ReloadableX509KeyManager) updatedKeyManagers[0]).getKeyManager();
+            final X509ExtendedKeyManager updatedKeyManager = sslService.sslContextHolder(config).keyManager().getKeyManager();
+            assertThat(updatedKeyManager, not(sameInstance(keyManager)));
             keyManagerPostChecks.apply(updatedKeyManager, config);
         }
 
         // check trust manager
         if (checkTrust) {
-            final X509ExtendedTrustManager[] updatedTrustManagers = config.trustConfig().trustManagers(env);
-            assertThat(updatedTrustManagers, sameInstance(originalTrustManagers));
-            final X509ExtendedTrustManager updatedTrustManager = ((ReloadableTrustManager) updatedTrustManagers[0]).getTrustManager();
+            final X509ExtendedTrustManager updatedTrustManager = sslService.sslContextHolder(config).trustManager().getTrustManager();
             assertThat(updatedTrustManager, not(sameInstance(trustManager)));
             trustManagerPostChecks.apply(updatedTrustManager, config);
         }
-    }
-
-    private void assertContainsCertificateWithMatchingName(Certificate[] certificates, Matcher<String> matcher) {
-        for (Certificate certificate : certificates) {
-            if (certificate instanceof X509Certificate) {
-                if (matcher.matches(((X509Certificate) certificate).getSubjectX500Principal().getName())) {
-                    return;
-                }
-            }
-        }
-        fail("no matching certificate could be found");
-    }
-
-    private void assertKeyManagersSame(X509ExtendedKeyManager original, X509ExtendedKeyManager[] other) {
-        assertEquals(1, other.length);
-        assertThat(other[0], instanceOf(ReloadableX509KeyManager.class));
-        X509ExtendedKeyManager otherKeyManager = ((ReloadableX509KeyManager) other[0]).getKeyManager();
-        assertThat(otherKeyManager, sameInstance(original));
-    }
-
-    private void assertTrustManagersSame(X509ExtendedTrustManager original, X509ExtendedTrustManager[] other) {
-        assertEquals(1, other.length);
-        assertThat(other[0], instanceOf(ReloadableTrustManager.class));
-        X509ExtendedTrustManager otherTrustManager = ((ReloadableTrustManager) other[0]).getTrustManager();
-        assertThat(otherTrustManager, sameInstance(original));
     }
 
     private static void atomicMoveIfPossible(Path source, Path target) throws IOException {

@@ -10,7 +10,7 @@ import com.unboundid.ldap.sdk.LDAPConnection;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.ssl.ClientSSLService;
+import org.elasticsearch.xpack.security.ssl.SSLService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -171,7 +171,7 @@ public class SessionFactoryLoadBalancingTests extends LdapTestCase {
 
     static class TestSessionFactory extends SessionFactory {
 
-        protected TestSessionFactory(RealmConfig config, ClientSSLService sslService) {
+        protected TestSessionFactory(RealmConfig config, SSLService sslService) {
             super(config, sslService);
         }
 

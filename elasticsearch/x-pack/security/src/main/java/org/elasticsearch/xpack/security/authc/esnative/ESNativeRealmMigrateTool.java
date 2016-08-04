@@ -29,8 +29,7 @@ import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
-import org.elasticsearch.xpack.security.ssl.ClientSSLService;
-import org.elasticsearch.xpack.security.ssl.SSLConfiguration;
+import org.elasticsearch.xpack.security.ssl.SSLService;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -134,8 +133,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
             // If using SSL, need a custom service because it's likely a self-signed certificate
             if ("https".equalsIgnoreCase(uri.getScheme())) {
                 Settings sslSettings = settings.getByPrefix(setting("http.ssl."));
-                SSLConfiguration.Global globalConfig = new SSLConfiguration.Global(settings);
-                final ClientSSLService sslService = new ClientSSLService(sslSettings, env, globalConfig);
+                final SSLService sslService = new SSLService(settings, env);
                 final HttpsURLConnection httpsConn = (HttpsURLConnection) url.openConnection();
                 AccessController.doPrivileged(new PrivilegedAction<Void>() {
                     @Override

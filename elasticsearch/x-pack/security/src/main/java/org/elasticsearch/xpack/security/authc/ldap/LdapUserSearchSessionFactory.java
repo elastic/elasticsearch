@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.ssl.ClientSSLService;
+import org.elasticsearch.xpack.security.ssl.SSLService;
 import org.elasticsearch.xpack.security.support.Exceptions;
 
 import java.util.Locale;
@@ -49,7 +49,7 @@ class LdapUserSearchSessionFactory extends SessionFactory {
 
     private final LDAPConnectionPool connectionPool;
 
-    LdapUserSearchSessionFactory(RealmConfig config, ClientSSLService sslService) throws LDAPException {
+    LdapUserSearchSessionFactory(RealmConfig config, SSLService sslService) throws LDAPException {
         super(config, sslService);
         Settings settings = config.settings();
         userSearchBaseDn = settings.get("user_search.base_dn");

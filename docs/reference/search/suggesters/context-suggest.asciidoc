@@ -76,9 +76,9 @@ PUT place_path_category
     sent with the suggestions.
 <2> Defines a `geo` context named 'location' where the categories must be sent
     with the suggestions.
-<1> Defines a `category` context named 'place_type' where the categories are
+<3> Defines a `category` context named 'place_type' where the categories are
     read from the `cat` field.
-<2> Defines a `geo` context named 'location' where the categories are read from
+<4> Defines a `geo` context named 'location' where the categories are read from
     the `loc` field.
 
 NOTE: Adding context mappings increases the index size for completion field. The completion index

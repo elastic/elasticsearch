@@ -24,19 +24,15 @@ import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.common.io.Channels;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
-import java.util.zip.CRC32;
-import java.util.zip.CheckedOutputStream;
 
 /**
  */
@@ -50,11 +46,15 @@ class Checkpoint {
 
     private static final String CHECKPOINT_CODEC = "ckp";
 
-    static final int BUFFER_SIZE = CodecUtil.headerLength(CHECKPOINT_CODEC)
+    static final int FILE_SIZE = CodecUtil.headerLength(CHECKPOINT_CODEC)
         + Integer.BYTES  // ops
         + Long.BYTES // offset
         + Long.BYTES // generation
         + CodecUtil.footerLength();
+
+    static final int LEGACY_NON_CHECKSUMMED_FILE_LENGTH = Integer.BYTES  // ops
+            + Long.BYTES // offset
+            + Long.BYTES; // generation
 
     Checkpoint(long offset, int numOps, long generation) {
         this.offset = offset;
@@ -88,21 +88,20 @@ class Checkpoint {
     public static Checkpoint read(Path path) throws IOException {
         try (Directory dir = new SimpleFSDirectory(path.getParent())) {
             try (final IndexInput indexInput = dir.openInput(path.getFileName().toString(), IOContext.DEFAULT)) {
-                if (indexInput.length() == 20) {
+                if (indexInput.length() == LEGACY_NON_CHECKSUMMED_FILE_LENGTH) {
                     // OLD unchecksummed file that was written < ES 5.0.0
                     return Checkpoint.readNonChecksummed(indexInput);
                 }
                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
                 final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, INITIAL_VERSION, INITIAL_VERSION);
-                assert fileVersion == INITIAL_VERSION : "trust no one! " + fileVersion;
                 return Checkpoint.readChecksummed(indexInput);
             }
         }
     }
 
     public static void write(ChannelFactory factory, Path checkpointFile, Checkpoint checkpoint, OpenOption... options) throws IOException {
-        final ByteArrayOutputStream byteOutputStream = new ByteArrayOutputStream(BUFFER_SIZE) {
+        final ByteArrayOutputStream byteOutputStream = new ByteArrayOutputStream(FILE_SIZE) {
             @Override
             public synchronized byte[] toByteArray() {
                 // don't clone
@@ -110,14 +109,14 @@ class Checkpoint {
             }
         };
         final String resourceDesc = "checkpoint(path=\"" + checkpointFile + "\", gen=" + checkpoint + ")";
-        try (final DirectOutputStreamIndexOutput indexOutput =
-                 new DirectOutputStreamIndexOutput(resourceDesc, checkpointFile.toString(), byteOutputStream)) {
+        try (final OutputStreamIndexOutput indexOutput =
+                 new OutputStreamIndexOutput(resourceDesc, checkpointFile.toString(), byteOutputStream, FILE_SIZE)) {
             CodecUtil.writeHeader(indexOutput, CHECKPOINT_CODEC, INITIAL_VERSION);
             checkpoint.write(indexOutput);
             CodecUtil.writeFooter(indexOutput);
 
-            assert indexOutput.getFilePointer() == BUFFER_SIZE :
-                "get you number straights. Bytes written: " + indexOutput.getFilePointer() + " buffer size: " + BUFFER_SIZE;
+            assert indexOutput.getFilePointer() == FILE_SIZE :
+                "get you number straights. Bytes written: " + indexOutput.getFilePointer() + " buffer size: " + FILE_SIZE;
             assert indexOutput.getFilePointer() < 512 :
                 "checkpoint files have to be smaller 512b for atomic writes. size: " + indexOutput.getFilePointer();
 
@@ -125,7 +124,8 @@ class Checkpoint {
         // now go and write to the channel, in one go.
         try (FileChannel channel = factory.open(checkpointFile, options)) {
             Channels.writeToChannel(byteOutputStream.toByteArray(), channel);
-            // no need to force metadata, file size stays the same
+            // no need to force metadata, file size stays the same and we did the full fsync
+            // when we first created the file, so the directory entry doesn't change as well
             channel.force(false);
         }
     }
@@ -157,51 +157,5 @@ class Checkpoint {
         result = 31 * result + numOps;
         result = 31 * result + Long.hashCode(generation);
         return result;
-    }
-
-    /** A copy of {@link OutputStreamIndexOutput} without the intermediate buffering */
-    static class DirectOutputStreamIndexOutput extends IndexOutput {
-
-        private final CRC32 crc = new CRC32();
-        private final CheckedOutputStream os;
-
-        private long bytesWritten = 0L;
-
-        /**
-         * Creates a new {@link OutputStreamIndexOutput} with the given buffer size.
-         *
-         * @throws IllegalArgumentException if the given buffer size is less or equal to <tt>0</tt>
-         */
-        public DirectOutputStreamIndexOutput(String resourceDescription, String name, OutputStream out) {
-            super(resourceDescription, name);
-            this.os = new CheckedOutputStream(out, crc);
-        }
-
-        @Override
-        public final void writeByte(byte b) throws IOException {
-            os.write(b);
-            bytesWritten++;
-        }
-
-        @Override
-        public final void writeBytes(byte[] b, int offset, int length) throws IOException {
-            os.write(b, offset, length);
-            bytesWritten += length;
-        }
-
-        @Override
-        public void close() throws IOException {
-            os.close();
-        }
-
-        @Override
-        public final long getFilePointer() {
-            return bytesWritten;
-        }
-
-        @Override
-        public final long getChecksum() throws IOException {
-            return crc.getValue();
-        }
     }
 }

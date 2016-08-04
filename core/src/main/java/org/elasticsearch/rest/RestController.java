@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.ActionPlugin;
-import org.elasticsearch.rest.support.RestUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -193,7 +192,7 @@ public class RestController extends AbstractLifecycleComponent {
         if (!checkRequestParameters(request, channel)) {
             return;
         }
-        try (ThreadContext.StoredContext t = threadContext.stashContext()) {
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
             for (String key : headersToCopy) {
                 String httpHeader = request.header(key);
                 if (httpHeader != null) {

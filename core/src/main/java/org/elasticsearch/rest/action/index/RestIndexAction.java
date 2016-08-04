@@ -19,8 +19,8 @@
 
 package org.elasticsearch.rest.action.index;
 
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -90,17 +90,18 @@ public class RestIndexAction extends BaseRestHandler {
             } catch (IllegalArgumentException eia){
                 try {
                     XContentBuilder builder = channel.newErrorBuilder();
-                    channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", eia.getMessage()).endObject()));
+                    channel.sendResponse(
+                            new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", eia.getMessage()).endObject()));
                 } catch (IOException e1) {
                     logger.warn("Failed to send response", e1);
                     return;
                 }
             }
         }
-        String consistencyLevel = request.param("consistency");
-        if (consistencyLevel != null) {
-            indexRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
+        String waitForActiveShards = request.param("wait_for_active_shards");
+        if (waitForActiveShards != null) {
+            indexRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
-        client.index(indexRequest, new RestStatusToXContentListener<>(channel));
+        client.index(indexRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing())));
     }
 }

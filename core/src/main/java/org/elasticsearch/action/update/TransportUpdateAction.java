@@ -177,15 +177,15 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.getId());
         final UpdateHelper.Result result = updateHelper.prepare(request, indexShard);
-        switch (result.operation()) {
-            case UPSERT:
+        switch (result.getResponseResult()) {
+            case CREATED:
                 IndexRequest upsertRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
                 indexAction.execute(upsertRequest, new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse response) {
-                        UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), response.isCreated());
+                        UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), response.getResult());
                         if (request.fields() != null && request.fields().length > 0) {
                             Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(upsertSourceBytes, true);
                             update.setGetResult(updateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), upsertSourceBytes));
@@ -216,14 +216,14 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     }
                 });
                 break;
-            case INDEX:
+            case UPDATED:
                 IndexRequest indexRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
                 indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
                     @Override
                     public void onResponse(IndexResponse response) {
-                        UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), response.isCreated());
+                        UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), response.getResult());
                         update.setGetResult(updateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), indexSourceBytes));
                         update.setForcedRefresh(response.forcedRefresh());
                         listener.onResponse(update);
@@ -247,12 +247,12 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     }
                 });
                 break;
-            case DELETE:
+            case DELETED:
                 DeleteRequest deleteRequest = result.action();
                 deleteAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
                     @Override
                     public void onResponse(DeleteResponse response) {
-                        UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), false);
+                        UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getVersion(), response.getResult());
                         update.setGetResult(updateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), null));
                         update.setForcedRefresh(response.forcedRefresh());
                         listener.onResponse(update);
@@ -276,7 +276,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                     }
                 });
                 break;
-            case NONE:
+            case NOOP:
                 UpdateResponse update = result.action();
                 IndexService indexServiceOrNull = indicesService.indexService(shardId.getIndex());
                 if (indexServiceOrNull !=  null) {
@@ -288,7 +288,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 listener.onResponse(update);
                 break;
             default:
-                throw new IllegalStateException("Illegal operation " + result.operation());
+                throw new IllegalStateException("Illegal result " + result.getResponseResult());
         }
     }
 }

@@ -599,7 +599,7 @@ public class FunctionScoreTests extends ESTestCase {
         Explanation ffsqExpl = searcher.explain(ffsq, 0);
         assertTrue(ffsqExpl.isMatch());
         assertEquals(queryExpl.getValue(), ffsqExpl.getValue(), 0f);
-        assertEquals(queryExpl.getDescription(), ffsqExpl.getDescription());
+        assertEquals(queryExpl.getDescription(), ffsqExpl.getDetails()[0].getDescription());
 
         ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0], Float.POSITIVE_INFINITY, 10f,
                 CombineFunction.MULTIPLY);
@@ -724,6 +724,31 @@ public class FunctionScoreTests extends ESTestCase {
                 assertNotEquals(left + " == " + right, left, right);
             }
         }
+    }
+
+    public void testExplanationAndScoreEqualsEvenIfNoFunctionMatches() throws IOException {
+        IndexSearcher localSearcher = newSearcher(reader);
+        ScoreMode scoreMode = randomFrom(new
+            ScoreMode[]{ScoreMode.SUM, ScoreMode.AVG, ScoreMode.FIRST, ScoreMode.MIN, ScoreMode.MAX, ScoreMode.MULTIPLY});
+        CombineFunction combineFunction = randomFrom(new
+            CombineFunction[]{CombineFunction.SUM, CombineFunction.AVG, CombineFunction.MIN, CombineFunction.MAX,
+            CombineFunction.MULTIPLY, CombineFunction.REPLACE});
+
+        // check for document that has no macthing function
+        FiltersFunctionScoreQuery query = new FiltersFunctionScoreQuery(new TermQuery(new Term(FIELD, "out")), scoreMode,
+            new FilterFunction[]{new FilterFunction(new TermQuery(new Term("_uid", "2")), new WeightFactorFunction(10))},
+            Float.MAX_VALUE, Float.NEGATIVE_INFINITY, combineFunction);
+        TopDocs searchResult = localSearcher.search(query, 1);
+        Explanation explanation = localSearcher.explain(query, searchResult.scoreDocs[0].doc);
+        assertThat(searchResult.scoreDocs[0].score, equalTo(explanation.getValue()));
+
+        // check for document that has a matching function
+        query = new FiltersFunctionScoreQuery(new TermQuery(new Term(FIELD, "out")), scoreMode,
+            new FilterFunction[]{new FilterFunction(new TermQuery(new Term("_uid", "1")), new WeightFactorFunction(10))},
+            Float.MAX_VALUE, Float.NEGATIVE_INFINITY, combineFunction);
+        searchResult = localSearcher.search(query, 1);
+        explanation = localSearcher.explain(query, searchResult.scoreDocs[0].doc);
+        assertThat(searchResult.scoreDocs[0].score, equalTo(explanation.getValue()));
     }
 
     private static class DummyScoreFunction extends ScoreFunction {

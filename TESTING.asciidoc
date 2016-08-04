@@ -35,7 +35,7 @@ Use local transport (default since 1.3):
 === Running Elasticsearch from a checkout
 
 In order to run Elasticsearch from source without building a package, you can
-run it using Maven:
+run it using Gradle:
 
 -------------------------------------
 gradle run
@@ -285,18 +285,18 @@ REST tests use the following command:
 
 ---------------------------------------------------------------------------
 gradle :distribution:integ-test-zip:integTest   \
-  -Dtests.class=org.elasticsearch.test.rest.RestIT
+  -Dtests.class=org.elasticsearch.test.rest.*Yaml*IT
 ---------------------------------------------------------------------------
 
 A specific test case can be run with
 
 ---------------------------------------------------------------------------
 gradle :distribution:integ-test-zip:integTest \
-  -Dtests.class=org.elasticsearch.test.rest.RestIT \
+  -Dtests.class=org.elasticsearch.test.rest.*Yaml*IT \
   -Dtests.method="test {p0=cat.shards/10_basic/Help}"
 ---------------------------------------------------------------------------
 
-`RestIT` are the executable test classes that runs all the
+`*Yaml*IT` are the executable test classes that runs all the
 yaml suites available within the `rest-api-spec` folder.
 
 The REST tests support all the options provided by the randomized runner, plus the following:
@@ -416,8 +416,8 @@ that'd consume a ton of ram.
 == Testing scripts more directly
 
 In general its best to stick to testing in vagrant because the bats scripts are
-destructive. When working with a single package its generally faster to run its
-tests in a tighter loop than maven provides. In one window:
+destructive. When working with a single package it's generally faster to run its
+tests in a tighter loop than gradle provides. In one window:
 
 --------------------------------
 gradle :distribution:rpm:assemble

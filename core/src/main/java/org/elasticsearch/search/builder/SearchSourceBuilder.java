@@ -91,7 +91,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField SORT_FIELD = new ParseField("sort");
     public static final ParseField TRACK_SCORES_FIELD = new ParseField("track_scores");
     public static final ParseField INDICES_BOOST_FIELD = new ParseField("indices_boost");
-    public static final ParseField AGGREGATIONS_FIELD = new ParseField("aggregations", "aggs");
+    public static final ParseField AGGREGATIONS_FIELD = new ParseField("aggregations");
+    public static final ParseField AGGS_FIELD = new ParseField("aggs");
     public static final ParseField HIGHLIGHT_FIELD = new ParseField("highlight");
     public static final ParseField SUGGEST_FIELD = new ParseField("suggest");
     public static final ParseField RESCORE_FIELD = new ParseField("rescore");
@@ -998,7 +999,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         scriptFields.add(new ScriptField(context));
                     }
                 } else if (context.getParseFieldMatcher().match(currentFieldName, INDICES_BOOST_FIELD)) {
-                    indexBoost = new ObjectFloatHashMap<String>();
+                    indexBoost = new ObjectFloatHashMap<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
@@ -1009,7 +1010,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                                     parser.getTokenLocation());
                         }
                     }
-                } else if (context.getParseFieldMatcher().match(currentFieldName, AGGREGATIONS_FIELD)) {
+                } else if (context.getParseFieldMatcher().match(currentFieldName, AGGREGATIONS_FIELD)
+                        || context.getParseFieldMatcher().match(currentFieldName, AGGS_FIELD)) {
                     aggregations = aggParsers.parseAggregators(context);
                 } else if (context.getParseFieldMatcher().match(currentFieldName, HIGHLIGHT_FIELD)) {
                     highlightBuilder = HighlightBuilder.fromXContent(context);

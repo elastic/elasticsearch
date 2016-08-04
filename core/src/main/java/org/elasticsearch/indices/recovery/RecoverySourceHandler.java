@@ -127,7 +127,7 @@ public class RecoverySourceHandler {
             logger.trace("captured translog id [{}] for recovery", translogView.minTranslogGeneration());
             final IndexCommit phase1Snapshot;
             try {
-                phase1Snapshot = shard.snapshotIndex(false);
+                phase1Snapshot = shard.acquireIndexCommit(false);
             } catch (Exception e) {
                 IOUtils.closeWhileHandlingException(translogView);
                 throw new RecoveryEngineException(shard.shardId(), 1, "Snapshot failed", e);
@@ -139,7 +139,7 @@ public class RecoverySourceHandler {
                 throw new RecoveryEngineException(shard.shardId(), 1, "phase1 failed", e);
             } finally {
                 try {
-                    shard.releaseSnapshot(phase1Snapshot);
+                    shard.releaseIndexCommit(phase1Snapshot);
                 } catch (IOException ex) {
                     logger.warn("releasing snapshot caused exception", ex);
                 }

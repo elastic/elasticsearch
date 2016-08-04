@@ -39,14 +39,14 @@ public class RolloverIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test_index-1").addAlias(new Alias("test_alias")).get());
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
         assertThat(response.getOldIndex(), equalTo("test_index-1"));
-        assertThat(response.getNewIndex(), equalTo("test_index-2"));
+        assertThat(response.getNewIndex(), equalTo("test_index-000002"));
         assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index-1");
         assertFalse(oldIndex.getAliases().containsKey("test_alias"));
-        final IndexMetaData newIndex = state.metaData().index("test_index-2");
+        final IndexMetaData newIndex = state.metaData().index("test_index-000002");
         assertTrue(newIndex.getAliases().containsKey("test_alias"));
     }
 
@@ -56,14 +56,14 @@ public class RolloverIT extends ESIntegTestCase {
         flush("test_index-2");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").get();
         assertThat(response.getOldIndex(), equalTo("test_index-2"));
-        assertThat(response.getNewIndex(), equalTo("test_index-3"));
+        assertThat(response.getNewIndex(), equalTo("test_index-000003"));
         assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index-2");
         assertFalse(oldIndex.getAliases().containsKey("test_alias"));
-        final IndexMetaData newIndex = state.metaData().index("test_index-3");
+        final IndexMetaData newIndex = state.metaData().index("test_index-000003");
         assertTrue(newIndex.getAliases().containsKey("test_alias"));
     }
 
@@ -78,14 +78,14 @@ public class RolloverIT extends ESIntegTestCase {
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
             .settings(settings).alias(new Alias("extra_alias")).get();
         assertThat(response.getOldIndex(), equalTo("test_index-2"));
-        assertThat(response.getNewIndex(), equalTo("test_index-3"));
+        assertThat(response.getNewIndex(), equalTo("test_index-000003"));
         assertThat(response.isDryRun(), equalTo(false));
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index-2");
         assertFalse(oldIndex.getAliases().containsKey("test_alias"));
-        final IndexMetaData newIndex = state.metaData().index("test_index-3");
+        final IndexMetaData newIndex = state.metaData().index("test_index-000003");
         assertThat(newIndex.getNumberOfShards(), equalTo(1));
         assertThat(newIndex.getNumberOfReplicas(), equalTo(0));
         assertTrue(newIndex.getAliases().containsKey("test_alias"));
@@ -98,14 +98,14 @@ public class RolloverIT extends ESIntegTestCase {
         flush("test_index-1");
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias").dryRun(true).get();
         assertThat(response.getOldIndex(), equalTo("test_index-1"));
-        assertThat(response.getNewIndex(), equalTo("test_index-2"));
+        assertThat(response.getNewIndex(), equalTo("test_index-000002"));
         assertThat(response.isDryRun(), equalTo(true));
         assertThat(response.isRolledOver(), equalTo(false));
         assertThat(response.getConditionStatus().size(), equalTo(0));
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index-1");
         assertTrue(oldIndex.getAliases().containsKey("test_alias"));
-        final IndexMetaData newIndex = state.metaData().index("test_index-2");
+        final IndexMetaData newIndex = state.metaData().index("test_index-000002");
         assertNull(newIndex);
     }
 
@@ -126,7 +126,7 @@ public class RolloverIT extends ESIntegTestCase {
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final IndexMetaData oldIndex = state.metaData().index("test_index-0");
         assertTrue(oldIndex.getAliases().containsKey("test_alias"));
-        final IndexMetaData newIndex = state.metaData().index("test_index-1");
+        final IndexMetaData newIndex = state.metaData().index("test_index-000001");
         assertNull(newIndex);
     }
 
@@ -151,14 +151,14 @@ public class RolloverIT extends ESIntegTestCase {
     public void testRolloverOnExistingIndex() throws Exception {
         assertAcked(prepareCreate("test_index-0").addAlias(new Alias("test_alias")).get());
         index("test_index-0", "type1", "1", "field", "value");
-        assertAcked(prepareCreate("test_index-1").get());
-        index("test_index-1", "type1", "1", "field", "value");
-        flush("test_index-0", "test_index-1");
+        assertAcked(prepareCreate("test_index-000001").get());
+        index("test_index-000001", "type1", "1", "field", "value");
+        flush("test_index-0", "test_index-000001");
         try {
             client().admin().indices().prepareRolloverIndex("test_alias").get();
             fail("expected failure due to existing rollover index");
         } catch (IndexAlreadyExistsException e) {
-            assertThat(e.getIndex().getName(), equalTo("test_index-1"));
+            assertThat(e.getIndex().getName(), equalTo("test_index-000001"));
         }
     }
 }

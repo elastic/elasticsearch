@@ -23,7 +23,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
-import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.message.BasicHeader;
 
 import java.io.IOException;
@@ -50,10 +50,14 @@ public class RestClientBuilderTests extends RestClientTestCase {
         }
 
         try {
-            RestClient.builder(new HttpHost[]{new HttpHost("localhost", 9200), null}).build();
+            RestClient.builder(new HttpHost("localhost", 9200), null);
             fail("should have failed");
         } catch(NullPointerException e) {
             assertEquals("host cannot be null", e.getMessage());
+        }
+
+        try (RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200)).build()) {
+            assertNotNull(restClient);
         }
 
         try {
@@ -104,18 +108,20 @@ public class RestClientBuilderTests extends RestClientTestCase {
         for (int i = 0; i < numNodes; i++) {
             hosts[i] = new HttpHost("localhost", 9200 + i);
         }
-        RestClient.Builder builder = RestClient.builder(hosts);
+        RestClientBuilder builder = RestClient.builder(hosts);
         if (getRandom().nextBoolean()) {
-            builder.setHttpClientConfigCallback(new RestClient.HttpClientConfigCallback() {
+            builder.setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
                 @Override
-                public void customizeHttpClient(HttpClientBuilder httpClientBuilder) {
+                public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+                    return httpClientBuilder;
                 }
             });
         }
         if (getRandom().nextBoolean()) {
-            builder.setRequestConfigCallback(new RestClient.RequestConfigCallback() {
+            builder.setRequestConfigCallback(new RestClientBuilder.RequestConfigCallback() {
                 @Override
-                public void customizeRequestConfig(RequestConfig.Builder requestConfigBuilder) {
+                public RequestConfig.Builder customizeRequestConfig(RequestConfig.Builder requestConfigBuilder) {
+                    return requestConfigBuilder;
                 }
             });
         }

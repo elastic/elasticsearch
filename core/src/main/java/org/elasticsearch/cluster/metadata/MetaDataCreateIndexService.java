@@ -27,6 +27,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -202,8 +203,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             if (response.isAcknowledged()) {
                 activeShardsObserver.waitForActiveShards(request.index(), request.waitForActiveShards(), request.ackTimeout(),
                     shardsAcked -> {
-                        logger.debug("[{}] index created, but the operation timed out while waiting for " +
-                                         "enough shards to be started.", request.index());
+                        if (shardsAcked == false) {
+                            logger.debug("[{}] index created, but the operation timed out while waiting for " +
+                                             "enough shards to be started.", request.index());
+                        }
                         listener.onResponse(new CreateIndexClusterStateUpdateResponse(response.isAcknowledged(), shardsAcked));
                     }, listener::onFailure);
             } else {
@@ -345,7 +348,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 .setRoutingNumShards(routingNumShards);
                             // Set up everything, now locally create the index to see that things are ok, and apply
                             final IndexMetaData tmpImd = tmpImdBuilder.settings(actualIndexSettings).build();
-                            if (request.waitForActiveShards().resolve(tmpImd) > tmpImd.getNumberOfReplicas() + 1) {
+                            ActiveShardCount waitForActiveShards = request.waitForActiveShards();
+                            if (waitForActiveShards == ActiveShardCount.DEFAULT) {
+                                waitForActiveShards = tmpImd.getWaitForActiveShards();
+                            }
+                            if (waitForActiveShards.validate(tmpImd.getNumberOfReplicas()) == false) {
                                 throw new IllegalArgumentException("invalid wait_for_active_shards[" + request.waitForActiveShards() +
                                                                    "]: cannot be greater than number of shard copies [" +
                                                                    (tmpImd.getNumberOfReplicas() + 1) + "]");

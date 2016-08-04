@@ -28,6 +28,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
@@ -145,13 +146,13 @@ public class BucketHelpers {
      * @return The value extracted from <code>bucket</code> found at
      *         <code>aggPath</code>
      */
-    public static Double resolveBucketValue(InternalMultiBucketAggregation<?, ? extends InternalMultiBucketAggregation.Bucket> agg,
+    public static Double resolveBucketValue(MultiBucketsAggregation agg,
             InternalMultiBucketAggregation.Bucket bucket, String aggPath, GapPolicy gapPolicy) {
         List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
         return resolveBucketValue(agg, bucket, aggPathsList, gapPolicy);
     }
 
-    public static Double resolveBucketValue(InternalMultiBucketAggregation<?, ? extends InternalMultiBucketAggregation.Bucket> agg,
+    public static Double resolveBucketValue(MultiBucketsAggregation agg,
             InternalMultiBucketAggregation.Bucket bucket, List<String> aggPathAsList, GapPolicy gapPolicy) {
         try {
             Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);

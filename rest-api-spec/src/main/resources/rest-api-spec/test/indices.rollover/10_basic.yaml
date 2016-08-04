@@ -39,7 +39,7 @@
             max_docs: 1
 
   - match: { old_index: logs-1 }
-  - match: { new_index: logs-2 }
+  - match: { new_index: logs-000002 }
   - match: { rolled_over: true }
   - match: { dry_run: false }
   - match: { conditions: { "[max_docs: 1]": true } }
@@ -47,14 +47,14 @@
   # ensure new index is created
   - do:
       indices.exists:
-        index: logs-2
+        index: logs-000002
 
   - is_true: ''
 
   # index into new index
   - do:
       index:
-        index: logs-2
+        index: logs-000002
         type:  test
         id:    "2"
         body:  { "foo": "hello world" }
@@ -69,5 +69,5 @@
         type:  test
 
   - match: { hits.total: 1 }
-  - match: { hits.hits.0._index: "logs-2"}
+  - match: { hits.hits.0._index: "logs-000002"}
 

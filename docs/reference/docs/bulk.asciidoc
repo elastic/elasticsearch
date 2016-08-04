@@ -57,7 +57,7 @@ $ cat requests
 { "index" : { "_index" : "test", "_type" : "type1", "_id" : "1" } }
 { "field1" : "value1" }
 $ curl -s -XPOST localhost:9200/_bulk --data-binary "@requests"; echo
-{"took":7,"items":[{"create":{"_index":"test","_type":"type1","_id":"1","_version":1}}]}
+{"took":7, "errors": false, "items":[{"index":{"_index":"test","_type":"type1","_id":"1","_version":1,"result":"created","forced_refresh":false}}]}
 --------------------------------------------------
 
 Because this format uses literal `\n`'s as delimiters, please be sure
@@ -128,27 +128,21 @@ field. It automatically follows the behavior of the index / delete
 operation based on the `_parent` / `_routing` mapping.
 
 [float]
-[[bulk-consistency]]
-=== Write Consistency
+[[bulk-wait-for-active-shards]]
+=== Wait For Active Shards
 
-When making bulk calls, you can require a minimum number of active
-shards in the partition through the `consistency` parameter. The values
-allowed are `one`, `quorum`, and `all`. It defaults to the node level
-setting of `action.write_consistency`, which in turn defaults to
-`quorum`.
-
-For example, in a N shards with 2 replicas index, there will have to be
-at least 2 active shards within the relevant partition (`quorum`) for
-the operation to succeed. In a N shards with 1 replica scenario, there
-will need to be a single shard active (in this case, `one` and `quorum`
-are the same).
+When making bulk calls, you can set the `wait_for_active_shards`
+parameter to require a minimum number of shard copies to be active
+before starting to process the bulk request. See 
+<<index-wait-for-active-shards,here>> for further details and a usage
+example.
 
 [float]
 [[bulk-refresh]]
 === Refresh
 
 Control when the changes made by this request are visible to search. See
-<<docs-refresh>>.
+<<docs-refresh,refresh>>.
 
 [float]
 [[bulk-update]]

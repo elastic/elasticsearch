@@ -92,6 +92,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -134,6 +135,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
@@ -170,7 +172,16 @@ public class Node implements Closeable {
         }
     }, Setting.Property.NodeScope);
 
-
+    /**
+     * Adds a default node name to the given setting, if it doesn't already exist
+     * @return the given setting if node name is already set, or a new copy with a default node name set.
+     */
+    public static final Settings addNodeNameIfNeeded(Settings settings, final String nodeId) {
+        if (NODE_NAME_SETTING.exists(settings)) {
+            return settings;
+        }
+        return Settings.builder().put(settings).put(NODE_NAME_SETTING.getKey(), nodeId.substring(0, 7)).build();
+    }
 
     private static final String CLIENT_TYPE = "node";
     private final Lifecycle lifecycle = new Lifecycle();
@@ -188,53 +199,82 @@ public class Node implements Closeable {
      * @param preparedSettings Base settings to configure the node with
      */
     public Node(Settings preparedSettings) {
-        this(InternalSettingsPreparer.prepareEnvironment(preparedSettings, null), Collections.<Class<? extends Plugin>>emptyList());
+        this(InternalSettingsPreparer.prepareEnvironment(preparedSettings, null));
     }
 
-    protected Node(Environment tmpEnv, Collection<Class<? extends Plugin>> classpathPlugins) {
-        Settings tmpSettings = Settings.builder().put(tmpEnv.settings())
-                .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
+    public Node(Environment environment) {
+        this(environment, Collections.emptyList());
+    }
+
+    protected Node(final Environment environment, Collection<Class<? extends Plugin>> classpathPlugins) {
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
-
-        tmpSettings = TribeService.processSettings(tmpSettings);
-        ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(tmpSettings));
-        final String displayVersion = Version.CURRENT + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
-        final JvmInfo jvmInfo = JvmInfo.jvmInfo();
-        logger.info(
-            "version[{}], pid[{}], build[{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
-            displayVersion,
-            jvmInfo.pid(),
-            Build.CURRENT.shortHash(),
-            Build.CURRENT.date(),
-            Constants.OS_NAME,
-            Constants.OS_VERSION,
-            Constants.OS_ARCH,
-            Constants.JVM_VENDOR,
-            Constants.JVM_NAME,
-            Constants.JAVA_VERSION,
-            Constants.JVM_VERSION);
-
-        logger.info("initializing ...");
-
-        if (logger.isDebugEnabled()) {
-            logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
-                    tmpEnv.configFile(), Arrays.toString(tmpEnv.dataFiles()), tmpEnv.logsFile(), tmpEnv.pluginsFile());
-        }
-        // TODO: Remove this in Elasticsearch 6.0.0
-        if (JsonXContent.unquotedFieldNamesSet) {
-            DeprecationLogger dLogger = new DeprecationLogger(logger);
-            dLogger.deprecated("[{}] has been set, but will be removed in Elasticsearch 6.0.0",
-                    JsonXContent.JSON_ALLOW_UNQUOTED_FIELD_NAMES);
-        }
-
-        this.pluginsService = new PluginsService(tmpSettings, tmpEnv.modulesFile(), tmpEnv.pluginsFile(), classpathPlugins);
-        this.settings = pluginsService.updatedSettings();
-        // create the environment based on the finalized (processed) view of the settings
-        this.environment = new Environment(this.settings);
-        final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
-
         boolean success = false;
+        {
+            // use temp logger just to say we are starting. we can't use it later on because the node name might not be set
+            ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(environment.settings()));
+            logger.info("initializing ...");
+
+        }
         try {
+            Settings tmpSettings = Settings.builder().put(environment.settings())
+                .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE).build();
+
+            tmpSettings = TribeService.processSettings(tmpSettings);
+
+            // create the node environment as soon as possible, to recover the node id and enable logging
+            try {
+                nodeEnvironment = new NodeEnvironment(tmpSettings, environment);
+                resourcesToClose.add(nodeEnvironment);
+            } catch (IOException ex) {
+                throw new IllegalStateException("Failed to created node environment", ex);
+            }
+
+            final boolean hadPredefinedNodeName = NODE_NAME_SETTING.exists(tmpSettings);
+                tmpSettings = addNodeNameIfNeeded(tmpSettings, nodeEnvironment.nodeId());
+            ESLogger logger = Loggers.getLogger(Node.class, tmpSettings);
+            if (hadPredefinedNodeName == false) {
+                logger.info("node name [{}] derived from node ID; set [{}] to override",
+                    NODE_NAME_SETTING.get(tmpSettings), NODE_NAME_SETTING.getKey());
+            }
+
+            final String displayVersion = Version.CURRENT + (Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "");
+            final JvmInfo jvmInfo = JvmInfo.jvmInfo();
+            logger.info(
+                "version[{}], pid[{}], build[{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
+                displayVersion,
+                jvmInfo.pid(),
+                Build.CURRENT.shortHash(),
+                Build.CURRENT.date(),
+                Constants.OS_NAME,
+                Constants.OS_VERSION,
+                Constants.OS_ARCH,
+                Constants.JVM_VENDOR,
+                Constants.JVM_NAME,
+                Constants.JAVA_VERSION,
+                Constants.JVM_VERSION);
+
+
+            if (logger.isDebugEnabled()) {
+                logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
+                    environment.configFile(), Arrays.toString(environment.dataFiles()), environment.logsFile(), environment.pluginsFile());
+            }
+            // TODO: Remove this in Elasticsearch 6.0.0
+            if (JsonXContent.unquotedFieldNamesSet) {
+                DeprecationLogger dLogger = new DeprecationLogger(logger);
+                dLogger.deprecated("[{}] has been set, but will be removed in Elasticsearch 6.0.0",
+                    JsonXContent.JSON_ALLOW_UNQUOTED_FIELD_NAMES);
+            }
+
+            this.pluginsService = new PluginsService(tmpSettings, environment.modulesFile(), environment.pluginsFile(), classpathPlugins);
+            this.settings = pluginsService.updatedSettings();
+            // create the environment based on the finalized (processed) view of the settings
+            // this is just to makes sure that people get the same settings, no matter where they ask them from
+            this.environment = new Environment(this.settings);
+            Environment.assertEquivalent(environment, this.environment);
+
+
+            final List<ExecutorBuilder<?>> executorBuilders = pluginsService.getExecutorBuilders(settings);
+
             final ThreadPool threadPool = new ThreadPool(settings, executorBuilders.toArray(new ExecutorBuilder[0]));
             resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
             // adds the context to the DeprecationLogger so that it does not need to be injected everywhere
@@ -249,28 +289,22 @@ public class Node implements Closeable {
                 additionalSettings.addAll(builder.getRegisteredSettings());
             }
             final ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, threadPool);
-            final ScriptModule scriptModule = ScriptModule.create(settings, environment, resourceWatcherService,
-                    pluginsService.filterPlugins(ScriptPlugin.class));
-            AnalysisModule analysisModule = new AnalysisModule(environment, pluginsService.filterPlugins(AnalysisPlugin.class));
+            final ScriptModule scriptModule = ScriptModule.create(settings, this.environment, resourceWatcherService,
+                pluginsService.filterPlugins(ScriptPlugin.class));
+            AnalysisModule analysisModule = new AnalysisModule(this.environment, pluginsService.filterPlugins(AnalysisPlugin.class));
             additionalSettings.addAll(scriptModule.getSettings());
             // this is as early as we can validate settings at this point. we already pass them to ScriptModule as well as ThreadPool
             // so we might be late here already
             final SettingsModule settingsModule = new SettingsModule(this.settings, additionalSettings, additionalSettingsFilter);
-            try {
-                nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
-                resourcesToClose.add(nodeEnvironment);
-            } catch (IOException ex) {
-                throw new IllegalStateException("Failed to created node environment", ex);
-            }
             resourcesToClose.add(resourceWatcherService);
-            final NetworkService networkService = new NetworkService(settings);
+            final NetworkService networkService = new NetworkService(settings,
+                getCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class)));
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             clusterService.add(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
             final TribeService tribeService = new TribeService(settings, clusterService, nodeEnvironment.nodeId());
             resourcesToClose.add(tribeService);
-            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-            final IngestService ingestService = new IngestService(settings, threadPool, environment,
+            final IngestService ingestService = new IngestService(settings, threadPool, this.environment,
                 scriptModule.getScriptService(), pluginsService.filterPlugins(IngestPlugin.class));
 
             ModulesBuilder modules = new ModulesBuilder();
@@ -280,17 +314,20 @@ public class Node implements Closeable {
             }
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             modules.add(new NodeModule(this, monitorService));
-            modules.add(new NetworkModule(networkService, settings, false, namedWriteableRegistry));
+            NetworkModule networkModule = new NetworkModule(networkService, settings, false);
+            modules.add(networkModule);
             modules.add(new DiscoveryModule(this.settings));
             ClusterModule clusterModule = new ClusterModule(settings, clusterService);
             modules.add(clusterModule);
-            modules.add(new IndicesModule(namedWriteableRegistry, pluginsService.filterPlugins(MapperPlugin.class)));
-            modules.add(new SearchModule(settings, namedWriteableRegistry, false, pluginsService.filterPlugins(SearchPlugin.class)));
+            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
+            modules.add(indicesModule);
+            SearchModule searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class));
+            modules.add(searchModule);
             modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false, settings,
-                    clusterModule.getIndexNameExpressionResolver(), settingsModule.getClusterSettings(),
-                    pluginsService.filterPlugins(ActionPlugin.class)));
+                clusterModule.getIndexNameExpressionResolver(), settingsModule.getClusterSettings(),
+                pluginsService.filterPlugins(ActionPlugin.class)));
             modules.add(new GatewayModule());
-            modules.add(new RepositoriesModule(environment, pluginsService.filterPlugins(RepositoryPlugin.class)));
+            modules.add(new RepositoriesModule(this.environment, pluginsService.filterPlugins(RepositoryPlugin.class)));
             pluginsService.processModules(modules);
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
@@ -298,15 +335,24 @@ public class Node implements Closeable {
             BigArrays bigArrays = createBigArrays(settings, circuitBreakerService);
             resourcesToClose.add(bigArrays);
             modules.add(settingsModule);
+            List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
+                networkModule.getNamedWriteables().stream(),
+                indicesModule.getNamedWriteables().stream(),
+                searchModule.getNamedWriteables().stream(),
+                pluginsService.filterPlugins(Plugin.class).stream()
+                    .flatMap(p -> p.getNamedWriteables().stream()))
+                .flatMap(Function.identity()).collect(Collectors.toList());
+            final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
             client = new NodeClient(settings, threadPool);
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
-                .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService).stream())
+                .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
+                                                 scriptModule.getScriptService()).stream())
                 .collect(Collectors.toList());
             modules.add(b -> {
                     b.bind(PluginsService.class).toInstance(pluginsService);
                     b.bind(Client.class).toInstance(client);
                     b.bind(NodeClient.class).toInstance(client);
-                    b.bind(Environment.class).toInstance(environment);
+                    b.bind(Environment.class).toInstance(this.environment);
                     b.bind(ThreadPool.class).toInstance(threadPool);
                     b.bind(NodeEnvironment.class).toInstance(nodeEnvironment);
                     b.bind(TribeService.class).toInstance(tribeService);
@@ -316,20 +362,23 @@ public class Node implements Closeable {
                     b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
                     b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                     b.bind(IngestService.class).toInstance(ingestService);
-                    pluginComponents.stream().forEach(p -> b.bind((Class)p.getClass()).toInstance(p));
+                    b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
+                    pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));
                 }
             );
             injector = modules.createInjector();
 
             List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
                 .filter(p -> p instanceof LifecycleComponent)
-                .map(p -> (LifecycleComponent)p).collect(Collectors.toList());
+                .map(p -> (LifecycleComponent) p).collect(Collectors.toList());
             pluginLifecycleComponents.addAll(pluginsService.getGuiceServiceClasses().stream()
                 .map(injector::getInstance).collect(Collectors.toList()));
             resourcesToClose.addAll(pluginLifecycleComponents);
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
 
             client.intialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {}));
+
+            logger.info("initialized");
 
             success = true;
         } catch (IOException ex) {
@@ -339,8 +388,6 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
-
-        logger.info("initialized");
     }
 
     /**
@@ -689,5 +736,20 @@ public class Node implements Closeable {
      */
     BigArrays createBigArrays(Settings settings, CircuitBreakerService circuitBreakerService) {
         return new BigArrays(settings, circuitBreakerService);
+    }
+
+    /**
+     * Get Custom Name Resolvers list based on a Discovery Plugins list
+     * @param discoveryPlugins Discovery plugins list
+     */
+    private List<NetworkService.CustomNameResolver> getCustomNameResolvers(List<DiscoveryPlugin> discoveryPlugins) {
+        List<NetworkService.CustomNameResolver> customNameResolvers = new ArrayList<>();
+        for (DiscoveryPlugin discoveryPlugin : discoveryPlugins) {
+            NetworkService.CustomNameResolver customNameResolver = discoveryPlugin.getCustomNameResolver(settings);
+            if (customNameResolver != null) {
+                customNameResolvers.add(customNameResolver);
+            }
+        }
+        return customNameResolvers;
     }
 }

@@ -654,7 +654,7 @@ public abstract class Engine implements Closeable {
      *
      * @param flushFirst indicates whether the engine should flush before returning the snapshot
      */
-    public abstract IndexCommit snapshotIndex(boolean flushFirst) throws EngineException;
+    public abstract IndexCommit acquireIndexCommit(boolean flushFirst) throws EngineException;
 
     /**
      * fail engine due to some error. the engine will also be closed.

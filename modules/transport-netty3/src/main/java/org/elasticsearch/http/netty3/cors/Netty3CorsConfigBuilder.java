@@ -193,8 +193,8 @@ public final class Netty3CorsConfigBuilder {
      * @param methods the {@link HttpMethod}s that should be allowed.
      * @return {@link Netty3CorsConfigBuilder} to support method chaining.
      */
-    public Netty3CorsConfigBuilder allowedRequestMethods(final HttpMethod... methods) {
-        requestMethods.addAll(Arrays.asList(methods));
+    public Netty3CorsConfigBuilder allowedRequestMethods(final Set<HttpMethod> methods) {
+        requestMethods.addAll(methods);
         return this;
     }
 
@@ -214,8 +214,8 @@ public final class Netty3CorsConfigBuilder {
      * @param headers the headers to be added to the preflight 'Access-Control-Allow-Headers' response header.
      * @return {@link Netty3CorsConfigBuilder} to support method chaining.
      */
-    public Netty3CorsConfigBuilder allowedRequestHeaders(final String... headers) {
-        requestHeaders.addAll(Arrays.asList(headers));
+    public Netty3CorsConfigBuilder allowedRequestHeaders(final Set<String> headers) {
+        requestHeaders.addAll(headers);
         return this;
     }
 

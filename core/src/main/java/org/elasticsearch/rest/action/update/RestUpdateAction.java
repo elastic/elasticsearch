@@ -19,8 +19,8 @@
 
 package org.elasticsearch.rest.action.update;
 
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -53,9 +53,9 @@ public class RestUpdateAction extends BaseRestHandler {
         updateRequest.parent(request.param("parent"));
         updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));
         updateRequest.setRefreshPolicy(request.param("refresh"));
-        String consistencyLevel = request.param("consistency");
-        if (consistencyLevel != null) {
-            updateRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
+        String waitForActiveShards = request.param("wait_for_active_shards");
+        if (waitForActiveShards != null) {
+            updateRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
         updateRequest.docAsUpsert(request.paramAsBoolean("doc_as_upsert", updateRequest.docAsUpsert()));
         String sField = request.param("fields");
@@ -97,6 +97,6 @@ public class RestUpdateAction extends BaseRestHandler {
             }
         }
 
-        client.update(updateRequest, new RestStatusToXContentListener<>(channel));
+        client.update(updateRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(updateRequest.routing())));
     }
 }

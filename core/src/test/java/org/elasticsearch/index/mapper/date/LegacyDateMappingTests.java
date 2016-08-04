@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -448,7 +449,7 @@ public class LegacyDateMappingTests extends ESSingleNodeTestCase {
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", document.bytes());
         assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(1433239200000L));
         IndexResponse indexResponse = client().prepareIndex("test2", "test").setSource(document).get();
-        assertThat(indexResponse.isCreated(), is(true));
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         // integers should always be parsed as well... cannot be sure it is a unix timestamp only
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
@@ -458,7 +459,7 @@ public class LegacyDateMappingTests extends ESSingleNodeTestCase {
                 .bytes());
         assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(1433239200000L));
         indexResponse = client().prepareIndex("test", "test").setSource(document).get();
-        assertThat(indexResponse.isCreated(), is(true));
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
     }
 
     public void testThatNewIndicesOnlyAllowStrictDates() throws Exception {

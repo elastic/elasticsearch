@@ -45,6 +45,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.net.InetSocketAddress;
+import java.util.Collections;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -66,7 +67,7 @@ public class UnicastZenPingIT extends ESTestCase {
             .put(TransportSettings.PORT.getKey(), startPort + "-" + endPort).build();
 
         ThreadPool threadPool = new TestThreadPool(getClass().getName());
-        NetworkService networkService = new NetworkService(settings);
+        NetworkService networkService = new NetworkService(settings, Collections.emptyList());
         ElectMasterService electMasterService = new ElectMasterService(settings);
 
         NetworkHandle handleA = startServices(settings, threadPool, networkService, "UZP_A", Version.CURRENT);
@@ -199,7 +200,7 @@ public class UnicastZenPingIT extends ESTestCase {
     private NetworkHandle startServices(Settings settings, ThreadPool threadPool, NetworkService networkService, String nodeId,
                                         Version version) {
         MockTcpTransport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(), new NamedWriteableRegistry(), networkService, version);
+            new NoneCircuitBreakerService(), new NamedWriteableRegistry(Collections.emptyList()), networkService, version);
         final TransportService transportService = new TransportService(settings, transport, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();

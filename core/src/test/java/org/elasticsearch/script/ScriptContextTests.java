@@ -43,7 +43,9 @@ public class ScriptContextTests extends ESTestCase {
             .put("script." + PLUGIN_NAME + "_custom_globally_disabled_op", "false")
             .put("script.engine." + MockScriptEngine.NAME + ".inline." + PLUGIN_NAME + "_custom_exp_disabled_op", "false")
             .build();
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new MockScriptEngine()));
+
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap("1", script -> "1"));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(scriptEngine));
         List<ScriptContext.Plugin> customContexts = Arrays.asList(
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"),
             new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"),

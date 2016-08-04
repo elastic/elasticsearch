@@ -101,4 +101,5 @@ public abstract class AbstractRestChannel implements RestChannel {
     public boolean detailedErrorsEnabled() {
         return detailedErrorsEnabled;
     }
+
 }

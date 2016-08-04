@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -101,7 +100,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     private final ScriptModes scriptModes;
     private final ScriptContextRegistry scriptContextRegistry;
 
-    private final ParseFieldMatcher parseFieldMatcher;
     private final ScriptMetrics scriptMetrics = new ScriptMetrics();
 
     private ClusterState clusterState;
@@ -113,7 +111,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         Objects.requireNonNull(scriptEngineRegistry);
         Objects.requireNonNull(scriptContextRegistry);
         Objects.requireNonNull(scriptSettings);
-        this.parseFieldMatcher = new ParseFieldMatcher(settings);
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
             throw new IllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with fine-grained script settings. \n" +
                     "Dynamic scripts can be enabled for all languages and all operations by replacing `script.disable_dynamic: false` with `script.inline: true` and `script.stored: true` in elasticsearch.yml");
@@ -487,7 +484,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
     }
 
-    private class ScriptChangesListener extends FileChangesListener {
+    private class ScriptChangesListener implements FileChangesListener {
 
         private Tuple<String, String> getScriptNameExt(Path file) {
             Path scriptPath = scriptsDirectory.relativize(file);

@@ -37,50 +37,52 @@ public class SnifferBuilderTests extends RestClientTestCase {
             hosts[i] = new HttpHost("localhost", 9200 + i);
         }
 
-        HostsSniffer hostsSniffer = new MockHostsSniffer();
-
         try (RestClient client = RestClient.builder(hosts).build()) {
             try {
-                Sniffer.builder(null, hostsSniffer).build();
+                Sniffer.builder(null).build();
                 fail("should have failed");
             } catch(NullPointerException e) {
                 assertEquals("restClient cannot be null", e.getMessage());
             }
 
             try {
-                Sniffer.builder(client, null).build();
-                fail("should have failed");
-            } catch(NullPointerException e) {
-                assertEquals("hostsSniffer cannot be null", e.getMessage());
-            }
-
-            try {
-                Sniffer.builder(client, hostsSniffer)
-                        .setSniffIntervalMillis(RandomInts.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0));
+                Sniffer.builder(client).setSniffIntervalMillis(RandomInts.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0));
                 fail("should have failed");
             } catch(IllegalArgumentException e) {
                 assertEquals("sniffIntervalMillis must be greater than 0", e.getMessage());
             }
 
             try {
-                Sniffer.builder(client, hostsSniffer)
-                        .setSniffAfterFailureDelayMillis(RandomInts.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0));
+                Sniffer.builder(client).setSniffAfterFailureDelayMillis(RandomInts.randomIntBetween(getRandom(), Integer.MIN_VALUE, 0));
                 fail("should have failed");
             } catch(IllegalArgumentException e) {
                 assertEquals("sniffAfterFailureDelayMillis must be greater than 0", e.getMessage());
             }
 
-            try (Sniffer sniffer = Sniffer.builder(client, hostsSniffer).build()) {
+
+            try {
+                Sniffer.builder(client).setHostsSniffer(null);
+                fail("should have failed");
+            } catch(NullPointerException e) {
+                assertEquals("hostsSniffer cannot be null", e.getMessage());
+            }
+
+
+            try (Sniffer sniffer = Sniffer.builder(client).build()) {
                 assertNotNull(sniffer);
             }
 
-            Sniffer.Builder builder = Sniffer.builder(client, hostsSniffer);
+            SnifferBuilder builder = Sniffer.builder(client);
             if (getRandom().nextBoolean()) {
                 builder.setSniffIntervalMillis(RandomInts.randomIntBetween(getRandom(), 1, Integer.MAX_VALUE));
             }
             if (getRandom().nextBoolean()) {
                 builder.setSniffAfterFailureDelayMillis(RandomInts.randomIntBetween(getRandom(), 1, Integer.MAX_VALUE));
             }
+            if (getRandom().nextBoolean()) {
+                builder.setHostsSniffer(new MockHostsSniffer());
+            }
+
             try (Sniffer sniffer = builder.build()) {
                 assertNotNull(sniffer);
             }

@@ -28,7 +28,9 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -1379,8 +1381,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
         if (!bogusIds.isEmpty()) {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
             for (Tuple<String, String> doc : bogusIds) {
-                assertTrue("failed to delete a dummy doc [" + doc.v1() + "][" + doc.v2() + "]",
-                    client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get().isFound());
+                assertEquals("failed to delete a dummy doc [" + doc.v1() + "][" + doc.v2() + "]",
+                    DocWriteResponse.Result.DELETED,
+                    client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get().getResult());
             }
         }
         if (forceRefresh) {
@@ -2094,11 +2097,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return restClient;
     }
 
-    protected static RestClient createRestClient(RestClient.HttpClientConfigCallback httpClientConfigCallback) {
+    protected static RestClient createRestClient(RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback) {
         return createRestClient(httpClientConfigCallback, "http");
     }
 
-    protected static RestClient createRestClient(RestClient.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
+    protected static RestClient createRestClient(RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
         final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
         final List<NodeInfo> nodes = nodeInfos.getNodes();
         assertFalse(nodeInfos.hasFailures());
@@ -2111,7 +2114,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 hosts.add(new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), protocol));
             }
         }
-        RestClient.Builder builder = RestClient.builder(hosts.toArray(new HttpHost[hosts.size()]));
+        RestClientBuilder builder = RestClient.builder(hosts.toArray(new HttpHost[hosts.size()]));
         if (httpClientConfigCallback != null) {
             builder.setHttpClientConfigCallback(httpClientConfigCallback);
         }

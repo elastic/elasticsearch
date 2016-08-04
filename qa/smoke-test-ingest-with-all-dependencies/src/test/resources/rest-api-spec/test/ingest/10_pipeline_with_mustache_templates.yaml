@@ -234,7 +234,7 @@
                      "processor": {
                           "append": {
                              "field": "values_flat",
-                             "value": "{{_value.key}}_{{_value.value}}"
+                             "value": "{{_ingest._value.key}}_{{_ingest._value.value}}"
                           }
                     }
                   }

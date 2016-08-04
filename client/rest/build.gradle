@@ -22,6 +22,8 @@ import org.gradle.api.JavaVersion
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'ru.vyarus.animalsniffer'
+apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'nebula.maven-scm'
 
 targetCompatibility = JavaVersion.VERSION_1_7
 sourceCompatibility = JavaVersion.VERSION_1_7
@@ -31,6 +33,8 @@ group = 'org.elasticsearch.client'
 dependencies {
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  compile "org.apache.httpcomponents:httpasyncclient:4.1.2"
+  compile "org.apache.httpcomponents:httpcore-nio:${versions.httpcore}"
   compile "commons-codec:commons-codec:${versions.commonscodec}"
   compile "commons-logging:commons-logging:${versions.commonslogging}"
 
@@ -54,6 +58,11 @@ forbiddenApisTest {
   bundledSignatures += 'jdk-internal'
   //client does not depend on core, so only jdk signatures should be checked
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+}
+
+dependencyLicenses {
+  mapping from: /http.*/, to: 'httpclient'
+  mapping from: /commons-.*/, to: 'commons'
 }
 
 //JarHell is part of es core, which we don't want to pull in

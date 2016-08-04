@@ -23,42 +23,29 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.netty3.Netty3Utils;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.support.RestUtils;
+import org.elasticsearch.rest.RestUtils;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.handler.codec.http.HttpMethod;
+import org.jboss.netty.handler.codec.http.HttpRequest;
 
 import java.net.SocketAddress;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- *
- */
 public class Netty3HttpRequest extends RestRequest {
 
-    private final org.jboss.netty.handler.codec.http.HttpRequest request;
+    private final HttpRequest request;
     private final Channel channel;
-    private final Map<String, String> params;
-    private final String rawPath;
     private final BytesReference content;
 
-    public Netty3HttpRequest(org.jboss.netty.handler.codec.http.HttpRequest request, Channel channel) {
+    public Netty3HttpRequest(HttpRequest request, Channel channel) {
+        super(request.getUri());
         this.request = request;
         this.channel = channel;
-        this.params = new HashMap<>();
         if (request.getContent().readable()) {
             this.content = Netty3Utils.toBytesReference(request.getContent());
         } else {
             this.content = BytesArray.EMPTY;
-        }
-
-        String uri = request.getUri();
-        int pathEndPos = uri.indexOf('?');
-        if (pathEndPos < 0) {
-            this.rawPath = uri;
-        } else {
-            this.rawPath = uri.substring(0, pathEndPos);
-            RestUtils.decodeQueryString(uri, pathEndPos + 1, params);
         }
     }
 
@@ -95,16 +82,6 @@ public class Netty3HttpRequest extends RestRequest {
     @Override
     public String uri() {
         return request.getUri();
-    }
-
-    @Override
-    public String rawPath() {
-        return rawPath;
-    }
-
-    @Override
-    public Map<String, String> params() {
-        return params;
     }
 
     @Override
@@ -153,22 +130,4 @@ public class Netty3HttpRequest extends RestRequest {
         return request.headers().entries();
     }
 
-    @Override
-    public boolean hasParam(String key) {
-        return params.containsKey(key);
-    }
-
-    @Override
-    public String param(String key) {
-        return params.get(key);
-    }
-
-    @Override
-    public String param(String key, String defaultValue) {
-        String value = params.get(key);
-        if (value == null) {
-            return defaultValue;
-        }
-        return value;
-    }
 }

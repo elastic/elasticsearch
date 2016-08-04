@@ -1,0 +1,108 @@
+---
+"Template search request":
+
+  - do:
+      index:
+        index:  test
+        type:   testtype
+        id:     1
+        body:   { "text": "value1" }
+  - do:
+      index:
+        index:  test
+        type:   testtype
+        id:     2
+        body:   { "text": "value2" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search_template:
+        body: { "inline" : { "query": { "term": { "text": { "value": "{{template}}" } } } }, "params": { "template": "value1" } }
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search_template:
+        body: { "file" : "file_search_template", "params": { "my_value": "value1", "my_field" : "_type" } }
+
+  - match: { hits.total: 1 }
+
+  - do:
+      put_template:
+        id: "1"
+        body: { "template": { "query": { "term": { "text": "{{template}}" } } } }
+  - match: { acknowledged: true }
+
+  - do:
+      search_template:
+        body: { "id" : "1", "params": { "template": "value1" } }
+  - match: { hits.total: 1 }
+
+  - do:
+      search_template:
+        body: { "inline" : { "query": { "match_{{template}}": {} } }, "params" : { "template" : "all" } }
+
+  - match: { hits.total: 2 }
+
+---
+"Missing template search request":
+
+  - do:
+      catch: missing
+      search_template:
+        body: { "id" : "unknown", "params": { "template": "value1" } }
+
+---
+"Test that parameters can be used":
+
+  - do:
+      index:
+        index:  test
+        type:   type
+        id:     1
+        body:   { "theField": "foo" }
+
+  - do:
+      index:
+        index:  test
+        type:   type
+        id:     2
+        body:   { "theField": "foo 2" }
+
+  - do:
+      index:
+        index:  test
+        type:   type
+        id:     3
+        body:   { "theField": "foo 3" }
+
+  - do:
+      index:
+        index:  test
+        type:   type
+        id:     4
+        body:   { "theField": "foo 4" }
+
+  - do:
+      index:
+        index:  test
+        type:   type
+        id:     5
+        body:   { "otherField": "foo" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search_template:
+        body: { "file" : "template_1", "params": { "size": "2", "field": "theField", "value": "foo" } }
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 2 }
+
+  - do:
+      search_template:
+        body: { "file" : "template_1", "params": { "size": "2", "field": "otherField", "value": "foo" } }
+
+  - match: { hits.total: 1 }
+  - length: { hits.hits: 1 }

@@ -19,9 +19,21 @@
 
 package org.elasticsearch.test;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -48,7 +60,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -94,6 +105,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -106,22 +118,11 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
-
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
@@ -310,6 +311,44 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     // mutation produced invalid json
                 }
             }
+        }
+    }
+
+    /**
+     * Test that wraps the randomly generated query into an array as follows: { "query_name" : [{}]}
+     * This causes unexpected situations in parser code that may not be handled properly.
+     */
+    public void testQueryWrappedInArray() throws IOException {
+        QB queryBuilder = createTestQueryBuilder();
+        String validQuery = queryBuilder.toString();
+        String queryName = queryBuilder.getName();
+        int i = validQuery.indexOf("\"" + queryName + "\"");
+        assertThat(i, greaterThan(0));
+
+        int insertionPosition;
+        for (insertionPosition = i; insertionPosition < validQuery.length(); insertionPosition++) {
+            if (validQuery.charAt(insertionPosition) == ':') {
+                break;
+            }
+        }
+        insertionPosition++;
+
+        int endArrayPosition;
+        for (endArrayPosition = validQuery.length() - 1; endArrayPosition >= 0; endArrayPosition--) {
+            if (validQuery.charAt(endArrayPosition) == '}') {
+                break;
+            }
+        }
+
+        String testQuery = validQuery.substring(0, insertionPosition) + "[" +
+                validQuery.substring(insertionPosition, endArrayPosition) + "]" +
+                validQuery.substring(endArrayPosition, validQuery.length());
+
+        try {
+            parseQuery(testQuery);
+            fail("some parsing exception expected for query: " + testQuery);
+        } catch (ParsingException e) {
+            assertEquals("[" + queryName + "] query malformed, no start_object after query name", e.getMessage());
         }
     }
 
@@ -860,46 +899,43 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     Client.class.getClassLoader(),
                     new Class[]{Client.class},
                     clientInvocationHandler);
-            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-            ScriptModule scriptModule = newTestScriptModule();
+            ScriptModule scriptModule = createScriptModule(pluginsService.filterPlugins(ScriptPlugin.class));
             List<Setting<?>> scriptSettings = scriptModule.getSettings();
             scriptSettings.addAll(pluginsService.getPluginSettings());
             scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
             SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, pluginsService.getPluginSettingsFilter());
-            searchModule = new SearchModule(settings, namedWriteableRegistry, false, pluginsService.filterPlugins(SearchPlugin.class)) {
+            searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class)) {
                 @Override
                 protected void configureSearch() {
                     // Skip me
                 }
             };
+            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class)) {
+                @Override
+                public void configure() {
+                    // skip services
+                    bindMapperExtension();
+                }
+            };
+            List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+            entries.addAll(indicesModule.getNamedWriteables());
+            entries.addAll(searchModule.getNamedWriteables());
+            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
             ModulesBuilder modulesBuilder = new ModulesBuilder();
             for (Module pluginModule : pluginsService.createGuiceModules()) {
                 modulesBuilder.add(pluginModule);
             }
             modulesBuilder.add(
-                    (b) -> {
+                    b -> {
                         b.bind(PluginsService.class).toInstance(pluginsService);
                         b.bind(Environment.class).toInstance(new Environment(settings));
                         b.bind(ThreadPool.class).toInstance(threadPool);
+                        b.bind(Client.class).toInstance(proxy);
+                        b.bind(ClusterService.class).toProvider(Providers.of(clusterService));
+                        b.bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
+                        b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                     },
-                    settingsModule, new IndicesModule(namedWriteableRegistry, pluginsService.filterPlugins(MapperPlugin.class)) {
-                        @Override
-                        public void configure() {
-                            // skip services
-                            bindMapperExtension();
-                        }
-                    },
-                    new IndexSettingsModule(index, indexSettings),
-                    searchModule,
-                    new AbstractModule() {
-                        @Override
-                        protected void configure() {
-                            bind(Client.class).toInstance(proxy);
-                            bind(ClusterService.class).toProvider(Providers.of(clusterService));
-                            bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
-                            bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
-                        }
-                    }
+                    settingsModule, indicesModule, searchModule, new IndexSettingsModule(index, indexSettings)
             );
             pluginsService.processModules(modulesBuilder);
             injector = modulesBuilder.createInjector();
@@ -968,6 +1004,20 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             Client client = injector.getInstance(Client.class);
             return new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
                     scriptService, indicesQueriesRegistry, client, null, state);
+        }
+
+        ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {
+            if (scriptPlugins == null || scriptPlugins.isEmpty()) {
+                return newTestScriptModule();
+            }
+
+            Settings settings = Settings.builder()
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                    // no file watching, so we don't need a ResourceWatcherService
+                    .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
+                    .build();
+            Environment environment = new Environment(settings);
+            return ScriptModule.create(settings, environment, null, scriptPlugins);
         }
 
     }

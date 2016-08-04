@@ -1,4 +1,11 @@
 ---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
 "Test Pipeline With On Failure Block":
   - do:
       ingest.put_pipeline:
@@ -18,6 +25,11 @@
                   "field" : "date",
                   "target_field" : "date",
                   "formats" : ["yyyy"]
+                }
+              },
+              {
+                "uppercase" : {
+                  "field": "field1"
                 }
               }
             ],

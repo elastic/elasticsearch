@@ -45,7 +45,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.action.admin.cluster.node.tasks.RestListTasksAction.generateListTasksRequest;
+import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.generateListTasksRequest;
 
 public class RestTasksAction extends AbstractCatAction {
     private final ClusterService clusterService;
@@ -98,7 +98,7 @@ public class RestTasksAction extends AbstractCatAction {
 
         // Task detailed info
         if (detailed) {
-            table.addCell("description", "default:false;alias:desc;desc:task action");
+            table.addCell("description", "default:true;alias:desc;desc:task action");
         }
         table.endHeaders();
         return table;
@@ -142,7 +142,7 @@ public class RestTasksAction extends AbstractCatAction {
         table.endRow();
     }
 
-    private void buildGroups(Table table, boolean detailed, boolean fullId, List<TaskGroup> taskGroups) {
+    private void buildGroups(Table table, boolean fullId, boolean detailed, List<TaskGroup> taskGroups) {
         DiscoveryNodes discoveryNodes = clusterService.state().nodes();
         List<TaskGroup> sortedGroups = new ArrayList<>(taskGroups);
         sortedGroups.sort((o1, o2) -> Long.compare(o1.getTaskInfo().getStartTime(), o2.getTaskInfo().getStartTime()));

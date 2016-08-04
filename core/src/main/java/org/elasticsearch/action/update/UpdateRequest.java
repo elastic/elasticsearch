@@ -21,9 +21,10 @@ package org.elasticsearch.action.update;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -74,7 +75,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
 
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
 
-    private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
     private IndexRequest upsertRequest;
 
@@ -433,16 +434,26 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return refreshPolicy;
     }
 
-    public WriteConsistencyLevel consistencyLevel() {
-        return this.consistencyLevel;
+    public ActiveShardCount waitForActiveShards() {
+        return this.waitForActiveShards;
     }
 
     /**
-     * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
+     * Sets the number of shard copies that must be active before proceeding with the write.
+     * See {@link ReplicationRequest#waitForActiveShards(ActiveShardCount)} for details.
      */
-    public UpdateRequest consistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        this.consistencyLevel = consistencyLevel;
+    public UpdateRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
+        this.waitForActiveShards = waitForActiveShards;
         return this;
+    }
+
+    /**
+     * A shortcut for {@link #waitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    public UpdateRequest waitForActiveShards(final int waitForActiveShards) {
+        return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 
     /**
@@ -703,7 +714,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
+        waitForActiveShards = ActiveShardCount.readFrom(in);
         type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
@@ -738,7 +749,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByte(consistencyLevel.id());
+        waitForActiveShards.writeTo(out);
         out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);

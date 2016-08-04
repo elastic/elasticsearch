@@ -19,48 +19,44 @@
 
 package org.elasticsearch.client;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.BufferedHttpEntity;
+import org.apache.http.util.EntityUtils;
+
 import java.io.IOException;
 
 /**
  * Exception thrown when an elasticsearch node responds to a request with a status code that indicates an error.
- * Note that the response body gets passed in as a string and read eagerly, which means that the Response object
- * is expected to be closed and available only to read metadata like status line, request line, response headers.
+ * Holds the response that was returned.
  */
-public class ResponseException extends IOException {
+public final class ResponseException extends IOException {
 
     private Response response;
-    private final String responseBody;
 
-    ResponseException(Response response, String responseBody) throws IOException {
-        super(buildMessage(response,responseBody));
+    ResponseException(Response response) throws IOException {
+        super(buildMessage(response));
         this.response = response;
-        this.responseBody = responseBody;
     }
 
-    private static String buildMessage(Response response, String responseBody) {
+    private static String buildMessage(Response response) throws IOException {
         String message = response.getRequestLine().getMethod() + " " + response.getHost() + response.getRequestLine().getUri()
                 + ": " + response.getStatusLine().toString();
-        if (responseBody != null) {
-            message += "\n" + responseBody;
+
+        HttpEntity entity = response.getEntity();
+        if (entity != null) {
+            if (entity.isRepeatable() == false) {
+                entity = new BufferedHttpEntity(entity);
+                response.getHttpResponse().setEntity(entity);
+            }
+            message += "\n" + EntityUtils.toString(entity);
         }
         return message;
     }
 
     /**
      * Returns the {@link Response} that caused this exception to be thrown.
-     * Expected to be used only to read metadata like status line, request line, response headers. The response body should
-     * be retrieved using {@link #getResponseBody()}
      */
     public Response getResponse() {
         return response;
-    }
-
-    /**
-     * Returns the response body as a string or null if there wasn't any.
-     * The body is eagerly consumed when an ResponseException gets created, and its corresponding Response
-     * gets closed straightaway so this method is the only way to get back the response body that was returned.
-     */
-    public String getResponseBody() {
-        return responseBody;
     }
 }

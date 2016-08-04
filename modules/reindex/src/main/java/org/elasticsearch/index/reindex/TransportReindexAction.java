@@ -19,10 +19,18 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.http.Header;
 import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.nio.reactor.IOReactorConfig;
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.bulk.BackoffPolicy;
+import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -44,26 +52,30 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServer;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
+import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.index.reindex.remote.RemoteScrollableHitSource;
-import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.synchronizedList;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
@@ -163,12 +175,56 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     }
 
     /**
+     * Build the {@link RestClient} used for reindexing from remote clusters.
+     * @param remoteInfo connection information for the remote cluster
+     * @param taskId the id of the current task. This is added to the thread name for easier tracking
+     * @param threadCollector a list in which we collect all the threads created by the client
+     */
+    static RestClient buildRestClient(RemoteInfo remoteInfo, long taskId, List<Thread> threadCollector) {
+        Header[] clientHeaders = new Header[remoteInfo.getHeaders().size()];
+        int i = 0;
+        for (Map.Entry<String, String> header : remoteInfo.getHeaders().entrySet()) {
+            clientHeaders[i] = new BasicHeader(header.getKey(), header.getValue());
+        }
+        return RestClient.builder(new HttpHost(remoteInfo.getHost(), remoteInfo.getPort(), remoteInfo.getScheme()))
+                .setDefaultHeaders(clientHeaders)
+                .setHttpClientConfigCallback(c -> {
+                    // Enable basic auth if it is configured
+                    if (remoteInfo.getUsername() != null) {
+                        UsernamePasswordCredentials creds = new UsernamePasswordCredentials(remoteInfo.getUsername(),
+                                remoteInfo.getPassword());
+                        CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+                        credentialsProvider.setCredentials(AuthScope.ANY, creds);
+                        c.setDefaultCredentialsProvider(credentialsProvider);
+                    }
+                    // Stick the task id in the thread name so we can track down tasks from stack traces
+                    AtomicInteger threads = new AtomicInteger();
+                    c.setThreadFactory(r -> {
+                        String name = "es-client-" + taskId + "-" + threads.getAndIncrement();
+                        Thread t = new Thread(r, name);
+                        threadCollector.add(t);
+                        return t;
+                    });
+                    // Limit ourselves to one reactor thread because for now the search process is single threaded.
+                    c.setDefaultIOReactorConfig(IOReactorConfig.custom().setIoThreadCount(1).build());
+                    return c;
+                }).build();
+    }
+
+    /**
      * Simple implementation of reindex using scrolling and bulk. There are tons
      * of optimizations that can be done on certain types of reindex requests
      * but this makes no attempt to do any of them so it can be as simple
      * possible.
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<ReindexRequest> {
+        /**
+         * List of threads created by this process. Usually actions don't create threads in Elasticsearch. Instead they use the builtin
+         * {@link ThreadPool}s. But reindex-from-remote uses Elasticsearch's {@link RestClient} which doesn't use the
+         * {@linkplain ThreadPool}s because it uses httpasyncclient. It'd be a ton of trouble to work around creating those threads. So
+         * instead we let it create threads but we watch them carefully and assert that they are dead when the process is over.
+         */
+        private List<Thread> createdThreads = emptyList();
 
         public AsyncIndexBySearchAction(BulkByScrollTask task, ESLogger logger, ParentTaskAssigningClient client, ThreadPool threadPool,
                                         ReindexRequest request, ActionListener<BulkIndexByScrollResponse> listener,
@@ -177,22 +233,36 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         }
 
         @Override
+        protected boolean needsSourceDocumentVersions() {
+            /*
+             * We only need the source version if we're going to use it when write and we only do that when the destination request uses
+             * external versioning.
+             */
+            return mainRequest.getDestination().versionType() != VersionType.INTERNAL;
+        }
+
+        @Override
         protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy) {
             if (mainRequest.getRemoteInfo() != null) {
-                // NORELEASE track 500-level retries that are builtin to the client
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
-                if (remoteInfo.getUsername() != null) {
-                    // NORELEASE support auth
-                    throw new UnsupportedOperationException("Auth is unsupported");
-                }
-                RestClient restClient = RestClient.builder(new HttpHost(remoteInfo.getHost(), remoteInfo.getPort(), remoteInfo.getScheme()))
-                        .build();
-                RemoteScrollableHitSource.AsyncClient client = new RemoteScrollableHitSource.AsynchronizingRestClient(threadPool,
-                        restClient);
-                return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, task::countSearchRetry, this::finishHim, client,
+                createdThreads = synchronizedList(new ArrayList<>());
+                RestClient restClient = buildRestClient(remoteInfo, task.getId(), createdThreads);
+                return new RemoteScrollableHitSource(logger, backoffPolicy, threadPool, task::countSearchRetry, this::finishHim, restClient,
                         remoteInfo.getQuery(), mainRequest.getSearchRequest());
             }
             return super.buildScrollableResultSource(backoffPolicy);
+        }
+
+        @Override
+        void finishHim(Exception failure, List<Failure> indexingFailures, List<SearchFailure> searchFailures, boolean timedOut) {
+            super.finishHim(failure, indexingFailures, searchFailures, timedOut);
+            // A little extra paranoia so we log something if we leave any threads running
+            for (Thread thread : createdThreads) {
+                if (thread.isAlive()) {
+                    assert false: "Failed to properly stop client thread [" + thread.getName() + "]";
+                    logger.error("Failed to properly stop client thread [{}]", thread.getName());
+                }
+            }
         }
 
         @Override
@@ -224,6 +294,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
              */
             index.versionType(mainRequest.getDestination().versionType());
             if (index.versionType() == INTERNAL) {
+                assert doc.getVersion() == -1 : "fetched version when we didn't have to";
                 index.version(mainRequest.getDestination().version());
             } else {
                 index.version(doc.getVersion());

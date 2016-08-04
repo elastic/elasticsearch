@@ -31,7 +31,7 @@ The result of the above index operation is:
     "_id" : "1",
     "_version" : 1,
     "created" : true,
-    "forced_refresh": false
+    "result" : created
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"successful" : 2/"successful" : 1/]
@@ -44,10 +44,10 @@ The `_shards` header provides information about the replication process of the i
 
 The index operation is successful in the case `successful` is at least 1.
 
-NOTE:   Replica shards may not all be started when an indexing operation successfully returns (by default, a  quorum is
-        required). In that case, `total` will be equal to the total shards based on the index replica settings and
-        `successful` will be equal to the number of shards started (primary plus replicas). As there were no failures,
-        the `failed` will be 0.
+NOTE:   Replica shards may not all be started when an indexing operation successfully returns (by default, only the 
+        primary is required, but this behavior can be <<index-wait-for-active-shards,changed>>). In that case, 
+        `total` will be equal to the total shards based on the `number_of_replicas` setting and `successful` will be 
+        equal to the number of shards started (primary plus replicas). If there were no failures, the `failed` will be 0.
 
 [float]
 [[index-creation]]
@@ -231,7 +231,7 @@ The result of the above index operation is:
     "_id" : "6a8ca01c-7896-48e9-81cc-9f70661fcb32",
     "_version" : 1,
     "created" : true,
-    "forced_refresh": false
+    "result": "created"
 }
 --------------------------------------------------
 // TESTRESPONSE[s/6a8ca01c-7896-48e9-81cc-9f70661fcb32/$body._id/ s/"successful" : 2/"successful" : 1/]
@@ -308,31 +308,68 @@ containing this shard. After the primary shard completes the operation,
 if needed, the update is distributed to applicable replicas.
 
 [float]
-[[index-consistency]]
-=== Write Consistency
+[[index-wait-for-active-shards]]
+=== Wait For Active Shards
 
-To prevent writes from taking place on the "wrong" side of a network
-partition, by default, index operations only succeed if a quorum
-(>replicas/2+1) of active shards are available. This default can be
-overridden on a node-by-node basis using the `action.write_consistency`
-setting. To alter this behavior per-operation, the `consistency` request
-parameter can be used.
+To improve the resiliency of writes to the system, indexing operations 
+can be configured to wait for a certain number of active shard copies 
+before proceeding with the operation. If the requisite number of active
+shard copies are not available, then the write operation must wait and 
+retry, until either the requisite shard copies have started or a timeout 
+occurs. By default, write operations only wait for the primary shards 
+to be active before proceeding (i.e. `wait_for_active_shards=1`).
+This default can be overridden in the index settings dynamically
+by setting `index.write.wait_for_active_shards`. To alter this behavior 
+per operation, the `wait_for_active_shards` request parameter can be used.
 
-Valid write consistency values are `one`, `quorum`, and `all`.
+Valid values are `all` or any positive integer up to the total number
+of configured copies per shard in the index (which is `number_of_replicas+1`).
+Specifying a negative value or a number greater than the number of 
+shard copies will throw an error.
 
-Note, for the case where the number of replicas is 1 (total of 2 copies
-of the data), then the default behavior is to succeed if 1 copy (the primary)
-can perform the write.
+For example, suppose we have a cluster of three nodes, `A, `B`, and `C` and
+we create an index `index` with the number of replicas set to 3 (resulting in 
+4 shard copies, one more copy than there are nodes). If we 
+attempt an indexing operation, by default the operation will only ensure
+the primary copy of each shard is available before proceeding. This means
+that even if `B` and `C` went down, and `A` hosted the primary shard copies,
+the indexing operation would still proceed with only one copy of the data. 
+If `wait_for_active_shards` is set on the request to `3` (and all 3 nodes
+are up), then the indexing operation will require 3 active shard copies 
+before proceeding, a requirement which should be met because there are 3
+active nodes in the cluster, each one holding a copy of the shard. However,
+if we set `wait_for_active_shards` to `all` (or to `4`, which is the same), 
+the indexing operation will not proceed as we do not have all 4 copies of 
+each shard active in the index. The operation will timeout 
+unless a new node is brought up in the cluster to host the fourth copy of
+the shard.
 
-The index operation only returns after all *active* shards within the
-replication group have indexed the document (sync replication).
+It is important to note that this setting greatly reduces the chances of 
+the write operation not writing to the requisite number of shard copies, 
+but it does not completely eliminate the possibility, because this check
+occurs before the write operation commences. Once the write operation
+is underway, it is still possible for replication to fail on any number of 
+shard copies but still succeed on the primary. The `_shards` section of the
+write operation's response reveals the number of shard copies on which 
+replication succeeded/failed.
+
+[source,js]
+--------------------------------------------------
+{
+    "_shards" : {
+        "total" : 2,
+        "failed" : 0,
+        "successful" : 2
+    }
+}
+--------------------------------------------------
 
 [float]
 [[index-refresh]]
 === Refresh
 
 Control when the changes made by this request are visible to search. See
-<<docs-refresh>>.
+<<docs-refresh,refresh>>.
 
 [float]
 [[index-noop]]

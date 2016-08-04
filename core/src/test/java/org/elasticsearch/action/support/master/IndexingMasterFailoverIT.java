@@ -19,6 +19,7 @@ package org.elasticsearch.action.support.master;
  * under the License.
  */
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -97,7 +98,7 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
                 for (int i = 0; i < 10; i++) {
                     // index data with mapping changes
                     IndexResponse response = client(dataNode).prepareIndex("myindex", "mytype").setSource("field_" + i, "val").get();
-                    assertThat(response.isCreated(), equalTo(true));
+                    assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
                 }
             }
         });

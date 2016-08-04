@@ -13,38 +13,73 @@ Every context mapping has a unique name and a type. There are two types: `catego
 and `geo`. Context mappings are configured under the `contexts` parameter in
 the field mapping.
 
-The following defines two context mappings for a completion field:
+The following defines types, each with two context mappings for a completion
+field:
 
 [source,js]
 --------------------------------------------------
-PUT place/shops/_mapping
+PUT place
 {
-  "shops" : {
-        "properties" : {
-            ...
-            "suggest" : {
-                "type" : "completion",
-                "contexts": [
-                    { <1>
-                        "name": "place_type",
-                        "type": "category",
-                        "path": "cat"
-                    },
-                    { <2>
-                        "name": "location"
-                        "type": "geo",
-                        "path": "loc"
-                    }
-                ]
+    "mappings": {
+        "shops" : {
+            "properties" : {
+                "suggest" : {
+                    "type" : "completion",
+                    "contexts": [
+                        { <1>
+                            "name": "place_type",
+                            "type": "category",
+                            "path": "cat"
+                        },
+                        { <2>
+                            "name": "location",
+                            "type": "geo",
+                            "precision": 4
+                        }
+                    ]
+                }
+            }
+        }
+    }
+}
+PUT place_path_category
+{
+    "mappings": {
+        "shops" : {
+            "properties" : {
+                "suggest" : {
+                    "type" : "completion",
+                    "contexts": [
+                        { <3>
+                            "name": "place_type",
+                            "type": "category",
+                            "path": "cat"
+                        },
+                        { <4>
+                            "name": "location",
+                            "type": "geo",
+                            "precision": 4,
+                            "path": "loc"
+                        }
+                    ]
+                },
+                "loc": {
+                    "type": "geo_point"
+                }
             }
         }
     }
 }
 --------------------------------------------------
-<1> Defines a `category` context named 'place_type', which will index values from field 'cat'.
-    See <<suggester-context-category>>
-<2> Defines a `geo` context named 'location', which will index values from field 'loc'.
-    See <<suggester-context-geo>>
+// TESTSETUP
+<1> Defines a `category` context named 'place_type' where the categories must be
+    sent with the suggestions.
+<2> Defines a `geo` context named 'location' where the categories must be sent
+    with the suggestions.
+<3> Defines a `category` context named 'place_type' where the categories are
+    read from the `cat` field.
+<4> Defines a `geo` context named 'location' where the categories are read from
+    the `loc` field.
 
 NOTE: Adding context mappings increases the index size for completion field. The completion index
 is entirely heap resident, you can monitor the completion field index size using <<indices-stats>>.
@@ -56,47 +91,14 @@ is entirely heap resident, you can monitor the completion field index size using
 The `category` context allows you to associate one or more categories with suggestions at index
 time. At query time, suggestions can be filtered and boosted by their associated categories.
 
-[float]
-===== Category Mapping
-
-A `category` context mapping, where categories are provided explicitly with suggestions
-can be defined as follows:
-
-[source,js]
---------------------------------------------------
-"contexts": [
-    {
-        "name": "cat_context",
-        "type": "category",
-    }
-]
---------------------------------------------------
-
-Alternatively, A `category` context mapping that references another field within a document
-can be defined as follows:
-
-[source,js]
---------------------------------------------------
-"contexts": [
-    {
-        "name": "cat_context",
-        "type": "category",
-        "path": "cat_field"
-    }
-]
---------------------------------------------------
-
-[float]
-===== Indexing category contexts
-
-Category contexts can be specified explicitly when indexing suggestions. If a suggestion has
-multiple categories, the suggestion will be indexed for each category:
+The mappings are set up like the `place_type` fields above. If `path` is defined
+then the categories are read from that path in the document, otherwise they must
+be sent in the suggest field like this:
 
 [source,js]
 --------------------------------------------------
 PUT place/shops/1
 {
-    ...
     "suggest": {
         "input": ["timmy's", "starbucks", "dunkin donuts"],
         "contexts": {
@@ -105,36 +107,21 @@ PUT place/shops/1
     }
 }
 --------------------------------------------------
-
+// CONSOLE
 <1> These suggestions will be associated with 'cafe' and 'food' category.
 
-Category contexts can also be referenced from another indexed field in the document via
-the `path` parameter in the field mapping:
+If the mapping had a `path` then the following index request would be enough to
+add the categories:
 
 [source,js]
 --------------------------------------------------
-"contexts": [
-    {
-        "name": "cat_context",
-        "type": "category",
-        "path": "cat"
-    }
-]
---------------------------------------------------
-
-With the above mapping, the following will index the suggestions, treating the values of the
-'cat' field as category contexts:
-
-[source,js]
---------------------------------------------------
-PUT place/shops/1
+PUT place_path_category/shops/1
 {
-    ...
     "suggest": ["timmy's", "starbucks", "dunkin donuts"],
     "cat": ["cafe", "food"] <1>
 }
 --------------------------------------------------
-
+// CONSOLE
 <1> These suggestions will be associated with 'cafe' and 'food' category.
 
 NOTE: If context mapping references another field and the categories
@@ -164,6 +151,8 @@ POST place/_suggest?pretty
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 NOTE: When no categories are provided at query-time, all indexed documents are considered.
 Querying with no categories on a category enabled completion field should be avoided, as it
@@ -192,6 +181,8 @@ POST place/_suggest?pretty
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 <1> The context query filter suggestions associated with
     categories 'cafe' and 'restaurants' and boosts the
     suggestions associated with 'restaurants' by a
@@ -244,21 +235,6 @@ In addition to the `path` setting, `geo` context mapping accepts the following s
 NOTE: The index time `precision` setting sets the maximum geohash precision that
 can be used at query time.
 
-The following defines a `geo` context mapping with an index time precision of `4`
-indexing values from a geo point field 'pin':
-
-[source,js]
---------------------------------------------------
-"contexts": [
-    {
-        "name": "location"
-        "type": "geo",
-        "precision": 4,
-        "path": "pin",
-    }
-]
---------------------------------------------------
-
 [float]
 ===== Indexing geo contexts
 
@@ -273,7 +249,7 @@ PUT place/shops/1
 {
     "suggest": {
         "input": "timmy's",
-        "contexts": [
+        "contexts": {
             "location": [
                 {
                     "lat": 43.6624803,
@@ -284,10 +260,11 @@ PUT place/shops/1
                     "lon": -79.3873227
                 }
             ]
-        ]
+        }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ===== Geo location Query
@@ -315,6 +292,8 @@ POST place/_suggest
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 NOTE: When a location with a lower precision at query time is specified, all suggestions
 that fall within the area will be considered.
@@ -351,6 +330,7 @@ POST place/_suggest?pretty
     }
 }
 --------------------------------------------------
+// TEST[continued]
 <1> The context query filters for suggestions that fall under
     the geo location represented by a geohash of '(43.662, -79.380)'
     with a precision of '2' and boosts suggestions

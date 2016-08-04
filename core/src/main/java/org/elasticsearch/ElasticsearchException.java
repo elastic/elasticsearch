@@ -638,8 +638,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.common.settings.NoClassSettingsException::new, 111),
         BIND_TRANSPORT_EXCEPTION(org.elasticsearch.transport.BindTransportException.class,
                 org.elasticsearch.transport.BindTransportException::new, 112),
-        ALIASES_NOT_FOUND_EXCEPTION(org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesNotFoundException.class,
-                org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesNotFoundException::new, 113),
+        ALIASES_NOT_FOUND_EXCEPTION(org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException.class,
+                org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException::new, 113),
         INDEX_SHARD_RECOVERING_EXCEPTION(org.elasticsearch.index.shard.IndexShardRecoveringException.class,
                 org.elasticsearch.index.shard.IndexShardRecoveringException::new, 114),
         TRANSLOG_EXCEPTION(org.elasticsearch.index.translog.TranslogException.class,
@@ -692,8 +692,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         NO_LONGER_PRIMARY_SHARD_EXCEPTION(ShardStateAction.NoLongerPrimaryShardException.class,
                 ShardStateAction.NoLongerPrimaryShardException::new, 142),
         SCRIPT_EXCEPTION(org.elasticsearch.script.ScriptException.class, org.elasticsearch.script.ScriptException::new, 143),
-        NOT_MASTER_EXCEPTION(org.elasticsearch.cluster.NotMasterException.class, org.elasticsearch.cluster.NotMasterException::new, 144);
-
+        NOT_MASTER_EXCEPTION(org.elasticsearch.cluster.NotMasterException.class, org.elasticsearch.cluster.NotMasterException::new, 144),
+        STATUS_EXCEPTION(org.elasticsearch.ElasticsearchStatusException.class, org.elasticsearch.ElasticsearchStatusException::new, 145);
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final FunctionThatThrowsIOException<StreamInput, ? extends ElasticsearchException> constructor;

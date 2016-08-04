@@ -30,9 +30,9 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.rest.RestChannel;
@@ -47,75 +47,26 @@ import org.elasticsearch.threadpool.ThreadPoolStats;
 
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestThreadPoolAction extends AbstractCatAction {
 
-    private static final String[] SUPPORTED_NAMES = new String[]{
-            ThreadPool.Names.BULK,
-            ThreadPool.Names.FLUSH,
-            ThreadPool.Names.GENERIC,
-            ThreadPool.Names.GET,
-            ThreadPool.Names.INDEX,
-            ThreadPool.Names.MANAGEMENT,
-            ThreadPool.Names.FORCE_MERGE,
-            ThreadPool.Names.REFRESH,
-            ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SNAPSHOT,
-            ThreadPool.Names.WARMER
-    };
-
-    private static final String[] SUPPORTED_ALIASES = new String[]{
-            "b",
-            "f",
-            "ge",
-            "g",
-            "i",
-            "ma",
-            "fm",
-            "r",
-            "s",
-            "sn",
-            "w"
-    };
-
-    static {
-        assert SUPPORTED_ALIASES.length == SUPPORTED_NAMES.length: "SUPPORTED_NAMES/ALIASES mismatch";
-    }
-
-    private static final String[] DEFAULT_THREAD_POOLS = new String[]{
-            ThreadPool.Names.BULK,
-            ThreadPool.Names.INDEX,
-            ThreadPool.Names.SEARCH,
-    };
-
-    private static final Map<String, String> ALIAS_TO_THREAD_POOL;
-    private static final Map<String, String> THREAD_POOL_TO_ALIAS;
-
-    static {
-        ALIAS_TO_THREAD_POOL = new HashMap<>(SUPPORTED_NAMES.length);
-        for (String supportedThreadPool : SUPPORTED_NAMES) {
-            ALIAS_TO_THREAD_POOL.put(supportedThreadPool.substring(0, 3), supportedThreadPool);
-        }
-        THREAD_POOL_TO_ALIAS = new HashMap<>(SUPPORTED_NAMES.length);
-        for (int i = 0; i < SUPPORTED_NAMES.length; i++) {
-            THREAD_POOL_TO_ALIAS.put(SUPPORTED_NAMES[i], SUPPORTED_ALIASES[i]);
-        }
-    }
-
     @Inject
     public RestThreadPoolAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_cat/thread_pool", this);
+        controller.registerHandler(GET, "/_cat/thread_pool/{thread_pool_patterns}", this);
     }
 
     @Override
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/thread_pool\n");
+        sb.append("/_cat/thread_pool/{thread_pools}");
     }
 
     @Override
@@ -149,96 +100,55 @@ public class RestThreadPoolAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
-        Table table = new Table();
+        final Table table = new Table();
         table.startHeaders();
-        table.addCell("id", "default:false;alias:nodeId;desc:unique node id");
+        table.addCell("node_name", "default:true;alias:nn;desc:node name");
+        table.addCell("node_id", "default:false;alias:id;desc:persistent node id");
+        table.addCell("ephemeral_node_id", "default:false;alias:eid;desc:ephemeral node id");
         table.addCell("pid", "default:false;alias:p;desc:process id");
-        table.addCell("host", "alias:h;desc:host name");
-        table.addCell("ip", "alias:i;desc:ip address");
+        table.addCell("host", "default:false;alias:h;desc:host name");
+        table.addCell("ip", "default:false;alias:i;desc:ip address");
         table.addCell("port", "default:false;alias:po;desc:bound transport port");
-
-        final String[] requestedPools = fetchSortedPools(request, DEFAULT_THREAD_POOLS);
-        for (String pool : SUPPORTED_NAMES) {
-            String poolAlias = THREAD_POOL_TO_ALIAS.get(pool);
-            boolean display = false;
-            for (String requestedPool : requestedPools) {
-                if (pool.equals(requestedPool)) {
-                    display = true;
-                    break;
-                }
-            }
-
-            String defaultDisplayVal = Boolean.toString(display);
-            table.addCell(
-                    pool + ".type",
-                    "alias:" + poolAlias + "t;default:false;desc:" + pool + " thread pool type"
-            );
-            table.addCell(
-                    pool + ".active",
-                    "alias:" + poolAlias + "a;default:" + defaultDisplayVal + ";text-align:right;desc:number of active " + pool + " threads"
-            );
-            table.addCell(
-                    pool + ".size",
-                    "alias:" + poolAlias + "s;default:false;text-align:right;desc:number of " + pool + " threads"
-            );
-            table.addCell(
-                    pool + ".queue",
-                    "alias:" + poolAlias + "q;default:" + defaultDisplayVal + ";text-align:right;desc:number of " + pool + " threads in queue"
-            );
-            table.addCell(
-                    pool + ".queueSize",
-                    "alias:" + poolAlias + "qs;default:false;text-align:right;desc:maximum number of " + pool + " threads in queue"
-            );
-            table.addCell(
-                    pool + ".rejected",
-                    "alias:" + poolAlias + "r;default:" + defaultDisplayVal + ";text-align:right;desc:number of rejected " + pool + " threads"
-            );
-            table.addCell(
-                    pool + ".largest",
-                    "alias:" + poolAlias + "l;default:false;text-align:right;desc:highest number of seen active " + pool + " threads"
-            );
-            table.addCell(
-                    pool + ".completed",
-                    "alias:" + poolAlias + "c;default:false;text-align:right;desc:number of completed " + pool + " threads"
-            );
-            table.addCell(
-                    pool + ".min",
-                    "alias:" + poolAlias + "mi;default:false;text-align:right;desc:minimum number of " + pool + " threads"
-            );
-            table.addCell(
-                    pool + ".max",
-                    "alias:" + poolAlias + "ma;default:false;text-align:right;desc:maximum number of " + pool + " threads"
-            );
-            table.addCell(
-                    pool + ".keepAlive",
-                    "alias:" + poolAlias + "k;default:false;text-align:right;desc:" + pool + " thread keep alive time"
-            );
-        }
-
+        table.addCell("name", "default:true;alias:n;desc:thread pool name");
+        table.addCell("type", "alias:t;default:false;desc:thread pool type");
+        table.addCell("active", "alias:a;default:true;text-align:right;desc:number of active threads");
+        table.addCell("size", "alias:s;default:false;text-align:right;desc:number of threads");
+        table.addCell("queue", "alias:q;default:true;text-align:right;desc:number of tasks currently in queue");
+        table.addCell("queue_size", "alias:qs;default:false;text-align:right;desc:maximum number of tasks permitted in queue");
+        table.addCell("rejected", "alias:r;default:true;text-align:right;desc:number of rejected tasks");
+        table.addCell("largest", "alias:l;default:false;text-align:right;desc:highest number of seen active threads");
+        table.addCell("completed", "alias:c;default:false;text-align:right;desc:number of completed tasks");
+        table.addCell("min", "alias:mi;default:false;text-align:right;desc:minimum number of threads");
+        table.addCell("max", "alias:ma;default:false;text-align:right;desc:maximum number of threads");
+        table.addCell("keep_alive", "alias:ka;default:false;text-align:right;desc:thread keep alive time");
         table.endHeaders();
         return table;
     }
 
-
     private Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, NodesStatsResponse nodesStats) {
-        boolean fullId = req.paramAsBoolean("full_id", false);
-        DiscoveryNodes nodes = state.getState().nodes();
-        Table table = getTableWithHeader(req);
+        final String[] threadPools = req.paramAsStringArray("thread_pool_patterns", new String[] { "*" });
+        final DiscoveryNodes nodes = state.getState().nodes();
+        final Table table = getTableWithHeader(req);
 
-        for (DiscoveryNode node : nodes) {
-            NodeInfo info = nodesInfo.getNodesMap().get(node.getId());
-            NodeStats stats = nodesStats.getNodesMap().get(node.getId());
-            table.startRow();
-
-            table.addCell(fullId ? node.getId() : Strings.substring(node.getId(), 0, 4));
-            table.addCell(info == null ? null : info.getProcess().getId());
-            table.addCell(node.getHostName());
-            table.addCell(node.getHostAddress());
-            if (node.getAddress() instanceof InetSocketTransportAddress) {
-                table.addCell(((InetSocketTransportAddress) node.getAddress()).address().getPort());
-            } else {
-                table.addCell("-");
+        // collect all thread pool names that we see across the nodes
+        final Set<String> candidates = new HashSet<>();
+        for (final NodeStats nodeStats : nodesStats.getNodes()) {
+            for (final ThreadPoolStats.Stats threadPoolStats : nodeStats.getThreadPool()) {
+                candidates.add(threadPoolStats.getName());
             }
+        }
+
+        // collect all thread pool names that match the specified thread pool patterns
+        final Set<String> included = new HashSet<>();
+        for (final String candidate : candidates) {
+            if (Regex.simpleMatch(threadPools, candidate)) {
+                included.add(candidate);
+            }
+        }
+
+        for (final DiscoveryNode node : nodes) {
+            final NodeInfo info = nodesInfo.getNodesMap().get(node.getId());
+            final NodeStats stats = nodesStats.getNodesMap().get(node.getId());
 
             final Map<String, ThreadPoolStats.Stats> poolThreadStats;
             final Map<String, ThreadPool.Info> poolThreadInfo;
@@ -247,8 +157,9 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 poolThreadStats = Collections.emptyMap();
                 poolThreadInfo = Collections.emptyMap();
             } else {
-                poolThreadStats = new HashMap<>(14);
-                poolThreadInfo = new HashMap<>(14);
+                // we use a sorted map to ensure that thread pools are sorted by name
+                poolThreadStats = new TreeMap<>();
+                poolThreadInfo = new HashMap<>();
 
                 ThreadPoolStats threadPoolStats = stats.getThreadPool();
                 for (ThreadPoolStats.Stats threadPoolStat : threadPoolStats) {
@@ -260,9 +171,25 @@ public class RestThreadPoolAction extends AbstractCatAction {
                     }
                 }
             }
-            for (String pool : SUPPORTED_NAMES) {
-                ThreadPoolStats.Stats poolStats = poolThreadStats.get(pool);
-                ThreadPool.Info poolInfo = poolThreadInfo.get(pool);
+            for (Map.Entry<String, ThreadPoolStats.Stats> entry : poolThreadStats.entrySet()) {
+
+                if (!included.contains(entry.getKey())) continue;
+
+                table.startRow();
+
+                table.addCell(node.getName());
+                table.addCell(node.getId());
+                table.addCell(node.getEphemeralId());
+                table.addCell(info == null ? null : info.getProcess().getId());
+                table.addCell(node.getHostName());
+                table.addCell(node.getHostAddress());
+                if (node.getAddress() instanceof InetSocketTransportAddress) {
+                    table.addCell(((InetSocketTransportAddress) node.getAddress()).address().getPort());
+                } else {
+                    table.addCell("-");
+                }
+                final ThreadPoolStats.Stats poolStats = entry.getValue();
+                final ThreadPool.Info poolInfo = poolThreadInfo.get(entry.getKey());
 
                 Long maxQueueSize = null;
                 String keepAlive = null;
@@ -284,6 +211,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                     }
                 }
 
+                table.addCell(entry.getKey());
                 table.addCell(poolInfo == null  ? null : poolInfo.getThreadPoolType().getType());
                 table.addCell(poolStats == null ? null : poolStats.getActive());
                 table.addCell(poolStats == null ? null : poolStats.getThreads());
@@ -295,34 +223,11 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 table.addCell(minThreads);
                 table.addCell(maxThreads);
                 table.addCell(keepAlive);
-            }
 
-            table.endRow();
+                table.endRow();
+            }
         }
 
         return table;
-    }
-
-    // The thread pool columns should always be in the same order.
-    private String[] fetchSortedPools(RestRequest request, String[] defaults) {
-        String[] headers = request.paramAsStringArray("h", null);
-        if (headers == null) {
-            return defaults;
-        } else {
-            Set<String> requestedPools = new LinkedHashSet<>(headers.length);
-            for (String header : headers) {
-                int dotIndex = header.indexOf('.');
-                if (dotIndex != -1) {
-                    String headerPrefix = header.substring(0, dotIndex);
-                    if (THREAD_POOL_TO_ALIAS.containsKey(headerPrefix)) {
-                        requestedPools.add(headerPrefix);
-                    }
-                } else if (ALIAS_TO_THREAD_POOL.containsKey(header)) {
-                    requestedPools.add(ALIAS_TO_THREAD_POOL.get(header));
-                }
-
-            }
-            return requestedPools.toArray(new String[requestedPools.size()]);
-        }
     }
 }

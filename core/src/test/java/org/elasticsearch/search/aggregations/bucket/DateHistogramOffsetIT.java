@@ -97,7 +97,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
         assertThat(response.getHits().getTotalHits(), equalTo(5L));
 
         Histogram histo = response.getAggregations().get("date_histo");
-        List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+        List<Histogram.Bucket> buckets = histo.getBuckets();
         assertThat(buckets.size(), equalTo(2));
 
         checkBucketFor(buckets.get(0), new DateTime(2014, 3, 10, 2, 0, DateTimeZone.UTC), 2L);

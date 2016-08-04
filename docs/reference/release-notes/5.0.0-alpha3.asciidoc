@@ -9,14 +9,8 @@ IMPORTANT: This is an alpha release and is intended for _testing purposes only_.
 [float]
 === Breaking changes
 
-Allocation::
-* Move parsing of allocation commands into REST and remove support for plugins to register allocation commands {pull}17802[#17802] (issue: {issue}17894[#17894])
-
 CAT API::
 * Row-centric output for _cat/fielddata {pull}18068[#18068] (issue: {issue}10249[#10249])
-
-Discovery::
-* Introduce node handshake {pull}15971[#15971] (issue: {issue}9061[#9061])
 
 Inner Hits::
 * Drop top level inner hits in favour of inner hits defined in the query dsl {pull}17816[#17816] (issue: {issue}11118[#11118])
@@ -28,10 +22,6 @@ Packaging::
 * Require /bin/bash in packaging {pull}18259[#18259] (issue: {issue}18251[#18251])
 * Remove plugin script parsing of system properties {pull}18207[#18207] (issue: {issue}18140[#18140])
 
-Percolator::
-* Move the percolator from core to its own module {pull}18511[#18511]
-* Remove percolator cache {pull}18434[#18434]
-
 Plugin Delete By Query::
 * Remove Delete-By-Query plugin {pull}18516[#18516] (issue: {issue}18469[#18469])
 
@@ -39,16 +29,34 @@ Query DSL::
 * Lessen leniency of the query dsl. {pull}18276[#18276]
 
 Scripting::
-* Remove LeafSearchScript.runAsFloat(): Nothing calls it. {pull}18364[#18364]
 * Allow only a single extension for a scripting engine {pull}18332[#18332] (issue: {issue}10598[#10598])
 * Remove 'sandbox' option for script settings, allow only registering a single language. {pull}18226[#18226] (issues: {issue}10598[#10598], {issue}17114[#17114])
-
-Search::
-* Refactor of query profile classes to make way for other profile implementations {pull}18370[#18370] (issue: {issue}10538[#10538])
 
 Settings::
 * Register `indices.query.bool.max_clause_count` setting {pull}18341[#18341] (issue: {issue}18336[#18336])
 * Remove settings and system properties entanglement {pull}18198[#18198] (issue: {issue}18197[#18197])
+
+
+
+[[breaking java-5.0.0-alpha3]]
+[float]
+=== Breaking Java changes
+
+Allocation::
+* Move parsing of allocation commands into REST and remove support for plugins to register allocation commands {pull}17802[#17802] (issue: {issue}17894[#17894])
+
+Discovery::
+* Introduce node handshake {pull}15971[#15971] (issue: {issue}9061[#9061])
+
+Percolator::
+* Move the percolator from core to its own module {pull}18511[#18511]
+* Remove percolator cache {pull}18434[#18434]
+
+Scripting::
+* Remove LeafSearchScript.runAsFloat(): Nothing calls it. {pull}18364[#18364]
+
+Search::
+* Refactor of query profile classes to make way for other profile implementations {pull}18370[#18370] (issue: {issue}10538[#10538])
 
 
 
@@ -241,7 +249,7 @@ Translog::
 Aggregations::
 * Fix TimeUnitRounding for hour, minute and second units {pull}18415[#18415] (issue: {issue}18326[#18326])
 * Aggregations fix: support include/exclude strings for IP and dates {pull}18408[#18408] (issue: {issue}17705[#17705])
-* Fix xcontent rendering of ip terms aggs. {pull}18003[#18003]
+* Fix xcontent rendering of ip terms aggs. {pull}18003[#18003] (issue: {issue}17971[#17971])
 * Improving parsing of sigma param for Extended Stats Bucket Aggregation {pull}17562[#17562] (issue: {issue}17499[#17499])
 
 Analysis::

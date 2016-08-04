@@ -76,11 +76,9 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray("pipelines");
         for (PipelineConfiguration pipeline : pipelines) {
-            pipeline.toXContent(builder, params);
+            builder.field(pipeline.getId(), pipeline.getConfigAsMap());
         }
-        builder.endArray();
         return builder;
     }
 }

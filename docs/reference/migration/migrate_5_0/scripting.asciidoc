@@ -310,3 +310,8 @@ transportClient.addTransportAddress(
 
 Also the helper methods in `QueryBuilders` class that create a `TemplateQueryBuilder` instance have been removed,
 instead the constructors on `TemplateQueryBuilder` should be used.
+
+==== Template query
+
+The `template` query has been deprecated in favour of the search template api. The `template` query is scheduled
+to be removed in the next major version.

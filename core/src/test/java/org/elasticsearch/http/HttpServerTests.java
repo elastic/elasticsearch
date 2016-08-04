@@ -189,11 +189,11 @@ public class HttpServerTests extends ESTestCase {
     }
 
     private static final class TestRestRequest extends RestRequest {
-        private final String path;
+
         private final BytesReference content;
 
         private TestRestRequest(String path, String content) {
-            this.path = path;
+            super(Collections.emptyMap(), path);
             this.content = new BytesArray(content);
         }
 
@@ -205,11 +205,6 @@ public class HttpServerTests extends ESTestCase {
         @Override
         public String uri() {
             return null;
-        }
-
-        @Override
-        public String rawPath() {
-            return path;
         }
 
         @Override
@@ -232,24 +227,5 @@ public class HttpServerTests extends ESTestCase {
             return null;
         }
 
-        @Override
-        public boolean hasParam(String key) {
-            return false;
-        }
-
-        @Override
-        public String param(String key) {
-            return null;
-        }
-
-        @Override
-        public String param(String key, String defaultValue) {
-            return null;
-        }
-
-        @Override
-        public Map<String, String> params() {
-            return null;
-        }
     }
 }

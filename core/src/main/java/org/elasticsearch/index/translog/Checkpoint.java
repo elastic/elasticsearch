@@ -24,23 +24,24 @@ import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
+import org.elasticsearch.common.io.Channels;
 
-import java.io.FilterOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.channels.Channels;
+import java.io.OutputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.util.zip.CRC32;
+import java.util.zip.CheckedOutputStream;
 
 /**
  */
 class Checkpoint {
 
-    static final int BUFFER_SIZE = Integer.BYTES  // ops
-        + Long.BYTES // offset
-        + Long.BYTES;// generation
     final long offset;
     final int numOps;
     final long generation;
@@ -49,13 +50,19 @@ class Checkpoint {
 
     private static final String CHECKPOINT_CODEC = "ckp";
 
+    static final int BUFFER_SIZE = CodecUtil.headerLength(CHECKPOINT_CODEC)
+        + Integer.BYTES  // ops
+        + Long.BYTES // offset
+        + Long.BYTES // generation
+        + CodecUtil.footerLength();
+
     Checkpoint(long offset, int numOps, long generation) {
         this.offset = offset;
         this.numOps = numOps;
         this.generation = generation;
     }
 
-    void write(DataOutput out) throws IOException {
+    private void write(DataOutput out) throws IOException {
         out.writeLong(offset);
         out.writeInt(numOps);
         out.writeLong(generation);
@@ -90,28 +97,36 @@ class Checkpoint {
                 final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, INITIAL_VERSION, INITIAL_VERSION);
                 assert fileVersion == INITIAL_VERSION : "trust no one! " + fileVersion;
                 return Checkpoint.readChecksummed(indexInput);
-
             }
         }
     }
 
     public static void write(ChannelFactory factory, Path checkpointFile, Checkpoint checkpoint, OpenOption... options) throws IOException {
+        final ByteArrayOutputStream byteOutputStream = new ByteArrayOutputStream(BUFFER_SIZE) {
+            @Override
+            public synchronized byte[] toByteArray() {
+                // don't clone
+                return buf;
+            }
+        };
         final String resourceDesc = "checkpoint(path=\"" + checkpointFile + "\", gen=" + checkpoint + ")";
-        try (
-            final FileChannel channel = factory.open(checkpointFile, options);
-            final OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(resourceDesc, checkpointFile.toString(),
-                new FilterOutputStream(Channels.newOutputStream(channel)) {
-                    @Override
-                    public void close() throws IOException {
-                        // sync the checkpoint before we close.
-                        channel.force(false);
-                        super.close();
-                    }
-                },
-                BUFFER_SIZE)) {
+        try (final DirectOutputStreamIndexOutput indexOutput =
+                 new DirectOutputStreamIndexOutput(resourceDesc, checkpointFile.toString(), byteOutputStream)) {
             CodecUtil.writeHeader(indexOutput, CHECKPOINT_CODEC, INITIAL_VERSION);
             checkpoint.write(indexOutput);
             CodecUtil.writeFooter(indexOutput);
+
+            assert indexOutput.getFilePointer() == BUFFER_SIZE :
+                "get you number straights. Bytes written: " + indexOutput.getFilePointer() + " buffer size: " + BUFFER_SIZE;
+            assert indexOutput.getFilePointer() < 512 :
+                "checkpoint files have to be smaller 512b for atomic writes. size: " + indexOutput.getFilePointer();
+
+        }
+        // now go and write to the channel, in one go.
+        try (FileChannel channel = factory.open(checkpointFile, options)) {
+            Channels.writeToChannel(byteOutputStream.toByteArray(), channel);
+            // no need to force metadata, file size stays the same
+            channel.force(false);
         }
     }
 
@@ -142,5 +157,51 @@ class Checkpoint {
         result = 31 * result + numOps;
         result = 31 * result + Long.hashCode(generation);
         return result;
+    }
+
+    /** A copy of {@link OutputStreamIndexOutput} without the intermediate buffering */
+    static class DirectOutputStreamIndexOutput extends IndexOutput {
+
+        private final CRC32 crc = new CRC32();
+        private final CheckedOutputStream os;
+
+        private long bytesWritten = 0L;
+
+        /**
+         * Creates a new {@link OutputStreamIndexOutput} with the given buffer size.
+         *
+         * @throws IllegalArgumentException if the given buffer size is less or equal to <tt>0</tt>
+         */
+        public DirectOutputStreamIndexOutput(String resourceDescription, String name, OutputStream out) {
+            super(resourceDescription, name);
+            this.os = new CheckedOutputStream(out, crc);
+        }
+
+        @Override
+        public final void writeByte(byte b) throws IOException {
+            os.write(b);
+            bytesWritten++;
+        }
+
+        @Override
+        public final void writeBytes(byte[] b, int offset, int length) throws IOException {
+            os.write(b, offset, length);
+            bytesWritten += length;
+        }
+
+        @Override
+        public void close() throws IOException {
+            os.close();
+        }
+
+        @Override
+        public final long getFilePointer() {
+            return bytesWritten;
+        }
+
+        @Override
+        public final long getChecksum() throws IOException {
+            return crc.getValue();
+        }
     }
 }

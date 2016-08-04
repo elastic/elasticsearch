@@ -36,11 +36,9 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.SettingCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.translog.Checkpoint;
 
 import java.io.IOException;
 import java.nio.channels.Channels;
@@ -168,12 +166,11 @@ public class TruncateTranslogCommand extends SettingCommand {
 
     /** Write a checkpoint file to the given location with the given generation */
     public static void writeEmptyCheckpoint(Path filename, int translogLength, long translogGeneration) throws IOException {
-        try (FileChannel fc = FileChannel.open(filename, StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);
-                OutputStreamDataOutput out = new OutputStreamDataOutput(Channels.newOutputStream(fc))) {
-            Checkpoint emptyCheckpoint = new Checkpoint(translogLength, 0, translogGeneration);
-            emptyCheckpoint.write(out);
-            fc.force(true);
-        }
+        Checkpoint emptyCheckpoint = new Checkpoint(translogLength, 0, translogGeneration);
+        Checkpoint.write(FileChannel::open, filename, emptyCheckpoint,
+            StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);
+        // fsync with metadata here to make sure.
+        IOUtils.fsync(filename, false);
     }
 
     /**

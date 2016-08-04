@@ -1848,6 +1848,7 @@ public class TranslogTests extends ESTestCase {
             } catch (TranslogException | MockDirectoryWrapper.FakeIOException ex) {
                 // failed - that's ok, we didn't even create it
             } catch (IOException ex) {
+                logger.info("hello", ex);
                 assertEquals(ex.getMessage(), "__FAKE__ no space left on device");
             }
             // now randomly open this failing tlog again just to make sure we can also recover from failing during recovery

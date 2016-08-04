@@ -111,7 +111,7 @@ public class PrecisionAtN extends RankedListQualityMetric {
 
         int good = 0;
         int bad = 0;
-        Collection<String> unknownDocIds = new ArrayList<String>();
+        Collection<String> unknownDocIds = new ArrayList<>();
         for (int i = 0; (i < n && i < hits.length); i++) {
             String id = hits[i].getId();
             if (relevantDocIds.contains(id)) {
@@ -122,9 +122,7 @@ public class PrecisionAtN extends RankedListQualityMetric {
                 unknownDocIds.add(id);
             }
         }
-
         double precision = (double) good / (good + bad);
-
         return new EvalQueryQuality(precision, unknownDocIds);
     }
 

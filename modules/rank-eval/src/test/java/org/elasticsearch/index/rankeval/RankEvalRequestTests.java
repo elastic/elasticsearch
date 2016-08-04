@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.quality;
+package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionAtN;

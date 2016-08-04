@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.quality;
+package org.elasticsearch.index.rankeval;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -28,8 +28,8 @@ import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
 
 import java.io.IOException;
 
-public class RankEvalRestIT extends ESClientYamlSuiteTestCase {
-    public RankEvalRestIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
+public class RankEvalYamlIT extends ESClientYamlSuiteTestCase {
+    public RankEvalYamlIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

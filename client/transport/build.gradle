@@ -34,7 +34,7 @@ dependencies {
   compile "org.elasticsearch.plugin:percolator-client:${version}"
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
-  testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"`
+  testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
 }
 
 dependencyLicenses {

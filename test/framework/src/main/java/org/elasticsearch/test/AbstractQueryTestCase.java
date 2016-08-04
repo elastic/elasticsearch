@@ -245,7 +245,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             assertParsedQuery(shuffled.bytes(), testQuery);
             for (Map.Entry<String, QB> alternateVersion : getAlternateVersions().entrySet()) {
                 String queryAsString = alternateVersion.getKey();
-                assertParsedQuery(new BytesArray(queryAsString), alternateVersion.getValue(), ParseFieldMatcher.EMPTY);
+                assertParsedQuery(new BytesArray(queryAsString), alternateVersion.getValue());
             }
         }
     }

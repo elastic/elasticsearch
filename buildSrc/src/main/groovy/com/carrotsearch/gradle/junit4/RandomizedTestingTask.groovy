@@ -187,6 +187,7 @@ class RandomizedTestingTask extends DefaultTask {
     void executeTests() {
         Map attributes = [
             jvm: jvm,
+            jvmOutputAction: 'PIPE,FAIL',
             parallelism: parallelism,
             heartbeat: testLoggingConfig.slowTests.heartbeat,
             dir: workingDir,

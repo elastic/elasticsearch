@@ -33,9 +33,10 @@ import java.util.List;
  */
 public class StartedRerouteAllocation extends RoutingAllocation {
 
-    private final List<? extends ShardRouting> startedShards;
+    private final List<ShardRouting> startedShards;
 
-    public StartedRerouteAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, ClusterState clusterState, List<? extends ShardRouting> startedShards, ClusterInfo clusterInfo, long currentNanoTime) {
+    public StartedRerouteAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, ClusterState clusterState,
+                                    List<ShardRouting> startedShards, ClusterInfo clusterInfo, long currentNanoTime) {
         super(deciders, routingNodes, clusterState, clusterInfo, currentNanoTime, false);
         this.startedShards = startedShards;
     }
@@ -44,7 +45,7 @@ public class StartedRerouteAllocation extends RoutingAllocation {
      * Get started shards
      * @return list of started shards
      */
-    public List<? extends ShardRouting> startedShards() {
+    public List<ShardRouting> startedShards() {
         return startedShards;
     }
 }

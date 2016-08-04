@@ -89,7 +89,7 @@ public class CumulativeSumIT extends ESIntegTestCase {
     public void testDocCount() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue))
+                                .extendedBounds(minRandomValue, maxRandomValue)
                                 .subAggregation(cumulativeSum("cumulative_sum", "_count"))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -120,7 +120,7 @@ public class CumulativeSumIT extends ESIntegTestCase {
                 .prepareSearch("idx")
                 .addAggregation(
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                .extendedBounds(new ExtendedBounds((long) minRandomValue, (long) maxRandomValue))
+                                .extendedBounds(minRandomValue, maxRandomValue)
                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
                                 .subAggregation(cumulativeSum("cumulative_sum", "sum"))).execute().actionGet();
 

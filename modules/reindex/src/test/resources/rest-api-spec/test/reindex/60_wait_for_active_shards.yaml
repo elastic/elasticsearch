@@ -1,5 +1,5 @@
 ---
-"can override consistency":
+"can override wait_for_active_shards":
   - do:
       indices.create:
           index: dest
@@ -12,7 +12,6 @@
         type:        test
         id:          1
         body:        {"text": "test"}
-        consistency: one
   - do:
       indices.refresh: {}
 
@@ -20,17 +19,18 @@
       catch: unavailable
       reindex:
         timeout: 1s
+        wait_for_active_shards: 4
         body:
           source:
             index: src
           dest:
             index: dest
   - match:
-      failures.0.cause.reason: /Not.enough.active.copies.to.meet.write.consistency.of.\[QUORUM\].\(have.1,.needed.4\)\..Timeout\:.\[1s\],.request:.\[BulkShardRequest.to.\[dest\].containing.\[1\].requests\]/
+      failures.0.cause.reason: /Not.enough.active.copies.to.meet.shard.count.of.\[4\].\(have.1,.needed.4\)\..Timeout\:.\[1s\],.request:.\[BulkShardRequest.to.\[dest\].containing.\[1\].requests\]/
 
   - do:
       reindex:
-        consistency: one
+        wait_for_active_shards: 1
         body:
           source:
             index: src

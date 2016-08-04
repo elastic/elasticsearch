@@ -19,23 +19,14 @@
 
 package org.elasticsearch.script.expression;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.apache.lucene.expressions.Expression;
 import org.apache.lucene.expressions.js.JavascriptCompiler;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -43,21 +34,24 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.script.GeneralScriptException;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -600,10 +594,10 @@ public class MoreExpressionTests extends ESIntegTestCase {
                                     "twoSum", "threeSum", "fourSum")))
                 .execute().actionGet();
 
-        InternalHistogram<Bucket> histogram = response.getAggregations().get("histogram");
+        Histogram histogram = response.getAggregations().get("histogram");
         assertThat(histogram, notNullValue());
         assertThat(histogram.getName(), equalTo("histogram"));
-        List<Bucket> buckets = histogram.getBuckets();
+        List<Histogram.Bucket> buckets = histogram.getBuckets();
 
         for (int bucketCount = 0; bucketCount < buckets.size(); ++bucketCount) {
             Histogram.Bucket bucket = buckets.get(bucketCount);

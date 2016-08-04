@@ -20,6 +20,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.XContentLocation;
 
 import java.util.List;
 import java.util.Map;
@@ -37,8 +38,8 @@ public class LengthAssertion extends Assertion {
 
     private static final ESLogger logger = Loggers.getLogger(LengthAssertion.class);
 
-    public LengthAssertion(String field, Object expectedValue) {
-        super(field, expectedValue);
+    public LengthAssertion(XContentLocation location, String field, Object expectedValue) {
+        super(location, field, expectedValue);
     }
 
     @Override

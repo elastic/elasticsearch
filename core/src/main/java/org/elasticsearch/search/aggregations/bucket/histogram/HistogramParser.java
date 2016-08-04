@@ -20,8 +20,9 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.rounding.Rounding;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
@@ -32,46 +33,51 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Parses the histogram request
+ * A parser for date histograms. This translates json into an
+ * {@link HistogramAggregationBuilder} instance.
  */
 public class HistogramParser extends NumericValuesSourceParser {
+
+    private static final ObjectParser<double[], ParseFieldMatcherSupplier> EXTENDED_BOUNDS_PARSER = new ObjectParser<>(
+            Histogram.EXTENDED_BOUNDS_FIELD.getPreferredName(),
+            () -> new double[]{ Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY });
+    static {
+        EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[0] = d, new ParseField("min"));
+        EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[1] = d, new ParseField("max"));
+    }
 
     public HistogramParser() {
         super(true, true, false);
     }
 
-    protected HistogramParser(boolean timezoneAware) {
-        super(true, true, timezoneAware);
-    }
-
     @Override
-    protected AbstractHistogramBuilder<?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+    protected HistogramAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         HistogramAggregationBuilder factory = new HistogramAggregationBuilder(aggregationName);
-        Long interval = (Long) otherOptions.get(Rounding.Interval.INTERVAL_FIELD);
+        Double interval = (Double) otherOptions.get(Histogram.INTERVAL_FIELD);
         if (interval == null) {
             throw new ParsingException(null, "Missing required field [interval] for histogram aggregation [" + aggregationName + "]");
         } else {
             factory.interval(interval);
         }
-        Long offset = (Long) otherOptions.get(Rounding.OffsetRounding.OFFSET_FIELD);
+        Double offset = (Double) otherOptions.get(Histogram.OFFSET_FIELD);
         if (offset != null) {
             factory.offset(offset);
         }
 
-        ExtendedBounds extendedBounds = (ExtendedBounds) otherOptions.get(ExtendedBounds.EXTENDED_BOUNDS_FIELD);
+        double[] extendedBounds = (double[]) otherOptions.get(Histogram.EXTENDED_BOUNDS_FIELD);
         if (extendedBounds != null) {
-            factory.extendedBounds(extendedBounds);
+            factory.extendedBounds(extendedBounds[0], extendedBounds[1]);
         }
-        Boolean keyed = (Boolean) otherOptions.get(HistogramAggregator.KEYED_FIELD);
+        Boolean keyed = (Boolean) otherOptions.get(Histogram.KEYED_FIELD);
         if (keyed != null) {
             factory.keyed(keyed);
         }
-        Long minDocCount = (Long) otherOptions.get(HistogramAggregator.MIN_DOC_COUNT_FIELD);
+        Long minDocCount = (Long) otherOptions.get(Histogram.MIN_DOC_COUNT_FIELD);
         if (minDocCount != null) {
             factory.minDocCount(minDocCount);
         }
-        InternalOrder order = (InternalOrder) otherOptions.get(HistogramAggregator.ORDER_FIELD);
+        InternalOrder order = (InternalOrder) otherOptions.get(Histogram.ORDER_FIELD);
         if (order != null) {
             factory.order(order);
         }
@@ -82,33 +88,23 @@ public class HistogramParser extends NumericValuesSourceParser {
     protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
             ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
         if (token.isValue()) {
-            if (parseFieldMatcher.match(currentFieldName, Rounding.Interval.INTERVAL_FIELD)) {
-                if (token == XContentParser.Token.VALUE_STRING) {
-                    otherOptions.put(Rounding.Interval.INTERVAL_FIELD, parseStringInterval(parser.text()));
-                    return true;
-                } else {
-                    otherOptions.put(Rounding.Interval.INTERVAL_FIELD, parser.longValue());
-                    return true;
-                }
-            } else if (parseFieldMatcher.match(currentFieldName, HistogramAggregator.MIN_DOC_COUNT_FIELD)) {
-                otherOptions.put(HistogramAggregator.MIN_DOC_COUNT_FIELD, parser.longValue());
+            if (parseFieldMatcher.match(currentFieldName, Histogram.INTERVAL_FIELD)) {
+                otherOptions.put(Histogram.INTERVAL_FIELD, parser.doubleValue());
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, HistogramAggregator.KEYED_FIELD)) {
-                otherOptions.put(HistogramAggregator.KEYED_FIELD, parser.booleanValue());
+            } else if (parseFieldMatcher.match(currentFieldName, Histogram.MIN_DOC_COUNT_FIELD)) {
+                otherOptions.put(Histogram.MIN_DOC_COUNT_FIELD, parser.longValue());
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, Rounding.OffsetRounding.OFFSET_FIELD)) {
-                if (token == XContentParser.Token.VALUE_STRING) {
-                    otherOptions.put(Rounding.OffsetRounding.OFFSET_FIELD, parseStringOffset(parser.text()));
-                    return true;
-                } else {
-                    otherOptions.put(Rounding.OffsetRounding.OFFSET_FIELD, parser.longValue());
-                    return true;
-                }
+            } else if (parseFieldMatcher.match(currentFieldName, Histogram.KEYED_FIELD)) {
+                otherOptions.put(Histogram.KEYED_FIELD, parser.booleanValue());
+                return true;
+            } else if (parseFieldMatcher.match(currentFieldName, Histogram.OFFSET_FIELD)) {
+                otherOptions.put(Histogram.OFFSET_FIELD, parser.doubleValue());
+                return true;
             } else {
                 return false;
             }
         } else if (token == XContentParser.Token.START_OBJECT) {
-            if (parseFieldMatcher.match(currentFieldName, HistogramAggregator.ORDER_FIELD)) {
+            if (parseFieldMatcher.match(currentFieldName, Histogram.ORDER_FIELD)) {
                 InternalOrder order = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -124,14 +120,11 @@ public class HistogramParser extends NumericValuesSourceParser {
                         order = resolveOrder(currentFieldName, asc);
                     }
                 }
-                otherOptions.put(HistogramAggregator.ORDER_FIELD, order);
+                otherOptions.put(Histogram.ORDER_FIELD, order);
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, ExtendedBounds.EXTENDED_BOUNDS_FIELD)) {
-                try {
-                    otherOptions.put(ExtendedBounds.EXTENDED_BOUNDS_FIELD, ExtendedBounds.PARSER.apply(parser, () -> parseFieldMatcher));
-                } catch (Exception e) {
-                    throw new ParsingException(parser.getTokenLocation(), "Error parsing [{}]", e, aggregationName);
-                }
+            } else if (parseFieldMatcher.match(currentFieldName, Histogram.EXTENDED_BOUNDS_FIELD)) {
+                double[] bounds = EXTENDED_BOUNDS_PARSER.apply(parser, () -> parseFieldMatcher);
+                otherOptions.put(Histogram.EXTENDED_BOUNDS_FIELD, bounds);
                 return true;
             } else {
                 return false;
@@ -139,14 +132,6 @@ public class HistogramParser extends NumericValuesSourceParser {
         } else {
             return false;
         }
-    }
-
-    protected Object parseStringInterval(String interval) {
-        return Long.valueOf(interval);
-    }
-
-    protected long parseStringOffset(String offset) throws IOException {
-        return Long.valueOf(offset);
     }
 
     static InternalOrder resolveOrder(String key, boolean asc) {

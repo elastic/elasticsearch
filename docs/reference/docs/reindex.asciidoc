@@ -419,7 +419,7 @@ is sent directly to the remote host without validation or modification.
 === URL Parameters
 
 In addition to the standard parameters like `pretty`, the Reindex API also
-supports `refresh`, `wait_for_completion`, `consistency`, `timeout`, and
+supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, `timeout`, and
 `requests_per_second`.
 
 Sending the `refresh` url parameter will cause all indexes to which the request
@@ -434,8 +434,9 @@ record of this task as a document at `.tasks/task/${taskId}`. This is yours
 to keep or remove as you see fit. When you are done with it, delete it so
 Elasticsearch can reclaim the space it uses.
 
-`consistency` controls how many copies of a shard must respond to each write
-request. `timeout` controls how long each write request waits for unavailable
+`wait_for_active_shards` controls how many copies of a shard must be active
+before proceeding with the reindexing. See <<index-wait-for-active-shards,here>> 
+for details. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
 <<docs-bulk,Bulk API>>.
 

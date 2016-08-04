@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.test.ESTestCase;
 
@@ -86,7 +85,7 @@ public class ShardRoutingTests extends ESTestCase {
         assertFalse(startedShard1.isRelocationTarget());
         ShardRouting sourceShard0a = startedShard0.relocate("node2", -1);
         assertFalse(sourceShard0a.isRelocationTarget());
-        ShardRouting targetShard0a = sourceShard0a.buildTargetRelocatingShard();
+        ShardRouting targetShard0a = sourceShard0a.getTargetRelocatingShard();
         assertTrue(targetShard0a.isRelocationTarget());
         ShardRouting sourceShard0b = startedShard0.relocate("node2", -1);
         ShardRouting sourceShard1 = startedShard1.relocate("node2", -1);

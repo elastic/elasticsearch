@@ -188,11 +188,11 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         } else if (shardRouting.relocating()) {
             initializingShard = shardRouting.cancelRelocation()
                 .relocate(currentNodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
-                .buildTargetRelocatingShard();
+                .getTargetRelocatingShard();
         } else {
             assert shardRouting.started();
             initializingShard = shardRouting.relocate(currentNodeId, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
-                .buildTargetRelocatingShard();
+                .getTargetRelocatingShard();
         }
         assert initializingShard.initializing();
         return initializingShard;

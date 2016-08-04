@@ -23,10 +23,11 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -68,7 +69,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     List<Object> payloads = null;
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
-    private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
+    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
 
     private long sizeInBytes = 0;
@@ -432,15 +433,25 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     }
 
     /**
-     * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
+     * Sets the number of shard copies that must be active before proceeding with the write.
+     * See {@link ReplicationRequest#waitForActiveShards(ActiveShardCount)} for details.
      */
-    public BulkRequest consistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        this.consistencyLevel = consistencyLevel;
+    public BulkRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
+        this.waitForActiveShards = waitForActiveShards;
         return this;
     }
 
-    public WriteConsistencyLevel consistencyLevel() {
-        return this.consistencyLevel;
+    /**
+     * A shortcut for {@link #waitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    public BulkRequest waitForActiveShards(final int waitForActiveShards) {
+        return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    }
+
+    public ActiveShardCount waitForActiveShards() {
+        return this.waitForActiveShards;
     }
 
     @Override
@@ -525,7 +536,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
+        waitForActiveShards = ActiveShardCount.readFrom(in);
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             byte type = in.readByte();
@@ -550,7 +561,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByte(consistencyLevel.id());
+        waitForActiveShards.writeTo(out);
         out.writeVInt(requests.size());
         for (ActionRequest<?> request : requests) {
             if (request instanceof IndexRequest) {

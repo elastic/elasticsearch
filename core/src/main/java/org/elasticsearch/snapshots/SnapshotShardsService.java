@@ -348,7 +348,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
 
         try {
             // we flush first to make sure we get the latest writes snapshotted
-            IndexCommit snapshotIndexCommit = indexShard.snapshotIndex(true);
+            IndexCommit snapshotIndexCommit = indexShard.acquireIndexCommit(true);
             try {
                 repository.snapshotShard(indexShard, snapshot.getSnapshotId(), indexId, snapshotIndexCommit, snapshotStatus);
                 if (logger.isDebugEnabled()) {
@@ -358,7 +358,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         TimeValue.timeValueMillis(snapshotStatus.time()), sb);
                 }
             } finally {
-                indexShard.releaseSnapshot(snapshotIndexCommit);
+                indexShard.releaseIndexCommit(snapshotIndexCommit);
             }
         } catch (SnapshotFailedEngineException e) {
             throw e;

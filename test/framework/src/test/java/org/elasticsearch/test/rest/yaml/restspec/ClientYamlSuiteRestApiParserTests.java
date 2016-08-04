@@ -45,7 +45,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractParserTestCase {
         assertThat(restApi.getPathParts().get(1), equalTo("index"));
         assertThat(restApi.getPathParts().get(2), equalTo("type"));
         assertThat(restApi.getParams().size(), equalTo(4));
-        assertThat(restApi.getParams(), contains("consistency", "op_type", "parent", "refresh"));
+        assertThat(restApi.getParams(), contains("wait_for_active_shards", "op_type", "parent", "refresh"));
         assertThat(restApi.isBodySupported(), equalTo(true));
         assertThat(restApi.isBodyRequired(), equalTo(true));
     }
@@ -163,10 +163,9 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractParserTestCase {
             "        }\n" +
             "      }   ,\n" +
             "      \"params\": {\n" +
-            "        \"consistency\": {\n" +
-            "          \"type\" : \"enum\",\n" +
-            "          \"options\" : [\"one\", \"quorum\", \"all\"],\n" +
-            "          \"description\" : \"Explicit write consistency setting for the operation\"\n" +
+            "        \"wait_for_active_shards\": {\n" +
+            "          \"type\" : \"string\",\n" +
+            "          \"description\" : \"The number of active shard copies required to perform the operation\"\n" +
             "        },\n" +
             "        \"op_type\": {\n" +
             "          \"type\" : \"enum\",\n" +

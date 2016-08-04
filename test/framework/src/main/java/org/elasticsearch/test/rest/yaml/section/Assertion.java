@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 
 import java.io.IOException;
@@ -27,11 +28,12 @@ import java.util.Map;
  * Base class for executable sections that hold assertions
  */
 public abstract class Assertion implements ExecutableSection {
-
+    private final XContentLocation location;
     private final String field;
     private final Object expectedValue;
 
-    protected Assertion(String field, Object expectedValue) {
+    protected Assertion(XContentLocation location, String field, Object expectedValue) {
+        this.location = location;
         this.field = field;
         this.expectedValue = expectedValue;
     }
@@ -62,6 +64,11 @@ public abstract class Assertion implements ExecutableSection {
             return executionContext.stash().getValue(field);
         }
         return executionContext.response(field);
+    }
+
+    @Override
+    public XContentLocation getLocation() {
+        return location;
     }
 
     @Override

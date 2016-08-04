@@ -83,16 +83,6 @@ public class Netty3Plugin extends Plugin {
         );
     }
 
-    @Override
-    public Settings additionalSettings() {
-        return Settings.builder()
-            // here we set the netty3 transport and http transport as the default. This is a set once setting
-            // ie. if another plugin does that as well the server will fail - only one default network can exist!
-            .put(NetworkModule.HTTP_DEFAULT_TYPE_SETTING.getKey(), NETTY_HTTP_TRANSPORT_NAME)
-            .put(NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.getKey(), NETTY_TRANSPORT_NAME)
-            .build();
-    }
-
     public void onModule(NetworkModule networkModule) {
         if (networkModule.canRegisterHttpExtensions()) {
             networkModule.registerHttpTransport(NETTY_HTTP_TRANSPORT_NAME, Netty3HttpServerTransport.class);

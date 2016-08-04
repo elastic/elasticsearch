@@ -56,11 +56,15 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -97,7 +101,6 @@ public class AggregatorParsingTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false).build();
 
-        namedWriteableRegistry = new NamedWriteableRegistry();
         index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         final ThreadPool threadPool = new ThreadPool(settings);
@@ -108,25 +111,31 @@ public class AggregatorParsingTests extends ESTestCase {
         List<Setting<?>> scriptSettings = scriptModule.getSettings();
         scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
         SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, Collections.emptyList());
+
+        IndicesModule indicesModule = new IndicesModule(Collections.emptyList()) {
+            @Override
+            protected void configure() {
+                bindMapperExtension();
+            }
+        };
+        SearchModule searchModule = new SearchModule(settings, false, emptyList()) {
+            @Override
+            protected void configureSearch() {
+                // Skip me
+            }
+        };
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.addAll(indicesModule.getNamedWriteables());
+        entries.addAll(searchModule.getNamedWriteables());
+        namedWriteableRegistry = new NamedWriteableRegistry(entries);
         injector = new ModulesBuilder().add(
             (b) -> {
                 b.bind(Environment.class).toInstance(new Environment(settings));
                 b.bind(ThreadPool.class).toInstance(threadPool);
                 b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
             },
-            settingsModule,
-            new IndicesModule(namedWriteableRegistry, Collections.emptyList()) {
-                @Override
-                protected void configure() {
-                    bindMapperExtension();
-                }
-            }, new SearchModule(settings, namedWriteableRegistry, false, emptyList()) {
-                @Override
-                protected void configureSearch() {
-                    // Skip me
-                }
-            }, new IndexSettingsModule(index, settings),
-
+            settingsModule, indicesModule, searchModule,
+            new IndexSettingsModule(index, settings),
             new AbstractModule() {
                 @Override
                 protected void configure() {

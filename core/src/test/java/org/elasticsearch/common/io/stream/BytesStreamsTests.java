@@ -30,6 +30,8 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -329,8 +331,9 @@ public class BytesStreamsTests extends ESTestCase {
 
     public void testNamedWriteable() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.singletonList(
+            new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new)
+        ));
         TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
         out.writeNamedWriteable(namedWriteableIn);
         byte[] bytes = BytesReference.toBytes(out.bytes());
@@ -342,8 +345,9 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testNamedWriteableList() throws IOException {
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.singletonList(
+            new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new)
+        ));
         int size = between(0, 100);
         List<BaseNamedWriteable> expected = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -356,48 +360,6 @@ public class BytesStreamsTests extends ESTestCase {
                 assertEquals(expected, in.readNamedWriteableList(BaseNamedWriteable.class));
                 assertEquals(0, in.available());
             }
-        }
-    }
-
-    public void testNamedWriteableDuplicates() throws IOException {
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new));
-        assertThat(e.getMessage(), startsWith("named writeable [" + BaseNamedWriteable.class.getName() + "][" + TestNamedWriteable.NAME
-                + "] is already registered by ["));
-    }
-
-    public void testNamedWriteableUnknownCategory() throws IOException {
-        BytesStreamOutput out = new BytesStreamOutput();
-        out.writeNamedWriteable(new TestNamedWriteable("test1", "test2"));
-        StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), new NamedWriteableRegistry());
-        //no named writeable registered with given name, can write but cannot read it back
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> in.readNamedWriteable(BaseNamedWriteable.class));
-        assertThat(e.getMessage(), equalTo("unknown named writeable category [" + BaseNamedWriteable.class.getName() + "]"));
-    }
-
-    public void testNamedWriteableUnknownNamedWriteable() throws IOException {
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new);
-        BytesStreamOutput out = new BytesStreamOutput();
-        out.writeNamedWriteable(new NamedWriteable() {
-            @Override
-            public String getWriteableName() {
-                return "unknown";
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-            }
-        });
-        StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(BytesReference.toBytes(out.bytes())), namedWriteableRegistry);
-        try {
-            //no named writeable registered with given name under test category, can write but cannot read it back
-            in.readNamedWriteable(BaseNamedWriteable.class);
-            fail("read should have failed");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("unknown named writeable [" + BaseNamedWriteable.class.getName() + "][unknown]"));
         }
     }
 
@@ -416,8 +378,9 @@ public class BytesStreamsTests extends ESTestCase {
 
     public void testNamedWriteableReaderReturnsNull() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, (StreamInput in) -> null);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.singletonList(
+            new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, (StreamInput in) -> null)
+        ));
         TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
         out.writeNamedWriteable(namedWriteableIn);
         byte[] bytes = BytesReference.toBytes(out.bytes());
@@ -437,13 +400,15 @@ public class BytesStreamsTests extends ESTestCase {
 
     public void testWriteableReaderReturnsWrongName() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        namedWriteableRegistry.register(BaseNamedWriteable.class, TestNamedWriteable.NAME, (StreamInput in) -> new TestNamedWriteable(in) {
-            @Override
-            public String getWriteableName() {
-                return "intentionally-broken";
-            }
-        });
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.singletonList(
+            new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, (StreamInput in) ->
+                new TestNamedWriteable(in) {
+                    @Override
+                    public String getWriteableName() {
+                    return "intentionally-broken";
+                }
+                })
+        ));
         TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
         out.writeNamedWriteable(namedWriteableIn);
         byte[] bytes = BytesReference.toBytes(out.bytes());

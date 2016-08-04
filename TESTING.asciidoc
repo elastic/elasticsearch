@@ -285,18 +285,18 @@ REST tests use the following command:
 
 ---------------------------------------------------------------------------
 gradle :distribution:integ-test-zip:integTest   \
-  -Dtests.class=org.elasticsearch.test.rest.RestIT
+  -Dtests.class=org.elasticsearch.test.rest.*Yaml*IT
 ---------------------------------------------------------------------------
 
 A specific test case can be run with
 
 ---------------------------------------------------------------------------
 gradle :distribution:integ-test-zip:integTest \
-  -Dtests.class=org.elasticsearch.test.rest.RestIT \
+  -Dtests.class=org.elasticsearch.test.rest.*Yaml*IT \
   -Dtests.method="test {p0=cat.shards/10_basic/Help}"
 ---------------------------------------------------------------------------
 
-`RestIT` are the executable test classes that runs all the
+`*Yaml*IT` are the executable test classes that runs all the
 yaml suites available within the `rest-api-spec` folder.
 
 The REST tests support all the options provided by the randomized runner, plus the following:

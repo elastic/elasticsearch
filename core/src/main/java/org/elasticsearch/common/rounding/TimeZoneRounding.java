@@ -31,6 +31,9 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
+ * A rounding strategy for dates. It is typically used to group together dates
+ * that are part of the same hour/day/month, taking into account time zones and
+ * daylight saving times.
  */
 public abstract class TimeZoneRounding extends Rounding {
     public static final ParseField INTERVAL_FIELD = new ParseField("interval");
@@ -125,7 +128,7 @@ public abstract class TimeZoneRounding extends Rounding {
         }
 
         @Override
-        public long roundKey(long utcMillis) {
+        public long round(long utcMillis) {
             long rounded = field.roundFloor(utcMillis);
             if (timeZone.isFixed() == false && timeZone.getOffset(utcMillis) != timeZone.getOffset(rounded)) {
                 // in this case, we crossed a time zone transition. In some edge cases this will
@@ -139,19 +142,13 @@ public abstract class TimeZoneRounding extends Rounding {
         }
 
         @Override
-        public long valueForKey(long time) {
-            assert roundKey(time) == time;
-            return time;
-        }
-
-        @Override
         public long nextRoundingValue(long utcMillis) {
-            long floor = roundKey(utcMillis);
+            long floor = round(utcMillis);
             // add one unit and round to get to next rounded value
-            long next = roundKey(field.add(floor, 1));
+            long next = round(field.add(floor, 1));
             if (next == floor) {
                 // in rare case we need to add more than one unit
-                next = roundKey(field.add(floor, 2));
+                next = round(field.add(floor, 2));
             }
             return next;
         }
@@ -216,7 +213,7 @@ public abstract class TimeZoneRounding extends Rounding {
         }
 
         @Override
-        public long roundKey(long utcMillis) {
+        public long round(long utcMillis) {
             long timeLocal = timeZone.convertUTCToLocal(utcMillis);
             long rounded = Rounding.Interval.roundValue(Rounding.Interval.roundKey(timeLocal, interval), interval);
             long roundedUTC;
@@ -225,7 +222,7 @@ public abstract class TimeZoneRounding extends Rounding {
                 // check if we crossed DST transition, in this case we want the last rounded value before the transition
                 long transition = timeZone.previousTransition(utcMillis);
                 if (transition != utcMillis && transition > roundedUTC) {
-                    roundedUTC = roundKey(transition - 1);
+                    roundedUTC = round(transition - 1);
                 }
             } else {
                 /*
@@ -274,12 +271,6 @@ public abstract class TimeZoneRounding extends Rounding {
                 }
             }
             return false;
-        }
-
-        @Override
-        public long valueForKey(long time) {
-            assert roundKey(time) == time;
-            return time;
         }
 
         @Override

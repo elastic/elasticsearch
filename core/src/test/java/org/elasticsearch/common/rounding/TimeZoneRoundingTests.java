@@ -65,9 +65,6 @@ public class TimeZoneRoundingTests extends ESTestCase {
         Rounding tzRounding = TimeZoneRounding.builder(TimeValue.timeValueHours(12)).build();
         DateTimeZone tz = DateTimeZone.UTC;
         assertThat(tzRounding.round(time("2009-02-03T01:01:01")), isDate(time("2009-02-03T00:00:00.000Z"), tz));
-        long roundKey = tzRounding.roundKey(time("2009-02-03T01:01:01"));
-        assertThat(roundKey, isDate(tzRounding.roundKey(time("2009-02-03T00:00:00.000Z")), tz));
-        assertThat(tzRounding.valueForKey(roundKey), isDate(time("2009-02-03T00:00:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2009-02-03T00:00:00.000Z")), isDate(time("2009-02-03T12:00:00.000Z"), tz));
         assertThat(tzRounding.round(time("2009-02-03T13:01:01")), isDate(time("2009-02-03T12:00:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2009-02-03T12:00:00.000Z")), isDate(time("2009-02-04T00:00:00.000Z"), tz));
@@ -86,9 +83,6 @@ public class TimeZoneRoundingTests extends ESTestCase {
         DateTimeZone tz = DateTimeZone.forOffsetHours(-1);
         Rounding tzRounding = TimeZoneRounding.builder(TimeValue.timeValueHours(6)).timeZone(tz).build();
         assertThat(tzRounding.round(time("2009-02-03T00:01:01")), isDate(time("2009-02-02T19:00:00.000Z"), tz));
-        long roundKey = tzRounding.roundKey(time("2009-02-03T00:01:01"));
-        assertThat(roundKey, equalTo(tzRounding.roundKey(time("2009-02-02T19:00:00.000Z"))));
-        assertThat(tzRounding.valueForKey(roundKey), isDate(time("2009-02-02T19:00:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2009-02-02T19:00:00.000Z")), isDate(time("2009-02-03T01:00:00.000Z"), tz));
 
         assertThat(tzRounding.round(time("2009-02-03T13:01:01")), isDate(time("2009-02-03T13:00:00.000Z"), tz));
@@ -102,9 +96,6 @@ public class TimeZoneRoundingTests extends ESTestCase {
         DateTimeZone tz = DateTimeZone.forOffsetHours(-8);
         Rounding tzRounding = TimeZoneRounding.builder(TimeValue.timeValueHours(12)).timeZone(tz).build();
         assertThat(tzRounding.round(time("2009-02-03T00:01:01")), isDate(time("2009-02-02T20:00:00.000Z"), tz));
-        long roundKey = tzRounding.roundKey(time("2009-02-03T00:01:01"));
-        assertThat(roundKey, isDate(tzRounding.roundKey(time("2009-02-02T20:00:00.000Z")), tz));
-        assertThat(tzRounding.valueForKey(roundKey), isDate(time("2009-02-02T20:00:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2009-02-02T20:00:00.000Z")), isDate(time("2009-02-03T08:00:00.000Z"), tz));
 
         assertThat(tzRounding.round(time("2009-02-03T13:01:01")), isDate(time("2009-02-03T08:00:00.000Z"), tz));
@@ -130,17 +121,11 @@ public class TimeZoneRoundingTests extends ESTestCase {
         tz = DateTimeZone.forID("-02:00");
         tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(tz).build();
         assertThat(tzRounding.round(time("2009-02-03T01:01:01")), isDate(time("2009-02-02T02:00:00"), tz));
-        long roundKey = tzRounding.roundKey(time("2009-02-03T01:01:01"));
-        assertThat(roundKey, isDate(tzRounding.roundKey(time("2009-02-02T02:00:00.000Z")), tz));
-        assertThat(tzRounding.valueForKey(roundKey), isDate(time("2009-02-02T02:00:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2009-02-02T02:00:00")), isDate(time("2009-02-03T02:00:00"), tz));
 
         // date in Feb-3rd, also in -02:00 timezone
         tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(tz).build();
         assertThat(tzRounding.round(time("2009-02-03T02:01:01")), isDate(time("2009-02-03T02:00:00"), tz));
-        roundKey = tzRounding.roundKey(time("2009-02-03T02:01:01"));
-        assertThat(roundKey, isDate(tzRounding.roundKey(time("2009-02-03T02:00:00.000Z")), tz));
-        assertThat(tzRounding.valueForKey(roundKey), isDate(time("2009-02-03T02:00:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2009-02-03T02:00:00")), isDate(time("2009-02-04T02:00:00"), tz));
     }
 

@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -110,6 +111,6 @@ public abstract class WritableTestCase<M extends Writeable> extends ESTestCase {
     }
 
     protected NamedWriteableRegistry provideNamedWritableRegistry() {
-        return new NamedWriteableRegistry();
+        return new NamedWriteableRegistry(Collections.emptyList());
     }
 }

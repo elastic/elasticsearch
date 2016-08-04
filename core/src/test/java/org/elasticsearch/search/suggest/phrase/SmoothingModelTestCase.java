@@ -50,7 +50,9 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -66,8 +68,9 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
     @BeforeClass
     public static void init() {
         if (namedWriteableRegistry == null) {
-            namedWriteableRegistry = new NamedWriteableRegistry();
-            SearchModule.registerSmoothingModels(namedWriteableRegistry);
+            List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+            SearchModule.registerSmoothingModels(namedWriteables);
+            namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
         }
     }
 

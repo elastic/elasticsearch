@@ -20,6 +20,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.XContentLocation;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -36,8 +37,8 @@ public class LessThanAssertion extends Assertion {
 
     private static final ESLogger logger = Loggers.getLogger(LessThanAssertion.class);
 
-    public LessThanAssertion(String field, Object expectedValue) {
-        super(field, expectedValue);
+    public LessThanAssertion(XContentLocation location, String field, Object expectedValue) {
+        super(location, field, expectedValue);
     }
 
     @Override

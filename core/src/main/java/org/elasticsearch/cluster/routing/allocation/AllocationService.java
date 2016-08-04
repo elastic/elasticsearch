@@ -239,9 +239,6 @@ public class AllocationService extends AbstractComponent {
             return new RoutingAllocation.Result(false, clusterState.routingTable(), clusterState.metaData());
         }
         gatewayAllocator.applyFailedShards(allocation);
-        // elect primaries *before* allocating unassigned, so backups of primaries that failed
-        // will be moved to primary state and not wait for primaries to be allocated and recovered (*from gateway*)
-        electPrimariesAndUnassignedDanglingReplicas(allocation);
 
         reroute(allocation);
         String failedShardsAsString = firstListElementsToCommaDelimitedString(failedShards, s -> s.shard.shardId().toString());
@@ -261,10 +258,6 @@ public class AllocationService extends AbstractComponent {
 
         // first, clear from the shards any node id they used to belong to that is now dead
         boolean changed = deassociateDeadNodes(allocation);
-
-        // elect primaries *before* allocating unassigned, so backups of primaries that failed
-        // will be moved to primary state and not wait for primaries to be allocated and recovered (*from gateway*)
-        changed |= electPrimariesAndUnassignedDanglingReplicas(allocation);
 
         if (reroute) {
             changed |= reroute(allocation);
@@ -374,11 +367,9 @@ public class AllocationService extends AbstractComponent {
     }
 
     private boolean reroute(RoutingAllocation allocation) {
-        boolean changed = false;
         assert deassociateDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See deassociateDeadNodes";
 
-        assert electPrimariesAndUnassignedDanglingReplicas(allocation) == false:
-            "unassigned primaries with assigned replicas on reroute: " + allocation.routingNodes().prettyPrint();
+        boolean changed =  electPrimariesAndUnassignedDanglingReplicas(allocation);
 
         // now allocate all the unassigned to available nodes
         if (allocation.routingNodes().unassigned().size() > 0) {
@@ -410,8 +401,8 @@ public class AllocationService extends AbstractComponent {
                 if (candidate != null) {
                     shardEntry = unassignedIterator.demotePrimaryToReplicaShard();
                     ShardRouting primarySwappedCandidate = routingNodes.promoteAssignedReplicaShardToPrimary(candidate);
+                    changed = true;
                     if (primarySwappedCandidate.relocatingNodeId() != null) {
-                        changed = true;
                         // its also relocating, make sure to move the other routing to primary
                         RoutingNode node = routingNodes.node(primarySwappedCandidate.relocatingNodeId());
                         if (node != null) {
@@ -426,7 +417,6 @@ public class AllocationService extends AbstractComponent {
                     IndexMetaData index = allocation.metaData().getIndexSafe(primarySwappedCandidate.index());
                     if (IndexMetaData.isIndexUsingShadowReplicas(index.getSettings())) {
                         routingNodes.reinitShadowPrimary(primarySwappedCandidate);
-                        changed = true;
                     }
                 }
             }

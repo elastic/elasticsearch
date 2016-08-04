@@ -609,7 +609,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
          * @param nodeId id of the wanted node
          * @return wanted node if it exists. Otherwise <code>null</code>
          */
-        public DiscoveryNode get(String nodeId) {
+        public @Nullable DiscoveryNode get(String nodeId) {
             return nodes.get(nodeId);
         }
 
@@ -658,7 +658,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 if (node.getId().equals(existingNode.getId()) &&
                     node.equals(existingNode) == false) {
                     return "can't add node " + node + ", found existing node " + existingNode
-                        + " with the same id is a different node instance";
+                        + " with the same id but is a different node instance";
                 }
             }
             return null;

@@ -75,9 +75,6 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         this.searchTransportService = searchTransportService;
         this.clusterService = clusterService;
         this.actionFilters = actionFilters;
-
-        // TODO this should maybe move to some registry on startup
-        namedWriteableRegistry.register(RankedListQualityMetric.class, PrecisionAtN.NAME, PrecisionAtN::new);
     }
 
     @Override

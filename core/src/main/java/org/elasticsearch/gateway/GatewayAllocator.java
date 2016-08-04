@@ -124,8 +124,8 @@ public class GatewayAllocator extends AbstractComponent {
 
     public void applyFailedShards(FailedRerouteAllocation allocation) {
         for (FailedRerouteAllocation.FailedShard shard : allocation.failedShards()) {
-            Releasables.close(asyncFetchStarted.remove(shard.shard.shardId()));
-            Releasables.close(asyncFetchStore.remove(shard.shard.shardId()));
+            Releasables.close(asyncFetchStarted.remove(shard.routingEntry.shardId()));
+            Releasables.close(asyncFetchStore.remove(shard.routingEntry.shardId()));
         }
     }
 

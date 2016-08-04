@@ -563,7 +563,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         }
 
         @Override
-        public RoutingAllocation.Result applyStartedShards(ClusterState clusterState, List<? extends ShardRouting> startedShards,
+        public RoutingAllocation.Result applyStartedShards(ClusterState clusterState, List<ShardRouting> startedShards,
                                                            boolean withReroute) {
             return new RoutingAllocation.Result(false, clusterState.routingTable(), clusterState.metaData());
         }

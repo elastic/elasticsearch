@@ -951,7 +951,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         NetworkPartition networkPartition = addRandomIsolation(isolatedNode);
         networkPartition.startDisrupting();
 
-        service.shardFailed(failedShard, failedShard, "simulated", new CorruptIndexException("simulated", (String) null), new
+        service.localShardFailed(failedShard, "simulated", new CorruptIndexException("simulated", (String) null), new
                 ShardStateAction.Listener() {
             @Override
             public void onSuccess() {

@@ -28,20 +28,26 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
@@ -77,7 +83,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
-        
+
         assertEquals(new BytesRef("1234"), fields[0].binaryValue());
         IndexableFieldType fieldType = fields[0].fieldType();
         assertThat(fieldType.omitNorms(), equalTo(true));
@@ -303,5 +309,26 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         assertFalse(fields[0].fieldType().omitNorms());
+    }
+
+    public void testEmptyName() throws IOException {
+        // after 5.x
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("").field("type", "keyword").endObject().endObject()
+            .endObject().endObject().string();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parser.parse("type", new CompressedXContent(mapping))
+        );
+        assertThat(e.getMessage(), containsString("name cannot be empty string"));
+
+        // before 5.x
+        Version oldVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_2_0_0, Version.V_2_3_5);
+        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, oldVersion).build();
+        indexService = createIndex("test_old", oldIndexSettings);
+        parser = indexService.mapperService().documentMapperParser();
+
+        DocumentMapper defaultMapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, defaultMapper.mappingSource().string());
     }
 }

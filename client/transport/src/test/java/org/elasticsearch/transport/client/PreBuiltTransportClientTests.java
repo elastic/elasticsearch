@@ -56,7 +56,8 @@ public class PreBuiltTransportClientTests extends RandomizedTest {
                 new PreBuiltTransportClient(Settings.EMPTY, plugin);
                 fail("exception expected");
             } catch (IllegalArgumentException ex) {
-                assertTrue(ex.getMessage().startsWith("plugin already exists: "));
+                assertTrue("Expected message to start with [plugin already exists: ] but was instead [" + ex.getMessage() + "]",
+                        ex.getMessage().startsWith("plugin already exists: "));
             }
         }
     }

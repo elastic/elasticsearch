@@ -98,4 +98,16 @@ public abstract class AllocationDecider extends AbstractComponent {
     public Decision canRebalance(RoutingAllocation allocation) {
         return Decision.ALWAYS;
     }
+
+    /**
+     * Returns a {@link Decision} whether the given primary shard can be
+     * forcibly allocated on the given node. This method should only be called
+     * on nodes for which previous allocations exist for the primary shard.
+     * The default is {@link Decision#YES}.
+     */
+    public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard routing [" +
+                                            shardRouting.shardId() + "]";
+        return Decision.YES;
+    }
 }

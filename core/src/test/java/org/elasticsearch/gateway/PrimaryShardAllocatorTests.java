@@ -30,12 +30,16 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RestoreSource;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -49,6 +53,7 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.anyOf;
@@ -190,6 +195,40 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).allocationId().getId(), equalTo("allocId1"));
         }
         assertClusterHealthStatus(allocation, ClusterHealthStatus.YELLOW);
+    }
+
+    /**
+     * Tests that when the nodes with prior allocations of the given shard all return a decision of NO,
+     * {@link AllocationDecider#canForceAllocatePrimary(ShardRouting, RoutingNode, RoutingAllocation)}
+     * is taken to account before forcing allocation to one of the NO nodes.
+     */
+    public void testForceAllocatePrimaryOnNoDecision() {
+        testAllocator.addData(node1, ShardStateMetaData.NO_VERSION, "allocId1", randomBoolean());
+
+        // tests that we force allocate the primary when canForceAllocatePrimary returns YES for all deciders
+        AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {
+            new TestAllocateDecision(Decision.NO), new ForcePrimaryDecider(Decision.YES)
+        });
+        RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, false, Version.CURRENT, "allocId1");
+        boolean changed = testAllocator.allocateUnassigned(allocation);
+        assertTrue(changed);
+        assertTrue(allocation.routingNodes().unassigned().ignored().isEmpty());
+        assertEquals(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), 1);
+        assertEquals(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(), node1.getId());
+
+        // tests that we do not force allocate the primary when at least one decider returns NO or THROTTLE for canForceAllocatePrimary
+        boolean forceDecisionNo = randomBoolean();
+        deciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {
+            new TestAllocateDecision(Decision.NO), new ForcePrimaryDecider(forceDecisionNo ? Decision.NO : Decision.THROTTLE)
+        });
+        allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, false, Version.CURRENT, "allocId1");
+        changed = testAllocator.allocateUnassigned(allocation);
+        assertTrue(changed);
+        List<ShardRouting> ignored = allocation.routingNodes().unassigned().ignored();
+        assertEquals(ignored.size(), 1);
+        assertEquals(ignored.get(0).unassignedInfo().getLastAllocationStatus(),
+            forceDecisionNo ? AllocationStatus.DECIDERS_NO : AllocationStatus.DECIDERS_THROTTLED);
+        assertTrue(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).isEmpty());
     }
 
     /**
@@ -542,11 +581,12 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         assertClusterHealthStatus(allocation, ClusterHealthStatus.RED);
     }
 
-    private RoutingAllocation routingAllocationWithOnePrimaryNoReplicas(AllocationDeciders deciders, boolean asNew, Version version, String... activeAllocationIds) {
+    private RoutingAllocation routingAllocationWithOnePrimaryNoReplicas(AllocationDeciders deciders, boolean asNew, Version version,
+                                                                        String... activeAllocationIds) {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(version))
-                    .numberOfShards(1).numberOfReplicas(0).putActiveAllocationIds(0, Sets.newHashSet(activeAllocationIds)))
-            .build();
+                    .numberOfShards(1).numberOfReplicas(0).putActiveAllocationIds(shardId.id(), Sets.newHashSet(activeAllocationIds)))
+                .build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         if (asNew) {
             routingTableBuilder.addAsNew(metaData.index(shardId.getIndex()));

@@ -196,6 +196,23 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         }
     }
 
+    /**
+     * A decider class that allows controlling the decision on force allocating a primary shard.
+     */
+    protected static class ForcePrimaryDecider extends TestAllocateDecision {
+        private final Decision forceAllocatePrimary;
+
+        public ForcePrimaryDecider(Decision forceAllocatePrimary) {
+            super(Decision.NO);
+            this.forceAllocatePrimary = forceAllocatePrimary;
+        }
+
+        @Override
+        public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            return forceAllocatePrimary;
+        }
+    }
+
     /** A lock {@link AllocationService} allowing tests to override time */
     protected static class MockAllocationService extends AllocationService {
 

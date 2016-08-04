@@ -154,17 +154,39 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 continue;
             }
 
-            final NodesToAllocate nodesToAllocate = buildNodesToAllocate(shard, allocation, nodeShardsResult.orderedAllocationCandidates);
+            final NodesToAllocate nodesToAllocate = buildNodesToAllocate(
+                allocation, nodeShardsResult.orderedAllocationCandidates,
+                (node) -> allocation.deciders().canAllocate(shard, node, allocation)
+            );
             if (nodesToAllocate.yesNodeShards.isEmpty() == false) {
                 NodeGatewayStartedShards nodeShardState = nodesToAllocate.yesNodeShards.get(0);
                 logger.debug("[{}][{}]: allocating [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, nodeShardState.getNode());
                 changed = true;
                 unassignedIterator.initialize(nodeShardState.getNode().getId(), nodeShardState.allocationId(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
             } else if (nodesToAllocate.throttleNodeShards.isEmpty() == true && nodesToAllocate.noNodeShards.isEmpty() == false) {
-                NodeGatewayStartedShards nodeShardState = nodesToAllocate.noNodeShards.get(0);
-                logger.debug("[{}][{}]: forcing allocating [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, nodeShardState.getNode());
-                changed = true;
-                unassignedIterator.initialize(nodeShardState.getNode().getId(), nodeShardState.allocationId(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                // We have zero nodes for which a decision of yes or throttle was given, so
+                // instead of iterating forcing allocation of the shard to one of the "no" nodes,
+                // we check if the deciders allow us to force primary shard allocation to the
+                // node. If none of the nodes allow it, we will have an unassigned primary shard.
+                final NodesToAllocate nodesToForceAllocate = buildNodesToAllocate(
+                    allocation, nodeShardsResult.orderedAllocationCandidates,
+                    (node) -> allocation.deciders().canForceAllocatePrimary(shard, node, allocation)
+                );
+                if (nodesToForceAllocate.yesNodeShards.isEmpty() == false) {
+                    NodeGatewayStartedShards nodeShardState = nodesToForceAllocate.yesNodeShards.get(0);
+                    logger.debug("[{}][{}]: force allocating [{}] to [{}] on primary allocation",
+                                 shard.index(), shard.id(), shard, nodeShardState.getNode());
+                    changed = true;
+                    unassignedIterator.initialize(nodeShardState.getNode().getId(), nodeShardState.allocationId(),
+                                                  ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                } else if (nodesToForceAllocate.throttleNodeShards.isEmpty() == false) {
+                    logger.debug("[{}][{}]: force throttling allocation [{}] to [{}] on primary allocation",
+                                 shard.index(), shard.id(), shard, nodesToForceAllocate.throttleNodeShards);
+                    changed |= unassignedIterator.removeAndIgnore(AllocationStatus.DECIDERS_THROTTLED);
+                } else {
+                    logger.debug("[{}][{}]: primary allocation denied [{}]", shard.index(), shard.id(), shard);
+                    changed |= unassignedIterator.removeAndIgnore(AllocationStatus.DECIDERS_NO);
+                }
             } else {
                 // we are throttling this, but we have enough to allocate to this node, ignore it for now
                 logger.debug("[{}][{}]: throttling allocation [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, nodesToAllocate.throttleNodeShards);
@@ -268,7 +290,9 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
     /**
      * Split the list of node shard states into groups yes/no/throttle based on allocation deciders
      */
-    private NodesToAllocate buildNodesToAllocate(ShardRouting shard, RoutingAllocation allocation, List<NodeGatewayStartedShards> nodeShardStates) {
+    private NodesToAllocate buildNodesToAllocate(RoutingAllocation allocation,
+                                                 List<NodeGatewayStartedShards> nodeShardStates,
+                                                 Function<RoutingNode, Decision> decisionFunction) {
         List<NodeGatewayStartedShards> yesNodeShards = new ArrayList<>();
         List<NodeGatewayStartedShards> throttledNodeShards = new ArrayList<>();
         List<NodeGatewayStartedShards> noNodeShards = new ArrayList<>();
@@ -278,7 +302,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 continue;
             }
 
-            Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
+            Decision decision = decisionFunction.apply(node);
             if (decision.type() == Decision.Type.THROTTLE) {
                 throttledNodeShards.add(nodeShardState);
             } else if (decision.type() == Decision.Type.NO) {

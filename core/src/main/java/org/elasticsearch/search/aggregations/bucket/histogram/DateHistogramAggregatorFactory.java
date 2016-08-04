@@ -111,7 +111,7 @@ public final class DateHistogramAggregatorFactory
         if (timeZone() != null) {
             tzRoundingBuilder.timeZone(timeZone());
         }
-        Rounding rounding = tzRoundingBuilder.offset(offset).build();
+        Rounding rounding = tzRoundingBuilder.build();
         return rounding;
     }
 
@@ -137,7 +137,7 @@ public final class DateHistogramAggregatorFactory
             // parse any string bounds to longs and round them
             roundedBounds = extendedBounds.parseAndValidate(name, context.searchContext(), config.format()).round(rounding);
         }
-        return new DateHistogramAggregator(name, factories, rounding, order, keyed, minDocCount, roundedBounds, valuesSource,
+        return new DateHistogramAggregator(name, factories, rounding, offset, order, keyed, minDocCount, roundedBounds, valuesSource,
                 config.format(), context, parent, pipelineAggregators, metaData);
     }
 

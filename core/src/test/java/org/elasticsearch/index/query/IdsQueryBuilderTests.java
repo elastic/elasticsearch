@@ -23,13 +23,12 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
@@ -94,37 +93,6 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         }
     }
 
-    @Override
-    protected Map<String, IdsQueryBuilder> getAlternateVersions() {
-        Map<String, IdsQueryBuilder> alternateVersions = new HashMap<>();
-
-        IdsQueryBuilder tempQuery = createTestQueryBuilder();
-        if (tempQuery.types() != null && tempQuery.types().length > 0) {
-            String type = tempQuery.types()[0];
-            IdsQueryBuilder testQuery = new IdsQueryBuilder(type);
-
-            //single value type can also be called _type
-            String contentString1 = "{\n" +
-                        "    \"ids\" : {\n" +
-                        "        \"_type\" : \"" + type + "\",\n" +
-                        "        \"values\" : []\n" +
-                        "    }\n" +
-                        "}";
-            alternateVersions.put(contentString1, testQuery);
-
-            //array of types can also be called type rather than types
-            String contentString2 = "{\n" +
-                        "    \"ids\" : {\n" +
-                        "        \"type\" : [\"" + type + "\"],\n" +
-                        "        \"values\" : []\n" +
-                        "    }\n" +
-                        "}";
-            alternateVersions.put(contentString2, testQuery);
-        }
-
-        return alternateVersions;
-    }
-
     public void testIllegalArguments() {
         try {
             new IdsQueryBuilder((String[])null);
@@ -165,5 +133,47 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         checkGeneratedJson(json, parsed);
         assertEquals(json, 3, parsed.ids().size());
         assertEquals(json, "my_type", parsed.types()[0]);
+    }
+
+    public void testFromJsonDeprecatedSyntax() throws IOException {
+        IdsQueryBuilder tempQuery = createTestQueryBuilder();
+        assumeTrue("test requires at least one type", tempQuery.types() != null && tempQuery.types().length > 0);
+
+        String type = tempQuery.types()[0];
+        IdsQueryBuilder testQuery = new IdsQueryBuilder(type);
+
+        //single value type can also be called _type
+        String contentString = "{\n" +
+                "    \"ids\" : {\n" +
+                "        \"_type\" : \"" + type + "\",\n" +
+                "        \"values\" : []\n" +
+                "    }\n" +
+                "}";
+
+        IdsQueryBuilder parsed = (IdsQueryBuilder) parseQuery(contentString, ParseFieldMatcher.EMPTY);
+        assertEquals(testQuery, parsed);
+
+        try {
+            parseQuery(contentString);
+            fail("parse should have failed");
+        } catch(IllegalArgumentException e) {
+            assertEquals("Deprecated field [_type] used, expected [type] instead", e.getMessage());
+        }
+
+        //array of types can also be called type rather than types
+        contentString = "{\n" +
+                "    \"ids\" : {\n" +
+                "        \"types\" : [\"" + type + "\"],\n" +
+                "        \"values\" : []\n" +
+                "    }\n" +
+                "}";
+        parsed = (IdsQueryBuilder) parseQuery(contentString, ParseFieldMatcher.EMPTY);
+        assertEquals(testQuery, parsed);
+        try {
+            parseQuery(contentString);
+            fail("parse should have failed");
+        } catch(IllegalArgumentException e) {
+            assertEquals("Deprecated field [types] used, expected [type] instead", e.getMessage());
+        }
     }
 }

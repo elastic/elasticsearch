@@ -23,7 +23,6 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,8 +41,8 @@ public abstract class ESBlobStoreTestCase extends ESTestCase {
             final BlobContainer containerBar = store.blobContainer(new BlobPath().add("bar"));
             byte[] data1 = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
             byte[] data2 = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
-            containerFoo.writeBlob("test", new BytesArray(data1));
-            containerBar.writeBlob("test", new BytesArray(data2));
+            writeBlob(containerFoo, "test", new BytesArray(data1));
+            writeBlob(containerBar, "test", new BytesArray(data2));
 
             assertArrayEquals(readBlobFully(containerFoo, "test", data1.length), data1);
             assertArrayEquals(readBlobFully(containerBar, "test", data2.length), data2);
@@ -58,7 +57,7 @@ public abstract class ESBlobStoreTestCase extends ESTestCase {
 
     public static byte[] writeRandomBlob(BlobContainer container, String name, int length) throws IOException {
         byte[] data = randomBytes(length);
-        container.writeBlob(name, new BytesArray(data));
+        writeBlob(container, name, new BytesArray(data));
         return data;
     }
 
@@ -77,6 +76,12 @@ public abstract class ESBlobStoreTestCase extends ESTestCase {
             data[i] = (byte) randomInt();
         }
         return data;
+    }
+
+    private static void writeBlob(BlobContainer container, String blobName, BytesArray bytesArray) throws IOException {
+        try (InputStream stream = bytesArray.streamInput()) {
+            container.writeBlob(blobName, stream, bytesArray.length());
+        }
     }
 
     protected abstract BlobStore newBlobStore() throws IOException;

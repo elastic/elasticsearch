@@ -131,7 +131,7 @@ public class UpdateHelper extends AbstractComponent {
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .routing(request.routing())
                     .parent(request.parent())
-                    .consistencyLevel(request.consistencyLevel());
+                    .waitForActiveShards(request.waitForActiveShards());
             if (request.versionType() != VersionType.INTERNAL) {
                 // in all but the internal versioning mode, we want to create the new document using the given version.
                 indexRequest.version(request.version()).versionType(request.versionType());
@@ -224,14 +224,14 @@ public class UpdateHelper extends AbstractComponent {
             final IndexRequest indexRequest = Requests.indexRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .source(updatedSourceAsMap, updateSourceContentType)
                     .version(updateVersion).versionType(request.versionType())
-                    .consistencyLevel(request.consistencyLevel())
+                    .waitForActiveShards(request.waitForActiveShards())
                     .timestamp(timestamp).ttl(ttl)
                     .setRefreshPolicy(request.getRefreshPolicy());
             return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
         } else if ("delete".equals(operation)) {
             DeleteRequest deleteRequest = Requests.deleteRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .version(updateVersion).versionType(request.versionType())
-                    .consistencyLevel(request.consistencyLevel())
+                    .waitForActiveShards(request.waitForActiveShards())
                     .setRefreshPolicy(request.getRefreshPolicy());
             return new Result(deleteRequest, DocWriteResponse.Result.DELETED, updatedSourceAsMap, updateSourceContentType);
         } else if ("none".equals(operation)) {

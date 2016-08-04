@@ -245,9 +245,10 @@ If an alias index routing is specified then it overrides the parent routing and 
 
 Timeout waiting for a shard to become available.
 
-`consistency`::
+`wait_for_active_shards`::
 
-The write consistency of the index/delete operation.
+The number of shard copies required to be active before proceeding with the update operation. 
+See <<index-wait-for-active-shards,here>> for details.
 
 `refresh`::
 

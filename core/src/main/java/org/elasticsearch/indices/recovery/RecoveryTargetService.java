@@ -167,7 +167,16 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
         logger.trace("collecting local files for {}", recoveryTarget);
         Store.MetadataSnapshot metadataSnapshot = null;
         try {
-            metadataSnapshot = recoveryTarget.store().getMetadataOrEmpty();
+            if (recoveryTarget.indexShard().indexSettings().isOnSharedFilesystem()) {
+                // we are not going to copy any files, so don't bother listing files, potentially running
+                // into concurrency issues with the primary changing files underneath us.
+                metadataSnapshot = Store.MetadataSnapshot.EMPTY;
+            } else {
+                metadataSnapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
+            }
+        } catch (org.apache.lucene.index.IndexNotFoundException e) {
+            // happens on an empty folder. no need to log
+            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
         } catch (IOException e) {
             logger.warn("error while listing local files, recover as if there are none", e);
             metadataSnapshot = Store.MetadataSnapshot.EMPTY;
@@ -178,6 +187,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
                     new RecoveryFailedException(recoveryTarget.state(), "failed to list local files", e), true);
             return;
         }
+        logger.trace("{} local file count: [{}]", recoveryTarget, metadataSnapshot.size());
         final StartRecoveryRequest request = new StartRecoveryRequest(recoveryTarget.shardId(), recoveryTarget.sourceNode(),
                 clusterService.localNode(),
                 metadataSnapshot, recoveryTarget.state().getType(), recoveryTarget.recoveryId());

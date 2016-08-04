@@ -41,7 +41,7 @@ public class DoSectionParser implements ClientYamlTestFragmentParser<DoSection> 
         String currentFieldName = null;
         XContentParser.Token token;
 
-        DoSection doSection = new DoSection();
+        DoSection doSection = new DoSection(parseContext.parser().getTokenLocation());
         ApiCallSection apiCallSection = null;
         Map<String, String> headers = new HashMap<>();
 

@@ -122,3 +122,53 @@ curl -XPUT localhost:9200/test -d '{
 --------------------------------------------------
 
 <1> `creation_date` is set using epoch time in milliseconds.
+
+[float]
+[[create-index-wait-for-active-shards]]
+=== Wait For Active Shards
+
+By default, index creation will only return a response to the client when the primary copies of 
+each shard have been started, or the request times out. The index creation response will indicate
+what happened:
+
+[source,js]
+--------------------------------------------------
+{
+    "acknowledged": true,
+    "shards_acknowledged": true
+}
+--------------------------------------------------
+
+`acknowledged` indicates whether the index was successfully created in the cluster, while 
+`shards_acknowledged` indices whether the requisite number of shard copies were started for
+each shard in the index before timing out. Note that it is still possible for either 
+`acknowledged` or `shards_acknowledged` to be `false`, but the index creation was successful. 
+These values simply indicate whether the operation completed before the timeout. If 
+`acknowledged` is `false`, then we timed out before the cluster state was updated with the
+newly created index, but it probably will be created sometime soon. If `shards_acknowledged` 
+is `false`, then we timed out before the requisite number of shards were started (by default 
+just the primaries), even if the cluster state was successfully updated to reflect the newly 
+created index (i.e. `acknowledged=true`).
+
+We can change the default of only waiting for the primary shards to start through the index
+setting `index.write.wait_for_active_shards` (note that changing this setting will also affect
+the `wait_for_active_shards` value on all subsequent write operations):
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/test -d '{
+    "settings": {
+        "index.write.wait_for_active_shards": "2"
+    }
+}
+--------------------------------------------------
+
+or through the request parameter `wait_for_active_shards`:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT localhost:9200/test?wait_for_active_shards=2
+--------------------------------------------------
+
+A detailed explanation of `wait_for_active_shards` and its possible values can be found 
+<<index-wait-for-active-shards,here>>.

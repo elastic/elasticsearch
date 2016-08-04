@@ -64,8 +64,8 @@ public class Netty3SizeHeaderFrameDecoderTests extends ESTestCase {
         threadPool = new ThreadPool(settings);
         NetworkService networkService = new NetworkService(settings, Collections.emptyList());
         BigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
-        nettyTransport = new Netty3Transport(settings, threadPool, networkService, bigArrays, new NamedWriteableRegistry(),
-            new NoneCircuitBreakerService());
+        nettyTransport = new Netty3Transport(settings, threadPool, networkService, bigArrays,
+            new NamedWriteableRegistry(Collections.emptyList()), new NoneCircuitBreakerService());
         nettyTransport.start();
         TransportService transportService = new TransportService(settings, nettyTransport, threadPool);
         nettyTransport.transportServiceAdapter(transportService.createAdapter());

@@ -19,10 +19,9 @@
 
 package org.elasticsearch.common.blobstore;
 
-import org.elasticsearch.common.bytes.BytesReference;
-
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Map;
 
@@ -70,26 +69,10 @@ public interface BlobContainer {
      * @param   blobSize
      *          The size of the blob to be written, in bytes.  It is implementation dependent whether
      *          this value is used in writing the blob to the repository.
-     * @throws  IOException if the input stream could not be read, a blob by the same name already exists,
-     *          or the target blob could not be written to.
+     * @throws  FileAlreadyExistsException if a blob by the same name already exists
+     * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
      */
     void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException;
-
-    /**
-     * Writes the input bytes to a new blob in the container with the given name.  This method assumes the
-     * container does not already contain a blob of the same blobName.  If a blob by the same name already
-     * exists, the operation will fail and an {@link IOException} will be thrown.
-     *
-     * TODO: Remove this in favor of a single {@link #writeBlob(String, InputStream, long)} method.
-     *       See https://github.com/elastic/elasticsearch/issues/18528
-     *
-     * @param   blobName
-     *          The name of the blob to write the contents of the input stream to.
-     * @param   bytes
-     *          The bytes to write to the blob.
-     * @throws  IOException if a blob by the same name already exists, or the target blob could not be written to.
-     */
-    void writeBlob(String blobName, BytesReference bytes) throws IOException;
 
     /**
      * Deletes a blob with giving name, if the blob exists.  If the blob does not exist, this method throws an IOException.

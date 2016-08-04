@@ -26,6 +26,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -193,7 +194,9 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             }
             bRef = bStream.bytes();
         }
-        repository.blobContainer().writeBlob(BlobStoreRepository.SNAPSHOTS_FILE, bRef); // write to index file
+        try (StreamInput stream = bRef.streamInput()) {
+            repository.blobContainer().writeBlob(BlobStoreRepository.SNAPSHOTS_FILE, stream, bRef.length()); // write to index file
+        }
     }
 
 }

@@ -22,18 +22,23 @@ package org.elasticsearch.plugins;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -78,9 +83,10 @@ public abstract class Plugin {
      * @param clusterService A service to allow watching and updating cluster state
      * @param threadPool A service to allow retrieving an executor to run an async action
      * @param resourceWatcherService A service to watch for changes to node local files
+     * @param scriptService A service to allow running scripts on the local node
      */
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService) {
+                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService) {
         return Collections.emptyList();
     }
 
@@ -90,6 +96,14 @@ public abstract class Plugin {
      */
     public Settings additionalSettings() {
         return Settings.Builder.EMPTY_SETTINGS;
+    }
+
+    /**
+     * Returns parsers for {@link NamedWriteable} this plugin will use over the transport protocol.
+     * @see NamedWriteableRegistry
+     */
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return Collections.emptyList();
     }
 
     /**

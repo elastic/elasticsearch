@@ -109,4 +109,9 @@ public final class ShadowIndexShard extends IndexShard {
     public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
         throw new UnsupportedOperationException("Can't listen for a refresh on a shadow engine because it doesn't have a translog");
     }
+
+    @Override
+    public Store.MetadataSnapshot snapshotStoreMetadata() throws IOException {
+        throw new UnsupportedOperationException("can't snapshot the directory as the primary may change it underneath us");
+    }
 }

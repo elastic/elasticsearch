@@ -47,7 +47,7 @@ public class SimpleNetty3TransportTests extends AbstractSimpleTransportTestCase 
     public static MockTransportService nettyFromThreadPool(
         Settings settings,
         ThreadPool threadPool, final Version version) {
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         Transport transport = new Netty3Transport(settings, threadPool, new NetworkService(settings, Collections.emptyList()),
             BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
             @Override

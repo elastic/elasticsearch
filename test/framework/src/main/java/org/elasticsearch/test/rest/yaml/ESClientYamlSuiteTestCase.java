@@ -297,7 +297,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         if (!testCandidate.getSetupSection().isEmpty()) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
             for (DoSection doSection : testCandidate.getSetupSection().getDoSections()) {
-                doSection.execute(restTestExecutionContext);
+                executeSection(doSection);
             }
             logger.debug("end setup test [{}]", testCandidate.getTestPath());
         }
@@ -306,14 +306,31 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
         try {
             for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {
-                executableSection.execute(restTestExecutionContext);
+                executeSection(executableSection);
             }
         } finally {
             logger.debug("start teardown test [{}]", testCandidate.getTestPath());
             for (DoSection doSection : testCandidate.getTeardownSection().getDoSections()) {
-                doSection.execute(restTestExecutionContext);
+                executeSection(doSection);
             }
             logger.debug("end teardown test [{}]", testCandidate.getTestPath());
         }
+    }
+
+    /**
+     * Execute an {@link ExecutableSection}, careful to log its place of origin on failure.
+     */
+    private void executeSection(ExecutableSection executableSection) {
+        try {
+            executableSection.execute(restTestExecutionContext);
+        } catch (Exception e) {
+            throw new RuntimeException(errorMessage(executableSection, e), e);
+        } catch (AssertionError e) {
+            throw new AssertionError(errorMessage(executableSection, e), e);
+        }
+    }
+
+    private String errorMessage(ExecutableSection executableSection, Throwable t) {
+        return "Failure at [" + testCandidate.getSuitePath() + ":" + executableSection.getLocation().lineNumber + "]: " + t.getMessage();
     }
 }

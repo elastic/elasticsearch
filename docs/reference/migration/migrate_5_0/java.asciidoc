@@ -91,6 +91,26 @@ language `org.codehaus.groovy:groovy` artifact.
 error description). This will influence code that use the `IndexRequest.opType()` or `IndexRequest.create()`
 to index a document only if it doesn't already exist.
 
+==== writeConsistencyLevel removed on write requests
+
+In previous versions of Elasticsearch, the various write requests had a
+`setWriteConsistencyLevel` method to set the shard consistency level for
+write operations. However, the semantics of write consistency were ambiguous 
+as this is just a pre-operation check to ensure the specified number of
+shards were available before the operation commenced. The write consistency
+level did not guarantee that the data would be replicated to those number
+of copies by the time the operation finished. The `setWriteConsistencyLevel`
+method on these write requests has been changed to `setWaitForActiveShards`,
+which can take a numerical value up to the total number of shard copies or 
+`ActiveShardCount.ALL` for all shard copies. The default is to just wait
+for the primary shard to be active before proceeding with the operation. 
+See the section on <<index-wait-for-active-shards,wait for active shards>> 
+for more details.
+
+This change affects `IndexRequest`, `IndexRequestBuilder`, `BulkRequest`, 
+`BulkRequestBuilder`, `UpdateRequest`, `UpdateRequestBuilder`, `DeleteRequest`, 
+and `DeleteRequestBuilder`.
+
 ==== Changes to Query Builders
 
 ===== BoostingQueryBuilder
@@ -357,3 +377,26 @@ in favor of using `addTokenFilter(String)`/`addTokenFilter(Map)` and `addCharFil
 
 The `setTokenFilters(String...)` and `setCharFilters(String...)` methods have been removed
 in favor of using `addTokenFilter(String)`/`addTokenFilter(Map)` and `addCharFilter(String)`/`addCharFilter(Map)` each filters
+
+==== BlobContainer Interface for Snapshot/Restore
+
+Some methods have been removed from the `BlobContainer` interface for Snapshot/Restore repositories.  In particular,
+the following three methods have been removed:
+
+ 1. `deleteBlobs(Collection<String>)` (use `deleteBlob(String)` instead)
+ 2. `deleteBlobsByPrefix(String)` (use `deleteBlob(String)` instead)
+ 3. `writeBlob(String, BytesReference)` (use `writeBlob(String, InputStream, long)` instead)
+
+The `deleteBlob` methods that took multiple blobs as arguments were deleted because no atomic guarantees can be made about either deleting all blobs or deleting none of them, and exception handling in such a situation is ambiguous and best left to the caller. Hence, all delete blob calls use the singular `deleteBlob(String)` method. 
+
+The extra `writeBlob` method offered no real advantage to the interface and all calls to `writeBlob(blobName, bytesRef)` can be replaced with:
+
+[source,java]
+-----
+try (InputStream stream = bytesRef.streamInput()) {
+    blobContainer.writeBlob(blobName, stream, bytesRef.length());
+}
+-----
+
+For any custom implementation of the `BlobContainer` interface, these three methods must be removed.
+

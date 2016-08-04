@@ -19,6 +19,7 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.ESTestCase;
@@ -130,5 +131,14 @@ public class IndexRequestTests extends ESTestCase {
         ActionRequestValidationException validate = indexRequest.validate();
         assertThat(validate, notNullValue());
         assertThat(validate.getMessage(), containsString("ttl must not be negative"));
+    }
+
+    public void testWaitForActiveShards() {
+        IndexRequest request = new IndexRequest("index", "type");
+        final int count = randomIntBetween(0, 10);
+        request.waitForActiveShards(ActiveShardCount.from(count));
+        assertEquals(request.waitForActiveShards(), ActiveShardCount.from(count));
+        // test negative shard count value not allowed
+        expectThrows(IllegalArgumentException.class, () -> request.waitForActiveShards(ActiveShardCount.from(randomIntBetween(-10, -1))));
     }
 }

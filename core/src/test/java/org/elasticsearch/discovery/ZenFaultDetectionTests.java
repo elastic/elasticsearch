@@ -134,7 +134,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
     }
 
     protected MockTransportService build(Settings settings, Version version) {
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         MockTransportService transportService =
                 new MockTransportService(
                         Settings.builder()

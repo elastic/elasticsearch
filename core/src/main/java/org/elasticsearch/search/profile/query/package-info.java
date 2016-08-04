@@ -18,7 +18,6 @@
  */
 
 /**
- * Aggregations module
+ * Profiles the query portion of a search request.
  */
-package org.elasticsearch.search.aggregations;
-
+package org.elasticsearch.search.profile.query;

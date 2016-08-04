@@ -17,10 +17,9 @@
  * under the License.
  */
 
-package org.elasticsearch.consistencylevel;
+package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -35,26 +34,25 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- *
+ * Tests setting the active shard count for replication operations (e.g. index) operates correctly.
  */
-public class WriteConsistencyLevelIT extends ESIntegTestCase {
-    public void testWriteConsistencyLevelReplication2() throws Exception {
+public class WaitActiveShardCountIT extends ESIntegTestCase {
+    public void testReplicationWaitsForActiveShardCount() throws Exception {
         CreateIndexResponse createIndexResponse =
-            prepareCreate("test", 1, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 2))
-                .get();
+            prepareCreate("test", 1, Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 2)).get();
 
         assertAcked(createIndexResponse);
 
-        // indexing, by default, will work (ONE consistency level)
-        client().prepareIndex("test", "type1", "1").setSource(source("1", "test")).setConsistencyLevel(WriteConsistencyLevel.ONE).execute().actionGet();
+        // indexing, by default, will work (waiting for one shard copy only)
+        client().prepareIndex("test", "type1", "1").setSource(source("1", "test")).execute().actionGet();
         try {
             client().prepareIndex("test", "type1", "1").setSource(source("1", "test"))
-                    .setConsistencyLevel(WriteConsistencyLevel.QUORUM)
+                    .setWaitForActiveShards(2) // wait for 2 active shard copies
                     .setTimeout(timeValueMillis(100)).execute().actionGet();
-            fail("can't index, does not match consistency");
+            fail("can't index, does not enough active shard copies");
         } catch (UnavailableShardsException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet write consistency of [QUORUM] (have 1, needed 2). Timeout: [100ms], request: [index {[test][type1][1], source[{ \"type1\" : { \"id\" : \"1\", \"name\" : \"test\" } }]}]"));
+            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet shard count of [2] (have 1, needed 2). Timeout: [100ms], request: [index {[test][type1][1], source[{ \"type1\" : { \"id\" : \"1\", \"name\" : \"test\" } }]}]"));
             // but really, all is well
         }
 
@@ -71,19 +69,19 @@ public class WriteConsistencyLevelIT extends ESIntegTestCase {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
-        // this should work, since we now have
+        // this should work, since we now have two
         client().prepareIndex("test", "type1", "1").setSource(source("1", "test"))
-                .setConsistencyLevel(WriteConsistencyLevel.QUORUM)
+                .setWaitForActiveShards(2)
                 .setTimeout(timeValueSeconds(1)).execute().actionGet();
 
         try {
             client().prepareIndex("test", "type1", "1").setSource(source("1", "test"))
-                    .setConsistencyLevel(WriteConsistencyLevel.ALL)
+                    .setWaitForActiveShards(ActiveShardCount.ALL)
                     .setTimeout(timeValueMillis(100)).execute().actionGet();
-            fail("can't index, does not match consistency");
+            fail("can't index, not enough active shard copies");
         } catch (UnavailableShardsException e) {
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet write consistency of [ALL] (have 2, needed 3). Timeout: [100ms], request: [index {[test][type1][1], source[{ \"type1\" : { \"id\" : \"1\", \"name\" : \"test\" } }]}]"));
+            assertThat(e.getMessage(), equalTo("[test][0] Not enough active copies to meet shard count of [" + ActiveShardCount.ALL + "] (have 2, needed 3). Timeout: [100ms], request: [index {[test][type1][1], source[{ \"type1\" : { \"id\" : \"1\", \"name\" : \"test\" } }]}]"));
             // but really, all is well
         }
 
@@ -93,9 +91,9 @@ public class WriteConsistencyLevelIT extends ESIntegTestCase {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        // this should work, since we now have
+        // this should work, since we now have all shards started
         client().prepareIndex("test", "type1", "1").setSource(source("1", "test"))
-                .setConsistencyLevel(WriteConsistencyLevel.ALL)
+                .setWaitForActiveShards(ActiveShardCount.ALL)
                 .setTimeout(timeValueSeconds(1)).execute().actionGet();
     }
 

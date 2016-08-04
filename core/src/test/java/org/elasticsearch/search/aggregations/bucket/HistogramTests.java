@@ -20,10 +20,8 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
-import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBoundsTests;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
 
 public class HistogramTests extends BaseAggregationTestCase<HistogramAggregationBuilder> {
 
@@ -31,9 +29,9 @@ public class HistogramTests extends BaseAggregationTestCase<HistogramAggregation
     protected HistogramAggregationBuilder createTestAggregatorBuilder() {
         HistogramAggregationBuilder factory = new HistogramAggregationBuilder("foo");
         factory.field(INT_FIELD_NAME);
-        factory.interval(randomIntBetween(1, 100000));
+        factory.interval(randomDouble() * 1000);
         if (randomBoolean()) {
-            factory.extendedBounds(ExtendedBoundsTests.randomExtendedBounds());
+            factory.extendedBounds(randomDouble(), randomDouble());
         }
         if (randomBoolean()) {
             factory.format("###.##");

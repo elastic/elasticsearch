@@ -862,4 +862,19 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
                 () -> mapper.parse("test", "type", "1", bytes));
         assertEquals("mapping set to strict, dynamic introduction of [foo] within [type] is not allowed", exception.getMessage());
     }
+
+    public void testDocumentContainsMetadataField() throws Exception {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder().startObject().field("_ttl", 0).endObject().bytes();
+        MapperParsingException e = expectThrows(MapperParsingException.class, () ->
+            mapper.parse("test", "type", "1", bytes)
+        );
+        assertTrue(e.getMessage(), e.getMessage().contains("cannot be added inside a document"));
+
+        BytesReference bytes2 = XContentFactory.jsonBuilder().startObject().field("foo._ttl", 0).endObject().bytes();
+        mapper.parse("test", "type", "1", bytes2); // parses without error
+    }
 }

@@ -195,6 +195,8 @@ public class DocumentMapperParser {
     static Map<String,Object> removeDotsInFieldNames(Map<String, ?> mapping) {
         Map<String, Object> result = new HashMap<>(mapping);
         Object propertiesObject = result.get(PROPERTIES_KEY);
+        // if properties is not a map then we don't touch it and the parser
+        // will barf with a nicer error message than what we could do
         if (propertiesObject instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, ?> properties = (Map<String, ?>) propertiesObject;

@@ -104,7 +104,7 @@ public class DocumentMapperParserTests extends ESTestCase {
         assertEquals(withoutDots, DocumentMapperParser.removeDotsInFieldNames(withDots));
     }
 
-    public void testRemoveDotsInFieldNamesMerge() {
+    public void testRemoveDotsInFieldNamesMerge1() {
         Map<String, Object> withDots = new MapBuilder<String, Object>()
                 .put("properties", new MapBuilder<String, Object>()
                         .put("a.b", new MapBuilder<String, Object>()
@@ -128,6 +128,38 @@ public class DocumentMapperParserTests extends ESTestCase {
                                                 .map())
                                         .put("b", new MapBuilder<String, Object>()
                                                 .put("type", "float")
+                                                .map())
+                                        .map())
+                                .map())
+                        .map())
+                .map();
+        assertEquals(withoutDots, DocumentMapperParser.removeDotsInFieldNames(withDots));
+    }
+
+    public void testRemoveDotsInFieldNamesMerge2() {
+        Map<String, Object> withDots = new MapBuilder<String, Object>()
+                .put("properties", new MapBuilder<String, Object>()
+                        .put("a.b.c", new MapBuilder<String, Object>()
+                                .put("type", "float")
+                                .map())
+                        .put("a.b.d", new MapBuilder<String, Object>()
+                                .put("type", "integer")
+                                .map())
+                        .map())
+                .map();
+        Map<String, Object> withoutDots = new MapBuilder<String, Object>()
+                .put("properties", new MapBuilder<String, Object>()
+                        .put("a", new MapBuilder<String, Object>()
+                                .put("properties", new MapBuilder<String, Object>()
+                                        .put("b", new MapBuilder<String, Object>()
+                                                .put("properties", new MapBuilder<String, Object>()
+                                                        .put("c", new MapBuilder<String, Object>()
+                                                                .put("type", "float")
+                                                                .map())
+                                                        .put("d", new MapBuilder<String, Object>()
+                                                                .put("type", "integer")
+                                                                .map())
+                                                        .map())
                                                 .map())
                                         .map())
                                 .map())

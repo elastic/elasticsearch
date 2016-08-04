@@ -609,7 +609,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
          * @param nodeId id of the wanted node
          * @return wanted node if it exists. Otherwise <code>null</code>
          */
-        public @Nullable DiscoveryNode get(String nodeId) {
+        @Nullable public DiscoveryNode get(String nodeId) {
             return nodes.get(nodeId);
         }
 

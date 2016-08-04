@@ -68,10 +68,12 @@ class Checkpoint {
         out.writeLong(generation);
     }
 
-    static Checkpoint readChecksummed(DataInput in) throws IOException {
+    // reads a checksummed checkpoint introduced in ES 5.0.0
+    static Checkpoint readChecksummedV1(DataInput in) throws IOException {
         return new Checkpoint(in.readLong(), in.readInt(), in.readLong());
     }
 
+    // reads checkpoint from ES < 5.0.0
     static Checkpoint readNonChecksummed(DataInput in) throws IOException {
         return new Checkpoint(in.readLong(), in.readInt(), in.readLong());
     }
@@ -95,7 +97,7 @@ class Checkpoint {
                 // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
                 final int fileVersion = CodecUtil.checkHeader(indexInput, CHECKPOINT_CODEC, INITIAL_VERSION, INITIAL_VERSION);
-                return Checkpoint.readChecksummed(indexInput);
+                return Checkpoint.readChecksummedV1(indexInput);
             }
         }
     }

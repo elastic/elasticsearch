@@ -60,10 +60,10 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(RetryTests.BogusPlugin.class,
-                Netty4Plugin.class,
-                ReindexFromRemoteWithAuthTests.TestPlugin.class,
-                ReindexPlugin.class);
+        return Arrays.asList(
+            Netty4Plugin.class,
+            ReindexFromRemoteWithAuthTests.TestPlugin.class,
+            ReindexPlugin.class);
     }
 
     @Override

@@ -109,7 +109,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                     }
                 }
                 if (numResult++ < suggestionContext.getSize()) {
-                    CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(
+                    CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(suggestDoc.doc,
                         new Text(suggestDoc.key.toString()), suggestDoc.score, contexts, payload);
                     completionSuggestEntry.addOption(option);
                 } else {

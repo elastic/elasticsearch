@@ -118,8 +118,8 @@ class SearchDfsQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<DfsSea
         threadPool.executor(ThreadPool.Names.SEARCH).execute(new ActionRunnable<SearchResponse>(listener) {
             @Override
             public void doRun() throws IOException {
-                sortedShardList = searchPhaseController.sortDocs(true, queryFetchResults);
-                final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults,
+                sortedShardDocs = searchPhaseController.sortDocs(true, queryFetchResults);
+                final InternalSearchResponse internalResponse = searchPhaseController.merge(true, sortedShardDocs, queryFetchResults,
                     queryFetchResults);
                 String scrollId = null;
                 if (request.scroll() != null) {

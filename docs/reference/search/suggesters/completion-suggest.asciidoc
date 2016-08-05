@@ -181,15 +181,23 @@ returns this response:
     "length" : 3,
     "options" : [ {
       "text" : "Nirvana",
-      "score" : 1.0
+      "_index": "music",
+      "_type": "song",
+      "_id": "1",
+      "_score": 1.0,
+      "_source": {
+        "suggest": ["Nevermind", "Nirvana"]
+      }
     } ]
   } ]
 }
 --------------------------------------------------
 // TESTRESPONSE
 
-The configured weight for a suggestion is returned as `score`.
-The `text` field uses the `input` of your indexed suggestion.
+The configured weight for a suggestion is returned as `_score`.
+The `text` field uses the `input` of your indexed suggestion. The document
+source is returned in `_source`. <<search-request-source-filtering, source filtering>>
+parameters are supported for filtering the document source.
 
 Suggestions are document oriented, you can specify fields to be
 returned as part of suggestion payload. All field types (`string`,
@@ -200,7 +208,7 @@ as follows:
 
 [source,js]
 --------------------------------------------------
-POST music/song?refresh
+PUT music/song/2?refresh
 {
     "suggest" : "Nirvana",
     "title" : "Nevermind"
@@ -243,7 +251,14 @@ returns:
     "length" : 1,
     "options" : [ {
       "text" : "Nirvana",
-      "score" : 1.0,
+      "_index": "music",
+      "_type": "song",
+      "_id": "2",
+      "_score" : 1.0,
+      "_source": {
+        "title": "Nevermind",
+        "suggest": "Nirvana"
+      },
       "payload" : {
         "title" : [ "Nevermind" ]
       }

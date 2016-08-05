@@ -22,8 +22,8 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/** 
- * Action used to start precision at qa evaluations. 
+/**
+ * Action used to start precision at qa evaluations.
  **/
 public class RankEvalAction extends Action<RankEvalRequest, RankEvalResponse, RankEvalRequestBuilder> {
 

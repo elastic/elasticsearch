@@ -41,8 +41,7 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, transportClientRatio = 0.0)
-// NORELEASE need to fix transport client use case
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class RankEvalRequestTests  extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {

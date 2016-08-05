@@ -51,12 +51,8 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
     public RankEvalResponse() {
     }
 
-    @SuppressWarnings("unchecked")
     public RankEvalResponse(StreamInput in) throws IOException {
-        super.readFrom(in);
-        this.specId = in.readString();
-        this.qualityLevel = in.readDouble();
-        this.unknownDocs = (Map<String, Collection<RatedDocumentKey>>) in.readGenericValue();
+        this.readFrom(in);
     }
 
     public RankEvalResponse(String specId, double qualityLevel, Map<String, Collection<RatedDocumentKey>> unknownDocs) {
@@ -65,7 +61,8 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
         this.unknownDocs = unknownDocs;
     }
 
-    public String getSpecId() {
+
+    public Object getSpecId() {
         return specId;
     }
 
@@ -79,15 +76,24 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
 
     @Override
     public String toString() {
-        return "RankEvalResult, ID :[" + specId + "], quality: " + qualityLevel + ", unknown docs: " + unknownDocs;
+        return "RankEvalResponse, ID :[" + specId + "], quality: " + qualityLevel + ", unknown docs: " + unknownDocs;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(specId);
-        out.writeDouble(qualityLevel);
+        out.writeOptionalString(specId);
+        out.writeOptionalDouble(qualityLevel);
         out.writeGenericValue(getUnknownDocs());
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public void readFrom(StreamInput in) throws IOException {
+        super.readFrom(in);
+        this.specId = in.readOptionalString();
+        this.qualityLevel = in.readOptionalDouble();
+        this.unknownDocs = (Map<String, Collection<String>>) in.readGenericValue();
     }
 
     @Override
@@ -105,5 +111,4 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
         builder.endObject();
         return builder;
     }
-
 }

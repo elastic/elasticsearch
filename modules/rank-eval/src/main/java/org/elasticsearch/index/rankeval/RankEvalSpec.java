@@ -59,7 +59,7 @@ public class RankEvalSpec implements Writeable {
         for (int i = 0; i < specSize; i++) {
             specifications.add(new QuerySpec(in));
         }
-        eval = in.readNamedWriteable(RankedListQualityMetric.class); // TODO add to registry
+        eval = in.readNamedWriteable(RankedListQualityMetric.class);
         taskId = in.readString();
     }
 

@@ -27,7 +27,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugin.repository.gcs.GoogleCloudStoragePlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.ESBlobStoreRepositoryIntegTestCase;
+import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.junit.BeforeClass;
 
 import java.util.Collection;

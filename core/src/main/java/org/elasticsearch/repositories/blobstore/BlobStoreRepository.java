@@ -101,6 +101,7 @@ import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -406,7 +407,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
         try {
             // Delete snapshot from the index file, since it is the maintainer of truth of active snapshots
-            writeIndexGen(repositoryData.removeSnapshot(snapshotId));
+            final RepositoryData updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
+            writeIndexGen(updatedRepositoryData);
 
             // delete the snapshot file
             safeSnapshotBlobDelete(snapshot, snapshotId.getUUID());
@@ -434,6 +436,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             }
                         }
                     }
+                }
+            }
+
+            // cleanup indices that are no longer part of the repository
+            final Collection<IndexId> indicesToCleanUp = Sets.newHashSet(repositoryData.getIndices().values());
+            indicesToCleanUp.removeAll(updatedRepositoryData.getIndices().values());
+            final BlobContainer indicesBlobContainer = blobStore().blobContainer(basePath().add("indices"));
+            for (final IndexId indexId : indicesToCleanUp) {
+                try {
+                    indicesBlobContainer.deleteBlob(indexId.getId());
+                } catch (DirectoryNotEmptyException dnee) {
+                    // if the directory isn't empty for some reason, it will fail to clean up;
+                    // we'll ignore that and accept that cleanup didn't fully succeed.
+                    // since we are using UUIDs for path names, this won't be an issue for
+                    // snapshotting indices of the same name
+                    logger.debug("[{}] index [{}] no longer part of any snapshots in the repository, but failed to clean up " +
+                                 "its index folder due to the directory not being empty.", dnee, metadata.name(), indexId);
+                } catch (IOException ioe) {
+                    // a different IOException occurred while trying to delete - will just log the issue for now
+                    logger.debug("[{}] index [{}] no longer part of any snapshots in the repository, but failed to clean up " +
+                                 "its index folder.", ioe, metadata.name(), indexId);
                 }
             }
         } catch (IOException ex) {

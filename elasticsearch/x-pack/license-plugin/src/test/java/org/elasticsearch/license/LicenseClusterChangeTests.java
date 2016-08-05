@@ -66,7 +66,7 @@ public class LicenseClusterChangeTests extends AbstractLicenseServiceTestCase {
     public void testTrialLicenseGeneration() throws Exception {
         DiscoveryNode master = new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
         ClusterState oldState = ClusterState.builder(new ClusterName("a"))
-                .nodes(DiscoveryNodes.builder().masterNodeId(master.getId()).put(master)).build();
+                .nodes(DiscoveryNodes.builder().masterNodeId(master.getId()).add(master)).build();
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(true);
         ClusterState newState = ClusterState.builder(oldState).nodes(discoveryNodes).build();
 

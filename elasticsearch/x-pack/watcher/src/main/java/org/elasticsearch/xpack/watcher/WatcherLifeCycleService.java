@@ -207,7 +207,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         try {
             latch.await();
         } catch (InterruptedException e) {
-            Thread.interrupted();
+            Thread.currentThread().interrupt();
         }
     }
 

@@ -31,8 +31,10 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(2));
         LicensesMetaData licensesMetaData = new LicensesMetaData(license);
         XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
         builder.startObject("licenses");
         licensesMetaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
         builder.endObject();
         LicensesMetaData licensesMetaDataFromXContent = getLicensesMetaDataFromXContent(builder.bytes());
         assertThat(licensesMetaDataFromXContent.getLicense(), equalTo(license));
@@ -77,8 +79,10 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         final License trialLicense = TrialLicense.create(specBuilder);
         LicensesMetaData licensesMetaData = new LicensesMetaData(trialLicense);
         XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
         builder.startObject("licenses");
         licensesMetaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
         builder.endObject();
         LicensesMetaData licensesMetaDataFromXContent = getLicensesMetaDataFromXContent(builder.bytes());
         assertThat(licensesMetaDataFromXContent.getLicense(), equalTo(trialLicense));
@@ -86,8 +90,10 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
 
     public void testLicenseTombstoneFromXContext() throws Exception {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
         builder.startObject("licenses");
         builder.nullField("license");
+        builder.endObject();
         builder.endObject();
         LicensesMetaData metaDataFromXContent = getLicensesMetaDataFromXContent(builder.bytes());
         assertThat(metaDataFromXContent.getLicense(), equalTo(LicensesMetaData.LICENSE_TOMBSTONE));

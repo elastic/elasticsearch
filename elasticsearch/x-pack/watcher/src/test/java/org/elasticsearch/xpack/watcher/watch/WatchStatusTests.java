@@ -26,14 +26,14 @@ public class WatchStatusTests extends ESTestCase {
         // no actions, unmet condition
         status = new WatchStatus(now(), new HashMap<>());
         status.onCheck(false, now());
-        assertThat(status.dirty(), is(false));
+        assertThat(status.dirty(), is(true));
 
         // actions, no action with reset ack status, unmet condition
         Map<String, ActionStatus > actions = new HashMap<>();
         actions.put(randomAsciiOfLength(10), new ActionStatus(now()));
         status = new WatchStatus(now(), actions);
         status.onCheck(false, now());
-        assertThat(status.dirty(), is(false));
+        assertThat(status.dirty(), is(true));
 
         // actions, one action with state other than AWAITS_SUCCESSFUL_EXECUTION, unmet condition
         actions.clear();
@@ -43,6 +43,8 @@ public class WatchStatusTests extends ESTestCase {
         status = new WatchStatus(now(), actions);
         status.onCheck(false, now());
         assertThat(status.dirty(), is(true));
-    }
 
+        status.resetDirty();
+        assertThat(status.dirty(), is(false));
+    }
 }

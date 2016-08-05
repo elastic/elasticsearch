@@ -180,7 +180,9 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         attachments.add(httpRequestAttachment);
         EmailAttachments emailAttachments = new EmailAttachments(attachments);
         XContentBuilder tmpBuilder = jsonBuilder();
+        tmpBuilder.startObject();
         emailAttachments.toXContent(tmpBuilder, ToXContent.EMPTY_PARAMS);
+        tmpBuilder.endObject();
         logger.info("TMP BUILDER {}", tmpBuilder.string());
 
         EmailTemplate.Builder emailBuilder = EmailTemplate.builder().from("_from").to("_to").subject("Subject");

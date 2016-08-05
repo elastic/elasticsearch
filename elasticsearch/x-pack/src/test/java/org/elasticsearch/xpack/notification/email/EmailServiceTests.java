@@ -22,29 +22,20 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
-public class InternalEmailServiceTests extends ESTestCase {
-    private InternalEmailService service;
+public class EmailServiceTests extends ESTestCase {
+    private EmailService service;
     private Accounts accounts;
 
     @Before
     public void init() throws Exception {
         accounts = mock(Accounts.class);
-        service = new InternalEmailService(Settings.EMPTY, null,
-                new ClusterSettings(Settings.EMPTY, Collections.singleton(InternalEmailService.EMAIL_ACCOUNT_SETTING))) {
+        service = new EmailService(Settings.EMPTY, null,
+                new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING))) {
             @Override
             protected Accounts createAccounts(Settings settings, ESLogger logger) {
                 return accounts;
             }
         };
-        service.start();
-    }
-
-    @After
-    public void cleanup() throws Exception {
-        service.stop();
     }
 
     public void testSend() throws Exception {

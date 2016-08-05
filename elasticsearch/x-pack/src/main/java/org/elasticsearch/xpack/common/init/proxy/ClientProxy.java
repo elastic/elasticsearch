@@ -11,10 +11,8 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.security.InternalClient;
 
 /**
  * A lazily initialized proxy to an elasticsearch {@link Client}. Inject this proxy whenever a client

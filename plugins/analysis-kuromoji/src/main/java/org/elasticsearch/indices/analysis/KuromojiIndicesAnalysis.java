@@ -21,6 +21,7 @@ package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.ja.*;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer.Mode;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -127,5 +128,19 @@ public class KuromojiIndicesAnalysis extends AbstractComponent {
                         return new JapaneseKatakanaStemFilter(tokenStream);
                     }
                 }));
+
+        indicesAnalysisService.tokenFilterFactories().put("ja_stop",
+            new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+                @Override
+                public String name() {
+                    return "ja_stop";
+                }
+
+                @Override
+                public TokenStream create(TokenStream tokenStream) {
+                    return new StopFilter(tokenStream, JapaneseAnalyzer.getDefaultStopSet());
+                }
+            }));
     }
+
 }

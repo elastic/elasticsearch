@@ -46,7 +46,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
@@ -75,7 +74,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     private Long indexedDocumentVersion;
     private BytesReference documentSource;
 
-    boolean indexedDocumentExists = true;
+    private boolean indexedDocumentExists = true;
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

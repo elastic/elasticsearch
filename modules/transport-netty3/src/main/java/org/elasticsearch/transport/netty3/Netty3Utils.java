@@ -106,11 +106,6 @@ public class Netty3Utils {
 
         ThreadRenamingRunnable.setThreadNameDeterminer(ES_THREAD_NAME_DETERMINER);
 
-        trySetSunNioChBugLevel();
-    }
-
-    @SuppressForbidden(reason = "to use System#setProperty to set sun.nio.ch.bugLevel")
-    private static void trySetSunNioChBugLevel() {
         // Netty 3 SelectorUtil wants to set this; however, it does not execute the property write
         // in a privileged block so we just do what Netty wants to do here
         final String key = "sun.nio.ch.bugLevel";
@@ -119,6 +114,7 @@ public class Netty3Utils {
             try {
                 AccessController.doPrivileged(new PrivilegedAction<Void>() {
                     @Override
+                    @SuppressForbidden(reason = "to use System#setProperty to set sun.nio.ch.bugLevel")
                     public Void run() {
                         System.setProperty(key, "");
                         return null;

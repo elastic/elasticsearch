@@ -121,8 +121,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                        .put(node_0)
-                        .put(node_1)
+                        .add(node_0)
+                        .add(node_1)
         ).build();
 
         // actual test -- after all that bloat :)
@@ -186,8 +186,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         logger.info("--> adding two nodes");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                        .put(node_0)
-                        .put(node_1)
+                        .add(node_0)
+                        .add(node_1)
         ).build();
 
         // actual test -- after all that bloat :)
@@ -265,7 +265,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         assertEquals(10L, DiskThresholdDecider.getExpectedShardSize(test_0, allocation, 0));
 
         RoutingNode node = new RoutingNode("node1", new DiscoveryNode("node1", new LocalTransportAddress("test"),
-                emptyMap(), emptySet(), Version.CURRENT), test_0, test_1.buildTargetRelocatingShard(), test_2);
+                emptyMap(), emptySet(), Version.CURRENT), test_0, test_1.getTargetRelocatingShard(), test_2);
         assertEquals(100L, DiskThresholdDecider.sizeOfRelocatingShards(node, allocation, false, "/dev/null"));
         assertEquals(90L, DiskThresholdDecider.sizeOfRelocatingShards(node, allocation, true, "/dev/null"));
         assertEquals(0L, DiskThresholdDecider.sizeOfRelocatingShards(node, allocation, true, "/dev/some/other/dev"));
@@ -283,7 +283,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         other_0 = ShardRoutingHelper.relocate(other_0, "node1");
 
         node = new RoutingNode("node1", new DiscoveryNode("node1", new LocalTransportAddress("test"),
-                emptyMap(), emptySet(), Version.CURRENT), test_0, test_1.buildTargetRelocatingShard(), test_2, other_0.buildTargetRelocatingShard());
+                emptyMap(), emptySet(), Version.CURRENT), test_0, test_1.getTargetRelocatingShard(), test_2, other_0.getTargetRelocatingShard());
         if (other_0.primary()) {
             assertEquals(10100L, DiskThresholdDecider.sizeOfRelocatingShards(node, allocation, false, "/dev/null"));
             assertEquals(10090L, DiskThresholdDecider.sizeOfRelocatingShards(node, allocation, true, "/dev/null"));
@@ -317,7 +317,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             .metaData(metaData).routingTable(routingTableBuilder.build()).build();
 
         AllocationService allocationService = createAllocationService();
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")))
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
         RoutingAllocation.Result result = allocationService.reroute(clusterState, "foo");
         clusterState = ClusterState.builder(clusterState).routingTable(result.routingTable()).build();

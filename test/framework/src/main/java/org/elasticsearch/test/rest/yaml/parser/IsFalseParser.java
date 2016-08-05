@@ -29,6 +29,6 @@ public class IsFalseParser implements ClientYamlTestFragmentParser<IsFalseAssert
 
     @Override
     public IsFalseAssertion parse(ClientYamlTestSuiteParseContext parseContext) throws IOException, ClientYamlTestParseException {
-        return new IsFalseAssertion(parseContext.parseField());
+        return new IsFalseAssertion(parseContext.parser().getTokenLocation(), parseContext.parseField());
     }
 }

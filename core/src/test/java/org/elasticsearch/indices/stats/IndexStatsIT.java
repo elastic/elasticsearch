@@ -35,7 +35,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -1037,8 +1036,8 @@ public class IndexStatsIT extends ESIntegTestCase {
             assertThat(stats.getTotal().queryCache.getCacheSize(), greaterThan(0L));
         });
 
-        assertEquals(DocWriteResponse.Operation.DELETE, client().prepareDelete("index", "type", "1").get().getOperation());
-        assertEquals(DocWriteResponse.Operation.DELETE, client().prepareDelete("index", "type", "2").get().getOperation());
+        assertEquals(DocWriteResponse.Result.DELETED, client().prepareDelete("index", "type", "1").get().getResult());
+        assertEquals(DocWriteResponse.Result.DELETED, client().prepareDelete("index", "type", "2").get().getResult());
         refresh();
         response = client().admin().indices().prepareStats("index").setQueryCache(true).get();
         assertCumulativeQueryCacheStats(response);

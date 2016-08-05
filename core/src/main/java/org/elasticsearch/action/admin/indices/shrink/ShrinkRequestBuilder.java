@@ -64,4 +64,13 @@ public class ShrinkRequestBuilder extends AcknowledgedRequestBuilder<ShrinkReque
         this.request.setWaitForActiveShards(waitForActiveShards);
         return this;
     }
+
+    /**
+     * A shortcut for {@link #setWaitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    public ShrinkRequestBuilder setWaitForActiveShards(final int waitForActiveShards) {
+        return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
+    }
 }

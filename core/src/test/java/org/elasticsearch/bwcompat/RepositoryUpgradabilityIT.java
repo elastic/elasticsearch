@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * as blob names and repository blob formats have changed between the snapshot versions.
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-// this test sometimes fails in recovery when the recovery is reset, increasing the logging level to help debug 
+// this test sometimes fails in recovery when the recovery is reset, increasing the logging level to help debug
 @TestLogging("indices.recovery:DEBUG")
 public class RepositoryUpgradabilityIT extends AbstractSnapshotIntegTestCase {
 
@@ -70,7 +70,7 @@ public class RepositoryUpgradabilityIT extends AbstractSnapshotIntegTestCase {
             final Set<SnapshotInfo> snapshotInfos = Sets.newHashSet(getSnapshots(repoName));
             assertThat(snapshotInfos.size(), equalTo(1));
             SnapshotInfo originalSnapshot = snapshotInfos.iterator().next();
-            assertThat(originalSnapshot.snapshotId(), equalTo(new SnapshotId("test_1", SnapshotId.UNASSIGNED_UUID)));
+            assertThat(originalSnapshot.snapshotId(), equalTo(new SnapshotId("test_1", "test_1")));
             assertThat(Sets.newHashSet(originalSnapshot.indices()), equalTo(indices));
 
             logger.info("--> restore the original snapshot");

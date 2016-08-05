@@ -21,6 +21,7 @@ package org.elasticsearch.http.netty4;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -179,7 +180,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
         }
 
         @Override
-        protected void initChannel(SocketChannel ch) throws Exception {
+        protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
             ch.pipeline().replace("handler", "handler", new PossiblySlowUpstreamHandler(executorService));
         }

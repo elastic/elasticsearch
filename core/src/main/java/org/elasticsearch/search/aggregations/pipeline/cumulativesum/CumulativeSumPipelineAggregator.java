@@ -25,7 +25,9 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramFactory;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -68,23 +70,22 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        InternalHistogram histo = (InternalHistogram) aggregation;
-        List<? extends InternalHistogram.Bucket> buckets = histo.getBuckets();
-        InternalHistogram.Factory<? extends InternalHistogram.Bucket> factory = histo.getFactory();
+        MultiBucketsAggregation histo = (MultiBucketsAggregation) aggregation;
+        List<? extends Bucket> buckets = histo.getBuckets();
+        HistogramFactory factory = (HistogramFactory) histo;
 
-        List newBuckets = new ArrayList<>();
+        List<Bucket> newBuckets = new ArrayList<>();
         double sum = 0;
-        for (InternalHistogram.Bucket bucket : buckets) {
+        for (Bucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], GapPolicy.INSERT_ZEROS);
             sum += thisBucketValue;
             List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -> {
                 return (InternalAggregation) p;
             }).collect(Collectors.toList());
             aggs.add(new InternalSimpleValue(name(), sum, formatter, new ArrayList<PipelineAggregator>(), metaData()));
-            InternalHistogram.Bucket newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(),
-                    new InternalAggregations(aggs), bucket.getKeyed(), bucket.getFormatter());
+            Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
             newBuckets.add(newBucket);
         }
-        return factory.create(newBuckets, histo);
+        return factory.createAggregation(newBuckets);
     }
 }

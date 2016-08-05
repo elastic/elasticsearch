@@ -215,7 +215,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             return;
         }
         request.timeout(mainRequest.getTimeout());
-        request.consistencyLevel(mainRequest.getConsistency());
+        request.waitForActiveShards(mainRequest.getWaitForActiveShards());
         if (logger.isDebugEnabled()) {
             logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
                     new ByteSizeValue(request.estimatedSizeInBytes()));
@@ -261,7 +261,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 case "index":
                 case "create":
                     IndexResponse ir = item.getResponse();
-                    if (ir.getOperation() == DocWriteResponse.Operation.CREATE) {
+                    if (ir.getResult() == DocWriteResponse.Result.CREATED) {
                         task.countCreated();
                     } else {
                         task.countUpdated();

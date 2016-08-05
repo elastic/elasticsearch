@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.util.List;
 
@@ -39,25 +40,28 @@ public class FailedRerouteAllocation extends RoutingAllocation {
      * details on why it failed.
      */
     public static class FailedShard {
-        public final ShardRouting shard;
+        public final ShardRouting routingEntry;
         public final String message;
         public final Exception failure;
 
-        public FailedShard(ShardRouting shard, String message, Exception failure) {
-            this.shard = shard;
+        public FailedShard(ShardRouting routingEntry, String message, Exception failure) {
+            assert routingEntry.assignedToNode() : "only assigned shards can be failed " + routingEntry;
+            this.routingEntry = routingEntry;
             this.message = message;
             this.failure = failure;
         }
 
         @Override
         public String toString() {
-            return "failed shard, shard " + shard + ", message [" + message + "], failure [" + ExceptionsHelper.detailedMessage(failure) + "]";
+            return "failed shard, shard " + routingEntry + ", message [" + message + "], failure [" +
+                ExceptionsHelper.detailedMessage(failure) + "]";
         }
     }
 
     private final List<FailedShard> failedShards;
 
-    public FailedRerouteAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, ClusterState clusterState, List<FailedShard> failedShards, ClusterInfo clusterInfo, long currentNanoTime) {
+    public FailedRerouteAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, ClusterState clusterState,
+                                   List<FailedShard> failedShards, ClusterInfo clusterInfo, long currentNanoTime) {
         super(deciders, routingNodes, clusterState, clusterInfo, currentNanoTime, false);
         this.failedShards = failedShards;
     }

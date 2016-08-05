@@ -106,14 +106,14 @@ public class SimpleTTLIT extends ESIntegTestCase {
         long now = System.currentTimeMillis();
         IndexResponse indexResponse = client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
                 .setTimestamp(String.valueOf(now)).setTTL(providedTTLValue).setRefreshPolicy(IMMEDIATE).get();
-        assertEquals(DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
         indexResponse = client().prepareIndex("test", "type1", "with_routing").setSource("field1", "value1")
                 .setTimestamp(String.valueOf(now)).setTTL(providedTTLValue).setRouting("routing").setRefreshPolicy(IMMEDIATE).get();
-        assertEquals(DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
         indexResponse = client().prepareIndex("test", "type1", "no_ttl").setSource("field1", "value1").get();
-        assertEquals(DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
         indexResponse = client().prepareIndex("test", "type2", "default_ttl").setSource("field1", "value1").get();
-        assertEquals(DocWriteResponse.Operation.CREATE, indexResponse.getOperation());
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         // realtime get check
         long currentTime = System.currentTimeMillis();
@@ -259,7 +259,7 @@ public class SimpleTTLIT extends ESIntegTestCase {
         long thirdTtl = aLongTime * 1;
         IndexResponse indexResponse = client().prepareIndex("test", "type1", "1").setSource("field1", "value1")
                 .setTTL(firstTtl).setRefreshPolicy(IMMEDIATE).get();
-        assertTrue(indexResponse.getOperation() == DocWriteResponse.Operation.CREATE);
+        assertTrue(indexResponse.getResult() == DocWriteResponse.Result.CREATED);
         assertThat(getTtl("type1", 1), both(lessThanOrEqualTo(firstTtl)).and(greaterThan(secondTtl)));
 
         // Updating with the default detect_noop without a change to the document doesn't change the ttl.

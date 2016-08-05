@@ -21,8 +21,9 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -98,10 +99,11 @@ public abstract class AbstractBulkByScrollRequestBuilder<
     }
 
     /**
-     * Consistency level for write requests.
+     * The number of shard copies that must be active before proceeding with the write.
+     * See {@link ReplicationRequest#waitForActiveShards(ActiveShardCount)} for details.
      */
-    public Self consistency(WriteConsistencyLevel consistency) {
-        request.setConsistency(consistency);
+    public Self waitForActiveShards(ActiveShardCount activeShardCount) {
+        request.setWaitForActiveShards(activeShardCount);
         return self();
     }
 

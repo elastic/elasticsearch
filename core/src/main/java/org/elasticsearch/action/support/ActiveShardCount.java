@@ -30,6 +30,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS;
+
 /**
  * A class whose instances represent a value for counting the number
  * of active shard copies for a given shard in an index.
@@ -63,8 +65,16 @@ public final class ActiveShardCount implements Writeable {
         return get(value);
     }
 
+    /**
+     * Validates that the instance is valid for the given number of replicas in an index.
+     */
+    public boolean validate(final int numberOfReplicas) {
+        assert numberOfReplicas >= 0;
+        return value <= numberOfReplicas + 1;
+    }
+
     private static ActiveShardCount get(final int value) {
-        switch (validateValue(value)) {
+        switch (value) {
             case ACTIVE_SHARD_COUNT_DEFAULT:
                 return DEFAULT;
             case ALL_ACTIVE_SHARDS:
@@ -74,6 +84,7 @@ public final class ActiveShardCount implements Writeable {
             case 0:
                 return NONE;
             default:
+                assert value > 1;
                 return new ActiveShardCount(value);
         }
     }
@@ -85,29 +96,6 @@ public final class ActiveShardCount implements Writeable {
 
     public static ActiveShardCount readFrom(final StreamInput in) throws IOException {
         return get(in.readInt());
-    }
-
-    private static int validateValue(final int value) {
-        if (value < 0 && value != ACTIVE_SHARD_COUNT_DEFAULT && value != ALL_ACTIVE_SHARDS) {
-            throw new IllegalArgumentException("Invalid ActiveShardCount[" + value + "]");
-        }
-        return value;
-    }
-
-    /**
-     * Resolve this instance to an actual integer value for the number of active shard counts.
-     * If {@link ActiveShardCount#ALL} is specified, then the given {@link IndexMetaData} is
-     * used to determine what the actual active shard count should be.  The default value indicates
-     * one active shard.
-     */
-    public int resolve(final IndexMetaData indexMetaData) {
-        if (this == ActiveShardCount.DEFAULT) {
-            return 1;
-        } else if (this == ActiveShardCount.ALL) {
-            return indexMetaData.getNumberOfReplicas() + 1;
-        } else {
-            return value;
-        }
     }
 
     /**
@@ -154,8 +142,12 @@ public final class ActiveShardCount implements Writeable {
             // all primary shards aren't active yet
             return false;
         }
+        ActiveShardCount waitForActiveShards = this;
+        if (waitForActiveShards == ActiveShardCount.DEFAULT) {
+            waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(indexMetaData.getSettings());
+        }
         for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards()) {
-            if (enoughShardsActive(shardRouting.value, indexMetaData) == false) {
+            if (waitForActiveShards.enoughShardsActive(shardRouting.value) == false) {
                 // not enough active shard copies yet
                 return false;
             }
@@ -167,12 +159,17 @@ public final class ActiveShardCount implements Writeable {
      * Returns true iff the active shard count in the shard routing table is enough
      * to meet the required shard count represented by this instance.
      */
-    public boolean enoughShardsActive(final IndexShardRoutingTable shardRoutingTable, final IndexMetaData indexMetaData) {
-        if (shardRoutingTable.activeShards().size() < resolve(indexMetaData)) {
-            // not enough active shard copies yet
-            return false;
+    public boolean enoughShardsActive(final IndexShardRoutingTable shardRoutingTable) {
+        final int activeShardCount = shardRoutingTable.activeShards().size();
+        if (this == ActiveShardCount.ALL) {
+            // adding 1 for the primary in addition to the total number of replicas,
+            // which gives us the total number of shard copies
+            return activeShardCount == shardRoutingTable.replicaShards().size() + 1;
+        } else if (this == ActiveShardCount.DEFAULT) {
+            return activeShardCount >= 1;
+        } else {
+            return activeShardCount >= value;
         }
-        return true;
     }
 
     @Override
@@ -194,18 +191,14 @@ public final class ActiveShardCount implements Writeable {
 
     @Override
     public String toString() {
-        final String valStr;
         switch (value) {
             case ALL_ACTIVE_SHARDS:
-                valStr = "ALL";
-                break;
+                return "ALL";
             case ACTIVE_SHARD_COUNT_DEFAULT:
-                valStr = "DEFAULT";
-                break;
+                return "DEFAULT";
             default:
-                valStr = Integer.toString(value);
+                return Integer.toString(value);
         }
-        return "ActiveShardCount[" + valStr + "]";
     }
 
 }

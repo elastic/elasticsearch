@@ -50,9 +50,9 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         ClusterName clusterName = new ClusterName("abc");
 
         DiscoveryNodes.Builder currentNodes = DiscoveryNodes.builder();
-        currentNodes.masterNodeId("a").put(new DiscoveryNode("a", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
+        currentNodes.masterNodeId("a").add(new DiscoveryNode("a", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
         DiscoveryNodes.Builder newNodes = DiscoveryNodes.builder();
-        newNodes.masterNodeId("a").put(new DiscoveryNode("a", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
+        newNodes.masterNodeId("a").add(new DiscoveryNode("a", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
 
         ClusterState.Builder currentState = ClusterState.builder(clusterName);
         currentState.nodes(currentNodes);
@@ -70,7 +70,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         assertFalse("should not ignore, because new state's version is higher to current state's version", shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
 
         currentNodes = DiscoveryNodes.builder();
-        currentNodes.masterNodeId("b").put(new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
+        currentNodes.masterNodeId("b").add(new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
         ;
         // version isn't taken into account, so randomize it to ensure this.
         if (randomBoolean()) {

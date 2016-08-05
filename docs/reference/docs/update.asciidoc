@@ -133,7 +133,7 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 --------------------------------------------------
 
 If `name` was `new_name` before the request was sent then the entire update
-request is ignored. The `operation` element in the response returns `noop` if
+request is ignored. The `result` element in the response returns `noop` if
 the request was ignored.
 
 [source,js]
@@ -143,7 +143,7 @@ the request was ignored.
    "_type": "type1",
    "_id": "1",
    "_version": 1,
-   "_operation": noop
+   "result": noop
 }
 --------------------------------------------------
 
@@ -245,9 +245,10 @@ If an alias index routing is specified then it overrides the parent routing and 
 
 Timeout waiting for a shard to become available.
 
-`consistency`::
+`wait_for_active_shards`::
 
-The write consistency of the index/delete operation.
+The number of shard copies required to be active before proceeding with the update operation. 
+See <<index-wait-for-active-shards,here>> for details.
 
 `refresh`::
 

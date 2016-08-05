@@ -134,7 +134,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
     }
 
     protected MockTransportService build(Settings settings, Version version) {
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         MockTransportService transportService =
                 new MockTransportService(
                         Settings.builder()
@@ -155,8 +155,8 @@ public class ZenFaultDetectionTests extends ESTestCase {
 
     private DiscoveryNodes buildNodesForA(boolean master) {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        builder.put(nodeA);
-        builder.put(nodeB);
+        builder.add(nodeA);
+        builder.add(nodeB);
         builder.localNodeId(nodeA.getId());
         builder.masterNodeId(master ? nodeA.getId() : nodeB.getId());
         return builder.build();
@@ -164,8 +164,8 @@ public class ZenFaultDetectionTests extends ESTestCase {
 
     private DiscoveryNodes buildNodesForB(boolean master) {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        builder.put(nodeA);
-        builder.put(nodeB);
+        builder.add(nodeA);
+        builder.add(nodeB);
         builder.localNodeId(nodeB.getId());
         builder.masterNodeId(master ? nodeB.getId() : nodeA.getId());
         return builder.build();

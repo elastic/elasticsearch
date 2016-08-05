@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -145,6 +146,26 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             .orElse(null);
     }
 
+    @Nullable
+    public ShardRouting getByAllocationId(ShardId shardId, String allocationId) {
+        IndexShardRoutingTable shardRoutingTable = shardRoutingTableOrNull(shardId);
+        if (shardRoutingTable == null) {
+            return null;
+        }
+        for (ShardRouting shardRouting : shardRoutingTable.assignedShards()) {
+            if (shardRouting.allocationId().getId().equals(allocationId)) {
+                return shardRouting;
+            }
+            if (shardRouting.relocating()) {
+                if (shardRouting.getTargetRelocatingShard().allocationId().getId().equals(allocationId)) {
+                    return shardRouting.getTargetRelocatingShard();
+                }
+            }
+        }
+        return null;
+    }
+
+
     public boolean validate(MetaData metaData) {
         for (IndexRoutingTable indexRoutingTable : this) {
             if (indexRoutingTable.validate(metaData) == false) {
@@ -245,7 +266,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                     if (predicate.test(shardRouting)) {
                         set.add(shardRouting.shardsIt());
                         if (includeRelocationTargets && shardRouting.relocating()) {
-                            set.add(new PlainShardIterator(shardRouting.shardId(), Collections.singletonList(shardRouting.buildTargetRelocatingShard())));
+                            set.add(new PlainShardIterator(shardRouting.shardId(), Collections.singletonList(shardRouting.getTargetRelocatingShard())));
                         }
                     } else if (includeEmpty) { // we need this for counting properly, just make it an empty one
                         set.add(new PlainShardIterator(shardRouting.shardId(), Collections.<ShardRouting>emptyList()));
@@ -278,7 +299,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                     if (predicate.test(shardRouting)) {
                         shards.add(shardRouting);
                         if (includeRelocationTargets && shardRouting.relocating()) {
-                            shards.add(shardRouting.buildTargetRelocatingShard());
+                            shards.add(shardRouting.getTargetRelocatingShard());
                         }
                     }
                 }

@@ -199,10 +199,14 @@ public class ClusterChangedEvent {
         return nodesRemoved() || nodesAdded();
     }
 
-    // Determines whether or not the current cluster state represents an entirely
-    // different cluster from the previous cluster state, which will happen when a
-    // master node is elected that has never been part of the cluster before.
-    private boolean isNewCluster() {
+    /**
+     * Determines whether or not the current cluster state represents an entirely
+     * new cluster, either when a node joins a cluster for the first time or when
+     * the node receives a cluster state update from a brand new cluster (different
+     * UUID from the previous cluster), which will happen when a master node is
+     * elected that has never been part of the cluster before.
+     */
+    public boolean isNewCluster() {
         final String prevClusterUUID = previousState.metaData().clusterUUID();
         final String currClusterUUID = state.metaData().clusterUUID();
         return prevClusterUUID.equals(currClusterUUID) == false;

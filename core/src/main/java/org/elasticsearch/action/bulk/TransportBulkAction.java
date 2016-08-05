@@ -339,7 +339,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             final List<BulkItemRequest> requests = entry.getValue();
             BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, bulkRequest.getRefreshPolicy(),
                     requests.toArray(new BulkItemRequest[requests.size()]));
-            bulkShardRequest.consistencyLevel(bulkRequest.consistencyLevel());
+            bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
             bulkShardRequest.timeout(bulkRequest.timeout());
             if (task != null) {
                 bulkShardRequest.setParentTask(nodeId, task.getId());

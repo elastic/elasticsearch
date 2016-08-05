@@ -19,6 +19,7 @@
 package org.elasticsearch.test.rest.yaml.parser;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.test.rest.yaml.section.MatchAssertion;
 
 import java.io.IOException;
@@ -30,7 +31,8 @@ public class MatchParser implements ClientYamlTestFragmentParser<MatchAssertion>
 
     @Override
     public MatchAssertion parse(ClientYamlTestSuiteParseContext parseContext) throws IOException, ClientYamlTestParseException {
+        XContentLocation location = parseContext.parser().getTokenLocation();
         Tuple<String,Object> stringObjectTuple = parseContext.parseTuple();
-        return new MatchAssertion(stringObjectTuple.v1(), stringObjectTuple.v2());
+        return new MatchAssertion(location, stringObjectTuple.v1(), stringObjectTuple.v2());
     }
 }

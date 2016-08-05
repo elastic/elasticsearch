@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBuilder> {
     @Override
     protected ScriptQueryBuilder doCreateTestQueryBuilder() {
-        String script = "5";
+        String script = "1";
         Map<String, Object> params = Collections.emptyMap();
         return new ScriptQueryBuilder(new Script(script, ScriptType.INLINE, MockScriptEngine.NAME, params));
     }

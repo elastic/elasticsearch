@@ -23,7 +23,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -70,7 +69,7 @@ public class AllocationIdTests extends ESTestCase {
         assertThat(shard.allocationId().getId(), equalTo(allocationId.getId()));
         assertThat(shard.allocationId().getRelocationId(), notNullValue());
 
-        ShardRouting target = shard.buildTargetRelocatingShard();
+        ShardRouting target = shard.getTargetRelocatingShard();
         assertThat(target.allocationId().getId(), equalTo(shard.allocationId().getRelocationId()));
         assertThat(target.allocationId().getRelocationId(), equalTo(shard.allocationId().getId()));
 

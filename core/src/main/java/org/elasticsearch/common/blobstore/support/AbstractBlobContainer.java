@@ -20,14 +20,7 @@
 package org.elasticsearch.common.blobstore.support;
 
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.bytes.BytesReference;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Collection;
-import java.util.Map;
 
 /**
  * A base abstract blob container that implements higher level container methods.
@@ -45,10 +38,4 @@ public abstract class AbstractBlobContainer implements BlobContainer {
         return this.path;
     }
 
-    @Override
-    public void writeBlob(String blobName, BytesReference bytes) throws IOException {
-        try (InputStream stream = bytes.streamInput()) {
-            writeBlob(blobName, stream, bytes.length());
-        }
-    }
 }

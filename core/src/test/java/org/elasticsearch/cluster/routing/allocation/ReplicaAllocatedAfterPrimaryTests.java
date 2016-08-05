@@ -68,7 +68,7 @@ public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
         assertThat(routingTable.index("test").shard(0).shards().get(1).currentNodeId(), nullValue());
 
         logger.info("Adding one node and performing rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
 
         RoutingTable prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.rest.action.index;
 
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -98,9 +98,9 @@ public class RestIndexAction extends BaseRestHandler {
                 }
             }
         }
-        String consistencyLevel = request.param("consistency");
-        if (consistencyLevel != null) {
-            indexRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
+        String waitForActiveShards = request.param("wait_for_active_shards");
+        if (waitForActiveShards != null) {
+            indexRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
         client.index(indexRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing())));
     }

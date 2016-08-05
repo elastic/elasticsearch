@@ -22,14 +22,14 @@ package org.elasticsearch.search.aggregations.pipeline.derivative;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramFactory;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -77,28 +77,27 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        InternalHistogram histo = (InternalHistogram) aggregation;
-        List<? extends InternalHistogram.Bucket> buckets = histo.getBuckets();
-        InternalHistogram.Factory<? extends InternalHistogram.Bucket> factory = histo.getFactory();
+        MultiBucketsAggregation histo = (MultiBucketsAggregation) aggregation;
+        List<? extends Bucket> buckets = histo.getBuckets();
+        HistogramFactory factory = (HistogramFactory) histo;
 
-        List newBuckets = new ArrayList<>();
-        Long lastBucketKey = null;
+        List<Bucket> newBuckets = new ArrayList<>();
+        Number lastBucketKey = null;
         Double lastBucketValue = null;
-        for (InternalHistogram.Bucket bucket : buckets) {
-            Long thisBucketKey = resolveBucketKeyAsLong(bucket);
+        for (Bucket bucket : buckets) {
+            Number thisBucketKey = factory.getKey(bucket);
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
             if (lastBucketValue != null && thisBucketValue != null) {
                 double gradient = thisBucketValue - lastBucketValue;
                 double xDiff = -1;
                 if (xAxisUnits != null) {
-                    xDiff = (thisBucketKey - lastBucketKey) / xAxisUnits;
+                    xDiff = (thisBucketKey.doubleValue() - lastBucketKey.doubleValue()) / xAxisUnits;
                 }
                 final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -> {
                     return (InternalAggregation) p;
                 }).collect(Collectors.toList());
                 aggs.add(new InternalDerivative(name(), gradient, xDiff, formatter, new ArrayList<PipelineAggregator>(), metaData()));
-                InternalHistogram.Bucket newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(), new InternalAggregations(
-                        aggs), bucket.getKeyed(), bucket.getFormatter());
+                Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
                 newBuckets.add(newBucket);
             } else {
                 newBuckets.add(bucket);
@@ -106,18 +105,7 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
             lastBucketKey = thisBucketKey;
             lastBucketValue = thisBucketValue;
         }
-        return factory.create(newBuckets, histo);
+        return factory.createAggregation(newBuckets);
     }
 
-    private Long resolveBucketKeyAsLong(InternalHistogram.Bucket bucket) {
-        Object key = bucket.getKey();
-        if (key instanceof DateTime) {
-            return ((DateTime) key).getMillis();
-        } else if (key instanceof Number) {
-            return ((Number) key).longValue();
-        } else {
-            throw new AggregationExecutionException("InternalBucket keys must be either a Number or a DateTime for aggregation " + name()
-                    + ". Found bucket with key " + key);
-        }
-    }
 }

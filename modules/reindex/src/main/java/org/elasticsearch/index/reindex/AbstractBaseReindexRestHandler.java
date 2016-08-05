@@ -21,7 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.GenericAction;
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -108,9 +108,9 @@ public abstract class AbstractBaseReindexRestHandler<
         request.setRefresh(restRequest.paramAsBoolean("refresh", request.isRefresh()));
         request.setTimeout(restRequest.paramAsTime("timeout", request.getTimeout()));
 
-        String consistency = restRequest.param("consistency");
-        if (consistency != null) {
-            request.setConsistency(WriteConsistencyLevel.fromString(consistency));
+        String waitForActiveShards = restRequest.param("wait_for_active_shards");
+        if (waitForActiveShards != null) {
+            request.setWaitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
 
         Float requestsPerSecond = parseRequestsPerSecond(restRequest);

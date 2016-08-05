@@ -23,6 +23,7 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
@@ -100,7 +101,9 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -121,8 +124,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
@@ -152,6 +157,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Simple unit-test IndexShard related operations.
@@ -470,6 +476,76 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     public static void write(ShardStateMetaData shardStateMetaData,
                              Path... shardPaths) throws IOException {
         ShardStateMetaData.FORMAT.write(shardStateMetaData, shardPaths);
+    }
+
+    public void testAcquireIndexCommit() throws IOException {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService(resolveIndex("test"));
+        final IndexShard shard = test.getShardOrNull(0);
+        int numDocs = randomInt(20);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test", "type", "id_" + i).setSource("{}").get();
+        }
+        final boolean flushFirst = randomBoolean();
+        IndexCommit commit = shard.acquireIndexCommit(flushFirst);
+        int moreDocs = randomInt(20);
+        for (int i = 0; i < moreDocs; i++) {
+            client().prepareIndex("test", "type", "id_" + numDocs + i).setSource("{}").get();
+        }
+        shard.flush(new FlushRequest("index"));
+        // check that we can still read the commit that we captured
+        try (IndexReader reader = DirectoryReader.open(commit)) {
+            assertThat(reader.numDocs(), equalTo(flushFirst ? numDocs : 0));
+        }
+        shard.releaseIndexCommit(commit);
+        shard.flush(new FlushRequest("index").force(true));
+        // check it's clean up
+        assertThat(DirectoryReader.listCommits(shard.store().directory()), hasSize(1));
+    }
+
+    /***
+     * test one can snapshot the store at various lifecycle stages
+     */
+    public void testSnapshotStore() throws IOException {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService test = indicesService.indexService(resolveIndex("test"));
+        final IndexShard shard = test.getShardOrNull(0);
+        client().prepareIndex("test", "test", "0").setSource("{}").setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
+        client().admin().indices().prepareFlush().get();
+        ShardRouting routing = shard.routingEntry();
+        test.removeShard(0, "b/c simon says so");
+        routing = ShardRoutingHelper.reinit(routing);
+        IndexShard newShard = test.createShard(routing);
+        newShard.updateRoutingEntry(routing);
+        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+
+        Store.MetadataSnapshot snapshot = newShard.snapshotStoreMetadata();
+        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
+
+        newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode,
+            localNode));
+
+        snapshot = newShard.snapshotStoreMetadata();
+        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
+
+        assertTrue(newShard.recoverFromStore());
+
+        snapshot = newShard.snapshotStoreMetadata();
+        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
+
+        newShard.updateRoutingEntry(getInitializingShardRouting(routing).moveToStarted());
+
+        snapshot = newShard.snapshotStoreMetadata();
+        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
+
+        newShard.close("test", false);
+
+        snapshot = newShard.snapshotStoreMetadata();
+        assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
     }
 
     public void testDurableFlagHasEffect() {
@@ -1184,9 +1260,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         test_target_shard.updateRoutingEntry(routing);
         DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
         test_target_shard.markAsRecovering("store", new RecoveryState(routing.shardId(), routing.primary(), RecoveryState.Type.SNAPSHOT, routing.restoreSource(), localNode));
-        assertTrue(test_target_shard.restoreFromRepository(new RestoreOnlyRepository() {
+        assertTrue(test_target_shard.restoreFromRepository(new RestoreOnlyRepository("test") {
             @Override
-            public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, ShardId snapshotShardId, RecoveryState recoveryState) {
+            public void restoreShard(IndexShard shard, SnapshotId snapshotId, Version version, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState) {
                 try {
                     cleanLuceneIndex(targetStore.directory());
                     for (String file : sourceStore.directory().listAll()) {
@@ -1645,8 +1721,10 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
     /** A dummy repository for testing which just needs restore overridden */
     private abstract static class RestoreOnlyRepository extends AbstractLifecycleComponent implements Repository {
-        public RestoreOnlyRepository() {
+        private final String indexName;
+        public RestoreOnlyRepository(String indexName) {
             super(Settings.EMPTY);
+            this.indexName = indexName;
         }
         @Override
         protected void doStart() {}
@@ -1663,17 +1741,19 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             return null;
         }
         @Override
-        public MetaData getSnapshotMetaData(SnapshotInfo snapshot, List<String> indices) throws IOException {
+        public MetaData getSnapshotMetaData(SnapshotInfo snapshot, List<IndexId> indices) throws IOException {
             return null;
         }
         @Override
-        public List<SnapshotId> getSnapshots() {
-            return null;
+        public RepositoryData getRepositoryData() {
+            Map<IndexId, Set<SnapshotId>> map = new HashMap<>();
+            map.put(new IndexId(indexName, "blah"), Collections.emptySet());
+            return new RepositoryData(Collections.emptyList(), map);
         }
         @Override
-        public void initializeSnapshot(SnapshotId snapshotId, List<String> indices, MetaData metaData) {}
+        public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, MetaData metaData) {}
         @Override
-        public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<String> indices, long startTime, String failure, int totalShards, List<SnapshotShardFailure> shardFailures) {
+        public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards, List<SnapshotShardFailure> shardFailures) {
             return null;
         }
         @Override
@@ -1697,9 +1777,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             return false;
         }
         @Override
-        public void snapshotShard(IndexShard shard, SnapshotId snapshotId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {}
+        public void snapshotShard(IndexShard shard, SnapshotId snapshotId, IndexId indexId, IndexCommit snapshotIndexCommit, IndexShardSnapshotStatus snapshotStatus) {}
         @Override
-        public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, ShardId shardId) {
+        public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, Version version, IndexId indexId, ShardId shardId) {
             return null;
         }
         @Override

@@ -6,7 +6,7 @@ set of documents. In order to do so, MLT selects a set of representative terms
 of these input documents, forms a query using these terms, executes the query
 and returns the results. The user controls the input documents, how the terms
 should be selected and how the query is formed. `more_like_this` can be
-shortened to `mlt` deprecated[5.0.0,use `more_like_this` instead).
+shortened to `mlt` deprecated[5.0.0,use `more_like_this` instead].
 
 The simplest use case consists of asking for documents that are similar to a
 provided piece of text. Here, we are asking for all movies that have some text
@@ -175,7 +175,7 @@ follows a similar syntax to the `per_field_analyzer` parameter of the
 Additionally, to provide documents not necessarily present in the index,
 <<docs-termvectors-artificial-doc,artificial documents>> are also supported.
 
-`unlike`:: 
+`unlike`::
 The `unlike` parameter is used in conjunction with `like` in order not to
 select terms found in a chosen set of documents. In other words, we could ask
 for documents `like: "Apple"`, but `unlike: "cake crumble tree"`. The syntax

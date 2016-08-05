@@ -29,6 +29,6 @@ public class IsTrueParser implements ClientYamlTestFragmentParser<IsTrueAssertio
 
     @Override
     public IsTrueAssertion parse(ClientYamlTestSuiteParseContext parseContext) throws IOException, ClientYamlTestParseException {
-        return new IsTrueAssertion(parseContext.parseField());
+        return new IsTrueAssertion(parseContext.parser().getTokenLocation(), parseContext.parseField());
     }
 }

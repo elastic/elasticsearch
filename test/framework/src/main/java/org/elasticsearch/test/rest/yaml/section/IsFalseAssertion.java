@@ -20,6 +20,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.XContentLocation;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -36,8 +37,8 @@ public class IsFalseAssertion extends Assertion {
 
     private static final ESLogger logger = Loggers.getLogger(IsFalseAssertion.class);
 
-    public IsFalseAssertion(String field) {
-        super(field, false);
+    public IsFalseAssertion(XContentLocation location, String field) {
+        super(location, field, false);
     }
 
     @Override

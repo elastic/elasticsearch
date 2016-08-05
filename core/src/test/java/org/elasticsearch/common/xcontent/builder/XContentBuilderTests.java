@@ -356,6 +356,7 @@ public class XContentBuilderTests extends ESTestCase {
     public void testWriteFieldMapWithNullKeys() throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         try {
+            builder.startObject();
             builder.field("map", Collections.singletonMap(null, "test"));
             fail("write map should have failed");
         } catch(IllegalArgumentException e) {

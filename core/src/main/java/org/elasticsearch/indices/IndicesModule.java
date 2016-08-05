@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -67,6 +68,7 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.plugins.MapperPlugin;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -80,19 +82,22 @@ public class IndicesModule extends AbstractModule {
     private final Map<String, Mapper.TypeParser> mapperParsers;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final MapperRegistry mapperRegistry;
-    private final NamedWriteableRegistry namedWritableRegistry;
+    private final List<Entry> namedWritables = new ArrayList<>();
 
-    public IndicesModule(NamedWriteableRegistry namedWriteableRegistry, List<MapperPlugin> mapperPlugins) {
-        this.namedWritableRegistry = namedWriteableRegistry;
+    public IndicesModule(List<MapperPlugin> mapperPlugins) {
         this.mapperParsers = getMappers(mapperPlugins);
         this.metadataMapperParsers = getMetadataMappers(mapperPlugins);
         this.mapperRegistry = new MapperRegistry(mapperParsers, metadataMapperParsers);
-        registerBuildInWritables();
+        registerBuiltinWritables();
     }
 
-    private void registerBuildInWritables() {
-        namedWritableRegistry.register(Condition.class, MaxAgeCondition.NAME, MaxAgeCondition::new);
-        namedWritableRegistry.register(Condition.class, MaxDocsCondition.NAME, MaxDocsCondition::new);
+    private void registerBuiltinWritables() {
+        namedWritables.add(new Entry(Condition.class, MaxAgeCondition.NAME, MaxAgeCondition::new));
+        namedWritables.add(new Entry(Condition.class, MaxDocsCondition.NAME, MaxDocsCondition::new));
+    }
+
+    public List<Entry> getNamedWriteables() {
+        return namedWritables;
     }
 
     private Map<String, Mapper.TypeParser> getMappers(List<MapperPlugin> mapperPlugins) {

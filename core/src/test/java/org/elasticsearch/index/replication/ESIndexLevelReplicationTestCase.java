@@ -19,6 +19,7 @@
 package org.elasticsearch.index.replication;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -30,8 +31,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
-import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
@@ -82,8 +81,6 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportResponse;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -257,7 +254,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
                 final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", Integer.toString(docId.incrementAndGet()))
                     .source("{}");
                 final IndexResponse response = index(indexRequest);
-                assertEquals(DocWriteResponse.Operation.CREATE, response.getOperation());
+                assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
             }
             return numOfDoc;
         }
@@ -303,12 +300,26 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
             replica.prepareForIndexRecovery();
             RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
             StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), pNode, rNode,
-                replica.store().getMetadataOrEmpty(), RecoveryState.Type.REPLICA, 0);
+                getMetadataSnapshotOrEmpty(replica), RecoveryState.Type.REPLICA, 0);
             RecoverySourceHandler recovery = new RecoverySourceHandler(primary, recoveryTarget, request, () -> 0L, e -> () -> {},
                 (int) ByteSizeUnit.MB.toKB(1), logger);
             recovery.recoverToTarget();
             recoveryTarget.markAsDone();
             replica.updateRoutingEntry(ShardRoutingHelper.moveToStarted(replica.routingEntry()));
+        }
+
+        private Store.MetadataSnapshot getMetadataSnapshotOrEmpty(IndexShard replica) throws IOException {
+            Store.MetadataSnapshot result;
+            try {
+                result = replica.snapshotStoreMetadata();
+            } catch (IndexNotFoundException e) {
+                // OK!
+                result = Store.MetadataSnapshot.EMPTY;
+            } catch (IOException e) {
+                logger.warn("failed read store, treating as empty", e);
+                result = Store.MetadataSnapshot.EMPTY;
+            }
+            return result;
         }
 
         public synchronized DiscoveryNode getPrimaryNode() {
@@ -402,7 +413,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
         private final ReplicationGroup replicationGroup;
 
         public IndexingOp(IndexRequest request, ActionListener<IndexingResult> listener, ReplicationGroup replicationGroup) {
-            super(request, new PrimaryRef(replicationGroup), listener, true, false, new ReplicasRef(replicationGroup),
+            super(request, new PrimaryRef(replicationGroup), listener, true, new ReplicasRef(replicationGroup),
                 () -> null, logger, "indexing");
             this.replicationGroup = replicationGroup;
             request.process(null, true, request.index());
@@ -413,6 +424,10 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
             return replicationGroup.shardRoutings();
         }
 
+        @Override
+        protected String checkActiveShardCount() {
+            return null;
+        }
     }
 
     private static class PrimaryRef implements ReplicationOperation.Primary<IndexRequest, IndexRequest, IndexingResult> {
@@ -462,7 +477,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
         }
 
         @Override
-        public void failShard(ShardRouting replica, ShardRouting primary, String message, Exception exception, Runnable onSuccess,
+        public void failShard(ShardRouting replica, long primaryTerm, String message, Exception exception, Runnable onSuccess,
                               Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
             throw new UnsupportedOperationException();
         }

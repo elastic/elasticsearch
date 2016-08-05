@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -41,8 +42,8 @@ import java.util.TreeMap;
  */
 public class PersistedTaskInfoTests extends ESTestCase {
     public void testBinaryRoundTrip() throws IOException {
-        NamedWriteableRegistry registry = new NamedWriteableRegistry();
-        registry.register(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new);
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.singletonList(
+            new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new)));
         PersistedTaskInfo result = randomTaskResult();
         PersistedTaskInfo read;
         try (BytesStreamOutput out = new BytesStreamOutput()) {

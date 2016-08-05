@@ -66,10 +66,10 @@ public class FilterRoutingTests extends ESAllocationTestCase {
 
         logger.info("--> adding four nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .put(newNode("node1", singletonMap("tag1", "value1")))
-                .put(newNode("node2", singletonMap("tag1", "value2")))
-                .put(newNode("node3", singletonMap("tag1", "value3")))
-                .put(newNode("node4", singletonMap("tag1", "value4")))
+                .add(newNode("node1", singletonMap("tag1", "value1")))
+                .add(newNode("node2", singletonMap("tag1", "value2")))
+                .add(newNode("node3", singletonMap("tag1", "value3")))
+                .add(newNode("node4", singletonMap("tag1", "value4")))
         ).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -114,10 +114,10 @@ public class FilterRoutingTests extends ESAllocationTestCase {
 
         logger.info("--> adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .put(newNode("node1", singletonMap("tag1", "value1")))
-                .put(newNode("node2", singletonMap("tag1", "value2")))
-                .put(newNode("node3", singletonMap("tag1", "value3")))
-                .put(newNode("node4", singletonMap("tag1", "value4")))
+                .add(newNode("node1", singletonMap("tag1", "value1")))
+                .add(newNode("node2", singletonMap("tag1", "value2")))
+                .add(newNode("node3", singletonMap("tag1", "value3")))
+                .add(newNode("node4", singletonMap("tag1", "value4")))
         ).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -185,7 +185,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
         logger.info("--> adding two nodes and performing rerouting");
         DiscoveryNode node1 = newNode("node1", singletonMap("tag1", "value1"));
         DiscoveryNode node2 = newNode("node2", singletonMap("tag1", "value2"));
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(node1).put(node2)).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(node1).add(node2)).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.getRoutingNodes().node(node1.getId()).numberOfShardsWithState(INITIALIZING), equalTo(2));

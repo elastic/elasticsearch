@@ -491,7 +491,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
                                 logger.trace("[{}] indexing id [{}] through node [{}] targeting shard [{}]", name, id, node, shard);
                                 IndexResponse response =
                                         client.prepareIndex("test", "type", id).setSource("{}").setTimeout(timeout).get(timeout);
-                                assertEquals(DocWriteResponse.Operation.CREATE, response.getOperation());
+                                assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
                                 ackedDocs.put(id, node);
                                 logger.trace("[{}] indexed id [{}] through node [{}]", name, id, node);
                             } catch (ElasticsearchException e) {
@@ -951,7 +951,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         NetworkPartition networkPartition = addRandomIsolation(isolatedNode);
         networkPartition.startDisrupting();
 
-        service.shardFailed(failedShard, failedShard, "simulated", new CorruptIndexException("simulated", (String) null), new
+        service.localShardFailed(failedShard, "simulated", new CorruptIndexException("simulated", (String) null), new
                 ShardStateAction.Listener() {
             @Override
             public void onSuccess() {

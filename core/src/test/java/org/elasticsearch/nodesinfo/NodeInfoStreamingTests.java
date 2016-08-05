@@ -109,9 +109,14 @@ public class NodeInfoStreamingTests extends ESTestCase {
     private void compareJsonOutput(ToXContent param1, ToXContent param2) throws IOException {
         ToXContent.Params params = ToXContent.EMPTY_PARAMS;
         XContentBuilder param1Builder = jsonBuilder();
-        XContentBuilder param2Builder = jsonBuilder();
+        param1Builder.startObject();
         param1.toXContent(param1Builder, params);
+        param1Builder.endObject();
+
+        XContentBuilder param2Builder = jsonBuilder();
+        param2Builder.startObject();
         param2.toXContent(param2Builder, params);
+        param2Builder.endObject();
         assertThat(param1Builder.string(), equalTo(param2Builder.string()));
     }
 

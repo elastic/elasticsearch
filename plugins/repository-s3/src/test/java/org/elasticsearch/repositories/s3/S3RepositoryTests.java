@@ -58,7 +58,7 @@ public class S3RepositoryTests extends ESTestCase {
         @Override
         protected void doClose() {}
         @Override
-        public AmazonS3 client(String endpoint, Protocol protocol, String region, String account, String key, Integer maxRetries,
+        public AmazonS3 client(Settings repositorySettings, String endpoint, Protocol protocol, String region, Integer maxRetries,
                                boolean useThrottleRetries, Boolean pathStyleAccess) {
             return new DummyS3Client();
         }

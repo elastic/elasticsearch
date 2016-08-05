@@ -2023,7 +2023,7 @@ public class InternalEngineTests extends ESTestCase {
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
             AnalysisService analysisService = new AnalysisService(indexSettings, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
             SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
-            MapperRegistry mapperRegistry = new IndicesModule(new NamedWriteableRegistry(), Collections.emptyList()).getMapperRegistry();
+            MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
             MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry, () -> null);
             DocumentMapper.Builder b = new DocumentMapper.Builder(rootBuilder, mapperService);
             this.docMapper = b.build(mapperService);

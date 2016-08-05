@@ -61,7 +61,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
@@ -884,7 +886,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
         logger.info("--> delete index metadata and shard metadata");
-        Path metadata = repo.resolve("meta-test-snap-1.dat");
+        Path metadata = repo.resolve("meta-" + createSnapshotResponse.getSnapshotInfo().snapshotId().getUUID() + ".dat");
         Files.delete(metadata);
 
         logger.info("--> delete snapshot");
@@ -917,7 +919,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
         logger.info("--> truncate snapshot file to make it unreadable");
-        Path snapshotPath = repo.resolve("snap-test-snap-1-" + createSnapshotResponse.getSnapshotInfo().snapshotId().getUUID() + ".dat");
+        Path snapshotPath = repo.resolve("snap-" + createSnapshotResponse.getSnapshotInfo().snapshotId().getUUID() + ".dat");
         try(SeekableByteChannel outChan = Files.newByteChannel(snapshotPath, StandardOpenOption.WRITE)) {
             outChan.truncate(randomInt(10));
         }
@@ -2017,6 +2019,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
         logger.info("--> emulate an orphan snapshot");
+        RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
+        final RepositoryData repositoryData = repositoriesService.repository(repositoryName).getRepositoryData();
+        final IndexId indexId = repositoryData.resolveIndexId(idxName);
 
         clusterService.submitStateUpdateTask("orphan snapshot test", new ClusterStateUpdateTask() {
 
@@ -2033,7 +2038,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                                                    true,
                                                    false,
                                                    State.ABORTED,
-                                                   Collections.singletonList(idxName),
+                                                   Collections.singletonList(indexId),
                                                    System.currentTimeMillis(),
                                                    shards.build()));
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, new SnapshotsInProgress(Collections.unmodifiableList(entries))).build();
@@ -2189,7 +2194,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
 
         logger.info("--> truncate snapshot file to make it unreadable");
-        Path snapshotPath = repo.resolve("snap-test-snap-2-" + createSnapshotResponse.getSnapshotInfo().snapshotId().getUUID() + ".dat");
+        Path snapshotPath = repo.resolve("snap-" + createSnapshotResponse.getSnapshotInfo().snapshotId().getUUID() + ".dat");
         try(SeekableByteChannel outChan = Files.newByteChannel(snapshotPath, StandardOpenOption.WRITE)) {
             outChan.truncate(randomInt(10));
         }

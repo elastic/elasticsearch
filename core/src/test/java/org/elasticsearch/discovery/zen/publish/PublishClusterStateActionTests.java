@@ -105,7 +105,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
             this.service = service;
             this.listener = listener;
             this.logger = logger;
-            this.clusterState = ClusterState.builder(CLUSTER_NAME).nodes(DiscoveryNodes.builder().put(discoveryNode).localNodeId(discoveryNode.getId()).build()).build();
+            this.clusterState = ClusterState.builder(CLUSTER_NAME).nodes(DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).build()).build();
         }
 
         public MockNode setAsMaster() {
@@ -260,7 +260,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         ClusterState clusterState = nodeA.clusterState;
 
         // cluster state update - add nodeB
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(clusterState.nodes()).put(nodeB.discoveryNode).build();
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(clusterState.nodes()).add(nodeB.discoveryNode).build();
         ClusterState previousClusterState = clusterState;
         clusterState = ClusterState.builder(clusterState).nodes(discoveryNodes).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
@@ -286,7 +286,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         // cluster state update 3 - register node C
         previousClusterState = clusterState;
-        discoveryNodes = DiscoveryNodes.builder(discoveryNodes).put(nodeC.discoveryNode).build();
+        discoveryNodes = DiscoveryNodes.builder(discoveryNodes).add(nodeC.discoveryNode).build();
         clusterState = ClusterState.builder(clusterState).nodes(discoveryNodes).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
         assertSameStateFromDiff(nodeB.clusterState, clusterState);
@@ -318,9 +318,9 @@ public class PublishClusterStateActionTests extends ESTestCase {
 
         // node B becomes the master and sends a version of the cluster state that goes back
         discoveryNodes = DiscoveryNodes.builder(discoveryNodes)
-                .put(nodeA.discoveryNode)
-                .put(nodeB.discoveryNode)
-                .put(nodeC.discoveryNode)
+                .add(nodeA.discoveryNode)
+                .add(nodeB.discoveryNode)
+                .add(nodeC.discoveryNode)
                 .masterNodeId(nodeB.discoveryNode.getId())
                 .localNodeId(nodeB.discoveryNode.getId())
                 .build();
@@ -339,7 +339,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         MockNode nodeB = createMockNode("nodeB", Settings.EMPTY);
 
         // Initial cluster state with both states - the second node still shouldn't get diff even though it's present in the previous cluster state
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(nodeA.nodes()).put(nodeB.discoveryNode).build();
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(nodeA.nodes()).add(nodeB.discoveryNode).build();
         ClusterState previousClusterState = ClusterState.builder(CLUSTER_NAME).nodes(discoveryNodes).build();
         ClusterState clusterState = ClusterState.builder(previousClusterState).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
@@ -370,11 +370,11 @@ public class PublishClusterStateActionTests extends ESTestCase {
         });
 
         // Initial cluster state
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(nodeA.discoveryNode).localNodeId(nodeA.discoveryNode.getId()).masterNodeId(nodeA.discoveryNode.getId()).build();
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(nodeA.discoveryNode).localNodeId(nodeA.discoveryNode.getId()).masterNodeId(nodeA.discoveryNode.getId()).build();
         ClusterState clusterState = ClusterState.builder(CLUSTER_NAME).nodes(discoveryNodes).build();
 
         // cluster state update - add nodeB
-        discoveryNodes = DiscoveryNodes.builder(discoveryNodes).put(nodeB.discoveryNode).build();
+        discoveryNodes = DiscoveryNodes.builder(discoveryNodes).add(nodeB.discoveryNode).build();
         ClusterState previousClusterState = clusterState;
         clusterState = ClusterState.builder(clusterState).nodes(discoveryNodes).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
@@ -408,7 +408,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
                     assertProperMetaDataForVersion(event.state().metaData(), event.state().version());
                 }
             });
-            discoveryNodesBuilder.put(node.discoveryNode);
+            discoveryNodesBuilder.add(node.discoveryNode);
         }
 
         AssertingAckListener[] listeners = new AssertingAckListener[numberOfIterations];
@@ -447,7 +447,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         MockNode nodeB = createMockNode("nodeB", Settings.EMPTY);
 
         // Initial cluster state with both states - the second node still shouldn't get diff even though it's present in the previous cluster state
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(nodeA.nodes()).put(nodeB.discoveryNode).build();
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder(nodeA.nodes()).add(nodeB.discoveryNode).build();
         ClusterState previousClusterState = ClusterState.builder(CLUSTER_NAME).nodes(discoveryNodes).build();
         ClusterState clusterState = ClusterState.builder(previousClusterState).incrementVersion().build();
         publishStateAndWait(nodeA.action, clusterState, previousClusterState);
@@ -488,14 +488,14 @@ public class PublishClusterStateActionTests extends ESTestCase {
         final int masterNodes = randomIntBetween(1, 10);
 
         MockNode master = createMockNode("master");
-        DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder().put(master.discoveryNode);
+        DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder().add(master.discoveryNode);
         for (int i = 1; i < masterNodes; i++) {
-            discoveryNodesBuilder.put(createMockNode("node" + i).discoveryNode);
+            discoveryNodesBuilder.add(createMockNode("node" + i).discoveryNode);
         }
         final int dataNodes = randomIntBetween(0, 5);
         final Settings dataSettings = Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build();
         for (int i = 0; i < dataNodes; i++) {
-            discoveryNodesBuilder.put(createMockNode("data_" + i, dataSettings).discoveryNode);
+            discoveryNodesBuilder.add(createMockNode("data_" + i, dataSettings).discoveryNode);
         }
         discoveryNodesBuilder.localNodeId(master.discoveryNode.getId()).masterNodeId(master.discoveryNode.getId());
         DiscoveryNodes discoveryNodes = discoveryNodesBuilder.build();
@@ -536,10 +536,10 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
         Collections.shuffle(Arrays.asList(nodeTypes), random());
 
-        DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder().put(master.discoveryNode);
+        DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder().add(master.discoveryNode);
         for (int i = 0; i < nodeTypes.length; i++) {
             final MockNode mockNode = createMockNode("node" + i);
-            discoveryNodesBuilder.put(mockNode.discoveryNode);
+            discoveryNodesBuilder.add(mockNode.discoveryNode);
             switch (nodeTypes[i]) {
                 case 1:
                     mockNode.action.errorOnSend.set(true);
@@ -552,7 +552,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         final int dataNodes = randomIntBetween(0, 3); // data nodes don't matter
         for (int i = 0; i < dataNodes; i++) {
             final MockNode mockNode = createMockNode("data_" + i, Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false).build());
-            discoveryNodesBuilder.put(mockNode.discoveryNode);
+            discoveryNodesBuilder.add(mockNode.discoveryNode);
             if (randomBoolean()) {
                 // we really don't care - just chaos monkey
                 mockNode.action.errorOnCommit.set(randomBoolean());
@@ -638,7 +638,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         try {
             MockNode otherNode = createMockNode("otherNode");
             state = ClusterState.builder(node.clusterState).nodes(
-                    DiscoveryNodes.builder(node.nodes()).put(otherNode.discoveryNode).localNodeId(otherNode.discoveryNode.getId()).build()
+                    DiscoveryNodes.builder(node.nodes()).add(otherNode.discoveryNode).localNodeId(otherNode.discoveryNode.getId()).build()
             ).incrementVersion().build();
             node.action.validateIncomingState(state, node.clusterState);
             fail("node accepted state with existent but wrong local node");
@@ -729,7 +729,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         MockNode master = createMockNode("master", settings);
         MockNode node = createMockNode("node", settings);
         ClusterState state = ClusterState.builder(master.clusterState)
-                .nodes(DiscoveryNodes.builder(master.clusterState.nodes()).put(node.discoveryNode).masterNodeId(master.discoveryNode.getId())).build();
+                .nodes(DiscoveryNodes.builder(master.clusterState.nodes()).add(node.discoveryNode).masterNodeId(master.discoveryNode.getId())).build();
 
         for (int i = 0; i < 10; i++) {
             state = ClusterState.builder(state).incrementVersion().build();

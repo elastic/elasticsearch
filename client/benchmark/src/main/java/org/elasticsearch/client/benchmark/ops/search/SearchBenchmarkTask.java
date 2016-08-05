@@ -57,22 +57,17 @@ public class SearchBenchmarkTask implements BenchmarkTask {
 
             int waitTime = (int) Math.floor(MICROS_PER_SEC / targetThroughput - (stop - start) / NANOS_PER_MICRO);
             if (waitTime > 0) {
-                // Thread.sleep() time is not very accurate (it's most of the time around 1 - 2 ms off)
-                // so we rather busy spin for the last few microseconds. Still not entirely accurate but way closer
                 waitMicros(waitTime);
             }
         }
     }
 
     private void waitMicros(int waitTime) throws InterruptedException {
-        int millis = waitTime / 1000;
-        int micros = waitTime % 1000;
-        if (millis > 0) {
-            Thread.sleep(millis);
-        }
-        // busy spin for the rest of the time
-        if (micros > 0) {
-            long end = System.nanoTime() + 1000L * micros;
+        // Thread.sleep() time is not very accurate (it's most of the time around 1 - 2 ms off)
+        // we busy spin all the time to avoid introducing additional measurement artifacts (noticed 100% skew on 99.9th percentile)
+        // this approach is not suitable for low throughput rates (in the second range) though
+        if (waitTime > 0) {
+            long end = System.nanoTime() + 1000L * waitTime;
             while (end > System.nanoTime()) {
                 // busy spin
             }

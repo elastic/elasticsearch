@@ -144,7 +144,7 @@ POST twitter/_delete_by_query?scroll_size=5000
 === URL Parameters
 
 In addition to the standard parameters like `pretty`, the Delete By Query API
-also supports `refresh`, `wait_for_completion`, `consistency`, and `timeout`.
+also supports `refresh`, `wait_for_completion`, `wait_for_active_shards`, and `timeout`.
 
 Sending the `refresh` will refresh all shards involved in the delete by query
 once the request completes. This is different than the Delete API's `refresh`
@@ -159,8 +159,9 @@ record of this task as a document at `.tasks/task/${taskId}`. This is yours
 to keep or remove as you see fit. When you are done with it, delete it so
 Elasticsearch can reclaim the space it uses.
 
-`consistency` controls how many copies of a shard must respond to each write
-request. `timeout` controls how long each write request waits for unavailable
+`wait_for_active_shards` controls how many copies of a shard must be active
+before proceeding with the request. See <<index-wait-for-active-shards,here>> 
+for details. `timeout` controls how long each write request waits for unavailable
 shards to become available. Both work exactly how they work in the
 <<docs-bulk,Bulk API>>.
 

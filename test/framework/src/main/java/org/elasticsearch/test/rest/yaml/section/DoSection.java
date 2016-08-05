@@ -22,14 +22,19 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.collect.Tuple.tuple;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
@@ -48,6 +53,10 @@ import static org.junit.Assert.fail;
  *      headers:
  *          Authorization: Basic user:pass
  *          Content-Type: application/json
+ *      warnings:
+ *          - Stuff is deprecated, yo
+ *          - Don't use deprecated stuff
+ *          - Please, stop. It hurts.
  *      update:
  *          index:  test_1
  *          type:   test
@@ -59,8 +68,14 @@ public class DoSection implements ExecutableSection {
 
     private static final ESLogger logger = Loggers.getLogger(DoSection.class);
 
+    private final XContentLocation location;
     private String catchParam;
     private ApiCallSection apiCallSection;
+    private List<String> expectedWarningHeaders = emptyList();
+
+    public DoSection(XContentLocation location) {
+        this.location = location;
+    }
 
     public String getCatch() {
         return catchParam;
@@ -78,6 +93,27 @@ public class DoSection implements ExecutableSection {
         this.apiCallSection = apiCallSection;
     }
 
+    /**
+     * Warning headers that we expect from this response. If the headers don't match exactly this request is considered to have failed.
+     * Defaults to emptyList.
+     */
+    public List<String> getExpectedWarningHeaders() {
+        return expectedWarningHeaders;
+    }
+
+    /**
+     * Set the warning headers that we expect from this response. If the headers don't match exactly this request is considered to have
+     * failed. Defaults to emptyList.
+     */
+    public void setExpectedWarningHeaders(List<String> expectedWarningHeaders) {
+        this.expectedWarningHeaders = expectedWarningHeaders;
+    }
+
+    @Override
+    public XContentLocation getLocation() {
+        return location;
+    }
+
     @Override
     public void execute(ClientYamlTestExecutionContext executionContext) throws IOException {
 
@@ -89,7 +125,7 @@ public class DoSection implements ExecutableSection {
         }
 
         try {
-            ClientYamlTestResponse restTestResponse = executionContext.callApi(apiCallSection.getApi(), apiCallSection.getParams(),
+            ClientYamlTestResponse response = executionContext.callApi(apiCallSection.getApi(), apiCallSection.getParams(),
                     apiCallSection.getBodies(), apiCallSection.getHeaders());
             if (Strings.hasLength(catchParam)) {
                 String catchStatusCode;
@@ -100,8 +136,9 @@ public class DoSection implements ExecutableSection {
                 } else {
                     throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
                 }
-                fail(formatStatusCodeMessage(restTestResponse, catchStatusCode));
+                fail(formatStatusCodeMessage(response, catchStatusCode));
             }
+            checkWarningHeaders(response.getWarningHeaders());
         } catch(ClientYamlTestResponseException e) {
             ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
             if (!Strings.hasLength(catchParam)) {
@@ -121,6 +158,39 @@ public class DoSection implements ExecutableSection {
             } else {
                 throw new UnsupportedOperationException("catch value [" + catchParam + "] not supported");
             }
+        }
+    }
+
+    /**
+     * Check that the response contains only the warning headers that we expect.
+     */
+    void checkWarningHeaders(List<String> warningHeaders) {
+        StringBuilder failureMessage = null;
+        // LinkedHashSet so that missing expected warnings come back in a predictable order which is nice for testing
+        Set<String> expected = new LinkedHashSet<>(expectedWarningHeaders);
+        for (String header : warningHeaders) {
+            if (expected.remove(header)) {
+                // Was expected, all good.
+                continue;
+            }
+            if (failureMessage == null) {
+                failureMessage = new StringBuilder("got unexpected warning headers [");
+            }
+            failureMessage.append('\n').append(header);
+        }
+        if (false == expected.isEmpty()) {
+            if (failureMessage == null) {
+                failureMessage = new StringBuilder();
+            } else {
+                failureMessage.append("\n] ");
+            }
+            failureMessage.append("didn't get expected warning headers [");
+            for (String header : expected) {
+                failureMessage.append('\n').append(header);
+            }
+        }
+        if (failureMessage != null) {
+            fail(failureMessage + "\n]");
         }
     }
 

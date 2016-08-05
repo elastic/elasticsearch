@@ -170,7 +170,7 @@ public abstract class TransportClient extends AbstractClient {
             transportService.start();
             transportService.acceptIncomingRequests();
 
-            ClientTemplate transportClient = new ClientTemplate(injector, pluginLifecycleComponents, nodesService, proxy);
+            ClientTemplate transportClient = new ClientTemplate(injector, pluginLifecycleComponents, nodesService, proxy, namedWriteableRegistry);
             resourcesToClose.clear();
             return transportClient;
         } finally {
@@ -183,12 +183,15 @@ public abstract class TransportClient extends AbstractClient {
         private final List<LifecycleComponent> pluginLifecycleComponents;
         private final TransportClientNodesService nodesService;
         private final TransportProxyClient proxy;
+        private final NamedWriteableRegistry namedWriteableRegistry;
 
-        private ClientTemplate(Injector injector, List<LifecycleComponent> pluginLifecycleComponents, TransportClientNodesService nodesService, TransportProxyClient proxy) {
+        private ClientTemplate(Injector injector, List<LifecycleComponent> pluginLifecycleComponents,
+                TransportClientNodesService nodesService, TransportProxyClient proxy, NamedWriteableRegistry namedWriteableRegistry) {
             this.injector = injector;
             this.pluginLifecycleComponents = pluginLifecycleComponents;
             this.nodesService = nodesService;
             this.proxy = proxy;
+            this.namedWriteableRegistry = namedWriteableRegistry;
         }
 
         Settings getSettings() {
@@ -203,6 +206,7 @@ public abstract class TransportClient extends AbstractClient {
     public static final String CLIENT_TYPE = "transport";
 
     final Injector injector;
+    final NamedWriteableRegistry namedWriteableRegistry;
 
     private final List<LifecycleComponent> pluginLifecycleComponents;
     private final TransportClientNodesService nodesService;
@@ -231,6 +235,7 @@ public abstract class TransportClient extends AbstractClient {
         this.pluginLifecycleComponents = Collections.unmodifiableList(template.pluginLifecycleComponents);
         this.nodesService = template.nodesService;
         this.proxy = template.proxy;
+        this.namedWriteableRegistry = template.namedWriteableRegistry;
     }
 
     /**

@@ -22,7 +22,6 @@ package org.elasticsearch.bwcompat;
 import com.google.common.base.Predicate;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
@@ -34,17 +33,11 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MultiDataPathUpgrader;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.string.StringFieldMapperPositionIncrementGapTests;
@@ -64,7 +57,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -90,8 +82,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     List<String> unsupportedIndexes;
     static Path singleDataPath;
     static Path[] multiDataPath;
-    private String singleDataPathNodeName;
-    private String multiDataPathNodeName;
 
     @Before
     public void initIndexesList() throws Exception {
@@ -107,9 +97,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     @Override
     public Settings nodeSettings(int ord) {
-
         return OldIndexUtils.getSettings();
-
     }
 
     void setupCluster() throws Exception {
@@ -148,8 +136,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         logger.info("--> Multi data paths: " + multiDataPath[0].toString() + ", " + multiDataPath[1].toString());
 
         replicas.get(); // wait for replicas
-        singleDataPathNodeName = singleDataPathNode.get();
-        multiDataPathNodeName = multiDataPathNode.get();
     }
 
     void importIndex(String indexName) throws IOException {
@@ -267,9 +253,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
         String indexName = index.replace(".zip", "").toLowerCase(Locale.ROOT).replace("unsupported-", "index-");
         OldIndexUtils.loadIndex(indexName, index, createTempDir(), getBwcIndicesPath(), logger, paths);
-        // we explicitly upgrade the index folders as these indices
-        // are imported as dangling indices and not available on
-        // node startup
         importIndex(indexName);
         assertIndexSanity(indexName, version);
         assertBasicSearchWorks(indexName);
@@ -399,65 +382,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
             StringFieldMapperPositionIncrementGapTests.assertGapIsZero(client(), indexName, "doc");
         } else {
             StringFieldMapperPositionIncrementGapTests.assertGapIsOneHundred(client(), indexName, "doc");
-        }
-    }
-
-    private Path getNodeDir(String indexFile) throws IOException {
-        Path unzipDir = createTempDir();
-        Path unzipDataDir = unzipDir.resolve("data");
-
-        // decompress the index
-        Path backwardsIndex = getBwcIndicesPath().resolve(indexFile);
-        try (InputStream stream = Files.newInputStream(backwardsIndex)) {
-            TestUtil.unzip(stream, unzipDir);
-        }
-
-        // check it is unique
-        assertTrue(Files.exists(unzipDataDir));
-        Path[] list = FileSystemUtils.files(unzipDataDir);
-        if (list.length != 1) {
-            throw new IllegalStateException("Backwards index must contain exactly one cluster");
-        }
-
-        // the bwc scripts packs the indices under this path
-        return list[0].resolve("nodes/0/");
-    }
-
-    public void testOldClusterStates() throws Exception {
-        // dangling indices do not load the global state, only the per-index states
-        // so we make sure we can read them separately
-        MetaDataStateFormat<MetaData> globalFormat = new MetaDataStateFormat<MetaData>(XContentType.JSON, "global-") {
-
-            @Override
-            public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public MetaData fromXContent(XContentParser parser) throws IOException {
-                return MetaData.Builder.fromXContent(parser);
-            }
-        };
-        MetaDataStateFormat<IndexMetaData> indexFormat = new MetaDataStateFormat<IndexMetaData>(XContentType.JSON, "state-") {
-
-            @Override
-            public void toXContent(XContentBuilder builder, IndexMetaData state) throws IOException {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public IndexMetaData fromXContent(XContentParser parser) throws IOException {
-                return IndexMetaData.Builder.fromXContent(parser);
-            }
-        };
-        Collections.shuffle(indexes, random());
-        for (String indexFile : indexes) {
-            String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT).replace("unsupported-", "index-");
-            Path nodeDir = getNodeDir(indexFile);
-            logger.info("Parsing cluster state files from index [{}]", indexName);
-            assertNotNull(globalFormat.loadLatestState(logger, nodeDir)); // no exception
-            Path indexDir = nodeDir.resolve("indices").resolve(indexName);
-            assertNotNull(indexFormat.loadLatestState(logger, indexDir)); // no exception
         }
     }
 }

@@ -238,6 +238,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
+    private final Version indexCreatedVersion;
     protected MappedFieldType fieldType;
     protected final MappedFieldType defaultFieldType;
     protected MultiFields multiFields;
@@ -246,6 +247,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected FieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName);
         assert indexSettings != null;
+        this.indexCreatedVersion = Version.indexCreated(indexSettings);
         fieldType.freeze();
         this.fieldType = fieldType;
         defaultFieldType.freeze();
@@ -283,7 +285,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 if (!customBoost()
                         // don't set boosts eg. on dv fields
                         && field.fieldType().indexOptions() != IndexOptions.NONE
-                        && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
+                        && indexCreatedVersion.before(Version.V_5_0_0_alpha1)) {
                     field.setBoost(fieldType().boost());
                 }
                 context.doc().add(field);

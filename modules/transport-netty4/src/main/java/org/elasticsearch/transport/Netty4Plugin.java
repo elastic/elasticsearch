@@ -44,7 +44,7 @@ public class Netty4Plugin extends Plugin {
         }
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             try {
-                Class.forName("io.netty.channel.nio.NioEventLoop");
+                Class.forName("io.netty.channel.nio.NioEventLoop", false, Netty4Plugin.class.getClassLoader());
             } catch (ClassNotFoundException e) {
                 throw new AssertionError(e); // we don't do anything with this
             }

@@ -43,7 +43,7 @@ public class Netty3Plugin extends Plugin {
         }
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             try {
-                Class.forName("org.jboss.netty.channel.socket.nio.SelectorUtil");
+                Class.forName("org.jboss.netty.channel.socket.nio.SelectorUtil", false, Netty3Plugin.class.getClassLoader());
             } catch (ClassNotFoundException e) {
                 throw new AssertionError(e); // we don't do anything with this
             }

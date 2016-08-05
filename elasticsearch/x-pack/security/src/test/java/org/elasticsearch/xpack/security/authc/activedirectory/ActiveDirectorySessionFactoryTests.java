@@ -70,6 +70,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/2849")
     public void testTcpReadTimeout() throws Exception {
         Settings settings = Settings.builder()
                 .put(buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false))

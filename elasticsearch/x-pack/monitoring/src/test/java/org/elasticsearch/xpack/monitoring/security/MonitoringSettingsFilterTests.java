@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.MockNetty3Plugin;
+import org.elasticsearch.xpack.MockNetty4Plugin;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
@@ -35,13 +36,13 @@ public class MonitoringSettingsFilterTests extends MonitoringIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
-                .put("xpack.monitoring.collection.exporters._http.type", "http")
-                .put("xpack.monitoring.collection.exporters._http.enabled", false)
-                .put("xpack.monitoring.collection.exporters._http.auth.username", "_user")
-                .put("xpack.monitoring.collection.exporters._http.auth.password", "_passwd")
-                .put("xpack.monitoring.collection.exporters._http.ssl.truststore.path", "/path/to/truststore")
-                .put("xpack.monitoring.collection.exporters._http.ssl.truststore.password", "_passwd")
-                .put("xpack.monitoring.collection.exporters._http.ssl.hostname_verification", true)
+                .put("xpack.monitoring.exporters._http.type", "http")
+                .put("xpack.monitoring.exporters._http.enabled", false)
+                .put("xpack.monitoring.exporters._http.auth.username", "_user")
+                .put("xpack.monitoring.exporters._http.auth.password", "_passwd")
+                .put("xpack.monitoring.exporters._http.ssl.truststore.path", "/path/to/truststore")
+                .put("xpack.monitoring.exporters._http.ssl.truststore.password", "_passwd")
+                .put("xpack.monitoring.exporters._http.ssl.hostname_verification", true)
                 .build();
     }
 
@@ -49,6 +50,7 @@ public class MonitoringSettingsFilterTests extends MonitoringIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(MockNetty3Plugin.class); // for http
+        plugins.add(MockNetty4Plugin.class); // for http
         return plugins;
     }
 
@@ -69,17 +71,18 @@ public class MonitoringSettingsFilterTests extends MonitoringIntegTestCase {
         for (Object node : nodes.values()) {
             @SuppressWarnings("unchecked")
             Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) node).get("settings");
-            assertThat(extractValue("xpack.monitoring.collection.exporters._http.type", settings), equalTo("http"));
-            assertThat(extractValue("xpack.monitoring.collection.exporters._http.enabled", settings), equalTo("false"));
-            assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.auth.username");
-            assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.auth.password");
-            assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.ssl.truststore.path");
-            assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.ssl.truststore.password");
-            assertNullSetting(settings, "xpack.monitoring.collection.exporters._http.ssl.hostname_verification");
+            assertThat(extractValue("xpack.monitoring.exporters._http.type", settings), equalTo("http"));
+            assertThat(extractValue("xpack.monitoring.exporters._http.enabled", settings), equalTo("false"));
+            assertNullSetting(settings, "xpack.monitoring.exporters._http.auth.username");
+            assertNullSetting(settings, "xpack.monitoring.exporters._http.auth.password");
+            assertNullSetting(settings, "xpack.monitoring.exporters._http.ssl.truststore.path");
+            assertNullSetting(settings, "xpack.monitoring.exporters._http.ssl.truststore.password");
+            assertNullSetting(settings, "xpack.monitoring.exporters._http.ssl.hostname_verification");
         }
     }
 
     private void assertNullSetting(Map<String, Object> settings, String setting) {
         assertThat(extractValue(setting, settings), nullValue());
     }
+
 }

@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
@@ -23,13 +24,13 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.core.License;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.MockNetty3Plugin;
+import org.elasticsearch.xpack.MockNetty4Plugin;
 import org.elasticsearch.xpack.XPackTransportClient;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
@@ -102,6 +103,7 @@ public class LicensingTests extends SecurityIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(MockNetty3Plugin.class); // for http
+        plugins.add(MockNetty4Plugin.class); // for http
         return plugins;
     }
 
@@ -115,14 +117,14 @@ public class LicensingTests extends SecurityIntegTestCase {
             .startObject()
             .field("name", "value")
             .endObject());
-        assertThat(indexResponse.isCreated(), is(true));
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
 
         indexResponse = index("test1", "type", jsonBuilder()
             .startObject()
             .field("name", "value1")
             .endObject());
-        assertThat(indexResponse.isCreated(), is(true));
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
 
         refresh();
 

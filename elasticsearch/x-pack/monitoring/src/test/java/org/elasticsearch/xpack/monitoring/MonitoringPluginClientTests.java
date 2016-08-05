@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
@@ -16,10 +17,11 @@ public class MonitoringPluginClientTests extends ESTestCase {
 
     public void testModulesWithClientSettings() {
         Settings settings = Settings.builder()
+                .put("path.home", createTempDir())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), TransportClient.CLIENT_TYPE)
                 .build();
 
-        Monitoring plugin = new Monitoring(settings);
+        Monitoring plugin = new Monitoring(settings, new Environment(settings), null);
         assertThat(plugin.isEnabled(), is(true));
         assertThat(plugin.isTransportClient(), is(true));
     }
@@ -27,9 +29,10 @@ public class MonitoringPluginClientTests extends ESTestCase {
     public void testModulesWithNodeSettings() {
         // these settings mimic what ES does when running as a node...
         Settings settings = Settings.builder()
+                .put("path.home", createTempDir())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), "node")
                 .build();
-        Monitoring plugin = new Monitoring(settings);
+        Monitoring plugin = new Monitoring(settings, new Environment(settings), null);
         assertThat(plugin.isEnabled(), is(true));
         assertThat(plugin.isTransportClient(), is(false));
     }

@@ -11,8 +11,6 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.LicensesMetaData;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.security.Security;

@@ -51,7 +51,6 @@ public class AgentService extends AbstractLifecycleComponent {
     private final String[] settingsCollectors;
     private final Exporters exporters;
 
-    @Inject
     public AgentService(Settings settings, ClusterSettings clusterSettings, Set<Collector> collectors, Exporters exporters) {
         super(settings);
         this.samplingIntervalMillis = MonitoringSettings.INTERVAL.get(settings).millis();

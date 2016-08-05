@@ -20,13 +20,13 @@ class PEMTrustConfig extends TrustConfig {
 
     final List<String> caPaths;
 
-    PEMTrustConfig(boolean includeSystem, boolean reloadEnabled, List<String> caPaths) {
-        super(includeSystem, reloadEnabled);
+    PEMTrustConfig(boolean includeSystem, List<String> caPaths) {
+        super(includeSystem);
         this.caPaths = caPaths;
     }
 
     @Override
-    X509ExtendedTrustManager[] nonSystemTrustManagers(@Nullable Environment environment) {
+    X509ExtendedTrustManager nonSystemTrustManager(@Nullable Environment environment) {
         try {
             Certificate[] certificates = CertUtils.readCertificates(caPaths, environment);
             return CertUtils.trustManagers(certificates);

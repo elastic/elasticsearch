@@ -89,42 +89,35 @@ public class ManualPublicSmtpServersTester {
 
     static void test(Profile profile, Settings.Builder settingsBuilder) throws Exception {
         String path = "/org/elasticsearch/xpack/watcher/actions/email/service/logo.png";
-        if (InternalEmailServiceTests.class.getResourceAsStream(path) == null) {
+        if (EmailServiceTests.class.getResourceAsStream(path) == null) {
             throw new ElasticsearchException("Could not find logo at path {}", path);
         }
 
-        InternalEmailService service = startEmailService(settingsBuilder);
-        try {
+        EmailService service = startEmailService(settingsBuilder);
+        ToXContent content = (xContentBuilder, params) -> xContentBuilder.startObject()
+                .field("key1", "value1")
+                .field("key2", "value2")
+                .field("key3", "value3")
+                .endObject();
 
-            ToXContent content = (xContentBuilder, params) -> xContentBuilder.startObject()
-                    .field("key1", "value1")
-                    .field("key2", "value2")
-                    .field("key3", "value3")
-                    .endObject();
+        Email email = Email.builder()
+                .id("_id")
+                .subject("_subject")
+                .textBody("_text_body")
+                .htmlBody("<b>html body</b><p/><p/><img src=\"cid:logo.png\"/>")
+                .attach(new Attachment.XContent.Yaml("test.yml", content))
+                .attach(new Attachment.Stream("logo.png", "logo.png", true,
+                        () -> EmailServiceTests.class.getResourceAsStream(path)))
+                .build();
 
-            Email email = Email.builder()
-                    .id("_id")
-                    .subject("_subject")
-                    .textBody("_text_body")
-                    .htmlBody("<b>html body</b><p/><p/><img src=\"cid:logo.png\"/>")
-                    .attach(new Attachment.XContent.Yaml("test.yml", content))
-                    .attach(new Attachment.Stream("logo.png", "logo.png", true,
-                            () -> InternalEmailServiceTests.class.getResourceAsStream(path)))
-                    .build();
+        EmailService.EmailSent sent = service.send(email, null, profile);
 
-            EmailService.EmailSent sent = service.send(email, null, profile);
-
-            terminal.println(String.format(Locale.ROOT, "email sent via account [%s]", sent.account()));
-        } finally {
-            service.stop();
-        }
+        terminal.println(String.format(Locale.ROOT, "email sent via account [%s]", sent.account()));
     }
 
-    static InternalEmailService startEmailService(Settings.Builder builder) {
+    static EmailService startEmailService(Settings.Builder builder) {
         Settings settings = builder.build();
-        InternalEmailService service = new InternalEmailService(settings, null,
-                new ClusterSettings(settings, Collections.singleton(InternalEmailService.EMAIL_ACCOUNT_SETTING)));
-        service.start();
-        return service;
+        return new EmailService(settings, null,
+                new ClusterSettings(settings, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING)));
     }
 }

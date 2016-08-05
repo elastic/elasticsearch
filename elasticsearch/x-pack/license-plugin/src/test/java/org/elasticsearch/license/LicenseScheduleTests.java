@@ -6,7 +6,6 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.license.core.License;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.scheduler.SchedulerEngine;
 import org.junit.Before;

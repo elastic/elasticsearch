@@ -56,8 +56,6 @@ public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
                     equalTo(internalCluster().getInstance(ClusterService.class, node).localNode().getId()));
             assertThat(nodeStatsMonitoringDoc.isNodeMaster(), equalTo(node.equals(internalCluster().getMasterName())));
             assertThat(nodeStatsMonitoringDoc.isMlockall(), equalTo(BootstrapInfo.isMemoryLocked()));
-            assertNotNull(nodeStatsMonitoringDoc.isDiskThresholdDeciderEnabled());
-            assertNotNull(nodeStatsMonitoringDoc.getDiskThresholdWaterMarkHigh());
 
             assertNotNull(nodeStatsMonitoringDoc.getNodeStats());
         }
@@ -68,8 +66,6 @@ public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
                 internalCluster().getInstance(ClusterService.class, nodeId),
                 internalCluster().getInstance(MonitoringSettings.class, nodeId),
                 internalCluster().getInstance(XPackLicenseState.class, nodeId),
-                internalCluster().getInstance(InternalClient.class, nodeId),
-                internalCluster().getInstance(NodeEnvironment.class, nodeId),
-                internalCluster().getInstance(DiskThresholdDecider.class, nodeId));
+                internalCluster().getInstance(InternalClient.class, nodeId));
     }
 }

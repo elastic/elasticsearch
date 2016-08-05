@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.license.core.License;
 import org.elasticsearch.xpack.XPackBuild;
 
 import java.io.IOException;

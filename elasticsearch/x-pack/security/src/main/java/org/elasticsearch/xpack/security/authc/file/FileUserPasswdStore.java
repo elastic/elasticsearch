@@ -185,7 +185,7 @@ public class FileUserPasswdStore {
         }
     }
 
-    private class FileListener extends FileChangesListener {
+    private class FileListener implements FileChangesListener {
         @Override
         public void onFileCreated(Path file) {
             onFileChanged(file);

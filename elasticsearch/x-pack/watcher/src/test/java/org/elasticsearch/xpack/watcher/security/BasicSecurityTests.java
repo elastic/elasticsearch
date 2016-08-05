@@ -39,7 +39,7 @@ public class BasicSecurityTests extends AbstractWatcherIntegrationTestCase {
     @Override
     protected Settings transportClientSettings() {
         return Settings.builder()
-                .put("client.transport.sniff", false)
+                .put(super.transportClientSettings())
                 // Use just the transport user here, so we can test Watcher roles specifically
                 .put(Security.USER_SETTING.getKey(), "transport_client:changeme")
                 .build();

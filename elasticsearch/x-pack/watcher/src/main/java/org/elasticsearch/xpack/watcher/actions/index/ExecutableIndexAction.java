@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.index;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -116,7 +117,8 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
 
     static void indexResponseToXContent(XContentBuilder builder, IndexResponse response) throws IOException {
         builder.startObject()
-                .field("created", response.isCreated())
+                .field("created", response.getResult() == DocWriteResponse.Result.CREATED)
+                .field("result", response.getResult().getLowercase())
                 .field("id", response.getId())
                 .field("version", response.getVersion())
                 .field("type", response.getType())

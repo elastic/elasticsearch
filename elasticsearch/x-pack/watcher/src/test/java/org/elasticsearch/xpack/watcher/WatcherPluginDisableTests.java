@@ -12,6 +12,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.MockNetty3Plugin;
+import org.elasticsearch.xpack.MockNetty4Plugin;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.security.Security;
@@ -51,7 +52,7 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class, MockNetty3Plugin.class);
+        return Arrays.asList(XPackPlugin.class, MockNetty3Plugin.class, MockNetty4Plugin.class);
     }
 
     @Override

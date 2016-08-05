@@ -122,7 +122,7 @@ curl -XPUT 'http://localhost:9200/test1' -d '{
       }
     }
   }
-}
+}'
 --------------------------------------------------
 
 Now we can create an alias that uses a filter on field `user`:

@@ -37,16 +37,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -117,12 +113,12 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         int numDataNodes = randomIntBetween(1, 10);
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
         for (int i = 0; i < numDataNodes; i++) {
-            builder.put(new DiscoveryNode("_id" + i, new LocalTransportAddress("_id" + i), Collections.emptyMap(),
+            builder.add(new DiscoveryNode("_id" + i, new LocalTransportAddress("_id" + i), Collections.emptyMap(),
                     Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT));
         }
-        builder.put(new DiscoveryNode("master", new LocalTransportAddress("mater"), Collections.emptyMap(),
+        builder.add(new DiscoveryNode("master", new LocalTransportAddress("mater"), Collections.emptyMap(),
                 Collections.singleton(DiscoveryNode.Role.MASTER), Version.CURRENT));
-        builder.put(new DiscoveryNode("ingest", new LocalTransportAddress("ingest"), Collections.emptyMap(),
+        builder.add(new DiscoveryNode("ingest", new LocalTransportAddress("ingest"), Collections.emptyMap(),
                 Collections.singleton(DiscoveryNode.Role.INGEST), Version.CURRENT));
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).nodes(builder).build();

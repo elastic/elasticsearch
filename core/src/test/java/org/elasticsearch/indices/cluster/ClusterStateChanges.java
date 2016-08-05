@@ -55,6 +55,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RandomAllocationDeciderTests;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
@@ -96,6 +97,7 @@ import static org.mockito.Mockito.when;
 
 public class ClusterStateChanges extends AbstractComponent {
 
+    private final AllocationService allocationService;
     private final ClusterService clusterService;
     private final ShardStateAction.ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
     private final ShardStateAction.ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
@@ -111,7 +113,7 @@ public class ClusterStateChanges extends AbstractComponent {
     public ClusterStateChanges() {
         super(Settings.builder().put(PATH_HOME_SETTING.getKey(), "dummy").build());
 
-        final AllocationService allocationService = new AllocationService(settings, new AllocationDeciders(settings,
+        allocationService = new AllocationService(settings, new AllocationDeciders(settings,
             new HashSet<>(Arrays.asList(new SameShardAllocationDecider(settings),
                 new ReplicaAfterPrimaryActiveAllocationDecider(settings),
                 new RandomAllocationDeciderTests.RandomAllocationDecider(getRandom())))),
@@ -202,6 +204,11 @@ public class ClusterStateChanges extends AbstractComponent {
 
     public ClusterState reroute(ClusterState state, ClusterRerouteRequest request) {
         return execute(transportClusterRerouteAction, request, state);
+    }
+
+    public ClusterState deassociateDeadNodes(ClusterState clusterState, boolean reroute, String reason) {
+        RoutingAllocation.Result rerouteResult = allocationService.deassociateDeadNodes(clusterState, reroute, reason);
+        return ClusterState.builder(clusterState).routingResult(rerouteResult).build();
     }
 
     public ClusterState applyFailedShards(ClusterState clusterState, List<FailedRerouteAllocation.FailedShard> failedShards) {

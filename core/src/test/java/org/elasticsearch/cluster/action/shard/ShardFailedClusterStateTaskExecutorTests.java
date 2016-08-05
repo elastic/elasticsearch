@@ -154,7 +154,7 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
     private ClusterState createClusterStateWithStartedShards(String reason) {
         int numberOfNodes = 1 + numberOfReplicas;
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-        IntStream.rangeClosed(1, numberOfNodes).mapToObj(node -> newNode("node" + node)).forEach(nodes::put);
+        IntStream.rangeClosed(1, numberOfNodes).mapToObj(node -> newNode("node" + node)).forEach(nodes::add);
         ClusterState stateAfterAddingNode =
             ClusterState.builder(clusterState).nodes(nodes).build();
         RoutingTable afterReroute =

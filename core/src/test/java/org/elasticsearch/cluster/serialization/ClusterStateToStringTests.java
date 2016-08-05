@@ -50,7 +50,7 @@ public class ClusterStateToStringTests extends ESAllocationTestCase {
                 .addAsNew(metaData.index("test_idx"))
                 .build();
 
-        DiscoveryNodes nodes = DiscoveryNodes.builder().put(new DiscoveryNode("node_foo", LocalTransportAddress.buildUnique(),
+        DiscoveryNodes nodes = DiscoveryNodes.builder().add(new DiscoveryNode("node_foo", LocalTransportAddress.buildUnique(),
                 emptyMap(), emptySet(), Version.CURRENT)).localNodeId("node_foo").masterNodeId("node_foo").build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes)

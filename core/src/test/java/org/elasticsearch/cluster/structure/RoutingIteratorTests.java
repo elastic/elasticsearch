@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardShuffler;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -247,8 +246,8 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         node2Attributes.put("rack_id", "rack_2");
         node2Attributes.put("zone", "zone2");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .put(newNode("node1", unmodifiableMap(node1Attributes)))
-                .put(newNode("node2", unmodifiableMap(node2Attributes)))
+                .add(newNode("node1", unmodifiableMap(node1Attributes)))
+                .add(newNode("node2", unmodifiableMap(node2Attributes)))
                 .localNodeId("node1")
         ).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
@@ -295,8 +294,8 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                        .put(newNode("fred", "node1", singletonMap("disk", "ebs")))
-                        .put(newNode("barney", "node2", singletonMap("disk", "ephemeral")))
+                        .add(newNode("fred", "node1", singletonMap("disk", "ebs")))
+                        .add(newNode("barney", "node2", singletonMap("disk", "ephemeral")))
                         .localNodeId("node1")
         ).build();
 
@@ -369,8 +368,8 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .put(newNode("node1"))
-                .put(newNode("node2"))
+                .add(newNode("node1"))
+                .add(newNode("node2"))
                 .localNodeId("node1")
         ).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
@@ -442,9 +441,9 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                        .put(newNode("node1"))
-                        .put(newNode("node2"))
-                        .put(newNode("node3"))
+                        .add(newNode("node1"))
+                        .add(newNode("node2"))
+                        .add(newNode("node3"))
                         .localNodeId("node1")
         ).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();

@@ -625,6 +625,10 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             return this;
         }
 
+        public DiscoveryNodes nodes() {
+            return nodes;
+        }
+
         public Builder routingResult(RoutingAllocation.Result routingResult) {
             this.routingTable = routingResult.routingTable();
             this.metaData = routingResult.metaData();
@@ -723,7 +727,6 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         public static ClusterState readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
             return PROTO.readFrom(in, localNode);
         }
-
     }
 
     @Override

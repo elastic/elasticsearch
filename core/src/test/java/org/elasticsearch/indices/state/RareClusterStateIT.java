@@ -125,7 +125,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             public ClusterState execute(ClusterState currentState) throws Exception {
                 // inject a node
                 ClusterState.Builder builder = ClusterState.builder(currentState);
-                builder.nodes(DiscoveryNodes.builder(currentState.nodes()).put(new DiscoveryNode("_non_existent",
+                builder.nodes(DiscoveryNodes.builder(currentState.nodes()).add(new DiscoveryNode("_non_existent",
                         LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT)));
 
                 // open index
@@ -154,12 +154,11 @@ public class RareClusterStateIT extends ESIntegTestCase {
         clusterService.submitStateUpdateTask("test-remove-injected-node", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                // inject a node
                 ClusterState.Builder builder = ClusterState.builder(currentState);
                 builder.nodes(DiscoveryNodes.builder(currentState.nodes()).remove("_non_existent"));
 
                 currentState = builder.build();
-                RoutingAllocation.Result result = allocationService.reroute(currentState, "reroute");
+                RoutingAllocation.Result result = allocationService.deassociateDeadNodes(currentState, true, "reroute");
                 return ClusterState.builder(currentState).routingResult(result).build();
 
             }

@@ -337,9 +337,12 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
             .endObject()
             .endObject().endObject().endObject().string();
         mapper = parser.parse("type", new CompressedXContent(mapping));
-        XContentBuilder builder = XContentFactory.jsonBuilder();
 
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
         mapper.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true")));
+        builder.endObject();
+
         String mappingString = builder.string();
         assertTrue(mappingString.contains("analyzer"));
         assertTrue(mappingString.contains("search_analyzer"));

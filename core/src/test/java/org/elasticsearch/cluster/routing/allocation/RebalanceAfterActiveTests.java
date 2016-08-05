@@ -99,7 +99,7 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
         }
 
         logger.info("start two nodes and fully start the shards");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
         RoutingTable prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -126,7 +126,7 @@ public class RebalanceAfterActiveTests extends ESAllocationTestCase {
 
         logger.info("now, start 8 more nodes, and check that no rebalancing/relocation have happened");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
-                .put(newNode("node3")).put(newNode("node4")).put(newNode("node5")).put(newNode("node6")).put(newNode("node7")).put(newNode("node8")).put(newNode("node9")).put(newNode("node10")))
+                .add(newNode("node3")).add(newNode("node4")).add(newNode("node5")).add(newNode("node6")).add(newNode("node7")).add(newNode("node8")).add(newNode("node9")).add(newNode("node10")))
                 .build();
         prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();

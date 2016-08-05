@@ -51,7 +51,7 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
                 .build();
         final Index index = indexMetaData.getIndex();
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")))
+                .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
                 .metaData(MetaData.builder().put(indexMetaData, false));
 
         final ShardRouting initShard = TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.INITIALIZING);

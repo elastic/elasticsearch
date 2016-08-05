@@ -12,8 +12,8 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.MockNetty3Plugin;
-import org.elasticsearch.xpack.MockNetty4Plugin;
+import org.elasticsearch.transport.Netty3Plugin;
+import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
@@ -49,8 +49,8 @@ public class MonitoringSettingsFilterTests extends MonitoringIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(MockNetty3Plugin.class); // for http
-        plugins.add(MockNetty4Plugin.class); // for http
+        plugins.add(Netty3Plugin.class); // for http
+        plugins.add(Netty4Plugin.class); // for http
         return plugins;
     }
 

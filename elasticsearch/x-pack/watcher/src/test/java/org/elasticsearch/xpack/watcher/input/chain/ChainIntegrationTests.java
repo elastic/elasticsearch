@@ -10,8 +10,8 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.MockNetty3Plugin;
-import org.elasticsearch.xpack.MockNetty4Plugin;
+import org.elasticsearch.transport.Netty3Plugin;
+import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.watcher.input.http.HttpInput;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
@@ -48,8 +48,8 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(MockNetty3Plugin.class); // for http
-        plugins.add(MockNetty4Plugin.class); // for http
+        plugins.add(Netty3Plugin.class); // for http
+        plugins.add(Netty4Plugin.class); // for http
         return plugins;
     }
 

@@ -20,6 +20,7 @@ package org.elasticsearch.transport.netty3;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -105,6 +106,11 @@ public class Netty3Utils {
 
         ThreadRenamingRunnable.setThreadNameDeterminer(ES_THREAD_NAME_DETERMINER);
 
+        trySetSunNioChBugLevel();
+    }
+
+    @SuppressForbidden(reason = "to use System#setProperty to set sun.nio.ch.bugLevel")
+    private static void trySetSunNioChBugLevel() {
         // Netty 3 SelectorUtil wants to set this; however, it does execute the property write in a
         // privileged block so we just do what Netty wants to do here
         final String key = "sun.nio.ch.bugLevel";

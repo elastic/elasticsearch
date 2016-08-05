@@ -102,7 +102,6 @@ public class RetryTests extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings());
-        settings.put("netty.assert.buglevel", false);
         // Use pools of size 1 so we can block them
         settings.put("thread_pool.bulk.size", 1);
         settings.put("thread_pool.search.size", 1);

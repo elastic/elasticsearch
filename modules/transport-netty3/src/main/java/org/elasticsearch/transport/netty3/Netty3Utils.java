@@ -111,8 +111,8 @@ public class Netty3Utils {
 
     @SuppressForbidden(reason = "to use System#setProperty to set sun.nio.ch.bugLevel")
     private static void trySetSunNioChBugLevel() {
-        // Netty 3 SelectorUtil wants to set this; however, it does execute the property write in a
-        // privileged block so we just do what Netty wants to do here
+        // Netty 3 SelectorUtil wants to set this; however, it does not execute the property write
+        // in a privileged block so we just do what Netty wants to do here
         final String key = "sun.nio.ch.bugLevel";
         final String buglevel = System.getProperty(key);
         if (buglevel == null) {

@@ -50,7 +50,6 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
 import static org.hamcrest.Matchers.notNullValue;
 

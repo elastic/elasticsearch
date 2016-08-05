@@ -21,7 +21,6 @@ package org.elasticsearch.transport.client;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
@@ -57,7 +56,6 @@ public class PreBuiltTransportClient extends TransportClient {
                     Arrays.asList(
                             Netty3Plugin.class,
                             Netty4Plugin.class,
-                            TransportPlugin.class,
                             ReindexPlugin.class,
                             PercolatorPlugin.class,
                             MustachePlugin.class));
@@ -69,24 +67,6 @@ public class PreBuiltTransportClient extends TransportClient {
 
     public PreBuiltTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins) {
         super(settings, Settings.EMPTY, addPlugins(plugins, PRE_INSTALLED_PLUGINS));
-    }
-
-    public static final class TransportPlugin extends Plugin {
-
-        private static final Setting<Boolean> ASSERT_NETTY_BUGLEVEL =
-                Setting.boolSetting("netty.assert.buglevel", true, Setting.Property.NodeScope);
-
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Collections.singletonList(ASSERT_NETTY_BUGLEVEL);
-        }
-
-        @Override
-        public Settings additionalSettings() {
-            return Settings.builder().put("netty.assert.buglevel", true)
-                    .build();
-        }
-
     }
 
     @Override

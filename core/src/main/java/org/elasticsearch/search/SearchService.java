@@ -21,6 +21,7 @@ package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -87,6 +88,8 @@ import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -94,6 +97,7 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
@@ -265,7 +269,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             loadOrExecuteQueryPhase(request, context);
 
-            if (context.queryResult().topDocs().scoreDocs.length == 0 && context.scrollContext() == null) {
+            if (hasHits(context.queryResult()) == false && context.scrollContext() == null) {
                 freeContext(context.id());
             } else {
                 contextProcessedSuccessfully(context);
@@ -320,7 +324,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             operationListener.onPreQueryPhase(context);
             long time = System.nanoTime();
             queryPhase.execute(context);
-            if (context.queryResult().topDocs().scoreDocs.length == 0 && context.scrollContext() == null) {
+            if (hasHits(context.queryResult()) == false && context.scrollContext() == null) {
                 // no hits, we can release the context since there will be no fetch phase
                 freeContext(context.id());
             } else {
@@ -811,40 +815,55 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private static final int[] EMPTY_DOC_IDS = new int[0];
-
     /**
      * Shortcut ids to load, we load only "from" and up to "size". The phase controller
      * handles this as well since the result is always size * shards for Q_A_F
      */
     private void shortcutDocIdsToLoad(SearchContext context) {
+        final int[] docIdsToLoad;
+        int docsOffset = 0;
+        final Suggest suggest = context.queryResult().suggest();
+        int numSuggestDocs = 0;
+        final List<CompletionSuggestion> completionSuggestions;
+        if (suggest != null && suggest.hasScoreDocs()) {
+            completionSuggestions = suggest.filter(CompletionSuggestion.class);
+            for (CompletionSuggestion completionSuggestion : completionSuggestions) {
+                numSuggestDocs += completionSuggestion.getOptions().size();
+            }
+        } else {
+            completionSuggestions = Collections.emptyList();
+        }
         if (context.request().scroll() != null) {
             TopDocs topDocs = context.queryResult().topDocs();
-            int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
+            docIdsToLoad = new int[topDocs.scoreDocs.length + numSuggestDocs];
             for (int i = 0; i < topDocs.scoreDocs.length; i++) {
-                docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
+                docIdsToLoad[docsOffset++] = topDocs.scoreDocs[i].doc;
             }
-            context.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
         } else {
             TopDocs topDocs = context.queryResult().topDocs();
             if (topDocs.scoreDocs.length < context.from()) {
                 // no more docs...
-                context.docIdsToLoad(EMPTY_DOC_IDS, 0, 0);
-                return;
-            }
-            int totalSize = context.from() + context.size();
-            int[] docIdsToLoad = new int[Math.min(topDocs.scoreDocs.length - context.from(), context.size())];
-            int counter = 0;
-            for (int i = context.from(); i < totalSize; i++) {
-                if (i < topDocs.scoreDocs.length) {
-                    docIdsToLoad[counter] = topDocs.scoreDocs[i].doc;
-                } else {
-                    break;
+                docIdsToLoad = new int[numSuggestDocs];
+            } else {
+                int totalSize = context.from() + context.size();
+                docIdsToLoad = new int[Math.min(topDocs.scoreDocs.length - context.from(), context.size()) +
+                    numSuggestDocs];
+                for (int i = context.from(); i < Math.min(totalSize, topDocs.scoreDocs.length); i++) {
+                    docIdsToLoad[docsOffset++] = topDocs.scoreDocs[i].doc;
                 }
-                counter++;
             }
-            context.docIdsToLoad(docIdsToLoad, 0, counter);
         }
+        for (CompletionSuggestion completionSuggestion : completionSuggestions) {
+            for (CompletionSuggestion.Entry.Option option : completionSuggestion.getOptions()) {
+                docIdsToLoad[docsOffset++] = option.getDoc().doc;
+            }
+        }
+        context.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
+    }
+
+    private static boolean hasHits(final QuerySearchResult searchResult) {
+        return searchResult.topDocs().scoreDocs.length > 0 ||
+            (searchResult.suggest() != null && searchResult.suggest().hasScoreDocs());
     }
 
     private void processScroll(InternalScrollSearchRequest request, SearchContext context) {

@@ -107,23 +107,12 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     }
 
     public void testIllegalArguments() {
-        try {
-            if (randomBoolean()) {
-                new CommonTermsQueryBuilder(null, "text");
-            } else {
-                new CommonTermsQueryBuilder("", "text");
-            }
-            fail("must be non null");
-        } catch (IllegalArgumentException e) {
-            assertEquals("field name is null or empty", e.getMessage());
-        }
-
-        try {
-            new CommonTermsQueryBuilder("fieldName", null);
-            fail("must be non null");
-        } catch (IllegalArgumentException e) {
-            assertEquals("text cannot be null", e.getMessage());
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new CommonTermsQueryBuilder(null, "text"));
+        assertEquals("field name is null or empty", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> new CommonTermsQueryBuilder("", "text"));
+        assertEquals("field name is null or empty", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> new CommonTermsQueryBuilder("fieldName", null));
+        assertEquals("text cannot be null", e.getMessage());
     }
 
     public void testFromJson() throws IOException {
@@ -203,11 +192,7 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
                 "  }\n" +
                 "}";
 
-        try {
-            parseQuery(json);
-            fail("parseQuery should have failed");
-        } catch(ParsingException e) {
-            assertEquals("[common] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
-        }
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[common] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 }

@@ -97,39 +97,22 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
     }
 
     public void testIllegalValues() {
-        try {
-            new MatchPhrasePrefixQueryBuilder(null, "value");
-            fail("field must not be non-null");
-        } catch (IllegalArgumentException ex) {
-            assertEquals("[match_phrase_prefix] requires fieldName", ex.getMessage());
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new MatchPhrasePrefixQueryBuilder(null, "value"));
+        assertEquals("[match_phrase_prefix] requires fieldName", e.getMessage());
 
-        try {
-            new MatchPhrasePrefixQueryBuilder("fieldName", null);
-            fail("value must not be non-null");
-        } catch (IllegalArgumentException ex) {
-            assertEquals("[match_phrase_prefix] requires query value", ex.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> new MatchPhrasePrefixQueryBuilder("fieldName", null));
+        assertEquals("[match_phrase_prefix] requires query value", e.getMessage());
 
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder("fieldName", "text");
-
-        try {
-            matchQuery.maxExpansions(-1);
-            fail("must not be positive");
-        } catch (IllegalArgumentException ex) {
-            // expected
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> matchQuery.maxExpansions(-1));
     }
 
     public void testBadAnalyzer() throws IOException {
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder("fieldName", "text");
         matchQuery.analyzer("bogusAnalyzer");
-        try {
-            matchQuery.toQuery(createShardContext());
-            fail("Expected QueryShardException");
-        } catch (QueryShardException e) {
-            assertThat(e.getMessage(), containsString("analyzer [bogusAnalyzer] not found"));
-        }
+
+        QueryShardException e = expectThrows(QueryShardException.class, () -> matchQuery.toQuery(createShardContext()));
+        assertThat(e.getMessage(), containsString("analyzer [bogusAnalyzer] not found"));
     }
 
     public void testPhrasePrefixMatchQuery() throws IOException {
@@ -186,12 +169,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
                 "    }\n" +
                 "  }\n" +
                 "}";
-
-        try {
-            parseQuery(json);
-            fail("parseQuery should have failed");
-        } catch(ParsingException e) {
-            assertEquals("[match_phrase_prefix] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
-        }
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[match_phrase_prefix] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 }

@@ -73,23 +73,13 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     }
 
     public void testIllegalArguments() {
-        try {
-            if (randomBoolean()) {
-                new PrefixQueryBuilder(null, "text");
-            } else {
-                new PrefixQueryBuilder("", "text");
-            }
-            fail("field name is null or empty");
-        } catch (IllegalArgumentException e) {
-            assertEquals("field name is null or empty", e.getMessage());
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new PrefixQueryBuilder(null, "text"));
+        assertEquals("field name is null or empty", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> new PrefixQueryBuilder("", "text"));
+        assertEquals("field name is null or empty", e.getMessage());
 
-        try {
-            new PrefixQueryBuilder("field", null);
-            fail("value cannot be null");
-        } catch (IllegalArgumentException e) {
-            assertEquals("value cannot be null", e.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> new PrefixQueryBuilder("field", null));
+        assertEquals("value cannot be null", e.getMessage());
     }
 
     public void testBlendedRewriteMethod() throws IOException {
@@ -135,12 +125,7 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
                 "      }\n" +
                 "    }\n" +
                 "}";
-
-        try {
-            parseQuery(json);
-            fail("parseQuery should have failed");
-        } catch(ParsingException e) {
-            assertEquals("[prefix] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
-        }
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[prefix] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
     }
 }

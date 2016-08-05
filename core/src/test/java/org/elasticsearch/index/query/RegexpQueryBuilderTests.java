@@ -83,23 +83,13 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
     }
 
     public void testIllegalArguments() {
-        try {
-            if (randomBoolean()) {
-                new RegexpQueryBuilder(null, "text");
-            } else {
-                new RegexpQueryBuilder("", "text");
-            }
-            fail("cannot be null or empty");
-        } catch (IllegalArgumentException e) {
-            assertEquals("field name is null or empty", e.getMessage());
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new RegexpQueryBuilder(null, "text"));
+        assertEquals("field name is null or empty", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> new RegexpQueryBuilder("", "text"));
+        assertEquals("field name is null or empty", e.getMessage());
 
-        try {
-            new RegexpQueryBuilder("field", null);
-            fail("cannot be null or empty");
-        } catch (IllegalArgumentException e) {
-            assertEquals("value cannot be null", e.getMessage());
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> new RegexpQueryBuilder("field", null));
+        assertEquals("value cannot be null", e.getMessage());
     }
 
     public void testFromJson() throws IOException {
@@ -126,8 +116,7 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         RegexpQueryBuilder query = new RegexpQueryBuilder(INT_FIELD_NAME, "12");
         QueryShardContext context = createShardContext();
-        QueryShardException e = expectThrows(QueryShardException.class,
-                () -> query.toQuery(context));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(context));
         assertEquals("Can only use regexp queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
                 e.getMessage());
     }
@@ -144,12 +133,7 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
                 "      }\n" +
                 "    }\n" +
                 "}";
-
-        try {
-            parseQuery(json);
-            fail("parseQuery should have failed");
-        } catch(ParsingException e) {
-            assertEquals("[regexp] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
-        }
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[regexp] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
     }
 }

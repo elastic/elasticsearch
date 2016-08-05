@@ -100,12 +100,9 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{    \"span_term\" : { \"user\" : { \"value\" : \"kimchy\", \"boost\" : 2.0 } }}    ";
-
+        String json = "{    \"span_term\" : { \"user\" : { \"value\" : \"kimchy\", \"boost\" : 2.0 } }}";
         SpanTermQueryBuilder parsed = (SpanTermQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
-
         assertEquals(json, "kimchy", parsed.value());
         assertEquals(json, 2.0, parsed.boost(), 0.0001);
     }
@@ -121,13 +118,8 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
                 "    }\n" +
                 "  }\n" +
                 "}";
-
-        try {
-            parseQuery(json);
-            fail("parseQuery should have failed");
-        } catch(ParsingException e) {
-            assertEquals("[span_term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
-        }
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[span_term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 
 }

@@ -313,13 +313,9 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assertSerialization(qb);
 
         // Now check with strict parsing an exception is thrown
-        try {
-            parseQuery(json, ParseFieldMatcher.STRICT);
-            fail("Expected query to fail with strict parsing");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(),
-                    containsString("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json, ParseFieldMatcher.STRICT));
+        assertThat(e.getMessage(),
+                containsString("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]"));
     }
 
     public void testLegacyMatchPhraseQuery() throws IOException {
@@ -350,13 +346,9 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assertSerialization(qb);
 
         // Now check with strict parsing an exception is thrown
-        try {
-            parseQuery(json, ParseFieldMatcher.STRICT);
-            fail("Expected query to fail with strict parsing");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(),
-                    containsString("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json, ParseFieldMatcher.STRICT));
+        assertThat(e.getMessage(),
+                containsString("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]"));
     }
 
     public void testLegacyFuzzyMatchQuery() throws IOException {
@@ -381,13 +373,8 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assertThat(qb, equalTo(expectedQB));
 
         // Now check with strict parsing an exception is thrown
-        try {
-            parseQuery(json, ParseFieldMatcher.STRICT);
-            fail("Expected query to fail with strict parsing");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(),
-                    containsString("Deprecated field [" + type + "] used, expected [match] instead"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json, ParseFieldMatcher.STRICT));
+        assertThat(e.getMessage(), containsString("Deprecated field [" + type + "] used, expected [match] instead"));
     }
 
     public void testFuzzinessOnNonStringField() throws Exception {
@@ -415,10 +402,8 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         MatchQueryBuilder query = new MatchQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
         QueryShardContext context = createShardContext();
-        QueryShardException e = expectThrows(QueryShardException.class,
-                () -> query.toQuery(context));
-        assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
-                e.getMessage());
+        QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(context));
+        assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]", e.getMessage());
         query.lenient(true);
         query.toQuery(context); // no exception
     }
@@ -434,12 +419,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 "    }\n" +
                 "  }\n" +
                 "}";
-
-        try {
-            parseQuery(json);
-            fail("parseQuery should have failed");
-        } catch(ParsingException e) {
-            assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
-        }
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 }

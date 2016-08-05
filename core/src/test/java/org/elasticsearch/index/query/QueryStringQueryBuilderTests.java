@@ -382,13 +382,12 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testToQueryRegExpQueryTooComplex() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        try {
-            queryStringQuery("/[ac]*a[ac]{50,200}/").defaultField(STRING_FIELD_NAME).toQuery(createShardContext());
-            fail("Expected TooComplexToDeterminizeException");
-        } catch (TooComplexToDeterminizeException e) {
-            assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
-            assertThat(e.getMessage(), containsString("would result in more than 10000 states"));
-        }
+        QueryStringQueryBuilder queryBuilder = queryStringQuery("/[ac]*a[ac]{50,200}/").defaultField(STRING_FIELD_NAME);
+
+        TooComplexToDeterminizeException e = expectThrows(TooComplexToDeterminizeException.class,
+                () -> queryBuilder.toQuery(createShardContext()));
+        assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
+        assertThat(e.getMessage(), containsString("would result in more than 10000 states"));
     }
 
     public void testFuzzyNumeric() throws Exception {
@@ -440,18 +439,13 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryStringQueryBuilder queryStringQueryBuilder = (QueryStringQueryBuilder) queryBuilder;
         assertThat(queryStringQueryBuilder.timeZone(), equalTo(DateTimeZone.forID("Europe/Paris")));
 
-        try {
-            queryAsString = "{\n" +
-                    "    \"query_string\":{\n" +
-                    "        \"time_zone\":\"This timezone does not exist\",\n" +
-                    "        \"query\":\"" + DATE_FIELD_NAME + ":[2012 TO 2014]\"\n" +
-                    "    }\n" +
-                    "}";
-            parseQuery(queryAsString);
-            fail("we expect a ParsingException as we are providing an unknown time_zome");
-        } catch (IllegalArgumentException e) {
-            // We expect this one
-        }
+        String invalidQueryAsString = "{\n" +
+                "    \"query_string\":{\n" +
+                "        \"time_zone\":\"This timezone does not exist\",\n" +
+                "        \"query\":\"" + DATE_FIELD_NAME + ":[2012 TO 2014]\"\n" +
+                "    }\n" +
+                "}";
+        expectThrows(IllegalArgumentException.class, () -> parseQuery(invalidQueryAsString));
     }
 
     public void testToQueryBooleanQueryMultipleBoosts() throws Exception {

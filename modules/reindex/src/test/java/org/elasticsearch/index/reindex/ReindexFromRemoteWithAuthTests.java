@@ -70,7 +70,6 @@ public class ReindexFromRemoteWithAuthTests extends ESSingleNodeTestCase {
     protected Settings nodeSettings() {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings());
         // Weird incantation required to test with netty
-        settings.put("netty.assert.buglevel", false);
         settings.put(NetworkModule.HTTP_ENABLED.getKey(), true);
         // Whitelist reindexing from the http host we're going to use
         settings.put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "myself");

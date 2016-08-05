@@ -30,6 +30,8 @@ import org.jboss.netty.util.ThreadNameDeterminer;
 import org.jboss.netty.util.ThreadRenamingRunnable;
 
 import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 
 /**
@@ -102,6 +104,24 @@ public class Netty3Utils {
         });
 
         ThreadRenamingRunnable.setThreadNameDeterminer(ES_THREAD_NAME_DETERMINER);
+
+        // Netty 3 SelectorUtil wants to set this; however, it does execute the property write in a
+        // privileged block so we just do what Netty wants to do here
+        final String key = "sun.nio.ch.bugLevel";
+        final String buglevel = System.getProperty(key);
+        if (buglevel == null) {
+            try {
+                AccessController.doPrivileged(new PrivilegedAction<Void>() {
+                    @Override
+                    public Void run() {
+                        System.setProperty(key, "");
+                        return null;
+                    }
+                });
+            } catch (final SecurityException e) {
+                Loggers.getLogger(Netty3Utils.class).debug("Unable to get/set System Property: {}", e, key);
+            }
+        }
     }
 
     public static void setup() {

@@ -37,7 +37,7 @@ public class ClusterStateResolverTests extends MonitoringIndexNameResolverTestCa
         DiscoveryNode masterNode = new DiscoveryNode("master", new LocalTransportAddress("master"),
                 emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNode otherNode = new DiscoveryNode("other", new LocalTransportAddress("other"), emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(masterNode).put(otherNode).masterNodeId(masterNode.getId()).build();
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(masterNode).add(otherNode).masterNodeId(masterNode.getId()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
         doc.setClusterState(clusterState);
         return doc;

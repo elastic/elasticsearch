@@ -19,7 +19,7 @@ PUT /my-index
         "doctype": {
             "properties": {
                 "message": {
-                    "type": "string"
+                    "type": "keyword"
                 }
             }
         },

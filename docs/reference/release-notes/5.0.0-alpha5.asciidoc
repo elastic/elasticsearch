@@ -9,6 +9,9 @@ IMPORTANT: This is an alpha release and is intended for _testing purposes only_.
 [float]
 === Breaking changes
 
+CAT API::
+* Improve cat thread pool API {pull}19721[#19721] (issue: {issue}19590[#19590])
+
 Cluster::
 * Persistent Node Ids {pull}19140[#19140] (issue: {issue}17811[#17811])
 
@@ -17,6 +20,9 @@ Core::
 
 Exceptions::
 * Die with dignity {pull}19272[#19272] (issue: {issue}19231[#19231])
+
+Index APIs::
+* Removes write consistency level across replication action APIs in favor of wait_for_active_shards {pull}19454[#19454] (issue: {issue}18985[#18985])
 
 Scripting::
 * Remove deprecated 1.x script and template syntax {pull}19387[#19387] (issue: {issue}13729[#13729])
@@ -30,9 +36,12 @@ Settings::
 
 
 
-[[breaking java-5.0.0-alpha5]]
+[[breaking-java-5.0.0-alpha5]]
 [float]
 === Breaking Java changes
+
+CRUD::
+* Removing isCreated and isFound from the Java API {pull}19645[#19645] (issues: {issue}19566[#19566], {issue}19631[#19631])
 
 Internal::
 * Clean up BytesReference {pull}19196[#19196]
@@ -61,6 +70,9 @@ Scripting::
 Settings::
 * Remove `node.mode` and `node.local` settings {pull}19428[#19428]
 
+Snapshot/Restore::
+* Removes extra writeBlob method in BlobContainer {pull}19727[#19727] (issue: {issue}18528[#18528])
+
 
 
 [[deprecation-5.0.0-alpha5]]
@@ -81,6 +93,9 @@ Templates::
 [[feature-5.0.0-alpha5]]
 [float]
 === New features
+
+Aggregations::
+* Split regular histograms from date histograms. {pull}19551[#19551] (issues: {issue}4847[#4847], {issue}8082[#8082])
 
 Circuit Breakers::
 * Circuit break on aggregation bucket numbers with request breaker {pull}19394[#19394] (issue: {issue}14046[#14046])
@@ -110,6 +125,7 @@ Translog::
 === Enhancements
 
 Aggregations::
+* Make the heuristic to compute the default shard size less aggressive. {pull}19659[#19659]
 * Add _bucket_count option to buckets_path {pull}19571[#19571] (issue: {issue}19553[#19553])
 * Remove AggregationStreams {pull}19507[#19507]
 * Migrate serial_diff aggregation to NamedWriteable {pull}19483[#19483]
@@ -139,6 +155,7 @@ CAT API::
 * Includes the index UUID in the _cat/indices API {pull}19204[#19204] (issue: {issue}19132[#19132])
 
 CRUD::
+* #19664 Renaming operation to result and reworking responses  {pull}19704[#19704] (issue: {issue}19664[#19664])
 * Adding _operation field to index, update, delete response. {pull}19566[#19566] (issues: {issue}19267[#19267], {issue}9642[#9642], {issue}9736[#9736])
 
 Cache::
@@ -152,6 +169,9 @@ Cluster::
 Core::
 * Makes index creation more friendly {pull}19450[#19450] (issue: {issue}9126[#9126])
 * Clearer error when handling fractional time values {pull}19158[#19158] (issue: {issue}19102[#19102])
+
+Discovery::
+* Do not log cluster service errors at after joining a master {pull}19705[#19705]
 
 Exceptions::
 * Make NotMasterException a first class citizen {pull}19385[#19385]
@@ -168,6 +188,7 @@ Ingest::
 
 Internal::
 * Make Priority an enum {pull}19448[#19448]
+* Snapshot UUIDs in blob names {pull}19421[#19421] (issues: {issue}18156[#18156], {issue}18815[#18815], {issue}19002[#19002], {issue}7540[#7540])
 * Add RestController method for deprecating in one step {pull}19343[#19343]
 * Tighten ensure atomic move cleanup {pull}19309[#19309] (issue: {issue}19036[#19036])
 * Enable checkstyle ModifierOrder {pull}19214[#19214]
@@ -197,6 +218,8 @@ Mapping::
 * Elasticsearch should reject dynamic templates with unknown `match_mapping_type`. {pull}17285[#17285] (issue: {issue}16945[#16945])
 
 Network::
+* Explicitly tell Netty to not use unsafe {pull}19786[#19786] (issues: {issue}19562[#19562], {issue}5624[#5624])
+* Enable Netty 4 extensions {pull}19767[#19767] (issue: {issue}19526[#19526])
 * Modularize netty {pull}19392[#19392]
 * Simplify TcpTransport interface by reducing send code to a single send method {pull}19223[#19223]
 
@@ -219,6 +242,7 @@ Plugin Mapper Size::
 * Add doc values support to the _size field in the mapper-size plugin {pull}19217[#19217] (issue: {issue}18334[#18334])
 
 Plugins::
+* Add ScriptService to dependencies available for plugin components {pull}19770[#19770]
 * Log one plugin info per line {pull}19441[#19441]
 * Make rest headers registration pull based {pull}19440[#19440]
 * Add resource watcher to services available for plugin components {pull}19401[#19401]
@@ -238,6 +262,8 @@ Recovery::
 * Non-blocking primary relocation hand-off {pull}19013[#19013] (issues: {issue}15900[#15900], {issue}18553[#18553])
 
 Reindex API::
+* Only ask for `_version` we need it {pull}19693[#19693] (issue: {issue}19135[#19135])
+* Use fewer threads when reindexing-from-remote {pull}19636[#19636]
 * Support authentication with reindex-from-remote {pull}19310[#19310]
 * Support requests_per_second=-1 to mean no throttling in reindex {pull}19101[#19101] (issue: {issue}19089[#19089])
 
@@ -253,7 +279,10 @@ Settings::
 * Validates new dynamic settings from the current state {pull}19122[#19122] (issue: {issue}19046[#19046])
 
 Snapshot/Restore::
+* BlobContainer#writeBlob no longer can overwrite a blob {pull}19749[#19749] (issue: {issue}15579[#15579])
+* More resilient blob handling in snapshot repositories {pull}19706[#19706] (issues: {issue}18156[#18156], {issue}18815[#18815], {issue}19421[#19421], {issue}7540[#7540])
 * Adding repository index generational files {pull}19002[#19002] (issue: {issue}18156[#18156])
+* Raised IOException on deleteBlob {pull}18815[#18815] (issue: {issue}18530[#18530])
 
 Stats::
 * Add missing field type in the FieldStats response. {pull}19241[#19241] (issue: {issue}17750[#17750])
@@ -266,6 +295,7 @@ Stats::
 === Bug fixes
 
 Aggregations::
+* Undeprecates `aggs` in the search request {pull}19674[#19674] (issue: {issue}19504[#19504])
 * Change how `nested` and `reverse_nested` aggs know about their nested depth level {pull}19550[#19550] (issues: {issue}11749[#11749], {issue}12410[#12410])
 * Make ExtendedBounds immutable {pull}19490[#19490] (issue: {issue}19481[#19481])
 * Fix potential AssertionError with include/exclude on terms aggregations. {pull}19252[#19252] (issue: {issue}18575[#18575])
@@ -279,23 +309,31 @@ Allocation::
 Analysis::
 * Fix analyzer alias processing {pull}19506[#19506] (issue: {issue}19163[#19163])
 
+CAT API::
+* Fixes cat tasks operation in detailed mode {pull}19759[#19759] (issue: {issue}19755[#19755])
+* Add index pattern wildcards support to _cat/shards {pull}19655[#19655] (issue: {issue}19634[#19634])
+
 Cluster::
+* Allow routing table to be filtered by index pattern {pull}19688[#19688]
 * Use executor's describeTasks method to log task information in cluster service {pull}19531[#19531]
 
 Core::
 * Makes `m` case sensitive in TimeValue {pull}19649[#19649] (issue: {issue}19619[#19619])
+* Guard against negative result from FileStore.getUsableSpace when picking data path for a new shard {pull}19554[#19554]
 * Handle rejected execution exception on reschedule {pull}19505[#19505]
 
 Dates::
 * Make sure TimeIntervalRounding is monotonic for increasing dates {pull}19020[#19020]
 
 Geo::
-* Incomplete results when using geo_distance for large distances [ISSUE] {pull}17578[#17578]
+* Incomplete results when using geo_distance for large distances {pull}17578[#17578]
 
 Highlighting::
+* Plain highlighter should ignore parent/child queries {pull}19616[#19616] (issue: {issue}14999[#14999])
 * Let fast vector highlighter also extract terms from the nested query's inner query. {pull}19337[#19337] (issue: {issue}19265[#19265])
 
 Index APIs::
+* Fixes active shard count check in the case of `all` shards {pull}19760[#19760]
 * Add zero-padding to auto-generated rollover index name increment {pull}19610[#19610] (issue: {issue}19484[#19484])
 
 Ingest::
@@ -320,6 +358,7 @@ Logging::
 * Only log running out of slots when out of slots {pull}19637[#19637]
 
 Mapping::
+* Mappings: Fix detection of metadata fields in documents {pull}19765[#19765]
 * Fix not_analyzed string fields to error when position_increment_gap is set {pull}19510[#19510]
 * Automatically created indices should honor `index.mapper.dynamic`. {pull}19478[#19478] (issue: {issue}17592[#17592])
 
@@ -349,6 +388,7 @@ Plugin Repository S3::
 * Fix repository S3 Settings and add more tests {pull}18703[#18703] (issues: {issue}18662[#18662], {issue}18690[#18690])
 
 Query DSL::
+* Throw ParsingException if a query is wrapped in an array {pull}19750[#19750] (issue: {issue}12887[#12887])
 * Restore parameter name auto_generate_phrase_queries {pull}19514[#19514] (issue: {issue}19512[#19512])
 
 REST::
@@ -371,6 +411,7 @@ Stats::
 * Allocation explain: Also serialize `includeDiskInfo` field {pull}19492[#19492]
 
 Store::
+* Tighten up concurrent store metadata listing and engine writes {pull}19684[#19684] (issue: {issue}19416[#19416])
 * Make static Store access shard lock aware {pull}19416[#19416] (issue: {issue}18938[#18938])
 * Catch assertion errors on commit and turn it into a real exception {pull}19357[#19357] (issue: {issue}19356[#19356])
 
@@ -381,6 +422,7 @@ Store::
 === Upgrades
 
 Network::
+* Dependencies: Upgrade to netty 4.1.4 {pull}19689[#19689]
 * Introduce Netty 4 {pull}19526[#19526] (issue: {issue}3226[#3226])
 * Upgrade to netty 3.10.6.Final {pull}19235[#19235]
 

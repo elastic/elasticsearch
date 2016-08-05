@@ -382,7 +382,7 @@ public class TribeService extends AbstractLifecycleComponent {
                     clusterStateChanged = true;
                     logger.info("[{}] adding node [{}]", tribeName, discoNode);
                     nodes.remove(tribe.getId()); // remove any existing node with the same id but different ephemeral id
-                    nodes.put(discoNode);
+                    nodes.add(discoNode);
                 }
             }
 

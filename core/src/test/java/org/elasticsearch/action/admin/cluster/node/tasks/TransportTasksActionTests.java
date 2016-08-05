@@ -739,7 +739,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         // First group by node
         DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
         for (TestNode testNode : this.testNodes) {
-            discoNodes.put(testNode.discoveryNode);
+            discoNodes.add(testNode.discoveryNode);
         }
         response.setDiscoveryNodes(discoNodes.build());
         Map<String, Object> byNodes = serialize(response, new ToXContent.MapParams(Collections.singletonMap("group_by", "nodes")));

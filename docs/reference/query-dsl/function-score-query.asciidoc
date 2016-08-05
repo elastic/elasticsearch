@@ -18,7 +18,7 @@ GET /_search
 {
     "query": {
         "function_score": {
-            "query": {},
+            "query": { "match_all": {} },
             "boost": "5",
             "random_score": {}, <1>
             "boost_mode":"multiply"
@@ -40,17 +40,17 @@ GET /_search
 {
     "query": {
         "function_score": {
-          "query": {},
+          "query": { "match_all": {} },
           "boost": "5", <1>
           "functions": [
               {
-                  "filter": {},
+                  "filter": { "match": { "test": "bar" } },
                   "random_score": {}, <2>
                   "weight": 23
               },
               {
-                  "filter": {},
-                  "weight": 42 
+                  "filter": { "match": { "test": "cat" } },
+                  "weight": 42
               }
           ],
           "max_boost": 42,
@@ -170,7 +170,7 @@ you wish to inhibit this, set `"boost_mode": "replace"`
 The `weight` score allows you to multiply the score by the provided
 `weight`. This can sometimes be desired since boost value set on
 specific queries gets normalized, while for this score function it does
-not. The number value is of type float. 
+not. The number value is of type float.
 
 [source,js]
 --------------------------------------------------

@@ -127,7 +127,7 @@ experimental[The format of the additional detail information is experimental and
 GET _analyze
 {
   "tokenizer" : "standard",
-  "token_filter" : ["snowball"],
+  "filter" : ["snowball"],
   "text" : "detailed output",
   "explain" : true,
   "attributes" : ["keyword"] <1>

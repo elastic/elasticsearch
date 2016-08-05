@@ -28,7 +28,7 @@ GET /_search
 --------------------------------------------------
 // CONSOLE
 
-Or :
+Or with the `prefix` deprecated[5.0.0, Use `value`] syntax:
 
 [source,js]
 --------------------------------------------------
@@ -39,6 +39,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[warning:Deprecated field [prefix] used, expected [value] instead]
 
 This multi term query allows you to control how it gets rewritten using the
 <<query-dsl-multi-term-rewrite,rewrite>>

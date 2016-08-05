@@ -24,7 +24,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.rounding.Rounding;
-import org.elasticsearch.common.rounding.TimeZoneRounding;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -45,8 +44,9 @@ import java.util.Map;
 
 /**
  * An aggregator for date values. Every date is rounded down using a configured
- * {@link TimeZoneRounding}.
- * @see TimeZoneRounding
+ * {@link Rounding}.
+ *
+ * @see Rounding
  */
 class DateHistogramAggregator extends BucketsAggregator {
 
@@ -60,14 +60,17 @@ class DateHistogramAggregator extends BucketsAggregator {
     private final ExtendedBounds extendedBounds;
 
     private final LongHash bucketOrds;
+    private long offset;
 
-    public DateHistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, InternalOrder order, boolean keyed,
+    public DateHistogramAggregator(String name, AggregatorFactories factories, Rounding rounding, long offset, InternalOrder order,
+            boolean keyed,
             long minDocCount, @Nullable ExtendedBounds extendedBounds, @Nullable ValuesSource.Numeric valuesSource,
             DocValueFormat formatter, AggregationContext aggregationContext,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
         this.rounding = rounding;
+        this.offset = offset;
         this.order = order;
         this.keyed = keyed;
         this.minDocCount = minDocCount;
@@ -100,7 +103,7 @@ class DateHistogramAggregator extends BucketsAggregator {
                 long previousRounded = Long.MIN_VALUE;
                 for (int i = 0; i < valuesCount; ++i) {
                     long value = values.valueAt(i);
-                    long rounded = rounding.round(value);
+                    long rounded = rounding.round(value - offset) + offset;
                     assert rounded >= previousRounded;
                     if (rounded == previousRounded) {
                         continue;
@@ -133,7 +136,7 @@ class DateHistogramAggregator extends BucketsAggregator {
         InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
                 ? new InternalDateHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds)
                 : null;
-        return new InternalDateHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed,
+        return new InternalDateHistogram(name, buckets, order, minDocCount, offset, emptyBucketInfo, formatter, keyed,
                 pipelineAggregators(), metaData());
     }
 
@@ -142,7 +145,7 @@ class DateHistogramAggregator extends BucketsAggregator {
         InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
                 ? new InternalDateHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds)
                 : null;
-        return new InternalDateHistogram(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed,
+        return new InternalDateHistogram(name, Collections.emptyList(), order, minDocCount, offset, emptyBucketInfo, formatter, keyed,
                 pipelineAggregators(), metaData());
     }
 

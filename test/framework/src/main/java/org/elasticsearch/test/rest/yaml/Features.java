@@ -41,6 +41,7 @@ public final class Features {
             "groovy_scripting",
             "headers",
             "stash_in_path",
+            "warnings",
             "yaml"));
 
     private Features() {

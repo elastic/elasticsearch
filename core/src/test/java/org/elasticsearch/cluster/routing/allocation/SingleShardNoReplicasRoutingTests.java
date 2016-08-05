@@ -80,7 +80,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
         assertThat(routingTable.index("test").shard(0).shards().get(0).currentNodeId(), nullValue());
 
         logger.info("Adding one node and performing rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
         RoutingTable prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -112,7 +112,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
         assertThat(routingTable.index("test").shard(0).shards().get(0).currentNodeId(), equalTo("node1"));
 
         logger.info("Starting another node and making sure nothing changed");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
         prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -128,7 +128,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node1")).build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
+        routingTable = strategy.deassociateDeadNodes(clusterState, true, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable != prevRoutingTable, equalTo(true));
@@ -139,7 +139,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
         assertThat(routingTable.index("test").shard(0).shards().get(0).currentNodeId(), equalTo("node2"));
 
         logger.info("Start another node, make sure that things remain the same (shard is in node2 and initializing)");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node3"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
         prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -181,7 +181,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
         assertThat(routingTable.index("test").shard(0).shards().get(0).currentNodeId(), nullValue());
 
         logger.info("Adding one node and rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
         RoutingTable prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -244,7 +244,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         List<DiscoveryNode> nodes = new ArrayList<>();
         for (int i = 0; i < (numberOfIndices / 2); i++) {
-            nodesBuilder.put(newNode("node" + i));
+            nodesBuilder.add(newNode("node" + i));
         }
         RoutingTable prevRoutingTable = routingTable;
         clusterState = ClusterState.builder(clusterState).nodes(nodesBuilder).build();
@@ -282,7 +282,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
         logger.info("Adding additional " + (numberOfIndices / 2) + " nodes, nothing should change");
         nodesBuilder = DiscoveryNodes.builder(clusterState.nodes());
         for (int i = (numberOfIndices / 2); i < numberOfIndices; i++) {
-            nodesBuilder.put(newNode("node" + i));
+            nodesBuilder.add(newNode("node" + i));
         }
         prevRoutingTable = routingTable;
         clusterState = ClusterState.builder(clusterState).nodes(nodesBuilder).build();
@@ -348,7 +348,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
         logger.info("Starting 3 nodes and rerouting");
         clusterState = ClusterState.builder(clusterState)
-                .nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")).put(newNode("node3")))
+                .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")))
                 .build();
         RoutingTable prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
@@ -369,7 +369,7 @@ public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
 
         logger.info("Start two more nodes, things should remain the same");
         clusterState = ClusterState.builder(clusterState)
-                .nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node4")).put(newNode("node5")))
+                .nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node4")).add(newNode("node5")))
                 .build();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 

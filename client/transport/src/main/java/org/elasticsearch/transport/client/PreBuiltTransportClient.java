@@ -19,6 +19,9 @@
 
 package org.elasticsearch.transport.client;
 
+import io.netty.util.ThreadDeathWatcher;
+import io.netty.util.concurrent.GlobalEventExecutor;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
@@ -34,6 +37,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A builder to create an instance of {@link TransportClient}
@@ -79,13 +83,28 @@ public class PreBuiltTransportClient extends TransportClient {
 
         @Override
         public Settings additionalSettings() {
-            return Settings.builder()
-                    .put(NetworkModule.TRANSPORT_TYPE_KEY, Netty4Plugin.NETTY_TRANSPORT_NAME)
-                    .put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME)
-                    .put("netty.assert.buglevel", true)
+            return Settings.builder().put("netty.assert.buglevel", true)
                     .build();
         }
 
+    }
+
+    @Override
+    public void close() {
+        super.close();
+        if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings) == false
+            || NetworkModule.TRANSPORT_TYPE_SETTING.get(settings).equals(Netty4Plugin.NETTY_TRANSPORT_NAME)) {
+            try {
+                GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            try {
+                ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
 }

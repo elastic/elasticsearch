@@ -196,14 +196,14 @@ PUT /test
         "file" : {
           "type" : "attachment",
           "fields" : {
-            "content" : {"index" : "no"},
-            "title" : {"store" : "yes"},
-            "date" : {"store" : "yes"},
+            "content" : {"index" : true},
+            "title" : {"store" : true},
+            "date" : {"store" : true},
             "author" : {"analyzer" : "my_analyzer"},
-            "keywords" : {"store" : "yes"},
-            "content_type" : {"store" : "yes"},
-            "content_length" : {"store" : "yes"},
-            "language" : {"store" : "yes"}
+            "keywords" : {"store" : true},
+            "content_type" : {"store" : true},
+            "content_length" : {"store" : true},
+            "language" : {"store" : true}
           }
         }
       }

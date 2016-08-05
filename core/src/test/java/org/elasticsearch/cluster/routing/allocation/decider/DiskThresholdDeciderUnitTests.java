@@ -121,8 +121,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                        .put(node_0)
-                        .put(node_1)
+                        .add(node_0)
+                        .add(node_1)
         ).build();
 
         // actual test -- after all that bloat :)
@@ -186,8 +186,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         logger.info("--> adding two nodes");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                        .put(node_0)
-                        .put(node_1)
+                        .add(node_0)
+                        .add(node_1)
         ).build();
 
         // actual test -- after all that bloat :)
@@ -317,7 +317,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             .metaData(metaData).routingTable(routingTableBuilder.build()).build();
 
         AllocationService allocationService = createAllocationService();
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")))
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
         RoutingAllocation.Result result = allocationService.reroute(clusterState, "foo");
         clusterState = ClusterState.builder(clusterState).routingTable(result.routingTable()).build();

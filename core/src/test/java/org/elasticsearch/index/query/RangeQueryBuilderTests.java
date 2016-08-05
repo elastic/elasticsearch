@@ -27,6 +27,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
@@ -171,27 +172,10 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         expectThrows(IllegalArgumentException.class, () -> new RangeQueryBuilder(""));
 
         RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder("test");
-        try {
-            if (randomBoolean()) {
-                rangeQueryBuilder.timeZone(null);
-            } else {
-                rangeQueryBuilder.timeZone("badID");
-            }
-            fail("cannot be null or unknown id");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            if (randomBoolean()) {
-                rangeQueryBuilder.format(null);
-            } else {
-                rangeQueryBuilder.format("badFormat");
-            }
-            fail("cannot be null or bad format");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> rangeQueryBuilder.timeZone(null));
+        expectThrows(IllegalArgumentException.class, () -> rangeQueryBuilder.timeZone("badID"));
+        expectThrows(IllegalArgumentException.class, () -> rangeQueryBuilder.format(null));
+        expectThrows(IllegalArgumentException.class, () -> rangeQueryBuilder.format("badFormat"));
     }
 
     /**
@@ -200,12 +184,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     public void testToQueryNonDateWithTimezone() throws QueryShardException, IOException {
         RangeQueryBuilder query = new RangeQueryBuilder(INT_FIELD_NAME);
         query.from(1).to(10).timeZone("UTC");
-        try {
-            query.toQuery(createShardContext());
-            fail("Expected QueryShardException");
-        } catch (QueryShardException e) {
-            assertThat(e.getMessage(), containsString("[range] time_zone can not be applied"));
-        }
+        QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(createShardContext()));
+        assertThat(e.getMessage(), containsString("[range] time_zone can not be applied"));
     }
 
     /**
@@ -214,12 +194,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     public void testToQueryUnmappedWithTimezone() throws QueryShardException, IOException {
         RangeQueryBuilder query = new RangeQueryBuilder("bogus_field");
         query.from(1).to(10).timeZone("UTC");
-        try {
-            query.toQuery(createShardContext());
-            fail("Expected QueryShardException");
-        } catch (QueryShardException e) {
-            assertThat(e.getMessage(), containsString("[range] time_zone can not be applied"));
-        }
+        QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(createShardContext()));
+        assertThat(e.getMessage(), containsString("[range] time_zone can not be applied"));
     }
 
     public void testToQueryNumericField() throws IOException {
@@ -270,7 +246,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         }
 
         // Test Invalid format
-        query = "{\n" +
+        final String invalidQuery = "{\n" +
                 "    \"range\" : {\n" +
                 "        \"" + DATE_FIELD_NAME + "\" : {\n" +
                 "            \"gte\": \"01/01/2012\",\n" +
@@ -279,12 +255,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "        }\n" +
                 "    }\n" +
                 "}";
-        try {
-            parseQuery(query).toQuery(createShardContext()).rewrite(null);
-            fail("A Range Query with a specific format but with an unexpected date should raise a ParsingException");
-        } catch (ElasticsearchParseException e) {
-            // We expect it
-        }
+        Query rewrittenQuery = parseQuery(invalidQuery).toQuery(createShardContext());
+        expectThrows(ElasticsearchParseException.class, () -> rewrittenQuery.rewrite(null));
     }
 
     public void testDateRangeBoundaries() throws IOException {
@@ -382,12 +354,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "        }\n" +
                 "    }\n" +
                 "}";
-        try {
-            parseQuery(query).toQuery(createShardContext());
-            fail("A Range Query on a numeric field with a TimeZone should raise a ParsingException");
-        } catch (QueryShardException e) {
-            // We expect it
-        }
+        QueryBuilder queryBuilder = parseQuery(query);
+        expectThrows(QueryShardException.class, () -> queryBuilder.toQuery(createShardContext()));
     }
 
     public void testFromJson() throws IOException {
@@ -426,7 +394,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "}";
         assertNotNull(parseQuery(json));
 
-        json =
+        final String deprecatedJson =
                 "{\n" +
                 "  \"range\" : {\n" +
                 "    \"timestamp\" : {\n" +
@@ -442,12 +410,10 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertNotNull(parseQuery(json, ParseFieldMatcher.EMPTY));
 
         // with strict parsing, ParseField will throw exception
-        try {
-            parseQuery(json, ParseFieldMatcher.STRICT);
-            fail("Strict parsing should trigger exception for '_name' on top level");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Deprecated field [_name] used, replaced by [query name is not supported in short version of range query]"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parseQuery(deprecatedJson, ParseFieldMatcher.STRICT));
+        assertEquals("Deprecated field [_name] used, replaced by [query name is not supported in short version of range query]",
+                e.getMessage());
     }
 
     public void testRewriteDateToMatchAll() throws IOException {
@@ -460,8 +426,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         };
         DateTime queryFromValue = new DateTime(2015, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
         DateTime queryToValue = new DateTime(2016, 1, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
-        DateTime shardMinValue = new DateTime(2015, 3, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
-        DateTime shardMaxValue = new DateTime(2015, 9, 1, 0, 0, 0, ISOChronology.getInstanceUTC());
         query.from(queryFromValue);
         query.to(queryToValue);
         QueryShardContext queryShardContext = createShardContext();
@@ -518,5 +482,23 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         QueryShardContext queryShardContext = createShardContext();
         QueryBuilder rewritten = query.rewrite(queryShardContext);
         assertThat(rewritten, sameInstance(query));
+    }
+
+    public void testParseFailsWithMultipleFields() throws IOException {
+        String json =
+                "{\n" +
+                "    \"range\": {\n" +
+                "      \"age\": {\n" +
+                "        \"gte\": 30,\n" +
+                "        \"lte\": 40\n" +
+                "      },\n" +
+                "      \"price\": {\n" +
+                "        \"gte\": 10,\n" +
+                "        \"lte\": 30\n" +
+                "      }\n" +
+                "    }\n" +
+                "  }";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[range] query doesn't support multiple fields, found [age] and [price]", e.getMessage());
     }
 }

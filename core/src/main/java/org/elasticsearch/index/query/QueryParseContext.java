@@ -115,10 +115,11 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
         @SuppressWarnings("unchecked")
         Optional<QueryBuilder> result = (Optional<QueryBuilder>) indicesQueriesRegistry.lookup(queryName, parseFieldMatcher,
                 parser.getTokenLocation()).fromXContent(this);
-        if (parser.currentToken() == XContentParser.Token.END_OBJECT) {
-            // if we are at END_OBJECT, move to the next one...
-            parser.nextToken();
+        if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "[" + queryName + "] malformed query, expected [END_OBJECT] but found [" + parser.currentToken() + "]");
         }
+        parser.nextToken();
         return result;
     }
 

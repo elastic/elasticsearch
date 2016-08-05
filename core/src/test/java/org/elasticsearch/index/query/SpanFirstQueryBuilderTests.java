@@ -56,12 +56,8 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
             builder.endObject();
             builder.endObject();
 
-            try {
-                parseQuery(builder.string());
-                fail("missing [end] parameter should raise exception");
-            } catch (ParsingException e) {
-                assertTrue(e.getMessage().contains("spanFirst must have [end] set"));
-            }
+            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(builder.string()));
+            assertTrue(e.getMessage().contains("spanFirst must have [end] set"));
         }
         {
             XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -71,12 +67,8 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
             builder.endObject();
             builder.endObject();
 
-            try {
-                parseQuery(builder.string());
-                fail("missing [match] parameter should raise exception");
-            } catch (ParsingException e) {
-                assertTrue(e.getMessage().contains("spanFirst must have [match] span query clause"));
-            }
+            ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(builder.string()));
+            assertTrue(e.getMessage().contains("spanFirst must have [match] span query clause"));
         }
     }
 

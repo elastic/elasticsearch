@@ -21,9 +21,12 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -32,19 +35,34 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
 
     @Override
     protected WildcardQueryBuilder doCreateTestQueryBuilder() {
-        WildcardQueryBuilder query;
-
-        // mapped or unmapped field
-        String text = randomAsciiOfLengthBetween(1, 10);
-        if (randomBoolean()) {
-            query = new WildcardQueryBuilder(STRING_FIELD_NAME, text);
-        } else {
-            query = new WildcardQueryBuilder(randomAsciiOfLengthBetween(1, 10), text);
-        }
+        WildcardQueryBuilder query = randomWildcardQuery();
         if (randomBoolean()) {
             query.rewrite(randomFrom(getRandomRewriteMethod()));
         }
         return query;
+    }
+
+    @Override
+    protected Map<String, WildcardQueryBuilder> getAlternateVersions() {
+        Map<String, WildcardQueryBuilder> alternateVersions = new HashMap<>();
+        WildcardQueryBuilder wildcardQuery = randomWildcardQuery();
+        String contentString = "{\n" +
+                "    \"wildcard\" : {\n" +
+                "        \"" + wildcardQuery.fieldName() + "\" : \"" + wildcardQuery.value() + "\"\n" +
+                "    }\n" +
+                "}";
+        alternateVersions.put(contentString, wildcardQuery);
+        return alternateVersions;
+    }
+
+    private static WildcardQueryBuilder randomWildcardQuery() {
+        // mapped or unmapped field
+        String text = randomAsciiOfLengthBetween(1, 10);
+        if (randomBoolean()) {
+            return new WildcardQueryBuilder(STRING_FIELD_NAME, text);
+        } else {
+            return new WildcardQueryBuilder(randomAsciiOfLengthBetween(1, 10), text);
+        }
     }
 
     @Override
@@ -57,41 +75,43 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     }
 
     public void testIllegalArguments() {
-        try {
-            if (randomBoolean()) {
-                new WildcardQueryBuilder(null, "text");
-            } else {
-                new WildcardQueryBuilder("", "text");
-            }
-            fail("cannot be null or empty");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new WildcardQueryBuilder(null, "text"));
+        assertEquals("field name is null or empty", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> new WildcardQueryBuilder("", "text"));
+        assertEquals("field name is null or empty", e.getMessage());
 
-        try {
-            new WildcardQueryBuilder("field", null);
-            fail("cannot be null or empty");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> new WildcardQueryBuilder("field", null));
+        assertEquals("value cannot be null", e.getMessage());
     }
 
     public void testEmptyValue() throws IOException {
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
-
         WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder(getRandomType(), "");
         assertEquals(wildcardQueryBuilder.toQuery(context).getClass(), WildcardQuery.class);
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{    \"wildcard\" : { \"user\" : { \"wildcard\" : \"ki*y\", \"boost\" : 2.0 } }}";
-
+        String json = "{    \"wildcard\" : { \"user\" : { \"wildcard\" : \"ki*y\", \"boost\" : 2.0 } }}";
         WildcardQueryBuilder parsed = (WildcardQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
-
         assertEquals(json, "ki*y", parsed.value());
         assertEquals(json, 2.0, parsed.boost(), 0.0001);
+    }
+
+    public void testParseFailsWithMultipleFields() throws IOException {
+        String json =
+                "{\n" +
+                "    \"wildcard\": {\n" +
+                "      \"user1\": {\n" +
+                "        \"wildcard\": \"ki*y\"\n" +
+                "      },\n" +
+                "      \"user2\": {\n" +
+                "        \"wildcard\": \"ki*y\"\n" +
+                "      }\n" +
+                "    }\n" +
+                "}";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[wildcard] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
     }
 }

@@ -281,13 +281,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         } while (testQuery.toString().contains(marker));
         testQuery.queryName(marker); // to find root query to add additional bogus field there
         String queryAsString = testQuery.toString().replace("\"" + marker + "\"", "\"" + marker + "\", \"bogusField\" : \"someValue\"");
-        try {
-            parseQuery(queryAsString);
-            fail("ParsingException expected.");
-        } catch (ParsingException e) {
-            // we'd like to see the offending field name here
-            assertThat(e.getMessage(), containsString("bogusField"));
-        }
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(queryAsString));
+        // we'd like to see the offending field name here
+        assertThat(e.getMessage(), containsString("bogusField"));
     }
 
     /**
@@ -344,12 +340,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 validQuery.substring(insertionPosition, endArrayPosition) + "]" +
                 validQuery.substring(endArrayPosition, validQuery.length());
 
-        try {
-            parseQuery(testQuery);
-            fail("some parsing exception expected for query: " + testQuery);
-        } catch (ParsingException e) {
-            assertEquals("[" + queryName + "] query malformed, no start_object after query name", e.getMessage());
-        }
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(testQuery));
+        assertEquals("[" + queryName + "] query malformed, no start_object after query name", e.getMessage());
     }
 
     /**

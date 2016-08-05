@@ -364,6 +364,12 @@ public class Node implements Closeable {
                     b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                     b.bind(IngestService.class).toInstance(ingestService);
                     b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
+                    Class<? extends SearchService> searchServiceImpl = pickSearchServiceImplementation();
+                    if (searchServiceImpl == SearchService.class) {
+                        b.bind(SearchService.class).asEagerSingleton();
+                    } else {
+                        b.bind(SearchService.class).to(searchServiceImpl).asEagerSingleton();
+                    }
                     pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));
                 }
             );
@@ -717,6 +723,13 @@ public class Node implements Closeable {
     }
 
     /**
+     * The {@link PluginsService} used to build this node's components.
+     */
+    protected PluginsService getPluginsService() {
+        return pluginsService;
+    }
+
+    /**
      * Creates a new {@link CircuitBreakerService} based on the settings provided.
      * @see #BREAKER_TYPE_KEY
      */
@@ -737,6 +750,13 @@ public class Node implements Closeable {
      */
     BigArrays createBigArrays(Settings settings, CircuitBreakerService circuitBreakerService) {
         return new BigArrays(settings, circuitBreakerService);
+    }
+
+    /**
+     * Select the search service implementation. Overrided by tests.
+     */
+    protected Class<? extends SearchService> pickSearchServiceImplementation() {
+        return SearchService.class;
     }
 
     /**

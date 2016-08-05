@@ -886,6 +886,7 @@ public class HistogramIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/19833")
     public void testEmptyWithExtendedBounds() throws Exception {
         int lastDataBucketKey = (numValueBuckets - 1) * interval;
 

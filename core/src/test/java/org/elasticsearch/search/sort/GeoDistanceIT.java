@@ -592,18 +592,16 @@ public class GeoDistanceIT extends ESIntegTestCase {
             final double originLat = randomLat();
             final double originLon = randomLon();
             final String distance = DistanceUnit.KILOMETERS.toString(randomIntBetween(1, 10000));
-            for (GeoDistance geoDistance : Arrays.asList(GeoDistance.ARC, GeoDistance.SLOPPY_ARC)) {
-                logger.info("Now testing GeoDistance={}, distance={}, origin=({}, {})", geoDistance, distance, originLat, originLon);
-                GeoDistanceQueryBuilder qb = QueryBuilders.geoDistanceQuery("location").point(originLat, originLon).distance(distance)
-                        .geoDistance(geoDistance);
-                long matches;
-                for (String optimizeBbox : Arrays.asList("none", "memory", "indexed")) {
-                    qb.optimizeBbox(optimizeBbox);
-                    SearchResponse resp = client().prepareSearch("index").setSize(0).setQuery(QueryBuilders.constantScoreQuery(qb))
-                        .execute().actionGet();
-                    matches = assertDuelOptimization(resp);
-                    logger.info("{} -> {} hits", optimizeBbox, matches);
-                }
+            logger.info("Now testing distance={}, origin=({}, {})", distance, originLat, originLon);
+            GeoDistanceQueryBuilder qb = QueryBuilders.geoDistanceQuery("location").point(originLat, originLon).distance(distance)
+                .geoDistance(GeoDistance.ARC);
+            long matches;
+            for (String optimizeBbox : Arrays.asList("none", "memory", "indexed")) {
+                qb.optimizeBbox(optimizeBbox);
+                SearchResponse resp = client().prepareSearch("index").setSize(0).setQuery(QueryBuilders.constantScoreQuery(qb))
+                    .execute().actionGet();
+                matches = assertDuelOptimization(resp);
+                logger.info("{} -> {} hits", optimizeBbox, matches);
             }
         }
     }

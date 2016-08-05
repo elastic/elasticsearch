@@ -339,7 +339,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         private final GeoPoint origin;
         private final IndexGeoPointFieldData fieldData;
 
-        private static final GeoDistance distFunction = GeoDistance.DEFAULT;
+        private static final GeoDistance distFunction = GeoDistance.ARC;
 
         public GeoFieldDataScoreFunction(GeoPoint origin, double scale, double decay, double offset, DecayFunction func,
                                          IndexGeoPointFieldData fieldData, MultiValueMode mode) {

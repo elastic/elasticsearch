@@ -42,7 +42,7 @@ import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.mapper.LegacyGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
+import org.elasticsearch.index.search.geo.LegacyGeoDistanceRangeQuery;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -63,7 +63,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     /** Default for distance unit computation. */
     public static final DistanceUnit DEFAULT_DISTANCE_UNIT = DistanceUnit.DEFAULT;
     /** Default for geo distance computation. */
-    public static final GeoDistance DEFAULT_GEO_DISTANCE = GeoDistance.DEFAULT;
+    public static final GeoDistance DEFAULT_GEO_DISTANCE = GeoDistance.ARC;
     /** Default for optimising query through pre computed bounding box query. */
     @Deprecated
     public static final String DEFAULT_OPTIMIZE_BBOX = "memory";
@@ -90,7 +90,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     /** Point to use as center. */
     private GeoPoint center = new GeoPoint(Double.NaN, Double.NaN);
     /** Algorithm to use for distance computation. */
-    private GeoDistance geoDistance = DEFAULT_GEO_DISTANCE;
+    private GeoDistance geoDistance = GeoDistance.ARC;
     /** Whether or not to use a bbox for pre-filtering. TODO change to enum? */
     private String optimizeBbox = null;
     /** How strict should geo coordinate validation be? */
@@ -295,15 +295,13 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
             GeoUtils.normalizePoint(center, true, true);
         }
 
-        double normDistance = geoDistance.normalize(this.distance, DistanceUnit.DEFAULT);
-
         if (indexVersionCreated.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
-            return LatLonPoint.newDistanceQuery(fieldType.name(), center.lat(), center.lon(), normDistance);
+            return LatLonPoint.newDistanceQuery(fieldType.name(), center.lat(), center.lon(), this.distance);
         } else if (indexVersionCreated.before(Version.V_2_2_0)) {
             LegacyGeoPointFieldMapper.LegacyGeoPointFieldType geoFieldType = (LegacyGeoPointFieldMapper.LegacyGeoPointFieldType) fieldType;
             IndexGeoPointFieldData indexFieldData = shardContext.getForField(fieldType);
             String bboxOptimization = Strings.isEmpty(optimizeBbox) ? DEFAULT_OPTIMIZE_BBOX : optimizeBbox;
-            return new GeoDistanceRangeQuery(center, null, normDistance, true, false, geoDistance,
+            return new LegacyGeoDistanceRangeQuery(center, null, this.distance, true, false, geoDistance,
                     geoFieldType, indexFieldData, bboxOptimization, shardContext);
         }
 
@@ -312,6 +310,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         final GeoPointField.TermEncoding encoding = (indexVersionCreated.before(Version.V_2_3_0)) ?
             GeoPointField.TermEncoding.NUMERIC : GeoPointField.TermEncoding.PREFIX;
         // Lucene 6.0 and earlier requires a radial restriction
+        double normDistance = this.distance;
         if (indexVersionCreated.before(Version.V_5_0_0_alpha4)) {
             normDistance = GeoUtils.maxRadialDistance(center, normDistance);
         }

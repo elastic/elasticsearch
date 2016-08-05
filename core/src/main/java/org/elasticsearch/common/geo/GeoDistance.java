@@ -19,18 +19,12 @@
 
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.GeoPointValues;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
-import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -39,101 +33,12 @@ import java.util.Locale;
  * Geo distance calculation.
  */
 public enum GeoDistance implements Writeable {
-    /**
-     * Calculates distance as points on a plane. Faster, but less accurate than {@link #ARC}.
-     * @deprecated use {@link GeoUtils#planeDistance}
-     */
-    @Deprecated
-    PLANE {
-        @Override
-        public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
-            double px = targetLongitude - sourceLongitude;
-            double py = targetLatitude - sourceLatitude;
-            return Math.sqrt(px * px + py * py) * unit.getDistancePerDegree();
-        }
+    PLANE, ARC;
 
-        @Override
-        public double normalize(double distance, DistanceUnit unit) {
-            return distance;
-        }
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(GeoDistance.class));
 
-        @Override
-        public FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
-            return new PlaneFixedSourceDistance(sourceLatitude, sourceLongitude, unit);
-        }
-    },
-
-    /**
-     * Calculates distance factor.
-     * Note: {@code calculate} is simply returning the RHS of the spherical law of cosines from 2 lat,lon points.
-     * {@code normalize} also returns the RHS of the spherical law of cosines for a given distance
-     * @deprecated use {@link SloppyMath#haversinMeters} to get distance in meters, law of cosines is being removed
-     */
-    @Deprecated
-    FACTOR {
-        @Override
-        public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
-            double longitudeDifference = targetLongitude - sourceLongitude;
-            double a = Math.toRadians(90D - sourceLatitude);
-            double c = Math.toRadians(90D - targetLatitude);
-            return (Math.cos(a) * Math.cos(c)) + (Math.sin(a) * Math.sin(c) * Math.cos(Math.toRadians(longitudeDifference)));
-        }
-
-        @Override
-        public double normalize(double distance, DistanceUnit unit) {
-            return Math.cos(distance / unit.getEarthRadius());
-        }
-
-        @Override
-        public FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
-            return new FactorFixedSourceDistance(sourceLatitude, sourceLongitude);
-        }
-    },
-    /**
-     * Calculates distance as points on a globe.
-     * @deprecated use {@link GeoUtils#arcDistance}
-     */
-    @Deprecated
-    ARC {
-        @Override
-        public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
-            double result = SloppyMath.haversinMeters(sourceLatitude, sourceLongitude, targetLatitude, targetLongitude);
-            return unit.fromMeters(result);
-        }
-
-        @Override
-        public double normalize(double distance, DistanceUnit unit) {
-            return distance;
-        }
-
-        @Override
-        public FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
-            return new ArcFixedSourceDistance(sourceLatitude, sourceLongitude, unit);
-        }
-    },
-    /**
-     * Calculates distance as points on a globe in a sloppy way. Close to the pole areas the accuracy
-     * of this function decreases.
-     */
-    @Deprecated
-    SLOPPY_ARC {
-
-        @Override
-        public double normalize(double distance, DistanceUnit unit) {
-            return distance;
-        }
-
-        @Override
-        public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
-            return unit.fromMeters(SloppyMath.haversinMeters(sourceLatitude, sourceLongitude, targetLatitude, targetLongitude));
-        }
-
-        @Override
-        public FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
-            return new SloppyArcFixedSourceDistance(sourceLatitude, sourceLongitude, unit);
-        }
-    };
-
+    /** Creates a GeoDistance instance from an input stream */
     public static GeoDistance readFromStream(StreamInput in) throws IOException {
         int ord = in.readVInt();
         if (ord < 0 || ord >= values().length) {
@@ -142,61 +47,10 @@ public enum GeoDistance implements Writeable {
         return GeoDistance.values()[ord];
     }
 
+    /** Writes an instance of a GeoDistance object to an output stream */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(this.ordinal());
-    }
-
-    /**
-     * Default {@link GeoDistance} function. This method should be used, If no specific function has been selected.
-     * This is an alias for <code>SLOPPY_ARC</code>
-     */
-    @Deprecated
-    public static final GeoDistance DEFAULT = SLOPPY_ARC;
-
-    public abstract double normalize(double distance, DistanceUnit unit);
-
-    public abstract double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit);
-
-    public abstract FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit);
-
-    private static final double MIN_LAT = Math.toRadians(-90d);  // -PI/2
-    private static final double MAX_LAT = Math.toRadians(90d);   //  PI/2
-    private static final double MIN_LON = Math.toRadians(-180d); // -PI
-    private static final double MAX_LON = Math.toRadians(180d);  //  PI
-
-    public static DistanceBoundingCheck distanceBoundingCheck(double sourceLatitude, double sourceLongitude, double distance, DistanceUnit unit) {
-        // angular distance in radians on a great circle
-        // assume worst-case: use the minor axis
-        double radDist = unit.toMeters(distance) / GeoUtils.EARTH_SEMI_MINOR_AXIS;
-
-        double radLat = Math.toRadians(sourceLatitude);
-        double radLon = Math.toRadians(sourceLongitude);
-
-        double minLat = radLat - radDist;
-        double maxLat = radLat + radDist;
-
-        double minLon, maxLon;
-        if (minLat > MIN_LAT && maxLat < MAX_LAT) {
-            double deltaLon = Math.asin(Math.sin(radDist) / Math.cos(radLat));
-            minLon = radLon - deltaLon;
-            if (minLon < MIN_LON) minLon += 2d * Math.PI;
-            maxLon = radLon + deltaLon;
-            if (maxLon > MAX_LON) maxLon -= 2d * Math.PI;
-        } else {
-            // a pole is within the distance
-            minLat = Math.max(minLat, MIN_LAT);
-            maxLat = Math.min(maxLat, MAX_LAT);
-            minLon = MIN_LON;
-            maxLon = MAX_LON;
-        }
-
-        GeoPoint topLeft = new GeoPoint(Math.toDegrees(maxLat), Math.toDegrees(minLon));
-        GeoPoint bottomRight = new GeoPoint(Math.toDegrees(minLat), Math.toDegrees(maxLon));
-        if (minLon > maxLon) {
-            return new Meridian180DistanceBoundingCheck(topLeft, bottomRight);
-        }
-        return new SimpleDistanceBoundingCheck(topLeft, bottomRight);
     }
 
     /**
@@ -204,8 +58,6 @@ public enum GeoDistance implements Writeable {
      *
      * <ul>
      *     <li><b>plane</b> for <code>GeoDistance.PLANE</code></li>
-     *     <li><b>sloppy_arc</b> for <code>GeoDistance.SLOPPY_ARC</code></li>
-     *     <li><b>factor</b> for <code>GeoDistance.FACTOR</code></li>
      *     <li><b>arc</b> for <code>GeoDistance.ARC</code></li>
      * </ul>
      *
@@ -216,224 +68,21 @@ public enum GeoDistance implements Writeable {
         name = name.toLowerCase(Locale.ROOT);
         if ("plane".equals(name)) {
             return PLANE;
+        } else if ("sloppy_arc".equals(name)) {
+            DEPRECATION_LOGGER.deprecated("[sloppy_arc] is deprecated. Use [arc] instead.");
+            return ARC;
         } else if ("arc".equals(name)) {
             return ARC;
-        } else if ("sloppy_arc".equals(name)) {
-            return SLOPPY_ARC;
-        } else if ("factor".equals(name)) {
-            return FACTOR;
         }
         throw new IllegalArgumentException("No geo distance for [" + name + "]");
     }
 
-    public interface FixedSourceDistance {
-
-        double calculate(double targetLatitude, double targetLongitude);
-    }
-
-    public interface DistanceBoundingCheck {
-
-        boolean isWithin(double targetLatitude, double targetLongitude);
-
-        GeoPoint topLeft();
-
-        GeoPoint bottomRight();
-    }
-
-    public static final AlwaysDistanceBoundingCheck ALWAYS_INSTANCE = new AlwaysDistanceBoundingCheck();
-
-    private static class AlwaysDistanceBoundingCheck implements DistanceBoundingCheck {
-        @Override
-        public boolean isWithin(double targetLatitude, double targetLongitude) {
-            return true;
+    /** compute the distance between two points using the selected algorithm (PLANE, ARC) */
+    public double calculate(double srcLat, double srcLon, double dstLat, double dstLon, DistanceUnit unit) {
+        if (this == PLANE) {
+            return DistanceUnit.convert(GeoUtils.planeDistance(srcLat, srcLon, dstLat, dstLon),
+                DistanceUnit.METERS, unit);
         }
-
-        @Override
-        public GeoPoint topLeft() {
-            return null;
-        }
-
-        @Override
-        public GeoPoint bottomRight() {
-            return null;
-        }
-    }
-
-    public static class Meridian180DistanceBoundingCheck implements DistanceBoundingCheck {
-
-        private final GeoPoint topLeft;
-        private final GeoPoint bottomRight;
-
-        public Meridian180DistanceBoundingCheck(GeoPoint topLeft, GeoPoint bottomRight) {
-            this.topLeft = topLeft;
-            this.bottomRight = bottomRight;
-        }
-
-        @Override
-        public boolean isWithin(double targetLatitude, double targetLongitude) {
-            return (targetLatitude >= bottomRight.lat() && targetLatitude <= topLeft.lat()) &&
-                    (targetLongitude >= topLeft.lon() || targetLongitude <= bottomRight.lon());
-        }
-
-        @Override
-        public GeoPoint topLeft() {
-            return topLeft;
-        }
-
-        @Override
-        public GeoPoint bottomRight() {
-            return bottomRight;
-        }
-    }
-
-    public static class SimpleDistanceBoundingCheck implements DistanceBoundingCheck {
-        private final GeoPoint topLeft;
-        private final GeoPoint bottomRight;
-
-        public SimpleDistanceBoundingCheck(GeoPoint topLeft, GeoPoint bottomRight) {
-            this.topLeft = topLeft;
-            this.bottomRight = bottomRight;
-        }
-
-        @Override
-        public boolean isWithin(double targetLatitude, double targetLongitude) {
-            return (targetLatitude >= bottomRight.lat() && targetLatitude <= topLeft.lat()) &&
-                    (targetLongitude >= topLeft.lon() && targetLongitude <= bottomRight.lon());
-        }
-
-        @Override
-        public GeoPoint topLeft() {
-            return topLeft;
-        }
-
-        @Override
-        public GeoPoint bottomRight() {
-            return bottomRight;
-        }
-    }
-
-    public static class PlaneFixedSourceDistance implements FixedSourceDistance {
-
-        private final double sourceLatitude;
-        private final double sourceLongitude;
-        private final double distancePerDegree;
-
-        public PlaneFixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
-            this.sourceLatitude = sourceLatitude;
-            this.sourceLongitude = sourceLongitude;
-            this.distancePerDegree = unit.getDistancePerDegree();
-        }
-
-        @Override
-        public double calculate(double targetLatitude, double targetLongitude) {
-            double px = targetLongitude - sourceLongitude;
-            double py = targetLatitude - sourceLatitude;
-            return Math.sqrt(px * px + py * py) * distancePerDegree;
-        }
-    }
-
-    public static class FactorFixedSourceDistance implements FixedSourceDistance {
-
-        private final double sourceLongitude;
-
-        private final double a;
-        private final double sinA;
-        private final double cosA;
-
-        public FactorFixedSourceDistance(double sourceLatitude, double sourceLongitude) {
-            this.sourceLongitude = sourceLongitude;
-            this.a = Math.toRadians(90D - sourceLatitude);
-            this.sinA = Math.sin(a);
-            this.cosA = Math.cos(a);
-        }
-
-        @Override
-        public double calculate(double targetLatitude, double targetLongitude) {
-            double longitudeDifference = targetLongitude - sourceLongitude;
-            double c = Math.toRadians(90D - targetLatitude);
-            return (cosA * Math.cos(c)) + (sinA * Math.sin(c) * Math.cos(Math.toRadians(longitudeDifference)));
-        }
-    }
-
-    /**
-     * Basic implementation of {@link FixedSourceDistance}. This class keeps the basic parameters for a distance
-     * functions based on a fixed source. Namely latitude, longitude and unit.
-     */
-    public abstract static class FixedSourceDistanceBase implements FixedSourceDistance {
-        protected final double sourceLatitude;
-        protected final double sourceLongitude;
-        protected final DistanceUnit unit;
-
-        public FixedSourceDistanceBase(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
-            this.sourceLatitude = sourceLatitude;
-            this.sourceLongitude = sourceLongitude;
-            this.unit = unit;
-        }
-    }
-
-    public static class ArcFixedSourceDistance extends FixedSourceDistanceBase {
-
-        public ArcFixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
-            super(sourceLatitude, sourceLongitude, unit);
-        }
-
-        @Override
-        public double calculate(double targetLatitude, double targetLongitude) {
-            return ARC.calculate(sourceLatitude, sourceLongitude, targetLatitude, targetLongitude, unit);
-        }
-
-    }
-
-    public static class SloppyArcFixedSourceDistance extends FixedSourceDistanceBase {
-
-        public SloppyArcFixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
-            super(sourceLatitude, sourceLongitude, unit);
-        }
-
-        @Override
-        public double calculate(double targetLatitude, double targetLongitude) {
-            return SLOPPY_ARC.calculate(sourceLatitude, sourceLongitude, targetLatitude, targetLongitude, unit);
-        }
-    }
-
-
-    /**
-     * Return a {@link SortedNumericDoubleValues} instance that returns the distances to a list of geo-points for each document.
-     */
-    public static SortedNumericDoubleValues distanceValues(final MultiGeoPointValues geoPointValues, final FixedSourceDistance... distances) {
-        final GeoPointValues singleValues = FieldData.unwrapSingleton(geoPointValues);
-        if (singleValues != null && distances.length == 1) {
-            final Bits docsWithField = FieldData.unwrapSingletonBits(geoPointValues);
-            return FieldData.singleton(new NumericDoubleValues() {
-
-                @Override
-                public double get(int docID) {
-                    if (docsWithField != null && !docsWithField.get(docID)) {
-                        return 0d;
-                    }
-                    final GeoPoint point = singleValues.get(docID);
-                    return distances[0].calculate(point.lat(), point.lon());
-                }
-
-            }, docsWithField);
-        } else {
-            return new SortingNumericDoubleValues() {
-
-                @Override
-                public void setDocument(int doc) {
-                    geoPointValues.setDocument(doc);
-                    resize(geoPointValues.count() * distances.length);
-                    int valueCounter = 0;
-                    for (FixedSourceDistance distance : distances) {
-                        for (int i = 0; i < geoPointValues.count(); ++i) {
-                            final GeoPoint point = geoPointValues.valueAt(i);
-                            values[valueCounter] = distance.calculate(point.lat(), point.lon());
-                            valueCounter++;
-                        }
-                    }
-                    sort();
-                }
-            };
-        }
+        return DistanceUnit.convert(GeoUtils.arcDistance(srcLat, srcLon, dstLat, dstLon), DistanceUnit.METERS, unit);
     }
 }

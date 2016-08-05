@@ -22,8 +22,8 @@ package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoDistance.FixedSourceDistance;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -85,16 +85,16 @@ public class GeoDistanceRangeAggregatorFactory
 
         private final ValuesSource.GeoPoint source;
         private final GeoDistance distanceType;
-        private final DistanceUnit unit;
+        private final DistanceUnit units;
         private final org.elasticsearch.common.geo.GeoPoint origin;
 
-        public DistanceSource(ValuesSource.GeoPoint source, GeoDistance distanceType, org.elasticsearch.common.geo.GeoPoint origin,
-                DistanceUnit unit) {
+        public DistanceSource(ValuesSource.GeoPoint source, GeoDistance distanceType,
+                org.elasticsearch.common.geo.GeoPoint origin, DistanceUnit units) {
             this.source = source;
             // even if the geo points are unique, there's no guarantee the
             // distances are
             this.distanceType = distanceType;
-            this.unit = unit;
+            this.units = units;
             this.origin = origin;
         }
 
@@ -111,8 +111,7 @@ public class GeoDistanceRangeAggregatorFactory
         @Override
         public SortedNumericDoubleValues doubleValues(LeafReaderContext ctx) {
             final MultiGeoPointValues geoValues = source.geoPointValues(ctx);
-            final FixedSourceDistance distance = distanceType.fixedSourceDistance(origin.getLat(), origin.getLon(), unit);
-            return GeoDistance.distanceValues(geoValues, distance);
+            return GeoUtils.distanceValues(distanceType, units, geoValues, origin);
         }
 
         @Override

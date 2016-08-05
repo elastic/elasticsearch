@@ -43,7 +43,7 @@ import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper.LegacyGeoPointFiel
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
+import org.elasticsearch.index.search.geo.LegacyGeoDistanceRangeQuery;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -57,7 +57,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
 
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
-    public static final GeoDistance DEFAULT_GEO_DISTANCE = GeoDistance.DEFAULT;
+    public static final GeoDistance DEFAULT_GEO_DISTANCE = GeoDistance.ARC;
     public static final DistanceUnit DEFAULT_UNIT = DistanceUnit.DEFAULT;
     @Deprecated
     public static final String DEFAULT_OPTIMIZE_BBOX = "memory";
@@ -331,9 +331,6 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
             } else {
                 fromValue = DistanceUnit.parse((String) from, unit, DistanceUnit.DEFAULT);
             }
-            if (indexCreatedBeforeV2_2) {
-                fromValue = geoDistance.normalize(fromValue, DistanceUnit.DEFAULT);
-            }
         } else {
             fromValue = 0.0;
         }
@@ -343,9 +340,6 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                 toValue = unit.toMeters(((Number) to).doubleValue());
             } else {
                 toValue = DistanceUnit.parse((String) to, unit, DistanceUnit.DEFAULT);
-            }
-            if (indexCreatedBeforeV2_2) {
-                toValue = geoDistance.normalize(toValue, DistanceUnit.DEFAULT);
             }
         } else {
             toValue = GeoUtils.maxRadialDistanceMeters(point.lat(), point.lon());
@@ -360,11 +354,9 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         deprecationLogger.deprecated("geo_distance_range search is deprecated. Use geo_distance aggregation or sort instead.");
 
         if (indexVersionCreated.before(Version.V_2_2_0)) {
-            LegacyGeoPointFieldType geoFieldType = (LegacyGeoPointFieldType) fieldType;
             IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
-            String bboxOptimization = Strings.isEmpty(optimizeBbox) ? DEFAULT_OPTIMIZE_BBOX : optimizeBbox;
-            return new GeoDistanceRangeQuery(point, fromValue, toValue, includeLower, includeUpper, geoDistance, geoFieldType,
-                    indexFieldData, bboxOptimization, context);
+            return new LegacyGeoDistanceRangeQuery(point, fromValue, toValue, includeLower, includeUpper, geoDistance,
+                ((LegacyGeoPointFieldType) fieldType), indexFieldData, optimizeBbox, context);
         }
 
         // if index created V_2_2 use (soon to be legacy) numeric encoding postings format

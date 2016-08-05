@@ -19,13 +19,22 @@
 
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.geo.Rectangle;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.GeoPointValues;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 
 import java.io.IOException;
@@ -484,12 +493,69 @@ public class GeoUtils {
 
     /**
      * Return the distance (in meters) between 2 lat,lon geo points using a simple tangential plane
-     * this provides a faster alternative to {@link GeoUtils#arcDistance} when points are within 5 km
+     * this provides a faster alternative to {@link GeoUtils#arcDistance} but is innaccurate for distances greater than
+     * 4 decimal degrees
      */
     public static double planeDistance(double lat1, double lon1, double lat2, double lon2) {
         double x = (lon2 - lon1) * SloppyMath.TO_RADIANS * Math.cos((lat2 + lat1) / 2.0 * SloppyMath.TO_RADIANS);
         double y = (lat2 - lat1) * SloppyMath.TO_RADIANS;
         return Math.sqrt(x * x + y * y) * EARTH_MEAN_RADIUS;
+    }
+
+    /** check if point is within a rectangle
+     * todo: move this to lucene Rectangle class
+     */
+    public static boolean rectangleContainsPoint(Rectangle r, double lat, double lon) {
+        if (lat >= r.minLat && lat <= r.maxLat) {
+            // if rectangle crosses the dateline we only check if the lon is >= min or max
+            return r.crossesDateline() ? lon >= r.minLon || lon <= r.maxLon : lon >= r.minLon && lon <= r.maxLon;
+        }
+        return false;
+    }
+
+    /**
+     * Return a {@link SortedNumericDoubleValues} instance that returns the distances to a list of geo-points
+     * for each document.
+     */
+    public static SortedNumericDoubleValues distanceValues(final GeoDistance distance,
+                                                           final DistanceUnit unit,
+                                                           final MultiGeoPointValues geoPointValues,
+                                                           final GeoPoint... fromPoints) {
+        final GeoPointValues singleValues = FieldData.unwrapSingleton(geoPointValues);
+        if (singleValues != null && fromPoints.length == 1) {
+            final Bits docsWithField = FieldData.unwrapSingletonBits(geoPointValues);
+            return FieldData.singleton(new NumericDoubleValues() {
+
+                @Override
+                public double get(int docID) {
+                    if (docsWithField != null && !docsWithField.get(docID)) {
+                        return 0d;
+                    }
+                    final GeoPoint to = singleValues.get(docID);
+                    final GeoPoint from = fromPoints[0];
+                    return distance.calculate(from.lat(), from.lon(), to.lat(), to.lon(), unit);
+                }
+
+            }, docsWithField);
+        } else {
+            return new SortingNumericDoubleValues() {
+
+                @Override
+                public void setDocument(int doc) {
+                    geoPointValues.setDocument(doc);
+                    resize(geoPointValues.count() * fromPoints.length);
+                    int v = 0;
+                    for (GeoPoint from : fromPoints) {
+                        for (int i = 0; i < geoPointValues.count(); ++i) {
+                            final GeoPoint point = geoPointValues.valueAt(i);
+                            values[v] = distance.calculate(from.lat(), from.lon(), point.lat(), point.lon(), unit);
+                            v++;
+                        }
+                    }
+                    sort();
+                }
+            };
+        }
     }
 
     private GeoUtils() {

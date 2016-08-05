@@ -29,7 +29,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
-import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
+import org.elasticsearch.index.search.geo.LegacyGeoDistanceRangeQuery;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
@@ -140,8 +140,8 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     private void assertLegacyQuery(GeoDistanceQueryBuilder queryBuilder, Query query) throws IOException {
-        assertThat(query, instanceOf(GeoDistanceRangeQuery.class));
-        GeoDistanceRangeQuery geoQuery = (GeoDistanceRangeQuery) query;
+        assertThat(query, instanceOf(LegacyGeoDistanceRangeQuery.class));
+        LegacyGeoDistanceRangeQuery geoQuery = (LegacyGeoDistanceRangeQuery) query;
         assertThat(geoQuery.fieldName(), equalTo(queryBuilder.fieldName()));
         if (queryBuilder.point() != null) {
             assertThat(geoQuery.lat(), equalTo(queryBuilder.point().lat()));
@@ -149,11 +149,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         }
         assertThat(geoQuery.geoDistance(), equalTo(queryBuilder.geoDistance()));
         assertThat(geoQuery.minInclusiveDistance(), equalTo(Double.NEGATIVE_INFINITY));
-        double distance = queryBuilder.distance();
-        if (queryBuilder.geoDistance() != null) {
-            distance = queryBuilder.geoDistance().normalize(distance, DistanceUnit.DEFAULT);
-        }
-        assertThat(geoQuery.maxInclusiveDistance(), closeTo(distance, Math.abs(distance) / 1000));
+        assertThat(geoQuery.maxInclusiveDistance(), closeTo(queryBuilder.distance(), Math.abs(queryBuilder.distance()) / 1000));
     }
 
     private void assertGeoPointQuery(GeoDistanceQueryBuilder queryBuilder, Query query) throws IOException {
@@ -166,12 +162,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 assertThat(geoQuery.getCenterLat(), equalTo(queryBuilder.point().lat()));
                 assertThat(geoQuery.getCenterLon(), equalTo(queryBuilder.point().lon()));
             }
-            double distance = queryBuilder.distance();
-            if (queryBuilder.geoDistance() != null) {
-                distance = queryBuilder.geoDistance().normalize(distance, DistanceUnit.DEFAULT);
-                distance = org.elasticsearch.common.geo.GeoUtils.maxRadialDistance(queryBuilder.point(), distance);
-                assertThat(geoQuery.getRadiusMeters(), closeTo(distance, GeoUtils.TOLERANCE));
-            }
+            assertThat(geoQuery.getRadiusMeters(), closeTo(queryBuilder.distance(), GeoUtils.TOLERANCE));
         }
     }
 
@@ -344,7 +335,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
         Version version = createShardContext().indexVersionCreated();
         if (version.before(Version.V_2_2_0)) {
-            GeoDistanceRangeQuery q = (GeoDistanceRangeQuery) parsedQuery;
+            LegacyGeoDistanceRangeQuery q = (LegacyGeoDistanceRangeQuery) parsedQuery;
             assertThat(q.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
             assertThat(q.lat(), closeTo(lat, 1E-5D));
             assertThat(q.lon(), closeTo(lon, 1E-5D));
@@ -365,7 +356,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "  \"geo_distance\" : {\n" +
                 "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
                 "    \"distance\" : 12000.0,\n" +
-                "    \"distance_type\" : \"sloppy_arc\",\n" +
+                "    \"distance_type\" : \"arc\",\n" +
                 "    \"validation_method\" : \"STRICT\",\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
@@ -378,13 +369,29 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         assertEquals(json, 12000.0, parsed.distance(), 0.0001);
     }
 
-    public void testOptimizeBboxIsDeprecated() throws IOException {
+    public void testSloppyArcIsDeprecated() throws IOException {
         String json =
             "{\n" +
                 "  \"geo_distance\" : {\n" +
                 "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
                 "    \"distance\" : 12000.0,\n" +
                 "    \"distance_type\" : \"sloppy_arc\",\n" +
+                "    \"validation_method\" : \"STRICT\",\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
+        parseQuery(json);
+        assertWarnings("[sloppy_arc] is deprecated. Use [arc] instead.");
+    }
+
+    public void testOptimizeBboxIsDeprecated() throws IOException {
+        String json =
+            "{\n" +
+                "  \"geo_distance\" : {\n" +
+                "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
+                "    \"distance\" : 12000.0,\n" +
+                "    \"distance_type\" : \"arc\",\n" +
                 "    \"optimize_bbox\" : \"memory\",\n" +
                 "    \"validation_method\" : \"STRICT\",\n" +
                 "    \"ignore_unmapped\" : false,\n" +
@@ -402,7 +409,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "  \"geo_distance\" : {\n" +
                 "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
                 "    \"distance\" : 12000.0,\n" +
-                "    \"distance_type\" : \"sloppy_arc\",\n" +
+                "    \"distance_type\" : \"arc\",\n" +
                 "    \"coerce\" : true,\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
@@ -418,7 +425,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "  \"geo_distance\" : {\n" +
                 "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
                 "    \"distance\" : 12000.0,\n" +
-                "    \"distance_type\" : \"sloppy_arc\",\n" +
+                "    \"distance_type\" : \"arc\",\n" +
                 "    \"ignore_malformed\" : true,\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +

@@ -22,11 +22,17 @@ package org.elasticsearch.client.transport;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -34,6 +40,8 @@ import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -42,6 +50,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 1.0)
 public class TransportClientIT extends ESIntegTestCase {
+
     public void testPickingUpChangesInDiscoveryNode() {
         String nodeName = internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false));
 
@@ -97,4 +106,47 @@ public class TransportClientIT extends ESIntegTestCase {
             assertThat(Client.CLIENT_TYPE_SETTING_S.get(settings), is("transport"));
         }
     }
+
+    /**
+     * test that when plugins are provided that want to register
+     * {@link NamedWriteable}, those are also made known to the
+     * {@link NamedWriteableRegistry} of the transport client
+     */
+    public void testPluginNamedWriteablesRegistered() {
+        Settings baseSettings = Settings.builder()
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                .build();
+        try (TransportClient client = new MockTransportClient(baseSettings, pluginList(MockPlugin.class))) {
+            NamedWriteableRegistry registry = client.injector.getInstance(NamedWriteableRegistry.class);
+            assertNotNull(registry.getReader(MockPlugin.MockNamedWriteable.class, MockPlugin.MockNamedWriteable.NAME));
+        }
+    }
+
+    public static class MockPlugin extends Plugin {
+
+        @Override
+        public List<Entry> getNamedWriteables() {
+            return Arrays.asList(new Entry[]{ new Entry(MockNamedWriteable.class, MockNamedWriteable.NAME, MockNamedWriteable::new)});
+        }
+
+        public class MockNamedWriteable implements NamedWriteable {
+
+            static final String NAME = "mockNamedWritable";
+
+            MockNamedWriteable(StreamInput in) {
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+            }
+
+            @Override
+            public String getWriteableName() {
+                return NAME;
+            }
+
+        }
+    }
+
+
 }

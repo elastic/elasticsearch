@@ -45,13 +45,11 @@ import org.elasticsearch.http.HttpServerAdapter;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.netty3.cors.Netty3CorsConfig;
-import org.elasticsearch.http.netty3.cors.Netty3CorsConfigBuilder;
 import org.elasticsearch.http.netty3.cors.Netty3CorsHandler;
 import org.elasticsearch.http.netty3.pipelining.HttpPipeliningHandler;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.netty3.Netty3OpenChannelsHandler;
@@ -71,7 +69,6 @@ import org.jboss.netty.channel.socket.oio.OioServerSocketChannelFactory;
 import org.jboss.netty.handler.codec.http.HttpChunkAggregator;
 import org.jboss.netty.handler.codec.http.HttpContentCompressor;
 import org.jboss.netty.handler.codec.http.HttpContentDecompressor;
-import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
 import org.jboss.netty.handler.timeout.ReadTimeoutException;
 
@@ -81,21 +78,13 @@ import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
-import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_BIND_HOST;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION_LEVEL;
@@ -110,7 +99,6 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_RESET_COOKIES;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
-import static org.elasticsearch.http.netty3.cors.Netty3CorsHandler.ANY_ORIGIN;
 
 public class Netty3HttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
 
@@ -257,7 +245,7 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         this.compressionLevel = SETTING_HTTP_COMPRESSION_LEVEL.get(settings);
         this.pipelining = SETTING_PIPELINING.get(settings);
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
-        this.corsConfig = buildCorsConfig(settings);
+        this.corsConfig = Netty3CorsConfig.buildCorsConfig(settings);
 
         // validate max content length
         if (maxContentLength.bytes() > Integer.MAX_VALUE) {
@@ -369,35 +357,6 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
                 "Please specify a unique port by setting " + SETTING_HTTP_PORT.getKey() + " or " + SETTING_HTTP_PUBLISH_PORT.getKey());
         }
         return publishPort;
-    }
-
-    private Netty3CorsConfig buildCorsConfig(Settings settings) {
-        if (SETTING_CORS_ENABLED.get(settings) == false) {
-            return Netty3CorsConfigBuilder.forOrigins().disable().build();
-        }
-        String origin = SETTING_CORS_ALLOW_ORIGIN.get(settings);
-        final Netty3CorsConfigBuilder builder;
-        if (Strings.isNullOrEmpty(origin)) {
-            builder = Netty3CorsConfigBuilder.forOrigins();
-        } else if (origin.equals(ANY_ORIGIN)) {
-            builder = Netty3CorsConfigBuilder.forAnyOrigin();
-        } else {
-            Pattern p = RestUtils.checkCorsSettingForRegex(origin);
-            if (p == null) {
-                builder = Netty3CorsConfigBuilder.forOrigins(RestUtils.corsSettingAsArray(origin));
-            } else {
-                builder = Netty3CorsConfigBuilder.forPattern(p);
-            }
-        }
-        if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {
-            builder.allowCredentials();
-        }
-        Set<String> strMethods = Strings.splitStringByCommaToSet(SETTING_CORS_ALLOW_METHODS.get(settings));
-        return builder.allowedRequestMethods(strMethods.stream().map(HttpMethod::valueOf).collect(Collectors.toSet()))
-                      .maxAge(SETTING_CORS_MAX_AGE.get(settings))
-                      .allowedRequestHeaders(Strings.splitStringByCommaToSet(SETTING_CORS_ALLOW_HEADERS.get(settings)))
-                      .shortCircuit()
-                      .build();
     }
 
     private InetSocketTransportAddress bindAddress(final InetAddress hostAddress) {

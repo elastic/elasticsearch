@@ -370,7 +370,7 @@ public class Netty3HttpChannelTests extends ESTestCase {
         }
     }
 
-    private static class TestHttpRequest implements HttpRequest {
+    public static class TestHttpRequest implements HttpRequest {
 
         private HttpHeaders headers = new DefaultHttpHeaders();
 

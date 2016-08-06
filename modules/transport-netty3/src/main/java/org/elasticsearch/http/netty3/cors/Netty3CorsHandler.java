@@ -58,7 +58,6 @@ public class Netty3CorsHandler extends SimpleChannelUpstreamHandler {
     private static Pattern SCHEME_PATTERN = Pattern.compile("^https?://");
 
     private final Netty3CorsConfig config;
-    private HttpRequest request;
 
     /**
      * Creates a new instance with the specified {@link Netty3CorsConfig}.
@@ -73,12 +72,12 @@ public class Netty3CorsHandler extends SimpleChannelUpstreamHandler {
     @Override
     public void messageReceived(final ChannelHandlerContext ctx, final MessageEvent e) throws Exception {
         if (config.isCorsSupportEnabled() && e.getMessage() instanceof HttpRequest) {
-            request = (HttpRequest) e.getMessage();
+            final HttpRequest request = (HttpRequest) e.getMessage();
             if (isPreflightRequest(request)) {
                 handlePreflight(ctx, request);
                 return;
             }
-            if (config.isShortCircuit() && !validateOrigin()) {
+            if (config.isShortCircuit() && !validateOrigin(request)) {
                 forbidden(ctx, request);
                 return;
             }
@@ -110,16 +109,26 @@ public class Netty3CorsHandler extends SimpleChannelUpstreamHandler {
     }
 
     private void handlePreflight(final ChannelHandlerContext ctx, final HttpRequest request) {
+        final HttpResponse response = handlePreflight(request);
+        if (response != null) {
+            ctx.getChannel().write(response).addListener(ChannelFutureListener.CLOSE);
+        } else {
+            forbidden(ctx, request);
+        }
+    }
+
+    // package private for testing
+    HttpResponse handlePreflight(final HttpRequest request) {
         final HttpResponse response = new DefaultHttpResponse(request.getProtocolVersion(), OK);
-        if (setOrigin(response)) {
+        if (setOrigin(request, response)) {
             setAllowMethods(response);
             setAllowHeaders(response);
             setAllowCredentials(response);
             setMaxAge(response);
             setPreflightHeaders(response);
-            ctx.getChannel().write(response).addListener(ChannelFutureListener.CLOSE);
+            return response;
         } else {
-            forbidden(ctx, request);
+            return null;
         }
     }
 
@@ -149,7 +158,7 @@ public class Netty3CorsHandler extends SimpleChannelUpstreamHandler {
         response.headers().add(config.preflightResponseHeaders());
     }
 
-    private boolean setOrigin(final HttpResponse response) {
+    private boolean setOrigin(final HttpRequest request, final HttpResponse response) {
         final String origin = request.headers().get(ORIGIN);
         if (!Strings.isNullOrEmpty(origin)) {
             if ("null".equals(origin) && config.isNullOriginAllowed()) {
@@ -158,7 +167,7 @@ public class Netty3CorsHandler extends SimpleChannelUpstreamHandler {
             }
             if (config.isAnyOriginSupported()) {
                 if (config.isCredentialsAllowed()) {
-                    echoRequestOrigin(response);
+                    echoRequestOrigin(request, response);
                     setVaryHeader(response);
                 } else {
                     setAnyOrigin(response);
@@ -174,7 +183,7 @@ public class Netty3CorsHandler extends SimpleChannelUpstreamHandler {
         return false;
     }
 
-    private boolean validateOrigin() {
+    private boolean validateOrigin(final HttpRequest request) {
         if (config.isAnyOriginSupported()) {
             return true;
         }
@@ -197,7 +206,7 @@ public class Netty3CorsHandler extends SimpleChannelUpstreamHandler {
         return config.isOriginAllowed(origin);
     }
 
-    private void echoRequestOrigin(final HttpResponse response) {
+    private static void echoRequestOrigin(final HttpRequest request, final HttpResponse response) {
         setOrigin(response, request.headers().get(ORIGIN));
     }
 
@@ -228,13 +237,13 @@ public class Netty3CorsHandler extends SimpleChannelUpstreamHandler {
     }
 
     private void setAllowMethods(final HttpResponse response) {
-        response.headers().set(ACCESS_CONTROL_ALLOW_METHODS, config.allowedRequestMethods().stream()
-                                          .map(m -> m.getName().trim())
-                                          .collect(Collectors.toList()));
+        response.headers().set(ACCESS_CONTROL_ALLOW_METHODS, Strings.collectionToCommaDelimitedString(
+            config.allowedRequestMethods().stream().map(m -> m.getName().trim()).collect(Collectors.toList()))
+        );
     }
 
     private void setAllowHeaders(final HttpResponse response) {
-        response.headers().set(ACCESS_CONTROL_ALLOW_HEADERS, config.allowedRequestHeaders());
+        response.headers().set(ACCESS_CONTROL_ALLOW_HEADERS, Strings.collectionToCommaDelimitedString(config.allowedRequestHeaders()));
     }
 
     private void setMaxAge(final HttpResponse response) {

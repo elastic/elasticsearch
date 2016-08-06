@@ -48,7 +48,6 @@ public class Netty4CorsHandler extends ChannelDuplexHandler {
     private static Pattern SCHEME_PATTERN = Pattern.compile("^https?://");
 
     private final Netty4CorsConfig config;
-    private HttpRequest request;
 
     /**
      * Creates a new instance with the specified {@link Netty4CorsConfig}.
@@ -63,12 +62,12 @@ public class Netty4CorsHandler extends ChannelDuplexHandler {
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (config.isCorsSupportEnabled() && msg instanceof HttpRequest) {
-            request = (HttpRequest) msg;
+            final HttpRequest request = (HttpRequest) msg;
             if (isPreflightRequest(request)) {
                 handlePreflight(ctx, request);
                 return;
             }
-            if (config.isShortCircuit() && !validateOrigin()) {
+            if (config.isShortCircuit() && !validateOrigin(request)) {
                 forbidden(ctx, request);
                 return;
             }
@@ -100,16 +99,26 @@ public class Netty4CorsHandler extends ChannelDuplexHandler {
     }
 
     private void handlePreflight(final ChannelHandlerContext ctx, final HttpRequest request) {
+        final HttpResponse response = handlePreflight(request);
+        if (response != null) {
+            ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+        } else {
+            forbidden(ctx, request);
+        }
+    }
+
+    // package private for testing
+    HttpResponse handlePreflight(final HttpRequest request) {
         final HttpResponse response = new DefaultFullHttpResponse(request.protocolVersion(), HttpResponseStatus.OK, true, true);
-        if (setOrigin(response)) {
+        if (setOrigin(request, response)) {
             setAllowMethods(response);
             setAllowHeaders(response);
             setAllowCredentials(response);
             setMaxAge(response);
             setPreflightHeaders(response);
-            ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+            return response;
         } else {
-            forbidden(ctx, request);
+            return null;
         }
     }
 
@@ -139,7 +148,7 @@ public class Netty4CorsHandler extends ChannelDuplexHandler {
         response.headers().add(config.preflightResponseHeaders());
     }
 
-    private boolean setOrigin(final HttpResponse response) {
+    private boolean setOrigin(final HttpRequest request, final HttpResponse response) {
         final String origin = request.headers().get(HttpHeaderNames.ORIGIN);
         if (!Strings.isNullOrEmpty(origin)) {
             if ("null".equals(origin) && config.isNullOriginAllowed()) {
@@ -149,7 +158,7 @@ public class Netty4CorsHandler extends ChannelDuplexHandler {
 
             if (config.isAnyOriginSupported()) {
                 if (config.isCredentialsAllowed()) {
-                    echoRequestOrigin(response);
+                    echoRequestOrigin(request, response);
                     setVaryHeader(response);
                 } else {
                     setAnyOrigin(response);
@@ -165,7 +174,7 @@ public class Netty4CorsHandler extends ChannelDuplexHandler {
         return false;
     }
 
-    private boolean validateOrigin() {
+    private boolean validateOrigin(final HttpRequest request) {
         if (config.isAnyOriginSupported()) {
             return true;
         }
@@ -188,7 +197,7 @@ public class Netty4CorsHandler extends ChannelDuplexHandler {
         return config.isOriginAllowed(origin);
     }
 
-    private void echoRequestOrigin(final HttpResponse response) {
+    private static void echoRequestOrigin(final HttpRequest request, final HttpResponse response) {
         setOrigin(response, request.headers().get(HttpHeaderNames.ORIGIN));
     }
 
@@ -219,9 +228,8 @@ public class Netty4CorsHandler extends ChannelDuplexHandler {
     }
 
     private void setAllowMethods(final HttpResponse response) {
-        response.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_METHODS, config.allowedRequestMethods().stream()
-            .map(m -> m.name().trim())
-            .collect(Collectors.toList()));
+        response.headers().set(HttpHeaderNames.ACCESS_CONTROL_ALLOW_METHODS,
+            config.allowedRequestMethods().stream().map(m -> m.name().trim()).collect(Collectors.toList()));
     }
 
     private void setAllowHeaders(final HttpResponse response) {

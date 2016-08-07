@@ -396,6 +396,12 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         } else {
             // sorted by sub-aggregation, need to fall back to a costly n*log(n) sort
             CollectionUtil.introSort(reducedBuckets, order.comparator());
+            if (reducedBuckets.size() == 1) {
+                // hack: force check of sub-aggregation names and fields if there is only 1 bucket (sort code bypassed)
+                // TODO check for valid sub-aggregation names and fields during parsing instead of reduce phase
+                Bucket b = reducedBuckets.get(0);
+                order.comparator().compare(b, b);
+            }
         }
 
         return new InternalDateHistogram(getName(), reducedBuckets, order, minDocCount, offset, emptyBucketInfo,

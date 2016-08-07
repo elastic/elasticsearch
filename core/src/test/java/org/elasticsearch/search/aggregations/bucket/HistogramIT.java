@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import com.carrotsearch.hppc.LongHashSet;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -56,6 +57,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -467,6 +469,24 @@ public class HistogramIT extends ESIntegTestCase {
             assertThat(sum.getValue(), equalTo((double) s));
             assertThat(sum.getValue(), lessThanOrEqualTo(previousSum));
             previousSum = s;
+        }
+    }
+
+    public void testSingleValuedFieldOrderedByMissingSubAggregation() throws Exception {
+        try {
+            client().prepareSearch("idx")
+                .addAggregation(
+                    histogram("histo")
+                        .field(SINGLE_VALUED_FIELD_NAME)
+                        .interval(interval)
+                        .order(Histogram.Order.aggregation("stats_missing.sum", false))
+                        .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME)))
+                .get();
+            fail();
+        } catch (ElasticsearchException ex) {
+            Throwable rootCause = ex.getRootCause();
+            assertThat(rootCause, instanceOf(IllegalArgumentException.class));
+            assertThat(rootCause.getMessage(), containsString("Invalid order path"));
         }
     }
 

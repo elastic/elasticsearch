@@ -85,8 +85,15 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     @Override
     public RestStatus status() {
         if (shardFailures.length == 0) {
-            // if no successful shards, it means no active shards, so just return SERVICE_UNAVAILABLE
-            return RestStatus.SERVICE_UNAVAILABLE;
+            // no successful shard responses or no shard failures
+            Throwable cause = super.getCause();
+            if (cause == null) {
+                // if no successful shards, it means no active shards, so just return SERVICE_UNAVAILABLE
+                return RestStatus.SERVICE_UNAVAILABLE;
+            } else {
+                // no shard failures: exception on node performing reduce
+                return ExceptionsHelper.status(cause);
+            }
         }
         RestStatus status = shardFailures[0].status();
         if (shardFailures.length > 1) {
@@ -150,7 +157,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     @Override
     protected void causeToXContent(XContentBuilder builder, Params params) throws IOException {
         if (super.getCause() != null) {
-            // if the cause is null we inject a guessed root cause that will then be rendered twice so wi disable it manually
+            // if the cause is null we inject a guessed root cause that will then be rendered twice so we disable it manually
             super.causeToXContent(builder, params);
         }
     }

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.joda.DateMathParser;
@@ -66,6 +67,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -468,6 +470,23 @@ public class DateHistogramIT extends ESIntegTestCase {
         for (Histogram.Bucket bucket : histo.getBuckets()) {
             assertThat(((DateTime) bucket.getKey()), equalTo(new DateTime(2012, i + 1, 1, 0, 0, DateTimeZone.UTC)));
             i--;
+        }
+    }
+
+    public void testSingleValuedFieldOrderedByMissingSubAggregation() throws Exception {
+        try {
+            client().prepareSearch("idx")
+                .addAggregation(dateHistogram("histo")
+                    .field("date")
+                    .dateHistogramInterval(DateHistogramInterval.MONTH)
+                    .order(Histogram.Order.aggregation("stats_missing", "sum", false))
+                    .subAggregation(stats("stats").field("value")))
+                .get();
+            fail();
+        } catch (ElasticsearchException ex) {
+            Throwable rootCause = ex.getRootCause();
+            assertThat(rootCause, instanceOf(IllegalArgumentException.class));
+            assertThat(rootCause.getMessage(), containsString("Invalid order path"));
         }
     }
 

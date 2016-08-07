@@ -141,6 +141,7 @@ public class HistogramParser extends NumericValuesSourceParser {
         if ("_count".equals(key)) {
             return (InternalOrder) (asc ? InternalOrder.COUNT_ASC : InternalOrder.COUNT_DESC);
         }
+        // TODO check for valid sub-aggregation names and fields here instead of reduce phase.
         return new InternalOrder.Aggregation(key, asc);
     }
 }

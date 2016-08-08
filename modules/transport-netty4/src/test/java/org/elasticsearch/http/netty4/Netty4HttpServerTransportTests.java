@@ -86,17 +86,32 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
     }
 
     public void testCorsConfig() {
-        final Set<String> methods = new HashSet<>(Arrays.asList("get", "options", "post"));
-        final Set<String> headers = new HashSet<>(Arrays.asList("Content-Type", "Content-Length"));
-        final Settings settings = Settings.builder()
+        Set<String> methods = new HashSet<>(Arrays.asList("get", "options", "post"));
+        Set<String> headers = new HashSet<>(Arrays.asList("Content-Type", "Content-Length"));
+        Settings settings = Settings.builder()
             .put(SETTING_CORS_ENABLED.getKey(), true)
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "*")
             .put(SETTING_CORS_ALLOW_METHODS.getKey(), Strings.collectionToCommaDelimitedString(methods))
             .put(SETTING_CORS_ALLOW_HEADERS.getKey(), Strings.collectionToCommaDelimitedString(headers))
             .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
             .build();
-        final Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool);
-        final Netty4CorsConfig corsConfig = transport.getCorsConfig();
+        Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool);
+        Netty4CorsConfig corsConfig = transport.getCorsConfig();
+        assertThat(corsConfig.isAnyOriginSupported(), equalTo(true));
+        assertThat(corsConfig.allowedRequestHeaders(), equalTo(headers));
+        assertThat(corsConfig.allowedRequestMethods().stream().map(HttpMethod::name).collect(Collectors.toSet()), equalTo(methods));
+        transport.close();
+
+        // test with default values
+        methods = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_METHODS.getDefault(Settings.EMPTY));
+        headers = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_HEADERS.getDefault(Settings.EMPTY));
+        settings = Settings.builder()
+                       .put(SETTING_CORS_ENABLED.getKey(), true)
+                       .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "*")
+                       .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
+                       .build();
+        transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool);
+        corsConfig = transport.getCorsConfig();
         assertThat(corsConfig.isAnyOriginSupported(), equalTo(true));
         assertThat(corsConfig.allowedRequestHeaders(), equalTo(headers));
         assertThat(corsConfig.allowedRequestMethods().stream().map(HttpMethod::name).collect(Collectors.toSet()), equalTo(methods));

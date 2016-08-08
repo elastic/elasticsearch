@@ -228,16 +228,18 @@ public class CorsHandler extends SimpleChannelUpstreamHandler {
                    headers.contains(HttpHeaders.Names.ACCESS_CONTROL_REQUEST_METHOD);
     }
 
-    private void setAllowMethods(final HttpResponse response) {
+    // package private for testing
+    void setAllowMethods(final HttpResponse response) {
         Set<String> strMethods = new HashSet<>();
         for (HttpMethod method : config.allowedRequestMethods()) {
             strMethods.add(method.getName().trim());
         }
-        response.headers().set(ACCESS_CONTROL_ALLOW_METHODS, strMethods);
+        response.headers().set(ACCESS_CONTROL_ALLOW_METHODS, Strings.collectionToCommaDelimitedString(strMethods));
     }
 
-    private void setAllowHeaders(final HttpResponse response) {
-        response.headers().set(ACCESS_CONTROL_ALLOW_HEADERS, config.allowedRequestHeaders());
+    // package private for testing
+    void setAllowHeaders(final HttpResponse response) {
+        response.headers().set(ACCESS_CONTROL_ALLOW_HEADERS, Strings.collectionToCommaDelimitedString(config.allowedRequestHeaders()));
     }
 
     private void setMaxAge(final HttpResponse response) {

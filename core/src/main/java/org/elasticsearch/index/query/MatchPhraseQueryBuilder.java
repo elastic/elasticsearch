@@ -207,6 +207,10 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
                     }
                 }
             } else {
+                if (fieldName != null) {
+                    throw new ParsingException(parser.getTokenLocation(), "[match_phrase] query doesn't support multiple fields, found ["
+                            + fieldName + "] and [" + parser.currentName() + "]");
+                }
                 fieldName = parser.currentName();
                 value = parser.objectText();
             }

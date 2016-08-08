@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.multifield;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -89,7 +90,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
 
         f = doc.getField("object1.multi1.string");
         assertThat(f.name(), equalTo("object1.multi1.string"));
-        assertThat(f.stringValue(), equalTo("2010-01-01"));
+        assertThat(f.binaryValue(), equalTo(new BytesRef("2010-01-01")));
 
         assertThat(docMapper.mappers().getMapper("name"), notNullValue());
         assertThat(docMapper.mappers().getMapper("name"), instanceOf(TextFieldMapper.class));

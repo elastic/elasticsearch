@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.externalvalues;
 
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -155,7 +156,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.field").stringValue(), is("foo"));
 
         assertThat(doc.rootDoc().getField("field.field.raw"), notNullValue());
-        assertThat(doc.rootDoc().getField("field.field.raw").stringValue(), is("foo"));
+        assertThat(doc.rootDoc().getField("field.field.raw").binaryValue(), is(new BytesRef("foo")));
     }
 
     public void testExternalValuesWithMultifieldTwoLevels() throws Exception {

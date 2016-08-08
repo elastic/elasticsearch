@@ -309,6 +309,10 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
                     }
                 }
             } else {
+                if (fieldName != null) {
+                    throw new ParsingException(parser.getTokenLocation(), "[fuzzy] query doesn't support multiple fields, found ["
+                            + fieldName + "] and [" + parser.currentName() + "]");
+                }
                 fieldName = parser.currentName();
                 value = parser.objectBytes();
             }

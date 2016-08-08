@@ -229,6 +229,10 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                 if (parseContext.getParseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
+                    if (fieldName != null) {
+                        throw new ParsingException(parser.getTokenLocation(), "[regexp] query doesn't support multiple fields, found ["
+                                + fieldName + "] and [" + parser.currentName() + "]");
+                    }
                     fieldName = currentFieldName;
                     value = parser.textOrNull();
                 }

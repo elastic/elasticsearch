@@ -7,15 +7,14 @@ package org.elasticsearch.xpack.graph;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.graph.action.GraphExploreAction;
 import org.elasticsearch.xpack.graph.action.TransportGraphExploreAction;
 import org.elasticsearch.xpack.graph.rest.action.RestGraphAction;
@@ -30,17 +29,11 @@ import static java.util.Collections.singletonList;
 public class Graph extends Plugin implements ActionPlugin {
 
     public static final String NAME = "graph";
-    private final boolean transportClientMode;
     protected final boolean enabled;
     
     
     public Graph(Settings settings) {
-        this.transportClientMode = XPackPlugin.transportClientMode(settings);
-        enabled = enabled(settings);
-    }
-    
-    public static boolean enabled(Settings settings) {
-        return XPackPlugin.featureEnabled(settings, NAME, true);
+        this.enabled = XPackSettings.GRAPH_ENABLED.get(settings);
     }
 
     public Collection<Module> createGuiceModules() {
@@ -64,10 +57,4 @@ public class Graph extends Plugin implements ActionPlugin {
         }
         return singletonList(RestGraphAction.class);
     }
-
-    @Override
-    public List<Setting<?>> getSettings() {
-        return Collections.singletonList(Setting.boolSetting(XPackPlugin.featureEnabledSetting(NAME), true, Setting.Property.NodeScope));
-    }
-
 }

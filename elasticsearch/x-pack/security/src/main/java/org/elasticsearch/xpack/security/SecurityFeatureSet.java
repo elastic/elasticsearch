@@ -5,17 +5,23 @@
  */
 package org.elasticsearch.xpack.security;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.XPackFeatureSet;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Realms;
-import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RolesStore;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
@@ -23,11 +29,6 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
-
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  *
@@ -54,7 +55,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     public SecurityFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, @Nullable Realms realms,
                               @Nullable CompositeRolesStore rolesStore, @Nullable IPFilter ipFilter,
                               @Nullable AuditTrailService auditTrailService, @Nullable CryptoService cryptoService) {
-        this.enabled = Security.enabled(settings);
+        this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         this.licenseState = licenseState;
         this.realms = realms;
         this.rolesStore = rolesStore;
@@ -66,7 +67,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     @Override
     public String name() {
-        return Security.NAME;
+        return XPackPlugin.SECURITY;
     }
 
     @Override
@@ -169,7 +170,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         public Usage(boolean available, boolean enabled, Map<String, Object> realmsUsage, Map<String, Object> rolesStoreUsage,
                      Map<String, Object> sslUsage, Map<String, Object> auditUsage, Map<String, Object> ipFilterUsage,
                      Map<String, Object> systemKeyUsage, Map<String, Object> anonymousUsage) {
-            super(Security.NAME, available, enabled);
+            super(XPackPlugin.SECURITY, available, enabled);
             this.realmsUsage = realmsUsage;
             this.rolesStoreUsage = rolesStoreUsage;
             this.sslUsage = sslUsage;

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.monitoring;
 
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -34,18 +33,6 @@ public class MonitoringSettings extends AbstractComponent {
      * The minimum amount of time allowed for the history duration.
      */
     public static final TimeValue HISTORY_DURATION_MINIMUM = TimeValue.timeValueHours(24);
-
-    /**
-     * Determines whether monitoring is enabled/disabled
-     */
-    public static final Setting<Boolean> ENABLED =
-            new Setting<>(XPackPlugin.featureEnabledSetting(Monitoring.NAME),
-
-                    // By default, monitoring is disabled on tribe nodes
-                    (s) -> String.valueOf(!XPackPlugin.isTribeNode(s) && !XPackPlugin.isTribeClientNode(s)),
-
-                    Booleans::parseBooleanExact,
-                    Property.NodeScope);
 
     /**
      * Sampling interval between two collections (default to 10s)
@@ -135,8 +122,7 @@ public class MonitoringSettings extends AbstractComponent {
                 CLUSTER_STATE_TIMEOUT,
                 CLUSTER_STATS_TIMEOUT,
                 HISTORY_DURATION,
-                EXPORTERS_SETTINGS,
-                ENABLED);
+                EXPORTERS_SETTINGS);
     }
 
     public static List<String> getSettingsFilter() {

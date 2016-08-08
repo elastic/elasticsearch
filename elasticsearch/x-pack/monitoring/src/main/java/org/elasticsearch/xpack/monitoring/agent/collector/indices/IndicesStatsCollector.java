@@ -17,11 +17,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.agent.collector.AbstractCollector;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.security.InternalClient;
-import org.elasticsearch.xpack.security.Security;
 
 /**
  * Collector for indices statistics.
@@ -66,7 +66,8 @@ public class IndicesStatsCollector extends AbstractCollector {
 
             return Collections.singletonList(indicesStatsDoc);
         } catch (IndexNotFoundException e) {
-            if (Security.enabled(settings) && IndexNameExpressionResolver.isAllIndices(Arrays.asList(monitoringSettings.indices()))) {
+            if (XPackSettings.SECURITY_ENABLED.get(settings)
+                && IndexNameExpressionResolver.isAllIndices(Arrays.asList(monitoringSettings.indices()))) {
                 logger.debug("collector [{}] - unable to collect data for missing index [{}]", name(), e.getIndex());
                 return Collections.emptyList();
             }

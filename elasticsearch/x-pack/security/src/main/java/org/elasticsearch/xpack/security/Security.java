@@ -13,7 +13,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -47,6 +46,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.security.action.SecurityActionModule;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
@@ -137,14 +137,10 @@ public class Security implements ActionPlugin, IngestPlugin {
 
     private static final ESLogger logger = Loggers.getLogger(XPackPlugin.class);
 
-    public static final String NAME = "security";
-    public static final String NAME3 = NAME + "3";
-    public static final String NAME4 = NAME + "4";
-    public static final String DLS_FLS_FEATURE = "security.dls_fls";
+    public static final String NAME3 = XPackPlugin.SECURITY + "3";
+    public static final String NAME4 = XPackPlugin.SECURITY + "4";
     public static final Setting<Optional<String>> USER_SETTING = OptionalSettings.createString(setting("user"), Property.NodeScope);
 
-    public static final Setting<Boolean> AUDIT_ENABLED_SETTING =
-        Setting.boolSetting(featureEnabledSetting("audit"), false, Property.NodeScope);
     public static final Setting<List<String>> AUDIT_OUTPUTS_SETTING =
         Setting.listSetting(setting("audit.outputs"),
             s -> s.getAsMap().containsKey(setting("audit.outputs")) ?
@@ -162,7 +158,7 @@ public class Security implements ActionPlugin, IngestPlugin {
         this.settings = settings;
         this.env = env;
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
-        this.enabled = XPackPlugin.featureEnabled(settings, NAME, true);
+        this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         if (enabled && transportClientMode == false) {
             validateAutoCreateIndex(settings);
             cryptoService = new CryptoService(settings, env);
@@ -174,10 +170,6 @@ public class Security implements ActionPlugin, IngestPlugin {
 
     public CryptoService getCryptoService() {
         return cryptoService;
-    }
-
-    public boolean isEnabled() {
-        return enabled;
     }
 
     public Collection<Module> nodeModules() {
@@ -215,7 +207,7 @@ public class Security implements ActionPlugin, IngestPlugin {
         // everything should have been loaded
         modules.add(b -> {
             b.bind(CryptoService.class).toInstance(cryptoService);
-            if (auditingEnabled(settings)) {
+            if (XPackSettings.AUDIT_ENABLED.get(settings)) {
                 b.bind(AuditTrail.class).to(AuditTrailService.class); // interface used by some actions...
             }
         });
@@ -271,11 +263,11 @@ public class Security implements ActionPlugin, IngestPlugin {
         // audit trails construction
         IndexAuditTrail indexAuditTrail = null;
         Set<AuditTrail> auditTrails = new LinkedHashSet<>();
-        if (AUDIT_ENABLED_SETTING.get(settings)) {
+        if (XPackSettings.AUDIT_ENABLED.get(settings)) {
             List<String> outputs = AUDIT_OUTPUTS_SETTING.get(settings);
             if (outputs.isEmpty()) {
                 throw new IllegalArgumentException("Audit logging is enabled but there are zero output types in "
-                    + AUDIT_ENABLED_SETTING.getKey());
+                    + XPackSettings.AUDIT_ENABLED.getKey());
             }
 
             for (String output : outputs) {
@@ -378,7 +370,7 @@ public class Security implements ActionPlugin, IngestPlugin {
             SecurityNetty4HttpServerTransport.overrideSettings(settingsBuilder, settings);
         }
 
-        settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, Security.NAME);
+        settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, XPackPlugin.SECURITY);
         addUserSettings(settings, settingsBuilder);
         addTribeSettings(settings, settingsBuilder);
         return settingsBuilder.build();
@@ -387,7 +379,6 @@ public class Security implements ActionPlugin, IngestPlugin {
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settingsList = new ArrayList<>();
         // always register for both client and node modes
-        XPackPlugin.addFeatureEnabledSettings(settingsList, NAME, true);
         settingsList.add(USER_SETTING);
 
         // SSL settings
@@ -401,13 +392,11 @@ public class Security implements ActionPlugin, IngestPlugin {
         }
 
         // The following just apply in node mode
-        XPackPlugin.addFeatureEnabledSettings(settingsList, DLS_FLS_FEATURE, true);
 
         // IP Filter settings
         IPFilter.addSettings(settingsList);
 
         // audit settings
-        settingsList.add(AUDIT_ENABLED_SETTING);
         settingsList.add(AUDIT_OUTPUTS_SETTING);
         LoggingAuditTrail.registerSettings(settingsList);
         IndexAuditTrail.registerSettings(settingsList);
@@ -459,7 +448,7 @@ public class Security implements ActionPlugin, IngestPlugin {
         }
 
         assert licenseState != null;
-        if (flsDlsEnabled(settings)) {
+        if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
             module.setSearcherWrapper(indexService ->
                 new SecurityIndexSearcherWrapper(indexService.getIndexSettings(), indexService.newQueryShardContext(),
                     indexService.mapperService(), indexService.cache().bitsetFilterCache(),
@@ -532,7 +521,7 @@ public class Security implements ActionPlugin, IngestPlugin {
             if (enabled) {
                 module.registerTransport(Security.NAME3, SecurityNetty3Transport.class);
                 module.registerTransport(Security.NAME4, SecurityNetty4Transport.class);
-                module.registerTransportService(Security.NAME, SecurityClientTransportService.class);
+                module.registerTransportService(XPackPlugin.SECURITY, SecurityClientTransportService.class);
             }
             return;
         }
@@ -540,7 +529,7 @@ public class Security implements ActionPlugin, IngestPlugin {
         if (enabled) {
             module.registerTransport(Security.NAME3, SecurityNetty3Transport.class);
             module.registerTransport(Security.NAME4, SecurityNetty4Transport.class);
-            module.registerTransportService(Security.NAME, SecurityServerTransportService.class);
+            module.registerTransportService(XPackPlugin.SECURITY, SecurityServerTransportService.class);
             module.registerHttpTransport(Security.NAME3, SecurityNetty3HttpServerTransport.class);
             module.registerHttpTransport(Security.NAME4, SecurityNetty4HttpServerTransport.class);
         }
@@ -598,9 +587,9 @@ public class Security implements ActionPlugin, IngestPlugin {
                 }
             }
 
-            final String tribeEnabledSetting = tribePrefix + XPackPlugin.featureEnabledSetting(NAME);
+            final String tribeEnabledSetting = tribePrefix + XPackSettings.SECURITY_ENABLED.getKey();
             if (settings.get(tribeEnabledSetting) != null) {
-                boolean enabled = enabled(tribeSettings.getValue());
+                boolean enabled = XPackSettings.SECURITY_ENABLED.get(tribeSettings.getValue());
                 if (!enabled) {
                     throw new IllegalStateException("tribe setting [" + tribeEnabledSetting + "] must be set to true but the value is ["
                             + settings.get(tribeEnabledSetting) + "]");
@@ -620,20 +609,8 @@ public class Security implements ActionPlugin, IngestPlugin {
         }
     }
 
-    public static boolean enabled(Settings settings) {
-        return XPackPlugin.featureEnabled(settings, NAME, true);
-    }
-
-    public static boolean flsDlsEnabled(Settings settings) {
-        return XPackPlugin.featureEnabled(settings, DLS_FLS_FEATURE, true);
-    }
-
-    public static String enabledSetting() {
-        return XPackPlugin.featureEnabledSetting(NAME);
-    }
-
     public static String settingPrefix() {
-        return XPackPlugin.featureSettingPrefix(NAME) + ".";
+        return XPackPlugin.featureSettingPrefix(XPackPlugin.SECURITY) + ".";
     }
 
     public static String setting(String setting) {
@@ -641,17 +618,8 @@ public class Security implements ActionPlugin, IngestPlugin {
         return settingPrefix() + setting;
     }
 
-    public static String featureEnabledSetting(String feature) {
-        assert feature != null && feature.startsWith(".") == false;
-        return XPackPlugin.featureEnabledSetting("security." + feature);
-    }
-
-    public static boolean auditingEnabled(Settings settings) {
-        return AUDIT_ENABLED_SETTING.get(settings);
-    }
-
-    public static boolean indexAuditLoggingEnabled(Settings settings) {
-        if (auditingEnabled(settings)) {
+    static boolean indexAuditLoggingEnabled(Settings settings) {
+        if (XPackSettings.AUDIT_ENABLED.get(settings)) {
             List<String> outputs = AUDIT_OUTPUTS_SETTING.get(settings);
             for (String output : outputs) {
                 if (output.equals(IndexAuditTrail.NAME)) {

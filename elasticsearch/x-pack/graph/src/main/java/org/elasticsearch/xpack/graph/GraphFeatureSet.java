@@ -13,6 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackFeatureSet;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 
 /**
  *
@@ -24,13 +26,13 @@ public class GraphFeatureSet implements XPackFeatureSet {
 
     @Inject
     public GraphFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState) {
-        this.enabled = Graph.enabled(settings);
+        this.enabled = XPackSettings.GRAPH_ENABLED.get(settings);
         this.licenseState = licenseState;
     }
 
     @Override
     public String name() {
-        return Graph.NAME;
+        return XPackPlugin.GRAPH;
     }
 
     @Override
@@ -60,7 +62,7 @@ public class GraphFeatureSet implements XPackFeatureSet {
         }
 
         public Usage(boolean available, boolean enabled) {
-            super(Graph.NAME, available, enabled);
+            super(XPackPlugin.GRAPH, available, enabled);
         }
     }
 }

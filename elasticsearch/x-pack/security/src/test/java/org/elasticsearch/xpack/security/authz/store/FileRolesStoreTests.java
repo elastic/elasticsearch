@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.security.authc.support.RefreshListener;
@@ -56,7 +57,7 @@ public class FileRolesStoreTests extends ESTestCase {
     public void testParseFile() throws Exception {
         Path path = getDataPath("roles.yml");
         Map<String, Role> roles = FileRolesStore.parseFile(path, logger, Settings.builder()
-                .put(XPackPlugin.featureEnabledSetting(Security.DLS_FLS_FEATURE), true)
+                .put(XPackSettings.DLS_FLS_ENABLED.getKey(), true)
                 .build());
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(9));
@@ -209,7 +210,7 @@ public class FileRolesStoreTests extends ESTestCase {
         Path path = getDataPath("roles.yml");
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
         Map<String, Role> roles = FileRolesStore.parseFile(path, logger, Settings.builder()
-                .put(XPackPlugin.featureEnabledSetting(Security.DLS_FLS_FEATURE), false)
+                .put(XPackSettings.DLS_FLS_ENABLED.getKey(), false)
                 .build());
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(6));
@@ -378,7 +379,7 @@ public class FileRolesStoreTests extends ESTestCase {
                 .put("resource.reload.interval.high", "500ms")
                 .put(FileRolesStore.ROLES_FILE_SETTING.getKey(), tmp.toAbsolutePath())
                 .put("path.home", createTempDir())
-                .put(XPackPlugin.featureEnabledSetting(Security.DLS_FLS_FEATURE), flsDlsEnabled)
+                .put(XPackSettings.DLS_FLS_ENABLED.getKey(), flsDlsEnabled)
                 .build();
         Environment env = new Environment(settings);
         FileRolesStore store = new FileRolesStore(settings, env, mock(ResourceWatcherService.class));

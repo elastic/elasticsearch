@@ -40,7 +40,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.security.Security.featureEnabledSetting;
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.Security.settingPrefix;
 
@@ -60,7 +59,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
                     new Property[]{Property.NodeScope, Property.Filtered, Property.Deprecated, Property.Shared});
 
     public static final Setting<Boolean> HOSTNAME_VERIFICATION_SETTING =
-            Setting.boolSetting(featureEnabledSetting("ssl.hostname_verification"), DEPRECATED_HOSTNAME_VERIFICATION_SETTING,
+            Setting.boolSetting(setting("ssl.hostname_verification.enabled"), DEPRECATED_HOSTNAME_VERIFICATION_SETTING,
                     Property.NodeScope, Property.Filtered, Property.Shared);
 
     public static final Setting<Boolean> HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING =

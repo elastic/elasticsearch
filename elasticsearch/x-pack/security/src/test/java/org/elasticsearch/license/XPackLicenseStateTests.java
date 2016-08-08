@@ -11,13 +11,13 @@ import java.util.stream.Collectors;
 
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.monitoring.Monitoring;
-import org.elasticsearch.xpack.security.Security;
 import org.hamcrest.Matchers;
 
-import static org.elasticsearch.license.License.OperationMode.MISSING;
 import static org.elasticsearch.license.License.OperationMode.BASIC;
 import static org.elasticsearch.license.License.OperationMode.GOLD;
+import static org.elasticsearch.license.License.OperationMode.MISSING;
 import static org.elasticsearch.license.License.OperationMode.PLATINUM;
 import static org.elasticsearch.license.License.OperationMode.STANDARD;
 import static org.elasticsearch.license.License.OperationMode.TRIAL;
@@ -168,25 +168,25 @@ public class XPackLicenseStateTests extends ESTestCase {
 
     public void testSecurityAckBasicToNotGoldOrStandard() {
         OperationMode toMode = randomFrom(OperationMode.values(), mode -> mode != GOLD && mode != STANDARD);
-        assertAckMesssages(Security.NAME, BASIC, toMode, 0);
+        assertAckMesssages(XPackPlugin.SECURITY, BASIC, toMode, 0);
     }
 
     public void testSecurityAckAnyToTrialOrPlatinum() {
-        assertAckMesssages(Security.NAME, randomMode(), randomTrialOrPlatinumMode(), 0);
+        assertAckMesssages(XPackPlugin.SECURITY, randomMode(), randomTrialOrPlatinumMode(), 0);
     }
 
     public void testSecurityAckTrialStandardGoldOrPlatinumToBasic() {
-        assertAckMesssages(Security.NAME, randomTrialStandardGoldOrPlatinumMode(), BASIC, 3);
+        assertAckMesssages(XPackPlugin.SECURITY, randomTrialStandardGoldOrPlatinumMode(), BASIC, 3);
     }
 
     public void testSecurityAckAnyToStandard() {
         OperationMode from = randomFrom(BASIC, GOLD, PLATINUM, TRIAL);
-        assertAckMesssages(Security.NAME, from, STANDARD, 4);
+        assertAckMesssages(XPackPlugin.SECURITY, from, STANDARD, 4);
     }
 
     public void testSecurityAckBasicStandardTrialOrPlatinumToGold() {
         OperationMode from = randomFrom(BASIC, PLATINUM, TRIAL, STANDARD);
-        assertAckMesssages(Security.NAME, from, GOLD, 2);
+        assertAckMesssages(XPackPlugin.SECURITY, from, GOLD, 2);
     }
 
     public void testMonitoringAckBasicToAny() {

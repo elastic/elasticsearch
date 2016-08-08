@@ -17,6 +17,7 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.monitoring.action.TransportMonitoringBulkAction;
 import org.elasticsearch.xpack.monitoring.agent.AgentService;
@@ -72,7 +73,7 @@ public class Monitoring implements ActionPlugin {
         this.settings = settings;
         this.env = env;
         this.licenseState = licenseState;
-        this.enabled = enabled(settings);
+        this.enabled = XPackSettings.MONITORING_ENABLED.get(settings);
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
         this.tribeNode = XPackPlugin.isTribeNode(settings);
     }
@@ -138,9 +139,5 @@ public class Monitoring implements ActionPlugin {
             return emptyList();
         }
         return singletonList(RestMonitoringBulkAction.class);
-    }
-
-    public static boolean enabled(Settings settings) {
-        return MonitoringSettings.ENABLED.get(settings);
     }
 }

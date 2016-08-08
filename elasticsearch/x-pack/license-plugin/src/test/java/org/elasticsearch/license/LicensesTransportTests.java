@@ -8,13 +8,11 @@ package org.elasticsearch.license;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.monitoring.Monitoring;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -39,9 +37,9 @@ public class LicensesTransportTests extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         Settings.Builder newSettings = Settings.builder();
-        newSettings.put(XPackPlugin.featureEnabledSetting(Security.NAME), false);
-        newSettings.put(XPackPlugin.featureEnabledSetting(Monitoring.NAME), false);
-        newSettings.put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false);
+        newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
+        newSettings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
+        newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         newSettings.put(Node.NODE_DATA_SETTING.getKey(), true);
         return newSettings.build();
     }

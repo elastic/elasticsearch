@@ -149,7 +149,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 float maxScore = randomIntBetween(suggestion.getSize(), (int) Float.MAX_VALUE);
                 for (int i = 0; i < optionSize; i++) {
                     completionEntry.addOption(new CompletionSuggestion.Entry.Option(i, new Text(""), maxScore,
-                        Collections.emptyMap(), Collections.emptyMap()));
+                        Collections.emptyMap()));
                     float dec = randomIntBetween(0, optionSize);
                     if (dec <= maxScore) {
                         maxScore -= dec;

@@ -195,79 +195,10 @@ returns this response:
 // TESTRESPONSE
 
 The configured weight for a suggestion is returned as `_score`.
-The `text` field uses the `input` of your indexed suggestion. The document
-source is returned in `_source`. <<search-request-source-filtering, source filtering>>
+The `text` field uses the `input` of your indexed suggestion.
+Suggestions are document oriented, the document source is
+returned in `_source`. <<search-request-source-filtering, source filtering>>
 parameters are supported for filtering the document source.
-
-Suggestions are document oriented, you can specify fields to be
-returned as part of suggestion payload. All field types (`string`,
-`numeric`, `date`, etc) are supported.
-
-For example, if you index a "title" field along with the suggestion
-as follows:
-
-[source,js]
---------------------------------------------------
-PUT music/song/2?refresh
-{
-    "suggest" : "Nirvana",
-    "title" : "Nevermind"
-}
---------------------------------------------------
-// CONSOLE
-
-You can get the "title" as part of the suggestion
-payload by specifying it as a `payload`:
-
-[source,js]
---------------------------------------------------
-POST music/_suggest?pretty
-{
-    "song-suggest" : {
-        "prefix" : "n",
-        "completion" : {
-            "field" : "suggest",
-            "payload" : [ "title" ] <1>
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
-
-returns:
-
-[source,js]
---------------------------------------------------
-{
-  "_shards" : {
-    "total" : 5,
-    "successful" : 5,
-    "failed" : 0
-  },
-  "song-suggest" : [ {
-    "text" : "n",
-    "offset" : 0,
-    "length" : 1,
-    "options" : [ {
-      "text" : "Nirvana",
-      "_index": "music",
-      "_type": "song",
-      "_id": "2",
-      "_score" : 1.0,
-      "_source": {
-        "title": "Nevermind",
-        "suggest": "Nirvana"
-      },
-      "payload" : {
-        "title" : [ "Nevermind" ]
-      }
-    } ]
-  } ]
-}
---------------------------------------------------
-// TESTRESPONSE
-<1> The fields to be returned as part of each suggestion payload.
 
 The basic completion suggester query supports the following parameters:
 

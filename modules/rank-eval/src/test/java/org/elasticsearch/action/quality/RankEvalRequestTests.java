@@ -31,6 +31,7 @@ import org.elasticsearch.index.rankeval.RankEvalResponse;
 import org.elasticsearch.index.rankeval.RankEvalResult;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedDocument;
+import org.elasticsearch.index.rankeval.RatedDocumentKey;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -100,9 +101,9 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
         RankEvalResult result = response.getRankEvalResult();
         assertEquals(specId, result.getSpecId());
         assertEquals(1.0, result.getQualityLevel(), Double.MIN_VALUE);
-        Set<Entry<String, Collection<String>>> entrySet = result.getUnknownDocs().entrySet();
+        Set<Entry<String, Collection<RatedDocumentKey>>> entrySet = result.getUnknownDocs().entrySet();
         assertEquals(2, entrySet.size());
-        for (Entry<String, Collection<String>> entry : entrySet) {
+        for (Entry<String, Collection<RatedDocumentKey>> entry : entrySet) {
             if (entry.getKey() == "amsterdam_query") {
                 assertEquals(2, entry.getValue().size());
             }
@@ -115,7 +116,7 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
     private static List<RatedDocument> createRelevant(String... docs) {
         List<RatedDocument> relevant = new ArrayList<>();
         for (String doc : docs) {
-            relevant.add(new RatedDocument("test", "testtype", doc, Rating.RELEVANT.ordinal()));
+            relevant.add(new RatedDocument(new RatedDocumentKey("test", "testtype", doc), Rating.RELEVANT.ordinal()));
         }
         return relevant;
     }

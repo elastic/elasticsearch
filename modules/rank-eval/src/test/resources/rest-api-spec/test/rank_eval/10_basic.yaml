@@ -41,14 +41,14 @@
                 "id": "amsterdam_query",
                 "request": { "query": { "match" : {"text" : "amsterdam" }}},
                 "ratings": [
-                    { "index": "foo", "type": "bar", "doc_id": "doc1", "rating": 0},
-                    { "index": "foo", "type": "bar", "doc_id": "doc2", "rating": 1},
-                    { "index": "foo", "type": "bar", "doc_id": "doc3", "rating": 1}]
+                    {"key": { "index": "foo", "type": "bar", "doc_id": "doc1"}, "rating": 0},
+                    {"key": { "index": "foo", "type": "bar", "doc_id": "doc2"}, "rating": 1},
+                    {"key": { "index": "foo", "type": "bar", "doc_id": "doc3"}, "rating": 1}]
             },
             {
                 "id" : "berlin_query",
                 "request": { "query": { "match" : { "text" : "berlin" } }, "size" : 10 },
-                "ratings": [{"index": "foo", "type": "bar", "doc_id": "doc1", "rating": 1}]
+                "ratings": [{"key": {"index": "foo", "type": "bar", "doc_id": "doc1"}, "rating": 1}]
             }
           ],
           "metric" : { "precisionatn": { "size": 10}}
@@ -56,5 +56,5 @@
 
   - match: {rank_eval.spec_id: "cities_qa_queries"}
   - match: {rank_eval.quality_level: 1}
-  - match: {rank_eval.unknown_docs.0.amsterdam_query:  [ "doc4"]}
-  - match: {rank_eval.unknown_docs.1.berlin_query:  [ "doc4"]}
+  - match: {rank_eval.unknown_docs.0.amsterdam_query:  [ {"index": "foo", "type": "bar", "doc_id": "doc4"}]}
+  - match: {rank_eval.unknown_docs.1.berlin_query:  [ {"index": "foo", "type": "bar", "doc_id": "doc4"}]}

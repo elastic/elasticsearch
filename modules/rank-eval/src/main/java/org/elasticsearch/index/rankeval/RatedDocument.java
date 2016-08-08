@@ -21,6 +21,7 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -36,68 +37,51 @@ import java.util.Objects;
  * */
 public class RatedDocument extends ToXContentToBytes implements Writeable {
 
-    public static final ParseField DOC_ID_FIELD = new ParseField("doc_id");
-    public static final ParseField TYPE_FIELD = new ParseField("type");
-    public static final ParseField INDEX_FIELD = new ParseField("index");
     public static final ParseField RATING_FIELD = new ParseField("rating");
+    public static final ParseField KEY_FIELD = new ParseField("key");
 
     private static final ObjectParser<RatedDocument, RankEvalContext> PARSER = new ObjectParser<>("ratings", RatedDocument::new);
 
     static {
-        PARSER.declareString(RatedDocument::setIndex, INDEX_FIELD);
-        PARSER.declareString(RatedDocument::setType, TYPE_FIELD);
-        PARSER.declareString(RatedDocument::setDocId, DOC_ID_FIELD);
+        PARSER.declareObject(RatedDocument::setKey, (p, c) -> {
+            try {
+                return RatedDocumentKey.fromXContent(p, c);
+            } catch (IOException ex) {
+                throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
+            }
+        } , KEY_FIELD);
         PARSER.declareInt(RatedDocument::setRating, RATING_FIELD);
     }
 
-    // TODO instead of docId use path to id and id itself
-    private String docId;
-    private String type;
-    private String index;
+    private RatedDocumentKey key;
     private int rating;
 
     RatedDocument() {}
 
-    void setIndex(String index) {
-        this.index = index;
+    void setRatedDocumentKey(RatedDocumentKey key) {
+        this.key = key;
     }
 
-    void setType(String type) {
-        this.type = type;
+    void setKey(RatedDocumentKey key) {
+        this.key = key;
     }
-    
-    void setDocId(String docId) {
-        this.docId = docId;
-    }
-   
+
     void setRating(int rating) {
         this.rating = rating;
     }
 
-    public RatedDocument(String index, String type, String docId, int rating) {
-        this.index = index;
-        this.type = type;
-        this.docId = docId;
+    public RatedDocument(RatedDocumentKey key, int rating) {
+        this.key = key;
         this.rating = rating;
     }
 
     public RatedDocument(StreamInput in) throws IOException {
-        this.index = in.readString();
-        this.type = in.readString();
-        this.docId = in.readString();
+        this.key = new RatedDocumentKey(in);
         this.rating = in.readVInt();
     }
 
-    public String getIndex() {
-        return index;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public String getDocID() {
-        return docId;
+    public RatedDocumentKey getKey() {
+        return this.key;
     }
 
     public int getRating() {
@@ -106,9 +90,7 @@ public class RatedDocument extends ToXContentToBytes implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(index);
-        out.writeString(type);
-        out.writeString(docId);
+        this.key.writeTo(out);
         out.writeVInt(rating);
     }
 
@@ -119,14 +101,12 @@ public class RatedDocument extends ToXContentToBytes implements Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(INDEX_FIELD.getPreferredName(), index);
-        builder.field(TYPE_FIELD.getPreferredName(), type);
-        builder.field(DOC_ID_FIELD.getPreferredName(), docId);
+        builder.field(KEY_FIELD.getPreferredName(), key);
         builder.field(RATING_FIELD.getPreferredName(), rating);
         builder.endObject();
         return builder;
     }
-    
+
     @Override
     public final boolean equals(Object obj) {
         if (this == obj) {
@@ -136,14 +116,12 @@ public class RatedDocument extends ToXContentToBytes implements Writeable {
             return false;
         }
         RatedDocument other = (RatedDocument) obj;
-        return Objects.equals(index, other.index) &&
-                Objects.equals(type, other.type) &&
-                Objects.equals(docId, other.docId) &&
+        return Objects.equals(key, other.key) &&
                 Objects.equals(rating, other.rating);
     }
     
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), index, type, docId, rating);
+        return Objects.hash(getClass(), key, rating);
     }
 }

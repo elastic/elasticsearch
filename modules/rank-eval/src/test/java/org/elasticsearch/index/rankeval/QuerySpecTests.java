@@ -81,9 +81,9 @@ public class QuerySpecTests extends ESTestCase {
          + "           \"size\": 10\n"
          + "   },\n"
          + "   \"ratings\": [ "
-         + "        {\"index\": \"test\", \"type\": \"testtype\", \"doc_id\": \"1\", \"rating\" : 1 }, "
-         + "        {\"index\": \"test\", \"type\": \"testtype\", \"doc_id\": \"2\", \"rating\" : 0 }, "
-         + "        {\"index\": \"test\", \"type\": \"testtype\", \"doc_id\": \"3\", \"rating\" : 1 }]\n"
+         + "        {\"key\": {\"index\": \"test\", \"type\": \"testtype\", \"doc_id\": \"1\"}, \"rating\" : 1 }, "
+         + "        {\"key\": {\"index\": \"test\", \"type\": \"testtype\", \"doc_id\": \"2\"}, \"rating\" : 0 }, "
+         + "        {\"key\": {\"index\": \"test\", \"type\": \"testtype\", \"doc_id\": \"3\"}, \"rating\" : 1 }]\n"
          + "}";
         XContentParser parser = XContentFactory.xContent(querySpecString).createParser(querySpecString);
         QueryParseContext queryContext = new QueryParseContext(queriesRegistry, parser, ParseFieldMatcher.STRICT);
@@ -94,11 +94,11 @@ public class QuerySpecTests extends ESTestCase {
         assertNotNull(specification.getTestRequest());
         List<RatedDocument> ratedDocs = specification.getRatedDocs();
         assertEquals(3, ratedDocs.size());
-        assertEquals("1", ratedDocs.get(0).getDocID());
+        assertEquals("1", ratedDocs.get(0).getKey().getDocID());
         assertEquals(1, ratedDocs.get(0).getRating());
-        assertEquals("2", ratedDocs.get(1).getDocID());
+        assertEquals("2", ratedDocs.get(1).getKey().getDocID());
         assertEquals(0, ratedDocs.get(1).getRating());
-        assertEquals("3", ratedDocs.get(2).getDocID());
+        assertEquals("3", ratedDocs.get(2).getKey().getDocID());
         assertEquals(1, ratedDocs.get(2).getRating());
     }
 }

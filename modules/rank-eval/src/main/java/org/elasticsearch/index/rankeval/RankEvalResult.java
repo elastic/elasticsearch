@@ -39,16 +39,16 @@ public class RankEvalResult implements Writeable {
     /**Average precision observed when issuing query intents with this specification.*/
     private double qualityLevel;
     /**Mapping from intent id to all documents seen for this intent that were not annotated.*/
-    private Map<String, Collection<String>> unknownDocs;
+    private Map<String, Collection<RatedDocumentKey>> unknownDocs;
 
     @SuppressWarnings("unchecked")
     public RankEvalResult(StreamInput in) throws IOException {
         this.specId = in.readString();
         this.qualityLevel = in.readDouble();
-        this.unknownDocs = (Map<String, Collection<String>>) in.readGenericValue();
+        this.unknownDocs = (Map<String, Collection<RatedDocumentKey>>) in.readGenericValue();
     }
 
-    public RankEvalResult(String specId, double quality, Map<String, Collection<String>> unknownDocs) {
+    public RankEvalResult(String specId, double quality, Map<String, Collection<RatedDocumentKey>> unknownDocs) {
         this.specId = specId;
         this.qualityLevel = quality;
         this.unknownDocs = unknownDocs;
@@ -69,7 +69,7 @@ public class RankEvalResult implements Writeable {
         return qualityLevel;
     }
 
-    public Map<String, Collection<String>> getUnknownDocs() {
+    public Map<String, Collection<RatedDocumentKey>> getUnknownDocs() {
         return unknownDocs;
     }
 

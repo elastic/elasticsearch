@@ -99,27 +99,27 @@ public class PrecisionAtN extends RankedListQualityMetric {
     @Override
     public EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs) {
 
-        Collection<String> relevantDocIds = new ArrayList<>();
-        Collection<String> irrelevantDocIds = new ArrayList<>();
+        Collection<RatedDocumentKey> relevantDocIds = new ArrayList<>();
+        Collection<RatedDocumentKey> irrelevantDocIds = new ArrayList<>();
         for (RatedDocument doc : ratedDocs) {
             if (Rating.RELEVANT.equals(RatingMapping.mapTo(doc.getRating()))) {
-                relevantDocIds.add(doc.getDocID());
+                relevantDocIds.add(doc.getKey());
             } else if (Rating.IRRELEVANT.equals(RatingMapping.mapTo(doc.getRating()))) {
-                irrelevantDocIds.add(doc.getDocID());
+                irrelevantDocIds.add(doc.getKey());
             }
         }
 
         int good = 0;
         int bad = 0;
-        Collection<String> unknownDocIds = new ArrayList<String>();
+        Collection<RatedDocumentKey> unknownDocIds = new ArrayList<RatedDocumentKey>();
         for (int i = 0; (i < n && i < hits.length); i++) {
-            String id = hits[i].getId();
-            if (relevantDocIds.contains(id)) {
+            RatedDocumentKey hitKey = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].getId());
+            if (relevantDocIds.contains(hitKey)) {
                 good++;
-            } else if (irrelevantDocIds.contains(id)) {
+            } else if (irrelevantDocIds.contains(hitKey)) {
                 bad++;
             } else {
-                unknownDocIds.add(id);
+                unknownDocIds.add(hitKey);
             }
         }
 

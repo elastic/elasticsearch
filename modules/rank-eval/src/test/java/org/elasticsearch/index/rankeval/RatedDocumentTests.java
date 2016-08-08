@@ -37,7 +37,7 @@ public class RatedDocumentTests extends ESTestCase {
         String type = randomAsciiOfLength(10);
         String docId = randomAsciiOfLength(10);
         int rating = randomInt();
-        RatedDocument testItem = new RatedDocument(index, type, docId, rating);
+        RatedDocument testItem = new RatedDocument(new RatedDocumentKey(index, type, docId), rating);
 
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         if (randomBoolean()) {

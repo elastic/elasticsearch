@@ -73,7 +73,7 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
         builder.field("spec_id", qualityResult.getSpecId());
         builder.field("quality_level", qualityResult.getQualityLevel());
         builder.startArray("unknown_docs");
-        Map<String, Collection<String>> unknownDocs = qualityResult.getUnknownDocs();
+        Map<String, Collection<RatedDocumentKey>> unknownDocs = qualityResult.getUnknownDocs();
         for (String key : unknownDocs.keySet()) {
             builder.startObject();
             builder.field(key, unknownDocs.get(key));

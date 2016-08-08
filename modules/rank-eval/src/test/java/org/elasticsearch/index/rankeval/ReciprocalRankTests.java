@@ -20,8 +20,9 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.rankeval.PrecisionAtN.Rating;
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.test.ESTestCase;
 
@@ -42,17 +43,22 @@ public class ReciprocalRankTests extends ESTestCase {
         reciprocalRank.setMaxAcceptableRank(maxRank);
         assertEquals(maxRank, reciprocalRank.getMaxAcceptableRank());
 
-        SearchHit[] hits = new SearchHit[10];
+        InternalSearchHit[] hits = new InternalSearchHit[10];
         for (int i = 0; i < 10; i++) {
             hits[i] = new InternalSearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
+            hits[i].shard(new SearchShardTarget("testnode", new Index("test", "uuid"), 0));
         }
         List<RatedDocument> ratedDocs = new ArrayList<>();
         int relevantAt = 5;
         for (int i = 0; i < 10; i++) {
             if (i == relevantAt) {
-                ratedDocs.add(new RatedDocument(Integer.toString(i), Rating.RELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument(
+                        new RatedDocumentKey("test", "type", Integer.toString(i)),
+                        Rating.RELEVANT.ordinal()));
             } else {
-                ratedDocs.add(new RatedDocument(Integer.toString(i), Rating.IRRELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument(
+                        new RatedDocumentKey("test", "type", Integer.toString(i)),
+                        Rating.IRRELEVANT.ordinal()));
             }
         }
 
@@ -67,18 +73,23 @@ public class ReciprocalRankTests extends ESTestCase {
 
     public void testEvaluationOneRelevantInResults() {
         ReciprocalRank reciprocalRank = new ReciprocalRank();
-        SearchHit[] hits = new SearchHit[10];
+        InternalSearchHit[] hits = new InternalSearchHit[10];
         for (int i = 0; i < 10; i++) {
             hits[i] = new InternalSearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
+            hits[i].shard(new SearchShardTarget("testnode", new Index("test", "uuid"), 0));
         }
         List<RatedDocument> ratedDocs = new ArrayList<>();
         // mark one of the ten docs relevant
         int relevantAt = randomIntBetween(0, 9);
         for (int i = 0; i <= 20; i++) {
             if (i == relevantAt) {
-                ratedDocs.add(new RatedDocument(Integer.toString(i), Rating.RELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument(
+                        new RatedDocumentKey("test", "type", Integer.toString(i)),
+                        Rating.RELEVANT.ordinal()));
             } else {
-                ratedDocs.add(new RatedDocument(Integer.toString(i), Rating.IRRELEVANT.ordinal()));
+                ratedDocs.add(new RatedDocument(
+                        new RatedDocumentKey("test", "type", Integer.toString(i)),
+                        Rating.IRRELEVANT.ordinal()));
             }
         }
 
@@ -97,9 +108,10 @@ public class ReciprocalRankTests extends ESTestCase {
 
     public void testEvaluationNoRelevantInResults() {
         ReciprocalRank reciprocalRank = new ReciprocalRank();
-        SearchHit[] hits = new SearchHit[10];
+        InternalSearchHit[] hits = new InternalSearchHit[10];
         for (int i = 0; i < 10; i++) {
             hits[i] = new InternalSearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
+            hits[i].shard(new SearchShardTarget("testnode", new Index("test", "uuid"), 0));
         }
         List<RatedDocument> ratedDocs = new ArrayList<>();
         EvalQueryQuality evaluation = reciprocalRank.evaluate(hits, ratedDocs);

@@ -111,7 +111,7 @@ public class PrecisionAtN extends RankedListQualityMetric {
 
         int good = 0;
         int bad = 0;
-        Collection<RatedDocumentKey> unknownDocIds = new ArrayList<RatedDocumentKey>();
+        Collection<RatedDocumentKey> unknownDocIds = new ArrayList<>();
         for (int i = 0; (i < n && i < hits.length); i++) {
             RatedDocumentKey hitKey = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].getId());
             if (relevantDocIds.contains(hitKey)) {

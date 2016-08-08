@@ -95,21 +95,21 @@ public class ReciprocalRank extends RankedListQualityMetric {
      **/
     @Override
     public EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs) {
-        Set<String> relevantDocIds = new HashSet<>();
-        Set<String> irrelevantDocIds = new HashSet<>();
+        Set<RatedDocumentKey> relevantDocIds = new HashSet<>();
+        Set<RatedDocumentKey> irrelevantDocIds = new HashSet<>();
         for (RatedDocument doc : ratedDocs) {
             if (Rating.RELEVANT.equals(RatingMapping.mapTo(doc.getRating()))) {
-                relevantDocIds.add(doc.getDocID());
+                relevantDocIds.add(doc.getKey());
             } else if (Rating.IRRELEVANT.equals(RatingMapping.mapTo(doc.getRating()))) {
-                irrelevantDocIds.add(doc.getDocID());
+                irrelevantDocIds.add(doc.getKey());
             }
         }
 
-        Collection<String> unknownDocIds = new ArrayList<>();
+        Collection<RatedDocumentKey> unknownDocIds = new ArrayList<>();
         int firstRelevant = -1;
         boolean found = false;
         for (int i = 0; i < hits.length; i++) {
-            String id = hits[i].getId();
+            RatedDocumentKey id = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].getId());
             if (relevantDocIds.contains(id)) {
                 if (found == false && i < maxAcceptableRank) {
                     firstRelevant = i + 1; // add one because rank is not

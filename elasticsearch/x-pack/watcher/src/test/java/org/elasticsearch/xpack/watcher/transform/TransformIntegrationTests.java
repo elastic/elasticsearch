@@ -32,6 +32,7 @@ import java.util.function.Function;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -77,6 +78,8 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(Environment.PATH_CONF_SETTING.getKey(), config)
+                .put("script.stored", "true")
+                .put("script.inline", "true")
                 .build();
     }
 
@@ -113,12 +116,12 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
             script = WatcherScript.inline("return [key3 : ctx.payload.key1 + ctx.payload.key2]").lang("groovy").build();
         } else if (randomBoolean()) {
             logger.info("testing script transform with an indexed script");
-            client().admin().cluster().preparePutStoredScript()
-                    .setId("id")
+            assertAcked(client().admin().cluster().preparePutStoredScript()
+                    .setId("my-script")
                     .setScriptLang("groovy")
                     .setSource(new BytesArray("{\"script\" : \"return [key3 : ctx.payload.key1 + ctx.payload.key2]\"}"))
-                    .get();
-            script = WatcherScript.indexed("_id").lang("groovy").build();
+                    .get());
+            script = WatcherScript.indexed("my-script").lang("groovy").build();
         } else {
             logger.info("testing script transform with a file script");
             script = WatcherScript.file("my-script").lang("groovy").build();

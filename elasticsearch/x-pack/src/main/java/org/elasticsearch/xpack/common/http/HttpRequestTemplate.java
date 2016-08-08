@@ -10,7 +10,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -18,9 +17,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.common.http.auth.HttpAuth;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.common.text.TextTemplate;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 
 import java.io.IOException;

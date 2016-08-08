@@ -9,10 +9,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.actions.ActionFactory;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 
 import java.io.IOException;
 

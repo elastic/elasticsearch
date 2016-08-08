@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
 import org.elasticsearch.xpack.notification.hipchat.HipChatMessage.Color;
 import org.elasticsearch.xpack.notification.hipchat.HipChatMessage.Format;
@@ -22,7 +23,6 @@ import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.common.http.Scheme;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 
 import java.io.IOException;
 import java.util.ArrayList;

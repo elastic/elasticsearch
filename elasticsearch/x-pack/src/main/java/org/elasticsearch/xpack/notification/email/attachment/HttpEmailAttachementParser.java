@@ -5,13 +5,15 @@
  */
 package org.elasticsearch.xpack.notification.email.attachment;
 
+import java.io.IOException;
+import java.util.Map;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -24,9 +26,6 @@ import org.elasticsearch.xpack.notification.email.Attachment;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
 import org.elasticsearch.xpack.watcher.watch.Payload;
-
-import java.io.IOException;
-import java.util.Map;
 
 public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpRequestAttachment> {
 
@@ -42,7 +41,6 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
     private final TextTemplateEngine templateEngine;
     private final ESLogger logger;
 
-    @Inject
     public HttpEmailAttachementParser(HttpClient httpClient, HttpRequestTemplate.Parser requestTemplateParser,
                                       TextTemplateEngine templateEngine) {
         this.httpClient = httpClient;

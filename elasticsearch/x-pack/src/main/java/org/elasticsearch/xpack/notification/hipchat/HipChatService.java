@@ -22,7 +22,6 @@ public class HipChatService extends AbstractComponent {
     public static final Setting<Settings> HIPCHAT_ACCOUNT_SETTING =
         Setting.groupSetting("xpack.notification.hipchat.", Setting.Property.Dynamic, Setting.Property.NodeScope);
 
-    @Inject
     public HipChatService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
         super(settings);
         this.httpClient = httpClient;

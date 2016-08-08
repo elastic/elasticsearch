@@ -5,12 +5,17 @@
  */
 package org.elasticsearch.xpack.watcher.test;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 
 import java.util.Map;
 
-public class MockTextTemplateEngine implements TextTemplateEngine {
+public class MockTextTemplateEngine extends TextTemplateEngine {
+    public MockTextTemplateEngine() {
+        super(Settings.EMPTY, null);
+    }
+
     @Override
     public String render(TextTemplate template, Map<String, Object> model) {
         if (template == null ) {

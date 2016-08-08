@@ -6,7 +6,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.common.text.DefaultTextTemplateEngine;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 
 import java.util.Collections;
 import java.util.Map;
@@ -14,7 +14,7 @@ import java.util.function.Function;
 
 /**
  * A mock script engine that registers itself under the 'mustache' name so that
- * {@link DefaultTextTemplateEngine}
+ * {@link TextTemplateEngine}
  * uses it and adds validation that watcher tests don't rely on mustache templating/
  */
 public class MockMustacheScriptEngine extends MockScriptEngine {

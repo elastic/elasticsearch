@@ -66,6 +66,8 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
             params = deepCopyParams(params, context.searchContext());
         } else {
             params = new HashMap<>();
+        }
+        if (!params.containsKey("_agg")) {
             params.put("_agg", new HashMap<String, Object>());
         }
         return new ScriptedMetricAggregator(name, insertParams(initScript, params), insertParams(mapScript, params),

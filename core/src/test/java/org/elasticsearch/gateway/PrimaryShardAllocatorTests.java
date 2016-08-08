@@ -229,6 +229,18 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         assertEquals(ignored.get(0).unassignedInfo().getLastAllocationStatus(),
             forceDecisionNo ? AllocationStatus.DECIDERS_NO : AllocationStatus.DECIDERS_THROTTLED);
         assertTrue(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).isEmpty());
+
+        // tests that we do not force allocate the primary when at least one decider's decision is to THROTTLE
+        deciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {
+            new TestAllocateDecision(Decision.THROTTLE), new ForcePrimaryDecider(Decision.YES)
+        });
+        allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, false, Version.CURRENT, "allocId1");
+        changed = testAllocator.allocateUnassigned(allocation);
+        assertTrue(changed);
+        ignored = allocation.routingNodes().unassigned().ignored();
+        assertEquals(ignored.size(), 1);
+        assertEquals(ignored.get(0).unassignedInfo().getLastAllocationStatus(), AllocationStatus.DECIDERS_THROTTLED);
+        assertTrue(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).isEmpty());
     }
 
     /**

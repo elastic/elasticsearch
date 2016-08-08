@@ -106,8 +106,13 @@ public abstract class AllocationDecider extends AbstractComponent {
      * The default is {@link Decision#YES}.
      */
     public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard routing [" +
-                                            shardRouting.shardId() + "]";
-        return Decision.YES;
+        assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard [" + shardRouting.shardId() + "]";
+        final Decision decision = canAllocate(shardRouting, node, allocation);
+        if (decision == Decision.NO) {
+            // on a NO decision, we can force allocate the primary by default
+            return Decision.YES;
+        } else {
+            return decision;
+        }
     }
 }

@@ -83,8 +83,7 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard routing [" +
-                                            shardRouting.shardId() + "]";
+        assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard [" + shardRouting.shardId() + "]";
         // check if we have passed the maximum retry threshold through canAllocate,
         // if so, we don't want to force the primary allocation here
         return canAllocate(shardRouting, node, allocation);

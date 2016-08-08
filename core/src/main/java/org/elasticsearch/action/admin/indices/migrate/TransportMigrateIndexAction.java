@@ -37,13 +37,16 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -133,7 +136,33 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
                 throw new IllegalArgumentException(
                         "[" + createIndex.index() + "] already exists but doesn't have the [" + expected.name() + "] alias");
             }
-            // NOCOMMIT check that filters match
+            try {
+                if (expected.filter() == null) {
+                    if (actual.filter() != null) {
+                        String actualFilter = XContentHelper.convertToJson(new BytesArray(actual.filter().uncompressed()), false);
+                        throw new IllegalArgumentException("[" + createIndex.index() + "] already exists and has the [" + expected.name()
+                                + "] alias but the filter doesn't match. Expected [null] but got [" + actualFilter + "]");
+                    }
+                } else {
+                    if (actual.filter() == null) {
+                        throw new IllegalArgumentException("[" + createIndex.index() + "] already exists and has the [" + expected.name()
+                            + "] alias but the filter doesn't match. Expected [" + expected.filter() + "] but got [null]");
+                    }
+                    // filters have to match, lets just map-ify them and compare....
+                    Map<String, Object> expectedFilterMap = XContentHelper.convertToMap(new BytesArray(expected.filter()), false).v2();
+                    Map<String, Object> actualFilterMap = XContentHelper.convertToMap(new BytesArray(actual.filter().uncompressed()), false)
+                            .v2();
+                    if (false == expectedFilterMap.equals(actualFilterMap)) {
+                        String actualFilter = XContentHelper.convertToJson(new BytesArray(actual.filter().uncompressed()), false);
+                        throw new IllegalArgumentException("[" + createIndex.index() + "] already exists and has the [" + expected.name()
+                                + "] alias but the filter doesn't match. Expected [" + expected.filter() + "] but got [" + actualFilter
+                                + "]");
+                    }
+
+                }
+            } catch (IOException e) {
+                throw new IllegalStateException("Error comparing filters for [" + createIndex.index() + "]", e);
+            }
             if (false == Objects.equals(expected.indexRouting(), actual.indexRouting())) {
                 throw new IllegalArgumentException("[" + createIndex.index() + "] already exists and has the [" + expected.name()
                         + "] alias but the index routing doesn't match. Expected [" + expected.indexRouting() + "] but got ["

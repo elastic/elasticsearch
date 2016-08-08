@@ -235,18 +235,24 @@ public class AllocationService extends AbstractComponent {
         FailedRerouteAllocation allocation = new FailedRerouteAllocation(allocationDeciders, routingNodes, clusterState, failedShards,
             clusterInfoService.getClusterInfo(), currentNanoTime);
 
-        // as failing primaries also fail associated replicas, we fail replicas first here to avoid re-resolving replica ShardRouting
-        List<FailedRerouteAllocation.FailedShard> orderedFailedShards = new ArrayList<>(failedShards);
-        orderedFailedShards.sort(Comparator.comparing(failedShard -> failedShard.routingEntry.primary()));
-
-        for (FailedRerouteAllocation.FailedShard failedShardEntry : orderedFailedShards) {
-            ShardRouting failedShard = failedShardEntry.routingEntry;
-            final int failedAllocations = failedShard.unassignedInfo() != null ? failedShard.unassignedInfo().getNumFailedAllocations() : 0;
-            UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, failedShardEntry.message,
-                failedShardEntry.failure, failedAllocations + 1, currentNanoTime, System.currentTimeMillis(), false,
-                AllocationStatus.NO_ATTEMPT);
-            allocation.addIgnoreShardForNode(failedShard.shardId(), failedShard.currentNodeId());
-            applyFailedShard(allocation, failedShard, unassignedInfo);
+        for (FailedRerouteAllocation.FailedShard failedShardEntry : failedShards) {
+            ShardRouting shardToFail = failedShardEntry.routingEntry;
+            allocation.addIgnoreShardForNode(shardToFail.shardId(), shardToFail.currentNodeId());
+            // failing a primary also fails initializing replica shards, re-resolve ShardRouting
+            ShardRouting failedShard = routingNodes.getByAllocationId(shardToFail.shardId(), shardToFail.allocationId().getId());
+            if (failedShard != null) {
+                if (failedShard != shardToFail) {
+                    logger.trace("{} shard routing modified in an earlier iteration (previous: {}, current: {})",
+                        shardToFail.shardId(), shardToFail, failedShard);
+                }
+                int failedAllocations = failedShard.unassignedInfo() != null ? failedShard.unassignedInfo().getNumFailedAllocations() : 0;
+                UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, failedShardEntry.message,
+                    failedShardEntry.failure, failedAllocations + 1, currentNanoTime, System.currentTimeMillis(), false,
+                    AllocationStatus.NO_ATTEMPT);
+                applyFailedShard(allocation, failedShard, unassignedInfo);
+            } else {
+                logger.trace("{} shard routing failed in an earlier iteration (routing: {})", shardToFail.shardId(), shardToFail);
+            }
         }
         gatewayAllocator.applyFailedShards(allocation);
 

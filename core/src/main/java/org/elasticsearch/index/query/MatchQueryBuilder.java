@@ -603,6 +603,10 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                     }
                 }
             } else {
+                if (fieldName != null) {
+                    throw new ParsingException(parser.getTokenLocation(), "[match] query doesn't support multiple fields, found ["
+                            + fieldName + "] and [" + parser.currentName() + "]");
+                }
                 fieldName = parser.currentName();
                 value = parser.objectText();
             }

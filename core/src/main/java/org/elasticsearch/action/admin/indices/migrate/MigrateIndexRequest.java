@@ -33,6 +33,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -51,10 +52,13 @@ public class MigrateIndexRequest extends AcknowledgedRequest<MigrateIndexRequest
     private CreateIndexRequest createIndexRequest;
 
     /**
-     * Constructor for serialization and {@link MigrateIndexRequestBuilder}.
+     * Build an empty request.
      */
-    MigrateIndexRequest() {}
+    public MigrateIndexRequest() {}
 
+    /**
+     * Build a fully defined request.
+     */
     public MigrateIndexRequest(String sourceIndex, @Nullable Script script, CreateIndexRequest createIndexRequest) {
         this.sourceIndex = sourceIndex;
         this.script = script;
@@ -69,6 +73,9 @@ public class MigrateIndexRequest extends AcknowledgedRequest<MigrateIndexRequest
         }
         if (createIndexRequest == null) {
             validationException = addValidationError("create index request is missing", validationException);
+        }
+        if (createIndexRequest != null && Objects.equals(sourceIndex, createIndexRequest.index())) {
+            validationException = addValidationError("source and destination can't be the same index", validationException);
         }
         // NOCOMMIT validate wait_for_active_shards is at least 1.
         

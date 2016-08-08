@@ -196,6 +196,10 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
+import org.elasticsearch.action.admin.indices.migrate.MigrateIndexAction;
+import org.elasticsearch.action.admin.indices.migrate.MigrateIndexRequest;
+import org.elasticsearch.action.admin.indices.migrate.MigrateIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.migrate.MigrateIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequestBuilder;
@@ -1726,6 +1730,22 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public void rolloverIndex(RolloverRequest request, ActionListener<RolloverResponse> listener) {
             execute(RolloverAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public MigrateIndexRequestBuilder prepareMigrateIndex(String source, String destination) {
+            return new MigrateIndexRequestBuilder(this, MigrateIndexAction.INSTANCE).setSourceIndex(source)
+                    .setCreateIndexRequest(new CreateIndexRequest(destination));
+        }
+
+        @Override
+        public ActionFuture<MigrateIndexResponse> migrateIndex(MigrateIndexRequest request) {
+            return execute(MigrateIndexAction.INSTANCE, request);
+        }
+
+        @Override
+        public void migrateIndex(MigrateIndexRequest request, ActionListener<MigrateIndexResponse> listener) {
+            execute(MigrateIndexAction.INSTANCE, request, listener);
         }
 
         @Override

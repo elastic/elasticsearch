@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.migrate;
+package org.elasticsearch.index.reindex;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 

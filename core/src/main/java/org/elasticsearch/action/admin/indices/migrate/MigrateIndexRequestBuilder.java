@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.migrate;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -57,6 +58,26 @@ public class MigrateIndexRequestBuilder
      */
     public MigrateIndexRequestBuilder setCreateIndexRequest(CreateIndexRequest createIndexRequest) {
         request.setCreateIndexRequest(createIndexRequest);
+        return this;
+    }
+
+    /**
+     * Set the aliases to create.
+     */
+    public MigrateIndexRequestBuilder setAliases(String... aliases) {
+        for (String alias: aliases) {
+            request.getCreateIndexRequest().alias(new Alias(alias));
+        }
+        return this;
+    }
+
+    /**
+     * Set the aliases to create.
+     */
+    public MigrateIndexRequestBuilder setAliases(Alias... aliases) {
+        for (Alias alias: aliases) {
+            request.getCreateIndexRequest().alias(alias);
+        }
         return this;
     }
 }

@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.indices.migrate.MigrateIndexAction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -41,7 +42,8 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
         return Arrays.asList(new ActionHandler<>(ReindexAction.INSTANCE, TransportReindexAction.class),
                 new ActionHandler<>(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
                 new ActionHandler<>(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
-                new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class));
+                new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class),
+                new ActionHandler<>(MigrateIndexAction.INSTANCE, TransportMigrateIndexAction.class));
     }
 
     @Override

@@ -26,17 +26,21 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 public class MigrateIndexResponse extends AcknowledgedResponse {
-    private boolean noop;
+    private boolean noop; // NOCOMMIT we can do better. Probably like reindex, make the task status useful and capture that in the response.
     
     /**
      * Constructor for use with serialization.
      */
-    MigrateIndexResponse() {
+    public MigrateIndexResponse() {
     }
 
-    protected MigrateIndexResponse(boolean acknowledged, boolean noop) {
+    public MigrateIndexResponse(boolean acknowledged, boolean noop) {
         super(acknowledged);
         this.noop = noop;
+    }
+
+    public boolean isNoop() {
+        return noop;
     }
 
     @Override

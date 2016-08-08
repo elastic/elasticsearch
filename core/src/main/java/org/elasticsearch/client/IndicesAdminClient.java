@@ -71,6 +71,9 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
+import org.elasticsearch.action.admin.indices.migrate.MigrateIndexRequest;
+import org.elasticsearch.action.admin.indices.migrate.MigrateIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.migrate.MigrateIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
@@ -818,4 +821,18 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      */
     void rolloverIndex(RolloverRequest request, ActionListener<RolloverResponse> listener);
 
+    /**
+     * Migrates the contents of one index into another index.
+     */
+    MigrateIndexRequestBuilder prepareMigrateIndex(String source, String destination);
+
+    /**
+     * Migrates the contents of one index into another index.
+     */
+    ActionFuture<MigrateIndexResponse> migrateIndex(MigrateIndexRequest request);
+
+    /**
+     * Migrates the contents of one index into another index.
+     */
+    void migrateIndex(MigrateIndexRequest request, ActionListener<MigrateIndexResponse> listener);
 }

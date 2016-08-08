@@ -317,8 +317,15 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * declared by overriding {@link #getObjectsHoldingArbitraryContent()}
      */
     public final void testUnknownObjectException() throws IOException {
-        //TODO building json by concatenating strings makes the code unmaintainable, we should rewrite this test
         String validQuery = createTestQueryBuilder().toString();
+        unknownObjectExceptionTest(validQuery);
+        for (String query : getAlternateVersions().keySet()) {
+            unknownObjectExceptionTest(query);
+        }
+    }
+
+    private void unknownObjectExceptionTest(String validQuery) throws IOException {
+        //TODO building json by concatenating strings makes the code unmaintainable, we should rewrite this test
         assertThat(validQuery, containsString("{"));
         int level = 0;
         boolean withinQuotes = false;

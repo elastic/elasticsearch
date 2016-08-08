@@ -245,23 +245,16 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     }
 
     public void testValidateEmptyFields() {
-        try {
-            new MoreLikeThisQueryBuilder(new String[0], new String[]{"likeText"}, null);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("requires 'fields' to be specified"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> new MoreLikeThisQueryBuilder(new String[0], new String[]{"likeText"}, null));
+        assertThat(e.getMessage(), containsString("requires 'fields' to be specified"));
     }
 
     public void testValidateEmptyLike() {
         String[] likeTexts = randomBoolean() ? null : new String[0];
         Item[] likeItems = randomBoolean() ? null : new Item[0];
-        try {
-            new MoreLikeThisQueryBuilder(likeTexts, likeItems);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("requires either 'like' texts or items to be specified"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new MoreLikeThisQueryBuilder(likeTexts, likeItems));
+        assertThat(e.getMessage(), containsString("requires either 'like' texts or items to be specified"));
     }
 
     public void testUnsupportedFields() throws IOException {
@@ -269,12 +262,8 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         String unsupportedField = randomFrom(INT_FIELD_NAME, DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
         MoreLikeThisQueryBuilder queryBuilder = new MoreLikeThisQueryBuilder(new String[] {unsupportedField}, new String[]{"some text"}, null)
                 .failOnUnsupportedField(true);
-        try {
-            queryBuilder.toQuery(createShardContext());
-            fail("should have failed with IllegalArgumentException for field: " + unsupportedField);
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("more_like_this only supports text/keyword fields"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> queryBuilder.toQuery(createShardContext()));
+        assertThat(e.getMessage(), containsString("more_like_this only supports text/keyword fields"));
     }
 
     public void testMoreLikeThisBuilder() throws Exception {
@@ -337,7 +326,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         assertEquals(json, 2, parsed.fields().length);
         assertEquals(json, "and potentially some more text here as well", parsed.likeTexts()[0]);
 
-        json =
+        String deprecatedJson =
                 "{\n" +
                         "  \"mlt\" : {\n" +
                         "    \"fields\" : [ \"title\", \"description\" ],\n" +
@@ -364,14 +353,10 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
                         "  }\n" +
                         "}";
 
-        MoreLikeThisQueryBuilder parsedQueryMltShortcut = (MoreLikeThisQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
+        MoreLikeThisQueryBuilder parsedQueryMltShortcut = (MoreLikeThisQueryBuilder) parseQuery(deprecatedJson, ParseFieldMatcher.EMPTY);
         assertThat(parsedQueryMltShortcut, equalTo(parsed));
 
-        try {
-            parseQuery(json);
-            fail("parse query should have failed in strict mode");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Deprecated field [mlt] used, expected [more_like_this] instead"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(deprecatedJson));
+        assertEquals("Deprecated field [mlt] used, expected [more_like_this] instead", e.getMessage());
     }
 }

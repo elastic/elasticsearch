@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import com.vividsolutions.jts.geom.Coordinate;
-
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -50,7 +49,6 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQueryBuilder> {
 
@@ -156,70 +154,44 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
 
     public void testNoFieldName() throws Exception {
         ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(random(), null);
-        try {
-            new GeoShapeQueryBuilder(null, shape);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("fieldName is required"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GeoShapeQueryBuilder(null, shape));
+        assertEquals("fieldName is required", e.getMessage());
     }
 
     public void testNoShape() throws IOException {
-        try {
-            new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, (ShapeBuilder) null);
-            fail("exception expected");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, null));
     }
 
     public void testNoIndexedShape() throws IOException {
-        try {
-            new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, null, "type");
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("either shapeBytes or indexedShapeId and indexedShapeType are required"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, null, "type"));
+        assertEquals("either shapeBytes or indexedShapeId and indexedShapeType are required", e.getMessage());
     }
 
     public void testNoIndexedShapeType() throws IOException {
-        try {
-            new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, "id", null);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("indexedShapeType is required if indexedShapeId is specified"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, "id", null));
+        assertEquals("indexedShapeType is required if indexedShapeId is specified", e.getMessage());
     }
 
     public void testNoRelation() throws IOException {
         ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(random(), null);
         GeoShapeQueryBuilder builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
-        try {
-            builder.relation(null);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("No Shape Relation defined"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.relation(null));
+        assertEquals("No Shape Relation defined", e.getMessage());
     }
 
     public void testInvalidRelation() throws IOException {
         ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(random(), null);
         GeoShapeQueryBuilder builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
-        try {
-            builder.strategy(SpatialStrategy.TERM);
-            builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.WITHIN));
-            fail("Illegal combination of strategy and relation setting");
-        } catch (IllegalArgumentException e) {
-            // okay
-        }
-
-        try {
-            builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.WITHIN));
-            builder.strategy(SpatialStrategy.TERM);
-            fail("Illegal combination of strategy and relation setting");
-        } catch (IllegalArgumentException e) {
-            // okay
-        }
+        builder.strategy(SpatialStrategy.TERM);
+        expectThrows(IllegalArgumentException.class, () -> builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.WITHIN)));
+        GeoShapeQueryBuilder builder2 = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
+        builder2.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.WITHIN));
+        expectThrows(IllegalArgumentException.class, () -> builder2.strategy(SpatialStrategy.TERM));
+        GeoShapeQueryBuilder builder3 = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
+        builder3.strategy(SpatialStrategy.TERM);
+        expectThrows(IllegalArgumentException.class, () -> builder3.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.WITHIN)));
     }
 
     // see #3878
@@ -256,16 +228,15 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
             sqb = doCreateTestQueryBuilder();
             // do this until we get one without a shape
         } while (sqb.shape() != null);
-        try {
-            sqb.toQuery(createShardContext());
-            fail();
-        } catch (UnsupportedOperationException e) {
-            assertEquals("query must be rewritten first", e.getMessage());
-        }
-        QueryBuilder rewrite = sqb.rewrite(createShardContext());
+
+        GeoShapeQueryBuilder query = sqb;
+
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> query.toQuery(createShardContext()));
+        assertEquals("query must be rewritten first", e.getMessage());
+        QueryBuilder rewrite = query.rewrite(createShardContext());
         GeoShapeQueryBuilder geoShapeQueryBuilder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, indexedShapeToReturn);
-        geoShapeQueryBuilder.strategy(sqb.strategy());
-        geoShapeQueryBuilder.relation(sqb.relation());
+        geoShapeQueryBuilder.strategy(query.strategy());
+        geoShapeQueryBuilder.relation(query.relation());
         assertEquals(geoShapeQueryBuilder, rewrite);
     }
 

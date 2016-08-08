@@ -23,12 +23,15 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -56,46 +59,41 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     @Override
+    protected Map<String, FuzzyQueryBuilder> getAlternateVersions() {
+        Map<String, FuzzyQueryBuilder> alternateVersions = new HashMap<>();
+        FuzzyQueryBuilder fuzzyQuery = new FuzzyQueryBuilder(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+        String contentString = "{\n" +
+                "    \"fuzzy\" : {\n" +
+                "        \"" + fuzzyQuery.fieldName() + "\" : \"" + fuzzyQuery.value() + "\"\n" +
+                "    }\n" +
+                "}";
+        alternateVersions.put(contentString, fuzzyQuery);
+        return alternateVersions;
+    }
+
+    @Override
     protected void doAssertLuceneQuery(FuzzyQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(FuzzyQuery.class));
     }
 
     public void testIllegalArguments() {
-        try {
-            new FuzzyQueryBuilder(null, "text");
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new FuzzyQueryBuilder(null, "text"));
+        assertEquals("field name cannot be null or empty", e.getMessage());
 
-        try {
-            new FuzzyQueryBuilder("", "text");
-            fail("must not be empty");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> new FuzzyQueryBuilder("", "text"));
+        assertEquals("field name cannot be null or empty", e.getMessage());
 
-        try {
-            new FuzzyQueryBuilder("field", null);
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        e = expectThrows(IllegalArgumentException.class, () -> new FuzzyQueryBuilder("field", null));
+        assertEquals("query value cannot be null", e.getMessage());
     }
 
     public void testUnsupportedFuzzinessForStringType() throws IOException {
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
-
         FuzzyQueryBuilder fuzzyQueryBuilder = new FuzzyQueryBuilder(STRING_FIELD_NAME, "text");
         fuzzyQueryBuilder.fuzziness(Fuzziness.build(randomFrom("a string which is not auto", "3h", "200s")));
-
-        try {
-            fuzzyQueryBuilder.toQuery(context);
-            fail("should have failed with NumberFormatException");
-        } catch (NumberFormatException e) {
-            assertThat(e.getMessage(), Matchers.containsString("For input string"));
-        }
+        NumberFormatException e = expectThrows(NumberFormatException.class, () -> fuzzyQueryBuilder.toQuery(context));
+        assertThat(e.getMessage(), containsString("For input string"));
     }
 
     public void testToQueryWithStringField() throws IOException {
@@ -119,7 +117,6 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         assertThat(fuzzyQuery.getTerm(), equalTo(new Term(STRING_FIELD_NAME, "sh")));
         assertThat(fuzzyQuery.getMaxEdits(), equalTo(Fuzziness.AUTO.asDistance("sh")));
         assertThat(fuzzyQuery.getPrefixLength(), equalTo(1));
-
     }
 
     public void testToQueryWithNumericField() throws IOException {
@@ -156,5 +153,21 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         checkGeneratedJson(json, parsed);
         assertEquals(json, 42.0, parsed.boost(), 0.00001);
         assertEquals(json, 2, parsed.fuzziness().asFloat(), 0f);
+    }
+
+    public void testParseFailsWithMultipleFields() throws IOException {
+        String json = "{\n" +
+                "  \"fuzzy\" : {\n" +
+                "    \"message1\" : {\n" +
+                "      \"value\" : \"this is a test\"\n" +
+                "    },\n" +
+                "    \"message2\" : {\n" +
+                "      \"value\" : \"this is a test\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[fuzzy] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 }

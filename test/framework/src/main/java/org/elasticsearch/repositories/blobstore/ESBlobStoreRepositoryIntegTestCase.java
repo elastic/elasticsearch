@@ -16,13 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.repositories;
+package org.elasticsearch.repositories.blobstore;
 
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
@@ -158,6 +163,58 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         for (int i = 0; i < iterationCount; i++) {
             logger.info("-->  delete snapshot {}:{}", repoName, snapshotName + "-" + i);
             assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, snapshotName + "-" + i).get());
+        }
+    }
+
+    public void testIndicesDeletedFromRepository() throws Exception {
+        Client client = client();
+
+        logger.info("-->  creating repository");
+        final String repoName = "test-repo";
+        createTestRepository(repoName);
+
+        createIndex("test-idx-1", "test-idx-2", "test-idx-3");
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        for (int i = 0; i < 20; i++) {
+            index("test-idx-1", "doc", Integer.toString(i), "foo", "bar" + i);
+            index("test-idx-2", "doc", Integer.toString(i), "foo", "baz" + i);
+            index("test-idx-3", "doc", Integer.toString(i), "foo", "baz" + i);
+        }
+        refresh();
+
+        logger.info("--> take a snapshot");
+        CreateSnapshotResponse createSnapshotResponse =
+            client.admin().cluster().prepareCreateSnapshot(repoName, "test-snap").setWaitForCompletion(true).get();
+        assertEquals(createSnapshotResponse.getSnapshotInfo().successfulShards(), createSnapshotResponse.getSnapshotInfo().totalShards());
+
+        logger.info("--> indexing more data");
+        for (int i = 20; i < 40; i++) {
+            index("test-idx-1", "doc", Integer.toString(i), "foo", "bar" + i);
+            index("test-idx-2", "doc", Integer.toString(i), "foo", "baz" + i);
+            index("test-idx-3", "doc", Integer.toString(i), "foo", "baz" + i);
+        }
+
+        logger.info("--> take another snapshot with only 2 of the 3 indices");
+        createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot(repoName, "test-snap2")
+                                     .setWaitForCompletion(true)
+                                     .setIndices("test-idx-1", "test-idx-2")
+                                     .get();
+        assertEquals(createSnapshotResponse.getSnapshotInfo().successfulShards(), createSnapshotResponse.getSnapshotInfo().totalShards());
+
+        logger.info("--> delete a snapshot");
+        assertAcked(client().admin().cluster().prepareDeleteSnapshot(repoName, "test-snap").get());
+
+        logger.info("--> verify index folder deleted from blob container");
+        RepositoriesService repositoriesSvc = internalCluster().getInstance(RepositoriesService.class, internalCluster().getMasterName());
+        @SuppressWarnings("unchecked") BlobStoreRepository repository = (BlobStoreRepository) repositoriesSvc.repository(repoName);
+        BlobContainer indicesBlobContainer = repository.blobStore().blobContainer(repository.basePath().add("indices"));
+        RepositoryData repositoryData = repository.getRepositoryData();
+        for (IndexId indexId : repositoryData.getIndices().values()) {
+            if (indexId.getName().equals("test-idx-3")) {
+                assertFalse(indicesBlobContainer.blobExists(indexId.getId())); // deleted index
+            }
         }
     }
 

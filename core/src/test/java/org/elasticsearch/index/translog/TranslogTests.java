@@ -42,6 +42,9 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog.Location;
@@ -351,10 +354,14 @@ public class TranslogTests extends ESTestCase {
 
         assertEquals(6, copy.estimatedNumberOfOperations());
         assertEquals(431, copy.getTranslogSizeInBytes());
-        assertEquals("\"translog\"{\n" +
-            "  \"operations\" : 6,\n" +
-            "  \"size_in_bytes\" : 431\n" +
-            "}", copy.toString().trim());
+
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+
+            assertEquals("{\"translog\":{\"operations\":6,\"size_in_bytes\":431}}", builder.string());
+        }
 
         try {
             new TranslogStats(1, -1);

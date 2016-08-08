@@ -102,12 +102,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
 
     public void testIllegalArguments() {
         DisMaxQueryBuilder disMaxQuery = new DisMaxQueryBuilder();
-        try {
-            disMaxQuery.add(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> disMaxQuery.add(null));
     }
 
     public void testToQueryInnerPrefixQuery() throws Exception {

@@ -93,20 +93,7 @@ public class RetryTests extends ESSingleNodeTestCase {
         return pluginList(
                 ReindexPlugin.class,
                 Netty3Plugin.class,
-                Netty4Plugin.class,
-                BogusPlugin.class);
-    }
-
-    public static final class BogusPlugin extends Plugin {
-        // this runs without the permission from the netty module so it will fail since reindex can't set the property
-        // to make it still work we disable that check but need to register the setting first
-        private static final Setting<Boolean> ASSERT_NETTY_BUGLEVEL = Setting.boolSetting("netty.assert.buglevel", true,
-            Setting.Property.NodeScope);
-
-        @Override
-        public List<Setting<?>> getSettings() {
-            return Collections.singletonList(ASSERT_NETTY_BUGLEVEL);
-        }
+                Netty4Plugin.class);
     }
 
     /**
@@ -115,7 +102,6 @@ public class RetryTests extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         Settings.Builder settings = Settings.builder().put(super.nodeSettings());
-        settings.put("netty.assert.buglevel", false);
         // Use pools of size 1 so we can block them
         settings.put("thread_pool.bulk.size", 1);
         settings.put("thread_pool.search.size", 1);

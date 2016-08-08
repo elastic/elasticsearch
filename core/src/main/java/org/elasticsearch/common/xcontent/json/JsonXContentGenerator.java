@@ -24,6 +24,7 @@ import com.fasterxml.jackson.core.JsonStreamContext;
 import com.fasterxml.jackson.core.base.GeneratorBase;
 import com.fasterxml.jackson.core.filter.FilteringGeneratorDelegate;
 import com.fasterxml.jackson.core.io.SerializedString;
+import com.fasterxml.jackson.core.json.JsonWriteContext;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -271,7 +272,9 @@ public class JsonXContentGenerator implements XContentGenerator {
     public void writeEndRaw() {
         assert base != null : "JsonGenerator should be of instance GeneratorBase but was: " + generator.getClass();
         if (base != null) {
-            base.getOutputContext().writeValue();
+            JsonStreamContext context = base.getOutputContext();
+            assert (context instanceof JsonWriteContext) : "Expected an instance of JsonWriteContext but was: " + context.getClass();
+            ((JsonWriteContext) context).writeValue();
         }
     }
 

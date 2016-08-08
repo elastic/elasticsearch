@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.migrate;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -44,12 +46,13 @@ import org.junit.Before;
 import java.io.IOException;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.mockito.Mockito.mock;
 
 /**
  * Tests the "pre-flight" checks that {@link TransportMigrateIndexAction} takes before attempting to coalesce the request.
  */
+@Repeat(iterations=100)
 public class TransportMigrateIndexActionPreflightTests extends ESTestCase {
     private ThreadPool threadPool;
     private TransportMigrateIndexAction action;
@@ -100,7 +103,7 @@ public class TransportMigrateIndexActionPreflightTests extends ESTestCase {
     }
 
     public void testIndexExistsAndHasAliasWithHasFilter() throws IOException {
-        QueryBuilder filter = matchQuery("test", "foo");
+        QueryBuilder filter = termQuery("test", "foo");
         String expectedFilter = filter.toString(); // json
         // actual is encoded as whatever, probably not json
         XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
@@ -172,7 +175,7 @@ public class TransportMigrateIndexActionPreflightTests extends ESTestCase {
     }
 
     public void testIndexExistsButAliasDoesNotHaveMatchingFilters() {
-        String filter = matchQuery("test", "text").toString();
+        String filter = termQuery("test", "text").toString();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.preflightChecks(
                 new CreateIndexRequest("test")
                     .alias(new Alias("alias").filter(filter)),
@@ -186,10 +189,9 @@ public class TransportMigrateIndexActionPreflightTests extends ESTestCase {
     }
 
     public void testIndexExistsButAliasDoesNotHaveMatchingFiltersDifferentXContent() throws IOException {
-        String expectedFilter = matchQuery("test", "foo").toString(); // json
-        QueryBuilder actualFilter = matchQuery("test", "bar"); // encoded as whatever, probably not json
+        String expectedFilter = termQuery("test", "foo").toString(); // json
+        QueryBuilder actualFilter = termQuery("test", "bar"); // encoded as whatever, probably not json
         XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.values()).xContent());
-        builder.prettyPrint();
         actualFilter.toXContent(builder, ToXContent.EMPTY_PARAMS);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.preflightChecks(
                 new CreateIndexRequest("test")

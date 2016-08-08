@@ -148,14 +148,16 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
                         throw new IllegalArgumentException("[" + createIndex.index() + "] already exists and has the [" + expected.name()
                             + "] alias but the filter doesn't match. Expected [" + expected.filter() + "] but got [null]");
                     }
-                    // filters have to match, lets just map-ify them and compare....
-                    Map<String, Object> expectedFilterMap = XContentHelper.convertToMap(new BytesArray(expected.filter()), false).v2();
-                    Map<String, Object> actualFilterMap = XContentHelper.convertToMap(new BytesArray(actual.filter().uncompressed()), false)
-                            .v2();
+                    /* filters have to match we would just map-ify and compare, but that isn't good enough because some xcontent types
+                     * make floats and some make booleans.... so we have to convert both to json and *then* we can compare the maps....
+                     */
+                    String expectedJson = XContentHelper.convertToJson(new BytesArray(expected.filter()), false);
+                    Map<String, Object> expectedFilterMap = XContentHelper.convertToMap(new BytesArray(expectedJson), false).v2();
+                    String actualJson = XContentHelper.convertToJson(new BytesArray(actual.filter().uncompressed()), false);
+                    Map<String, Object> actualFilterMap = XContentHelper.convertToMap(new BytesArray(actualJson), false).v2();
                     if (false == expectedFilterMap.equals(actualFilterMap)) {
-                        String actualFilter = XContentHelper.convertToJson(new BytesArray(actual.filter().uncompressed()), false);
                         throw new IllegalArgumentException("[" + createIndex.index() + "] already exists and has the [" + expected.name()
-                                + "] alias but the filter doesn't match. Expected [" + expected.filter() + "] but got [" + actualFilter
+                                + "] alias but the filter doesn't match. Expected [" + expected.filter() + "] but got [" + actualJson
                                 + "]");
                     }
 

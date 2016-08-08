@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
@@ -117,6 +116,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static java.util.Collections.emptyList;
@@ -312,27 +312,105 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     /**
-     * Test that adding additional object into otherwise correct query string
-     * should always trigger some kind of Parsing Exception.
+     * Test that adding an additional object within each object of the otherwise correct query always triggers some kind of
+     * parse exception. Some specific objects do not cause any exception as they can hold arbitray content; they can be
+     * declared by overriding {@link #getObjectsHoldingArbitraryContent()}
      */
-    public void testUnknownObjectException() throws IOException {
+    public final void testUnknownObjectException() throws IOException {
+        //TODO building json by concatenating strings makes the code unmaintainable, we should rewrite this test
         String validQuery = createTestQueryBuilder().toString();
         assertThat(validQuery, containsString("{"));
+        int level = 0;
+        boolean withinQuotes = false;
+        boolean expectedException = true;
+        int objectHoldingArbitraryContentLevel = 0;
         for (int insertionPosition = 0; insertionPosition < validQuery.length(); insertionPosition++) {
-            if (validQuery.charAt(insertionPosition) == '{') {
-                String testQuery = validQuery.substring(0, insertionPosition) + "{ \"newField\" : "
-                        + validQuery.substring(insertionPosition) + "}";
+            if (validQuery.charAt(insertionPosition) == '"') {
+                withinQuotes = withinQuotes == false;
+            } else if (withinQuotes == false && validQuery.charAt(insertionPosition) == '}') {
+                level--;
+                if (expectedException == false) {
+                    //track where we are within the object that holds arbitrary content
+                    objectHoldingArbitraryContentLevel--;
+                }
+                if (objectHoldingArbitraryContentLevel == 0) {
+                    //reset the flag once we have traversed the whole object that holds arbitrary content
+                    expectedException = true;
+                }
+            } else if (withinQuotes == false && validQuery.charAt(insertionPosition) == '{') {
+                level++;
+                if (expectedException) {
+                    int start = -1;
+                    int end = -1;
+                    for (int i = insertionPosition; i >= 0; i--) {
+                        if (validQuery.charAt(i) == '}') {
+                            break;
+                        } else if (validQuery.charAt(i) == '"') {
+                            if (end == -1) {
+                                end = i;
+                            } else if (start == -1) {
+                                start = i + 1;
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                    if (start >= 0  && end > 0) {
+                        String objectName = validQuery.substring(start, end);
+                        expectedException = getObjectsHoldingArbitraryContent().contains(objectName) == false;
+                    }
+                }
+                if (expectedException == false) {
+                    objectHoldingArbitraryContentLevel++;
+                }
+                String testQuery = validQuery.substring(0, insertionPosition) + "{ \"newField\" : ";
+                String secondPart = validQuery.substring(insertionPosition);
+                int currentLevel = level;
+                boolean quotes = false;
+                for (int i = 0; i < secondPart.length(); i++) {
+                    if (secondPart.charAt(i) == '"') {
+                        quotes = quotes == false;
+                    } else if (quotes == false && secondPart.charAt(i) == '{') {
+                        currentLevel++;
+                    } else if (quotes == false && secondPart.charAt(i) == '}') {
+                        currentLevel--;
+                        if (currentLevel == level) {
+                            testQuery += secondPart.substring(0, i - 1) + "}" + secondPart.substring(i);
+                            break;
+                        }
+                    }
+                }
+
                 try {
                     parseQuery(testQuery);
-                    fail("some parsing exception expected for query: " + testQuery);
+                    if (expectedException) {
+                        fail("some parsing exception expected for query: " + testQuery);
+                    }
                 } catch (ParsingException | ElasticsearchParseException e) {
                     // different kinds of exception wordings depending on location
                     // of mutation, so no simple asserts possible here
-                } catch (JsonParseException e) {
-                    // mutation produced invalid json
+                    if (expectedException == false) {
+                        throw new AssertionError("unexpected exception when parsing query:\n" + testQuery, e);
+                    }
+                } catch(IllegalArgumentException e) {
+                    assertThat(e.getMessage(), containsString("unknown field [newField], parser not found"));
+                    if (expectedException == false) {
+                        throw new AssertionError("unexpected exception when parsing query:\n" + testQuery, e);
+                    }
                 }
             }
         }
+    }
+
+    /**
+     * Returns a set of object names that won't trigger any exception (uncluding their children) when testing that unknown
+     * objects cause parse exceptions through {@link #testUnknownObjectException()}. Default is an empty set. Can be overridden
+     * by subclasses that test queries which contain objects that get parsed on the data nodes (e.g. score functions) or objects
+     * that can contain arbitrary content (e.g. documents for percolate or more like this query, params for scripts). In such
+     * cases no exception would get thrown.
+     */
+    protected Set<String> getObjectsHoldingArbitraryContent() {
+        return Collections.emptySet();
     }
 
     /**

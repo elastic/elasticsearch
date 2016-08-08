@@ -171,7 +171,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     @Override
     protected Set<String> getObjectsHoldingArbitraryContent() {
         //document contains arbitrary content, no error expected when an object is added to it
-        return Collections.singleton("document");
+        return Collections.singleton(PercolateQueryBuilder.DOCUMENT_FIELD.getPreferredName());
     }
 
     public void testRequiredParameters() {

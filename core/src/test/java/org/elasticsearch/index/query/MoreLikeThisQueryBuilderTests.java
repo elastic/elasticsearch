@@ -202,7 +202,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     @Override
     protected Set<String> getObjectsHoldingArbitraryContent() {
         //doc contains arbitrary content, anything can be added to it and no exception will be thrown
-        return Collections.singleton("doc");
+        return Collections.singleton(MoreLikeThisQueryBuilder.Item.Field.DOC.getPreferredName());
     }
 
     @Override

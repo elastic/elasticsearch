@@ -147,7 +147,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
      */
     public static final class Item implements ToXContent, Writeable {
         public static final Item[] EMPTY_ARRAY = new Item[0];
-
+        
         public interface Field {
             ParseField INDEX = new ParseField("_index");
             ParseField TYPE = new ParseField("_type");

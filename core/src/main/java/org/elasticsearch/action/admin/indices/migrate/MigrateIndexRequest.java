@@ -23,8 +23,8 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -41,12 +41,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Request to migrate data from one index into a new index.
  */
 public class MigrateIndexRequest extends AcknowledgedRequest<MigrateIndexRequest> implements IndicesRequest {
-
-    public static final ObjectParser<MigrateIndexRequest, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("migrate", null);
-    static {
-
-    }
-
     private String sourceIndex;
     private Script script;
     private CreateIndexRequest createIndexRequest;
@@ -59,23 +53,23 @@ public class MigrateIndexRequest extends AcknowledgedRequest<MigrateIndexRequest
     /**
      * Build a fully defined request.
      */
-    public MigrateIndexRequest(String sourceIndex, @Nullable Script script, CreateIndexRequest createIndexRequest) {
+    public MigrateIndexRequest(String sourceIndex, String newIndex) {
         this.sourceIndex = sourceIndex;
-        this.script = script;
-        this.createIndexRequest = createIndexRequest;
+        this.createIndexRequest = new CreateIndexRequest(newIndex);
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = createIndexRequest == null ? null : createIndexRequest.validate();
         if (sourceIndex == null) {
-            validationException = addValidationError("source index is missing", validationException);
+            validationException = addValidationError("source index is not set", validationException);
         }
         if (createIndexRequest == null) {
-            validationException = addValidationError("create index request is missing", validationException);
-        }
-        if (createIndexRequest != null && Objects.equals(sourceIndex, createIndexRequest.index())) {
-            validationException = addValidationError("source and destination can't be the same index", validationException);
+            validationException = addValidationError("create index request is not set", validationException);
+        } else {
+            if (Objects.equals(sourceIndex, createIndexRequest.index())) {
+                validationException = addValidationError("source and destination can't be the same index", validationException);
+            }
         }
         // NOCOMMIT validate wait_for_active_shards is at least 1.
         
@@ -127,7 +121,6 @@ public class MigrateIndexRequest extends AcknowledgedRequest<MigrateIndexRequest
 
     /**
      * The script used to migrate documents.
-     * @return
      */
     public Script getScript() {
         return script;

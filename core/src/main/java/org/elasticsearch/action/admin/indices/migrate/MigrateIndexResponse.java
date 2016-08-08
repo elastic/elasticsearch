@@ -22,10 +22,12 @@ package org.elasticsearch.action.admin.indices.migrate;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class MigrateIndexResponse extends AcknowledgedResponse {
+public class MigrateIndexResponse extends AcknowledgedResponse implements ToXContent {
     private boolean noop; // NOCOMMIT we can do better. Probably like reindex, make the task status useful and capture that in the response.
     
     /**
@@ -35,7 +37,7 @@ public class MigrateIndexResponse extends AcknowledgedResponse {
     }
 
     public MigrateIndexResponse(boolean acknowledged, boolean noop) {
-        super(acknowledged);
+        super(acknowledged); // NOCOMMIT right now this is always true, that is silly. We shouldn't have it if it is always true.
         this.noop = noop;
     }
 
@@ -55,5 +57,12 @@ public class MigrateIndexResponse extends AcknowledgedResponse {
         super.writeTo(out);
         writeAcknowledged(out);
         out.writeBoolean(noop);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("acknowledged", isAcknowledged());
+        builder.field("noop", isNoop());
+        return builder;
     }
 }

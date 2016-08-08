@@ -293,6 +293,7 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
         // Refresh so the documents are visible when we switch the aliases
         reindex.setRefresh(true); 
         // NOCOMMIT need to link up the status so the migration action's status looks like reindex's status while this is happening
+        // NOCOMMIT should we prevent users from targeting a different index with this? probably
         client.execute(ReindexAction.INSTANCE, reindex, new ActionListener<BulkIndexByScrollResponse>() {
             @Override
             public void onResponse(BulkIndexByScrollResponse response) {

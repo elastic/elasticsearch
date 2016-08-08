@@ -77,7 +77,7 @@ public class MigrateIndexTask extends Task {
     /**
      * Tasks that are attempting to duplicate the effort of this task. Instead of duplicating the effort they instead block while this task
      * is running. While this method is synchronized so it'll return a consistent copy of the duplicates list, all modification to the list
-     * is done by first synchronizing on {@link TransportMigrateIndexAction#runningTasks} and then synchronizing on this object.
+     * is done by first synchronizing on TransportMigrateIndexAction#runningTasks and then synchronizing on this object.
      */
     public synchronized List<MigrateIndexTask> getDuplicates() {
         return duplicates == null ? emptyList() : new ArrayList<>(duplicates);

@@ -253,6 +253,7 @@ import org.elasticsearch.rest.action.admin.indices.RestIndicesExistsAction;
 import org.elasticsearch.rest.action.admin.indices.RestIndicesSegmentsAction;
 import org.elasticsearch.rest.action.admin.indices.RestIndicesShardStoresAction;
 import org.elasticsearch.rest.action.admin.indices.RestIndicesStatsAction;
+import org.elasticsearch.rest.action.admin.indices.RestMigrateIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestOpenIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestPutMappingAction;
@@ -517,6 +518,7 @@ public class ActionModule extends AbstractModule {
         registerRestHandler(handlers, RestDeleteIndexAction.class);
         registerRestHandler(handlers, RestCloseIndexAction.class);
         registerRestHandler(handlers, RestOpenIndexAction.class);
+        registerRestHandler(handlers, RestMigrateIndexAction.class);
 
         registerRestHandler(handlers, RestUpdateSettingsAction.class);
         registerRestHandler(handlers, RestGetSettingsAction.class);

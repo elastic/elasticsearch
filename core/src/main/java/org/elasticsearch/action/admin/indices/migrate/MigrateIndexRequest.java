@@ -70,6 +70,8 @@ public class MigrateIndexRequest extends AcknowledgedRequest<MigrateIndexRequest
         if (createIndexRequest == null) {
             validationException = addValidationError("create index request is missing", validationException);
         }
+        // NOCOMMIT validate wait_for_active_shards is at least 1.
+        
         return validationException;
     }
 

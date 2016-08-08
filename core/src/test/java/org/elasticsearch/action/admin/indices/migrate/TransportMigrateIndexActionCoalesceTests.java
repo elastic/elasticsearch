@@ -22,8 +22,10 @@ package org.elasticsearch.action.admin.indices.migrate;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -73,7 +75,7 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
 
         MockAction action = new MockAction() {
             @Override
-            void startMigration(MigrateIndexTask task, ClusterState state) {
+            void startMigration(MigrateIndexTask task) {
                 task.getListener().onResponse(response);
             }
         };
@@ -86,7 +88,7 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
         Exception exception = new Exception();
         action = new MockAction() {
             @Override
-            void startMigration(MigrateIndexTask task, ClusterState state) {
+            void startMigration(MigrateIndexTask task) {
                 task.getListener().onFailure(exception);
             }
         };
@@ -118,7 +120,7 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
         }
         MockAction action = new MockAction() {
             @Override
-            void startMigration(MigrateIndexTask task, ClusterState state) {
+            void startMigration(MigrateIndexTask task) {
                 int requestNumber = Integer.parseInt(task.getRequest().getCreateIndexRequest().index());
                 if (block[requestNumber]) {
                     try {
@@ -189,7 +191,7 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
         CountDownLatch blockLatch = new CountDownLatch(1);
         MockAction action = new MockAction() {
             @Override
-            void startMigration(MigrateIndexTask task, ClusterState state) {
+            void startMigration(MigrateIndexTask task) {
                 try {
                     assertFalse("Tried to start the migration twice! Coalesce failure!", blockingMainTask.getAndSet(true));
                     blockLatch.await();
@@ -291,7 +293,12 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
         }
 
         @Override
-        void startMigration(MigrateIndexTask task, ClusterState state) {
+        boolean preflightChecks(CreateIndexRequest createIndex, MetaData clustMetaData) {
+            return true; // stub all preflight checks to force the migration to coalesce
+        }
+
+        @Override
+        void startMigration(MigrateIndexTask task) {
             throw new RuntimeException("Tests should override this to short circuit. "
                     + "We aren't interested in testing the entire migration implementation, just the coalescing part.");
         }

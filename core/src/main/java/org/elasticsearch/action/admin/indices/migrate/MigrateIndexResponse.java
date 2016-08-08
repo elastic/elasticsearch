@@ -26,25 +26,30 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 public class MigrateIndexResponse extends AcknowledgedResponse {
+    private boolean noop;
+    
     /**
      * Constructor for use with serialization.
      */
     MigrateIndexResponse() {
     }
 
-    protected MigrateIndexResponse(boolean acknowledged) {
+    protected MigrateIndexResponse(boolean acknowledged, boolean noop) {
         super(acknowledged);
+        this.noop = noop;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         readAcknowledged(in);
+        noop = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeAcknowledged(out);
+        out.writeBoolean(noop);
     }
 }

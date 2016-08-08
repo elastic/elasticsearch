@@ -24,7 +24,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -77,7 +76,8 @@ public class MigrateIndexTask extends Task {
 
     /**
      * Tasks that are attempting to duplicate the effort of this task. Instead of duplicating the effort they instead block while this task
-     * is running.
+     * is running. While this method is synchronized so it'll return a consistent copy of the duplicates list, all modification to the list
+     * is done by first synchronizing on {@link TransportMigrateIndexAction#runningTasks} and then synchronizing on this object.
      */
     public synchronized List<MigrateIndexTask> getDuplicates() {
         return duplicates == null ? emptyList() : new ArrayList<>(duplicates);

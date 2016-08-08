@@ -134,7 +134,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                     public ClusterState execute(ClusterState currentState) {
                         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
                         for (LocalDiscovery discovery : clusterGroups.get(clusterName).members()) {
-                            nodesBuilder.put(discovery.localNode());
+                            nodesBuilder.add(discovery.localNode());
                         }
                         nodesBuilder.localNodeId(master.localNode().getId()).masterNodeId(master.localNode().getId());
                         // remove the NO_MASTER block in this case
@@ -160,7 +160,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                     public ClusterState execute(ClusterState currentState) {
                         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
                         for (LocalDiscovery discovery : clusterGroups.get(clusterName).members()) {
-                            nodesBuilder.put(discovery.localNode());
+                            nodesBuilder.add(discovery.localNode());
                         }
                         nodesBuilder.localNodeId(master.localNode().getId()).masterNodeId(master.localNode().getId());
                         currentState = ClusterState.builder(currentState).nodes(nodesBuilder).build();
@@ -231,8 +231,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                         }
                         // reroute here, so we eagerly remove dead nodes from the routing
                         ClusterState updatedState = ClusterState.builder(currentState).nodes(newNodes).build();
-                        RoutingAllocation.Result routingResult = master.allocationService.reroute(
-                                ClusterState.builder(updatedState).build(), "elected as master");
+                        RoutingAllocation.Result routingResult = master.allocationService.deassociateDeadNodes(
+                                ClusterState.builder(updatedState).build(), true, "node stopped");
                         return ClusterState.builder(updatedState).routingResult(routingResult).build();
                     }
 

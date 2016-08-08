@@ -12,7 +12,7 @@ the new alias.
 
 [source,js]
 --------------------------------------------------
-PUT /logs-0001 <1>
+PUT /logs-000001 <1>
 {
   "aliases": {
     "logs_write": {}
@@ -28,18 +28,18 @@ POST logs_write/_rollover <2>
 }
 --------------------------------------------------
 // CONSOLE
-<1> Creates an index called `logs-0001` with the alias `logs_write`.
+<1> Creates an index called `logs-0000001` with the alias `logs_write`.
 <2> If the index pointed to by `logs_write` was created 7 or more days ago, or
     contains 1,000 or more documents, then the `logs-0002` index is created
-    and the `logs_write` alias is updated to point to `logs-0002`.
+    and the `logs_write` alias is updated to point to `logs-000002`.
 
 The above request might return the following response:
 
 [source,js]
 --------------------------------------------------
 {
-  "old_index": "logs-0001",
-  "new_index": "logs-0002",
+  "old_index": "logs-000001",
+  "new_index": "logs-000002",
   "rolled_over": true, <1>
   "dry_run": false, <2>
   "conditions": { <3>
@@ -56,8 +56,9 @@ The above request might return the following response:
 === Naming the new index
 
 If the name of the existing index ends with `-` and a number -- e.g.
-`logs-0001` -- then the name of the new index will follow the same pattern,
-just incrementing the number (`logs-0002`).
+`logs-000001` -- then the name of the new index will follow the same pattern,
+incrementing the number (`logs-000002`). The number is zero-padded with a length
+of 6, regardless of the old index name.
 
 If the old name doesn't match this pattern then you must specify the name for
 the new index as follows:
@@ -80,7 +81,7 @@ override any values set in matching index templates. For example, the following
 
 [source,js]
 --------------------------------------------------
-PUT /logs-0001
+PUT /logs-000001
 {
   "aliases": {
     "logs_write": {}
@@ -108,7 +109,7 @@ checked without performing the actual rollover:
 
 [source,js]
 --------------------------------------------------
-PUT /logs-0001
+PUT /logs-000001
 {
   "aliases": {
     "logs_write": {}
@@ -125,3 +126,9 @@ POST logs_write/_rollover?dry_run
 --------------------------------------------------
 // CONSOLE
 
+[float]
+=== Wait For Active Shards
+
+Because the rollover operation creates a new index to rollover to, the 
+<<create-index-wait-for-active-shards,wait for active shards>> setting on 
+index creation applies to the rollover action as well.

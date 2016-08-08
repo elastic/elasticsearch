@@ -166,8 +166,8 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
 
     private DiscoveryNodes.Builder generateDiscoveryNodes(boolean masterEligible) {
         Set<DiscoveryNode.Role> dataOnlyRoles = Collections.singleton(DiscoveryNode.Role.DATA);
-        return DiscoveryNodes.builder().put(newNode("node1", masterEligible ? MASTER_DATA_ROLES : dataOnlyRoles))
-                .put(newNode("master_node", MASTER_DATA_ROLES)).localNodeId("node1").masterNodeId(masterEligible ? "node1" : "master_node");
+        return DiscoveryNodes.builder().add(newNode("node1", masterEligible ? MASTER_DATA_ROLES : dataOnlyRoles))
+                .add(newNode("master_node", MASTER_DATA_ROLES)).localNodeId("node1").masterNodeId(masterEligible ? "node1" : "master_node");
     }
 
     public void assertState(ClusterChangedEvent event,

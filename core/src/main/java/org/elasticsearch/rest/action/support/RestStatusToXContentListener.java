@@ -37,8 +37,10 @@ public class RestStatusToXContentListener<Response extends StatusToXContent> ext
      * Build an instance that doesn't support responses with the status {@code 201 CREATED}.
      */
     public RestStatusToXContentListener(RestChannel channel) {
-        // TODO switch this to throwing an exception?
-        this(channel, r -> null);
+        this(channel, r -> {
+            assert false: "Returned a 201 CREATED but not set up to support a Location header";
+            return null;
+        });
     }
 
     /**

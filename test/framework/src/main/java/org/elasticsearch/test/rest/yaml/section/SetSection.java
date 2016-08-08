@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 
 import java.io.IOException;
@@ -32,7 +33,12 @@ import java.util.Map;
  */
 public class SetSection implements ExecutableSection {
 
-    private Map<String, String> stash = new HashMap<>();
+    private final Map<String, String> stash = new HashMap<>();
+    private final XContentLocation location;
+
+    public SetSection(XContentLocation location) {
+        this.location = location;
+    }
 
     public void addSet(String responseField, String stashedField) {
         stash.put(responseField, stashedField);
@@ -40,6 +46,11 @@ public class SetSection implements ExecutableSection {
 
     public Map<String, String> getStash() {
         return stash;
+    }
+
+    @Override
+    public XContentLocation getLocation() {
+        return location;
     }
 
     @Override

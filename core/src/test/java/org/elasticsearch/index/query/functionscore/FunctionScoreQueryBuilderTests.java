@@ -155,7 +155,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             functionBuilder = fieldValueFactorFunctionBuilder;
             break;
         case 2:
-            String script = "5";
+            String script = "1";
             Map<String, Object> params = Collections.emptyMap();
             functionBuilder = new ScriptScoreFunctionBuilder(
                     new Script(script, ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, params));
@@ -414,12 +414,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             "      \"weight\": 2\n" +
             "    }\n" +
             "}";
-        try {
-            parseQuery(functionScoreQuery);
-            fail("parsing should have failed");
-        } catch (ParsingException e) {
-            assertThat(e.getMessage(), containsString("use [functions] array if you want to define several functions."));
-        }
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(functionScoreQuery));
+        assertThat(e.getMessage(), containsString("use [functions] array if you want to define several functions."));
     }
 
     public void testProperErrorMessageWhenTwoFunctionsDefinedInFunctionsArray() throws IOException {

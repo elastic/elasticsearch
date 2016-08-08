@@ -92,26 +92,13 @@ class org.elasticsearch.index.fielddata.ScriptDocValues.GeoPoints -> org.elastic
   double[] getLats()
   double[] getLons()
 
-  # geo distance functions... so many...
-  double factorDistance(double,double)
-  double factorDistanceWithDefault(double,double,double)
-  double factorDistance02(double,double)
-  double factorDistance13(double,double)
+  # geo distance functions
   double arcDistance(double,double)
   double arcDistanceWithDefault(double,double,double)
-  double arcDistanceInKm(double,double)
-  double arcDistanceInKmWithDefault(double,double,double)
-  double arcDistanceInMiles(double,double)
-  double arcDistanceInMilesWithDefault(double,double,double)
-  double distance(double,double)
-  double distanceWithDefault(double,double,double)
-  double distanceInKm(double,double)
-  double distanceInKmWithDefault(double,double,double)
-  double distanceInMiles(double,double)
-  double distanceInMilesWithDefault(double,double,double)
+  double planeDistance(double,double)
+  double planeDistanceWithDefault(double,double,double)
   double geohashDistance(String)
-  double geohashDistanceInKm(String)
-  double geohashDistanceInMiles(String)
+  double geohashDistanceWithDefault(String,double)
 }
 
 # for testing.

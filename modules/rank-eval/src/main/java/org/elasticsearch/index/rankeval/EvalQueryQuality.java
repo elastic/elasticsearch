@@ -21,9 +21,11 @@ package org.elasticsearch.index.rankeval;
 
 import java.util.Collection;
 
-/** Returned for each search specification. Summarizes the measured quality metric for this search request
- * and adds the document ids found that were in the search result but not annotated in the original request.
- * */
+/**
+ * Returned for each search specification. Summarizes the measured quality
+ * metric for this search request and adds the document ids found that were in
+ * the search result but not annotated in the original request.
+ */
 public class EvalQueryQuality {
     private double qualityLevel;
 

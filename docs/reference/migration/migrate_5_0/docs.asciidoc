@@ -11,6 +11,20 @@ url entirely. If you add `?refresh=wait_for` Elasticsearch will wait for the
 changes to become visible before replying to the request but won't take any
 immediate refresh related action. See <<docs-refresh>>.
 
+==== `created` field deprecated in the Index API
+
+The `created` field has been deprecated in the Index API. It now returns
+`operation`, returning `"operation": "create"` when it created a document and
+`"operation": "index"` when it updated the document. This is also true for
+`index` bulk operations.
+
+==== `found` field deprecated in the Delete API
+
+The `found` field has been deprecated in the Delete API. It now returns
+`operation`, returning `"operation": "deleted"` when it deleted a document and
+`"operation": "noop"` when it didn't found the document. This is also true for
+`index` bulk operations.
+
 ==== Reindex and Update By Query
 Before 5.0.0 `_reindex` and `_update_by_query` only retried bulk failures so
 they used the following response format:

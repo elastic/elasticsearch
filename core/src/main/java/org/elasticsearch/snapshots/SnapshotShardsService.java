@@ -46,6 +46,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
@@ -66,6 +67,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -208,8 +211,11 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         Map<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> newSnapshots = new HashMap<>();
         // Now go through all snapshots and update existing or create missing
         final String localNodeId = clusterService.localNode().getId();
+        final Map<Snapshot, Map<String, IndexId>> snapshotIndices = new HashMap<>();
         if (snapshotsInProgress != null) {
             for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
+                snapshotIndices.put(entry.snapshot(),
+                                    entry.indices().stream().collect(Collectors.toMap(IndexId::getName, Function.identity())));
                 if (entry.state() == SnapshotsInProgress.State.STARTED) {
                     Map<ShardId, IndexShardSnapshotStatus> startedShards = new HashMap<>();
                     SnapshotShards snapshotShards = shardSnapshots.get(entry.snapshot());
@@ -289,14 +295,18 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         if (newSnapshots.isEmpty() == false) {
             Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
             for (final Map.Entry<Snapshot, Map<ShardId, IndexShardSnapshotStatus>> entry : newSnapshots.entrySet()) {
+                Map<String, IndexId> indicesMap = snapshotIndices.get(entry.getKey());
+                assert indicesMap != null;
                 for (final Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : entry.getValue().entrySet()) {
                     final ShardId shardId = shardEntry.getKey();
                     try {
                         final IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShardOrNull(shardId.id());
+                        final IndexId indexId = indicesMap.get(shardId.getIndexName());
+                        assert indexId != null;
                         executor.execute(new AbstractRunnable() {
                             @Override
                             public void doRun() {
-                                snapshot(indexShard, entry.getKey(), shardEntry.getValue());
+                                snapshot(indexShard, entry.getKey(), indexId, shardEntry.getValue());
                                 updateIndexShardSnapshotStatus(entry.getKey(), shardId, new SnapshotsInProgress.ShardSnapshotStatus(localNodeId, SnapshotsInProgress.State.SUCCESS));
                             }
 
@@ -321,7 +331,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
      * @param snapshot       snapshot
      * @param snapshotStatus snapshot status
      */
-    private void snapshot(final IndexShard indexShard, final Snapshot snapshot, final IndexShardSnapshotStatus snapshotStatus) {
+    private void snapshot(final IndexShard indexShard, final Snapshot snapshot, final IndexId indexId, final IndexShardSnapshotStatus snapshotStatus) {
         Repository repository = snapshotsService.getRepositoriesService().repository(snapshot.getRepository());
         ShardId shardId = indexShard.shardId();
         if (!indexShard.routingEntry().primary()) {
@@ -338,9 +348,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
 
         try {
             // we flush first to make sure we get the latest writes snapshotted
-            IndexCommit snapshotIndexCommit = indexShard.snapshotIndex(true);
+            IndexCommit snapshotIndexCommit = indexShard.acquireIndexCommit(true);
             try {
-                repository.snapshotShard(indexShard, snapshot.getSnapshotId(), snapshotIndexCommit, snapshotStatus);
+                repository.snapshotShard(indexShard, snapshot.getSnapshotId(), indexId, snapshotIndexCommit, snapshotStatus);
                 if (logger.isDebugEnabled()) {
                     StringBuilder sb = new StringBuilder();
                     sb.append("    index    : version [").append(snapshotStatus.indexVersion()).append("], number_of_files [").append(snapshotStatus.numberOfFiles()).append("] with total_size [").append(new ByteSizeValue(snapshotStatus.totalSize())).append("]\n");
@@ -348,7 +358,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         TimeValue.timeValueMillis(snapshotStatus.time()), sb);
                 }
             } finally {
-                indexShard.releaseSnapshot(snapshotIndexCommit);
+                indexShard.releaseIndexCommit(snapshotIndexCommit);
             }
         } catch (SnapshotFailedEngineException e) {
             throw e;

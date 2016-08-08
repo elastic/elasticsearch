@@ -19,24 +19,31 @@
 
 package org.elasticsearch.painless.node;
 
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 
 import java.util.Objects;
 import java.util.Set;
 
 /**
- * The superclass for all other nodes.
+ * The superclass for all nodes.
  */
 public abstract class ANode {
+
     /**
      * The identifier of the script and character offset used for debugging and errors.
      */
     final Location location;
 
+    /**
+     * Standard constructor with location used for error tracking.
+     */
     ANode(Location location) {
         this.location = Objects.requireNonNull(location);
     }
-    
+
     /**
      * Adds all variable names referenced to the variable set.
      * <p>
@@ -44,8 +51,18 @@ public abstract class ANode {
      * @param variables set of variables referenced (any scope)
      */
     abstract void extractVariables(Set<String> variables);
-    
-    public RuntimeException createError(RuntimeException exception) {
+
+    /**
+     * Checks for errors and collects data for the writing phase.
+     */
+    abstract void analyze(Locals locals);
+
+    /**
+     * Writes ASM based on the data collected during the analysis phase.
+     */
+    abstract void write(MethodWriter writer, Globals globals);
+
+    RuntimeException createError(RuntimeException exception) {
         return location.createError(exception);
     }
 }

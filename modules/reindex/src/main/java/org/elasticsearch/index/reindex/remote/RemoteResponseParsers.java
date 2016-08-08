@@ -64,14 +64,14 @@ final class RemoteResponseParsers {
                 String index = (String) a[i++];
                 String type = (String) a[i++];
                 String id = (String) a[i++];
-                long version = (long) a[i++];
-                return new BasicHit(index, type, id, version);
+                Long version = (Long) a[i++];
+                return new BasicHit(index, type, id, version == null ? -1 : version);
             });
     static {
         HIT_PARSER.declareString(constructorArg(), new ParseField("_index"));
         HIT_PARSER.declareString(constructorArg(), new ParseField("_type"));
         HIT_PARSER.declareString(constructorArg(), new ParseField("_id"));
-        HIT_PARSER.declareLong(constructorArg(), new ParseField("_version"));
+        HIT_PARSER.declareLong(optionalConstructorArg(), new ParseField("_version"));
         HIT_PARSER.declareObject(BasicHit::setSource, (p, s) -> {
             try {
                 /*

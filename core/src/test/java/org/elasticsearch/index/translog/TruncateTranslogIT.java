@@ -153,7 +153,8 @@ public class TruncateTranslogIT extends ESIntegTestCase {
                         Lock writeLock = dir.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
                     // Great, do nothing, we just wanted to obtain the lock
                 }  catch (LockObtainFailedException lofe) {
-                    throw new ElasticsearchException("Still waiting for lock release at [" + idxLocation + "]");
+                    logger.info("--> failed acquiring lock for {}", idxLocation);
+                    fail("still waiting for lock release at [" + idxLocation + "]");
                 } catch (IOException ioe) {
                     fail("Got an IOException: " + ioe);
                 }

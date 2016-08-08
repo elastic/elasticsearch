@@ -21,10 +21,13 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -38,5 +41,17 @@ public class RankEvalPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<Class<? extends RestHandler>> getRestHandlers() {
         return Arrays.asList(RestRankEvalAction.class);
+    }
+
+    /**
+     * Returns parsers for {@link NamedWriteable} this plugin will use over the transport protocol.
+     * @see NamedWriteableRegistry
+     */
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        List<NamedWriteableRegistry.Entry> metrics = new ArrayList<>();
+        metrics.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, PrecisionAtN.NAME, PrecisionAtN::new));
+        metrics.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, ReciprocalRank.NAME, ReciprocalRank::new));
+        return metrics;
     }
 }

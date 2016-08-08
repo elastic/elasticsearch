@@ -20,12 +20,12 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Definition.Type;
 import org.elasticsearch.painless.Globals;
 import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 
-import java.lang.invoke.MethodType;
 import java.util.Objects;
 import java.util.Set;
 
@@ -34,19 +34,20 @@ import java.util.Set;
  * <p>
  * Unlike java's, this works for primitive types too.
  */
-public class EInstanceof extends AExpression {
-    AExpression expression;
-    final String type;
-    Class<?> resolvedType;
-    Class<?> expressionType;
-    boolean primitiveExpression;
+public final class EInstanceof extends AExpression {
+    private AExpression expression;
+    private final String type;
+
+    private Class<?> resolvedType;
+    private Class<?> expressionType;
+    private boolean primitiveExpression;
 
     public EInstanceof(Location location, AExpression expression, String type) {
         super(location);
         this.expression = Objects.requireNonNull(expression);
         this.type = Objects.requireNonNull(type);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         expression.extractVariables(variables);
@@ -54,20 +55,29 @@ public class EInstanceof extends AExpression {
 
     @Override
     void analyze(Locals locals) {
-        Definition.Type raw = Definition.getType(type);
-        // map to wrapped type for primitive types
-        resolvedType = MethodType.methodType(raw.clazz).wrap().returnType();
-        expression.analyze(locals);
-        actual = Definition.BOOLEAN_TYPE;
-        
-        Definition.Type expressionRaw = expression.actual;
-        if (expressionRaw == null) {
-            expressionRaw = Definition.DEF_TYPE;
+        final Type type;
+
+        // ensure the specified type is part of the definition
+        try {
+            type = Definition.getType(this.type);
+        } catch (IllegalArgumentException exception) {
+            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
-        // record if the expression returns a primitive
-        primitiveExpression = expressionRaw.clazz.isPrimitive();
+
         // map to wrapped type for primitive types
-        expressionType = MethodType.methodType(expressionRaw.clazz).wrap().returnType();
+        resolvedType = type.sort.primitive ? type.sort.boxed : type.clazz;
+
+        // analyze and cast the expression
+        expression.analyze(locals);
+        expression.expected = expression.actual;
+        expression = expression.cast(locals);
+
+        // record if the expression returns a primitive
+        primitiveExpression = expression.actual.sort.primitive;
+        // map to wrapped type for primitive types
+        expressionType = expression.actual.sort.primitive ? expression.actual.sort.boxed : type.clazz;
+
+        actual = Definition.BOOLEAN_TYPE;
     }
 
     @Override

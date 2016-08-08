@@ -46,6 +46,7 @@ import org.hamcrest.Matchers;
 
 import java.util.HashMap;
 import java.util.Map;
+
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 
@@ -129,7 +130,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         logger.info("start " + numberOfNodes + " nodes");
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         for (int i = 0; i < numberOfNodes; i++) {
-            nodes.put(newNode("node" + i));
+            nodes.add(newNode("node" + i));
         }
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
@@ -165,7 +166,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
     private ClusterState addNode(ClusterState clusterState, AllocationService strategy) {
         logger.info("now, start 1 more node, check that rebalancing will happen because we set it to always");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
-                .put(newNode("node" + numberOfNodes)))
+                .add(newNode("node" + numberOfNodes)))
                 .build();
 
         RoutingTable routingTable = strategy.reroute(clusterState, "reroute").routingTable();
@@ -191,11 +192,18 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         logger.info("Removing half the nodes (" + (numberOfNodes + 1) / 2 + ")");
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
 
+        boolean removed = false;
         for (int i = (numberOfNodes + 1) / 2; i <= numberOfNodes; i++) {
             nodes.remove("node" + i);
+            removed = true;
         }
 
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
+        if (removed) {
+            clusterState = ClusterState.builder(clusterState).routingResult(
+                strategy.deassociateDeadNodes(clusterState, randomBoolean(), "removed nodes")
+            ).build();
+        }
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
         logger.info("start all the primary shards, replicas will start initializing");
@@ -378,7 +386,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         for (int i = 0; i < 4; i++) {
             DiscoveryNode node = newNode("node" + i);
-            nodes.put(node);
+            nodes.add(node);
         }
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).metaData(metaData).routingTable(routingTable).build();

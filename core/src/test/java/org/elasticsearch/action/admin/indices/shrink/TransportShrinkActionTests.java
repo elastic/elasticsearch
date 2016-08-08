@@ -93,7 +93,7 @@ public class TransportShrinkActionTests extends ESTestCase {
 
         // create one that won't fail
         ClusterState clusterState = ClusterState.builder(createClusterState("source", randomIntBetween(2, 10), 0,
-            Settings.builder().put("index.blocks.write", true).build())).nodes(DiscoveryNodes.builder().put(newNode("node1")))
+            Settings.builder().put("index.blocks.write", true).build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
         AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
             Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),
@@ -116,7 +116,7 @@ public class TransportShrinkActionTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(createClusterState(indexName, randomIntBetween(2, 10), 0,
             Settings.builder()
                 .put("index.blocks.write", true)
-                .build())).nodes(DiscoveryNodes.builder().put(newNode("node1")))
+                .build())).nodes(DiscoveryNodes.builder().add(newNode("node1")))
             .build();
         AllocationService service = new AllocationService(Settings.builder().build(), new AllocationDeciders(Settings.EMPTY,
             Collections.singleton(new MaxRetryAllocationDecider(Settings.EMPTY))),

@@ -310,7 +310,7 @@ public class ClusterChangedEventTests extends ESTestCase {
                 }
             }
             final DiscoveryNode node = newNode(nodeId, roles);
-            builder.put(node);
+            builder.add(node);
             if (i == localNodeIndex) {
                 builder.localNodeId(nodeId);
             }

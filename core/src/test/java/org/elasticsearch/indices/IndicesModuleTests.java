@@ -73,13 +73,13 @@ public class IndicesModuleTests extends ESTestCase {
     });
 
     public void testBuiltinMappers() {
-        IndicesModule module = new IndicesModule(new NamedWriteableRegistry(), Collections.emptyList());
+        IndicesModule module = new IndicesModule(Collections.emptyList());
         assertFalse(module.getMapperRegistry().getMapperParsers().isEmpty());
         assertFalse(module.getMapperRegistry().getMetadataMapperParsers().isEmpty());
     }
 
     public void testBuiltinWithPlugins() {
-        IndicesModule module = new IndicesModule(new NamedWriteableRegistry(), fakePlugins);
+        IndicesModule module = new IndicesModule(fakePlugins);
         MapperRegistry registry = module.getMapperRegistry();
         assertThat(registry.getMapperParsers().size(), Matchers.greaterThan(1));
         assertThat(registry.getMetadataMapperParsers().size(), Matchers.greaterThan(1));
@@ -93,7 +93,7 @@ public class IndicesModuleTests extends ESTestCase {
             }
         });
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new IndicesModule(new NamedWriteableRegistry(), plugins));
+            () -> new IndicesModule(plugins));
         assertThat(e.getMessage(), Matchers.containsString("already registered"));
     }
 
@@ -106,7 +106,7 @@ public class IndicesModuleTests extends ESTestCase {
         };
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new IndicesModule(new NamedWriteableRegistry(), plugins));
+            () -> new IndicesModule(plugins));
         assertThat(e.getMessage(), Matchers.containsString("already registered"));
     }
 
@@ -118,7 +118,7 @@ public class IndicesModuleTests extends ESTestCase {
             }
         });
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new IndicesModule(new NamedWriteableRegistry(), plugins));
+            () -> new IndicesModule(plugins));
         assertThat(e.getMessage(), Matchers.containsString("already registered"));
     }
 
@@ -131,7 +131,7 @@ public class IndicesModuleTests extends ESTestCase {
         };
         List<MapperPlugin> plugins = Arrays.asList(plugin, plugin);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new IndicesModule(new NamedWriteableRegistry(), plugins));
+            () -> new IndicesModule(plugins));
         assertThat(e.getMessage(), Matchers.containsString("already registered"));
     }
 
@@ -143,19 +143,19 @@ public class IndicesModuleTests extends ESTestCase {
             }
         });
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new IndicesModule(new NamedWriteableRegistry(), plugins));
+            () -> new IndicesModule(plugins));
         assertThat(e.getMessage(), Matchers.containsString("cannot contain metadata mapper [_field_names]"));
     }
 
     public void testFieldNamesIsLast() {
-        IndicesModule module = new IndicesModule(new NamedWriteableRegistry(), Collections.emptyList());
+        IndicesModule module = new IndicesModule(Collections.emptyList());
         List<String> fieldNames = module.getMapperRegistry().getMetadataMapperParsers().keySet()
             .stream().collect(Collectors.toList());
         assertEquals(FieldNamesFieldMapper.NAME, fieldNames.get(fieldNames.size() - 1));
     }
 
     public void testFieldNamesIsLastWithPlugins() {
-        IndicesModule module = new IndicesModule(new NamedWriteableRegistry(), fakePlugins);
+        IndicesModule module = new IndicesModule(fakePlugins);
         List<String> fieldNames = module.getMapperRegistry().getMetadataMapperParsers().keySet()
             .stream().collect(Collectors.toList());
         assertEquals(FieldNamesFieldMapper.NAME, fieldNames.get(fieldNames.size() - 1));

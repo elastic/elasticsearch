@@ -20,18 +20,21 @@
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 
 apply plugin: 'elasticsearch.build'
+apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'nebula.maven-scm'
 
 group = 'org.elasticsearch.client'
 
 dependencies {
   compile "org.elasticsearch:elasticsearch:${version}"
-  compile project(path: ':modules:transport-netty3', configuration: 'runtime')
-  compile project(path: ':modules:transport-netty4', configuration: 'runtime')
-  compile project(path: ':modules:reindex', configuration: 'runtime')
-  compile project(path: ':modules:lang-mustache', configuration: 'runtime')
-  compile project(path: ':modules:percolator', configuration: 'runtime')
+  compile "org.elasticsearch.plugin:transport-netty3-client:${version}"
+  compile "org.elasticsearch.plugin:transport-netty4-client:${version}"
+  compile "org.elasticsearch.plugin:reindex-client:${version}"
+  compile "org.elasticsearch.plugin:lang-mustache-client:${version}"
+  compile "org.elasticsearch.plugin:percolator-client:${version}"
   testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testCompile "junit:junit:${versions.junit}"
+  testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
 }
 
 dependencyLicenses {

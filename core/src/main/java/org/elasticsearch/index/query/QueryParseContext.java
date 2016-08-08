@@ -109,16 +109,17 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
         String queryName = parser.currentName();
         // move to the next START_OBJECT
         token = parser.nextToken();
-        if (token != XContentParser.Token.START_OBJECT && token != XContentParser.Token.START_ARRAY) {
-            throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no start_object after query name");
+        if (token != XContentParser.Token.START_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(), "[" + queryName + "] query malformed, no start_object after query name");
         }
         @SuppressWarnings("unchecked")
         Optional<QueryBuilder> result = (Optional<QueryBuilder>) indicesQueriesRegistry.lookup(queryName, parseFieldMatcher,
                 parser.getTokenLocation()).fromXContent(this);
-        if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
-            // if we are at END_OBJECT, move to the next one...
-            parser.nextToken();
+        if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "[" + queryName + "] malformed query, expected [END_OBJECT] but found [" + parser.currentToken() + "]");
         }
+        parser.nextToken();
         return result;
     }
 

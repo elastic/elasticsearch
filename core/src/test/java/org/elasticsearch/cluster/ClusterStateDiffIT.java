@@ -53,7 +53,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
@@ -79,7 +78,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNode otherNode = new DiscoveryNode("other", new LocalTransportAddress("other"),
                 emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().put(masterNode).put(otherNode).localNodeId(masterNode.getId()).build();
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(masterNode).add(otherNode).localNodeId(masterNode.getId()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
         ClusterState clusterStateFromDiffs = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), otherNode);
 
@@ -194,14 +193,14 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             if (nodeId.startsWith("node-")) {
                 nodes.remove(nodeId);
                 if (randomBoolean()) {
-                    nodes.put(new DiscoveryNode(nodeId, new LocalTransportAddress(randomAsciiOfLength(10)), emptyMap(),
+                    nodes.add(new DiscoveryNode(nodeId, new LocalTransportAddress(randomAsciiOfLength(10)), emptyMap(),
                             emptySet(), randomVersion(random())));
                 }
             }
         }
         int additionalNodeCount = randomIntBetween(1, 20);
         for (int i = 0; i < additionalNodeCount; i++) {
-            nodes.put(new DiscoveryNode("node-" + randomAsciiOfLength(10), new LocalTransportAddress(randomAsciiOfLength(10)),
+            nodes.add(new DiscoveryNode("node-" + randomAsciiOfLength(10), new LocalTransportAddress(randomAsciiOfLength(10)),
                     emptyMap(), emptySet(), randomVersion(random())));
         }
         return ClusterState.builder(clusterState).nodes(nodes);
@@ -659,7 +658,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                                 randomBoolean(),
                                 randomBoolean(),
                                 SnapshotsInProgress.State.fromValue((byte) randomIntBetween(0, 6)),
-                                Collections.<String>emptyList(),
+                                Collections.emptyList(),
                                 Math.abs(randomLong()),
                                 ImmutableOpenMap.of()));
                     case 1:

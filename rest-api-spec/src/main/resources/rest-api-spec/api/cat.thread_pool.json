@@ -4,7 +4,7 @@
     "methods": ["GET"],
     "url": {
       "path": "/_cat/thread_pool",
-      "paths": ["/_cat/thread_pool"],
+      "paths": ["/_cat/thread_pool","/_cat/thread_pool/{thread_pools}"],
       "parts": {
       },
       "params": {
@@ -39,10 +39,9 @@
           "description": "Verbose mode. Display column headers",
           "default": false
         },
-        "full_id": {
-          "type": "boolean",
-          "description": "Enables displaying the complete node ids",
-          "default": false
+        "thread_pool_patterns": {
+          "type": "list",
+          "description": "A comma-separated list of regular-expressions to filter the thread pools in the output"
         }
       }
     },

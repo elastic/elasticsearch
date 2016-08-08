@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -99,13 +100,26 @@ public class SpanTermQueryBuilderTests extends AbstractTermQueryTestCase<SpanTer
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{    \"span_term\" : { \"user\" : { \"value\" : \"kimchy\", \"boost\" : 2.0 } }}    ";
-
+        String json = "{    \"span_term\" : { \"user\" : { \"value\" : \"kimchy\", \"boost\" : 2.0 } }}";
         SpanTermQueryBuilder parsed = (SpanTermQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
-
         assertEquals(json, "kimchy", parsed.value());
         assertEquals(json, 2.0, parsed.boost(), 0.0001);
     }
+
+    public void testParseFailsWithMultipleFields() throws IOException {
+        String json = "{\n" +
+                "  \"span_term\" : {\n" +
+                "    \"message1\" : {\n" +
+                "      \"term\" : \"this\"\n" +
+                "    },\n" +
+                "    \"message2\" : {\n" +
+                "      \"term\" : \"this\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[span_term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+    }
+
 }

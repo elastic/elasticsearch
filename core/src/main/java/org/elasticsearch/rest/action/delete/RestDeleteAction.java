@@ -19,8 +19,8 @@
 
 package org.elasticsearch.rest.action.delete;
 
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -55,9 +55,9 @@ public class RestDeleteAction extends BaseRestHandler {
         deleteRequest.version(RestActions.parseVersion(request));
         deleteRequest.versionType(VersionType.fromString(request.param("version_type"), deleteRequest.versionType()));
 
-        String consistencyLevel = request.param("consistency");
-        if (consistencyLevel != null) {
-            deleteRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
+        String waitForActiveShards = request.param("wait_for_active_shards");
+        if (waitForActiveShards != null) {
+            deleteRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
 
         client.delete(deleteRequest, new RestStatusToXContentListener<>(channel));

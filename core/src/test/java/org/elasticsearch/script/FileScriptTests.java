@@ -37,14 +37,16 @@ public class FileScriptTests extends ESTestCase {
         Path scriptsDir = homeDir.resolve("config").resolve("scripts");
         Files.createDirectories(scriptsDir);
         Path mockscript = scriptsDir.resolve("script1.mockscript");
-        Files.write(mockscript, "1".getBytes("UTF-8"));
+        String scriptSource = "1";
+        Files.write(mockscript, scriptSource.getBytes("UTF-8"));
         settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), homeDir)
                 // no file watching, so we don't need a ResourceWatcherService
             .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
             .put(settings)
             .build();
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singleton(new MockScriptEngine()));
+        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, Collections.singletonMap(scriptSource, script -> "1"));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singleton(scriptEngine));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         return new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);

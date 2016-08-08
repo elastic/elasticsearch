@@ -45,6 +45,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.net.InetSocketAddress;
+import java.util.Collections;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -66,7 +67,7 @@ public class UnicastZenPingIT extends ESTestCase {
             .put(TransportSettings.PORT.getKey(), startPort + "-" + endPort).build();
 
         ThreadPool threadPool = new TestThreadPool(getClass().getName());
-        NetworkService networkService = new NetworkService(settings);
+        NetworkService networkService = new NetworkService(settings, Collections.emptyList());
         ElectMasterService electMasterService = new ElectMasterService(settings);
 
         NetworkHandle handleA = startServices(settings, threadPool, networkService, "UZP_A", Version.CURRENT);
@@ -91,7 +92,7 @@ public class UnicastZenPingIT extends ESTestCase {
         zenPingA.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
-                return DiscoveryNodes.builder().put(handleA.node).localNodeId("UZP_A").build();
+                return DiscoveryNodes.builder().add(handleA.node).localNodeId("UZP_A").build();
             }
 
             @Override
@@ -105,7 +106,7 @@ public class UnicastZenPingIT extends ESTestCase {
         zenPingB.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
-                return DiscoveryNodes.builder().put(handleB.node).localNodeId("UZP_B").build();
+                return DiscoveryNodes.builder().add(handleB.node).localNodeId("UZP_B").build();
             }
 
             @Override
@@ -125,7 +126,7 @@ public class UnicastZenPingIT extends ESTestCase {
         zenPingC.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
-                return DiscoveryNodes.builder().put(handleC.node).localNodeId("UZP_C").build();
+                return DiscoveryNodes.builder().add(handleC.node).localNodeId("UZP_C").build();
             }
 
             @Override
@@ -139,7 +140,7 @@ public class UnicastZenPingIT extends ESTestCase {
         zenPingD.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
-                return DiscoveryNodes.builder().put(handleD.node).localNodeId("UZP_D").build();
+                return DiscoveryNodes.builder().add(handleD.node).localNodeId("UZP_D").build();
             }
 
             @Override
@@ -199,7 +200,7 @@ public class UnicastZenPingIT extends ESTestCase {
     private NetworkHandle startServices(Settings settings, ThreadPool threadPool, NetworkService networkService, String nodeId,
                                         Version version) {
         MockTcpTransport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(), new NamedWriteableRegistry(), networkService, version);
+            new NoneCircuitBreakerService(), new NamedWriteableRegistry(Collections.emptyList()), networkService, version);
         final TransportService transportService = new TransportService(settings, transport, threadPool);
         transportService.start();
         transportService.acceptIncomingRequests();

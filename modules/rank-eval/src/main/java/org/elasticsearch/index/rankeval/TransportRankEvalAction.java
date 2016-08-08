@@ -44,6 +44,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Vector;
 
 /**
  * Instances of this class execute a collection of search intents (read: user supplied query parameters) against a set of
@@ -74,9 +75,6 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         this.searchTransportService = searchTransportService;
         this.clusterService = clusterService;
         this.actionFilters = actionFilters;
-
-        // TODO this should maybe move to some registry on startup
-        namedWriteableRegistry.register(RankedListQualityMetric.class, PrecisionAtN.NAME, PrecisionAtN::new);
     }
 
     @Override
@@ -85,8 +83,9 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         RankedListQualityMetric metric = qualityTask.getEvaluator();
 
         double qualitySum = 0;
-        Map<String, Collection<RatedDocumentKey>> unknownDocs = new HashMap<String, Collection<RatedDocumentKey>>();
+        Map<String, Collection<RatedDocumentKey>> unknownDocs = new HashMap<>();
         Collection<QuerySpec> specifications = qualityTask.getSpecifications();
+        Vector<EvalQueryQuality> partialResults = new Vector<>(specifications.size());
         for (QuerySpec spec : specifications) {
             SearchSourceBuilder specRequest = spec.getTestRequest();
             String[] indices = new String[spec.getIndices().size()];
@@ -101,13 +100,14 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             ActionFuture<SearchResponse> searchResponse = transportSearchAction.execute(templatedRequest);
             SearchHits hits = searchResponse.actionGet().getHits();
 
-            EvalQueryQuality intentQuality = metric.evaluate(hits.getHits(), spec.getRatedDocs());
-            qualitySum += intentQuality.getQualityLevel();
-            unknownDocs.put(spec.getSpecId(), intentQuality.getUnknownDocs());
+            EvalQueryQuality queryQuality = metric.evaluate(hits.getHits(), spec.getRatedDocs());
+            partialResults.addElement(queryQuality);
+            unknownDocs.put(spec.getSpecId(), queryQuality.getUnknownDocs());
         }
+
         RankEvalResponse response = new RankEvalResponse();
-        // TODO move averaging to actual metric, also add other statistics
-        RankEvalResult result = new RankEvalResult(qualityTask.getTaskId(), qualitySum / specifications.size(), unknownDocs);
+        // TODO add other statistics like micro/macro avg?
+        RankEvalResult result = new RankEvalResult(qualityTask.getTaskId(), metric.combine(partialResults), unknownDocs);
         response.setRankEvalResult(result);
         listener.onResponse(response);
     }

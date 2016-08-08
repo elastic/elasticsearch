@@ -72,7 +72,7 @@ setup:
       search:
         body:
           _source:
-            include: [ include.field1, include.field2 ]
+            includes: [ include.field1, include.field2 ]
           query: { match_all: {} }
   - match:  { hits.hits.0._source.include.field1: v1 }
   - match:  { hits.hits.0._source.include.field2: v2 }

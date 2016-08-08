@@ -53,12 +53,17 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatchQueryBuilder> {
 
+    private static final String MISSING_WILDCARD_FIELD_NAME = "missing_*";
+    private static final String MISSING_FIELD_NAME = "missing";
+
     @Override
     protected MultiMatchQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomFrom(STRING_FIELD_NAME, INT_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME);
+        String fieldName = randomFrom(STRING_FIELD_NAME, INT_FIELD_NAME, DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME,
+                MISSING_FIELD_NAME, MISSING_WILDCARD_FIELD_NAME);
         if (fieldName.equals(DATE_FIELD_NAME)) {
             assumeTrue("test with date fields runs only when at least a type is registered", getCurrentTypes().length > 0);
         }
+
         // creates the query with random value and field name
         Object value;
         if (fieldName.equals(STRING_FIELD_NAME)) {
@@ -149,33 +154,10 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testIllegaArguments() {
-        try {
-            new MultiMatchQueryBuilder(null, "field");
-            fail("value must not be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            new MultiMatchQueryBuilder("value", (String[]) null);
-            fail("initial fields must be supplied at construction time must not be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            new MultiMatchQueryBuilder("value", new String[]{""});
-            fail("field names cannot be empty");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            new MultiMatchQueryBuilder("value", "field").type(null);
-            fail("type must not be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new MultiMatchQueryBuilder(null, "field"));
+        expectThrows(IllegalArgumentException.class, () -> new MultiMatchQueryBuilder("value", (String[]) null));
+        expectThrows(IllegalArgumentException.class, () -> new MultiMatchQueryBuilder("value", new String[]{""}));
+        expectThrows(IllegalArgumentException.class, () -> new MultiMatchQueryBuilder("value", "field").type(null));
     }
 
     public void testToQueryBoost() throws IOException {
@@ -236,6 +218,12 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertThat(bQuery.clauses().size(), equalTo(2));
         assertThat(assertBooleanSubQuery(query, TermQuery.class, 0).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "test")));
         assertThat(assertBooleanSubQuery(query, TermQuery.class, 1).getTerm(), equalTo(new Term(STRING_FIELD_NAME_2, "test")));
+    }
+
+    public void testToQueryFieldMissing() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        assertThat(multiMatchQuery("test").field(MISSING_WILDCARD_FIELD_NAME).toQuery(createShardContext()), instanceOf(MatchNoDocsQuery.class));
+        assertThat(multiMatchQuery("test").field(MISSING_FIELD_NAME).toQuery(createShardContext()), instanceOf(TermQuery.class));
     }
 
     public void testFromJson() throws IOException {

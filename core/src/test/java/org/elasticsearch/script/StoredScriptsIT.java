@@ -86,7 +86,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
 
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            return Collections.emptyMap();
+            return Collections.singletonMap("1", script -> "1");
         }
     }
 }

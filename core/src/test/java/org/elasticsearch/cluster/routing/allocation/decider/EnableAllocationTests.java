@@ -72,8 +72,8 @@ public class EnableAllocationTests extends ESAllocationTestCase {
 
         logger.info("--> adding two nodes and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .put(newNode("node1"))
-                .put(newNode("node2"))
+                .add(newNode("node1"))
+                .add(newNode("node2"))
         ).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -100,8 +100,8 @@ public class EnableAllocationTests extends ESAllocationTestCase {
 
         logger.info("--> adding two nodes do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .put(newNode("node1"))
-                .put(newNode("node2"))
+                .add(newNode("node1"))
+                .add(newNode("node2"))
         ).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -134,8 +134,8 @@ public class EnableAllocationTests extends ESAllocationTestCase {
 
         logger.info("--> adding two nodes and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .put(newNode("node1"))
-                .put(newNode("node2"))
+                .add(newNode("node1"))
+                .add(newNode("node2"))
         ).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -179,8 +179,8 @@ public class EnableAllocationTests extends ESAllocationTestCase {
 
         logger.info("--> adding one nodes and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .put(newNode("node1"))
-                .put(newNode("node2"))
+                .add(newNode("node1"))
+                .add(newNode("node2"))
         ).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -198,9 +198,9 @@ public class EnableAllocationTests extends ESAllocationTestCase {
 
         logger.info("--> adding one nodes and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .put(newNode("node1"))
-                .put(newNode("node2"))
-                .put(newNode("node3"))
+                .add(newNode("node1"))
+                .add(newNode("node2"))
+                .add(newNode("node3"))
         ).build();
         ClusterState prevState = clusterState;
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
@@ -279,8 +279,8 @@ public class EnableAllocationTests extends ESAllocationTestCase {
 
         logger.info("--> adding one nodes and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .put(newNode("node1"))
-                .put(newNode("node2"))
+                .add(newNode("node1"))
+                .add(newNode("node2"))
         ).build();
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -293,9 +293,9 @@ public class EnableAllocationTests extends ESAllocationTestCase {
 
         logger.info("--> adding one nodes and do rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-                .put(newNode("node1"))
-                .put(newNode("node2"))
-                .put(newNode("node3"))
+                .add(newNode("node1"))
+                .add(newNode("node2"))
+                .add(newNode("node3"))
         ).build();
         ClusterState prevState = clusterState;
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();

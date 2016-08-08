@@ -44,12 +44,7 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
     }
 
     public void testIllegalArgument() {
-        try {
-            new TypeQueryBuilder((String) null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new TypeQueryBuilder((String) null));
     }
 
     public void testFromJson() throws IOException {

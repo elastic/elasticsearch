@@ -22,6 +22,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
@@ -84,6 +85,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithActivePrimary;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -532,15 +534,16 @@ public class TransportReplicationActionTests extends ESTestCase {
         AtomicReference<Throwable> failure = new AtomicReference<>();
         AtomicReference<Throwable> ignoredFailure = new AtomicReference<>();
         AtomicBoolean success = new AtomicBoolean();
-        proxy.failShard(replica, shardRoutings.primaryShard(), "test", new ElasticsearchException("simulated"),
+        proxy.failShard(replica, randomIntBetween(1, 10), "test", new ElasticsearchException("simulated"),
             () -> success.set(true), failure::set, ignoredFailure::set
         );
         CapturingTransport.CapturedRequest[] shardFailedRequests = transport.getCapturedRequestsAndClear();
         assertEquals(1, shardFailedRequests.length);
         CapturingTransport.CapturedRequest shardFailedRequest = shardFailedRequests[0];
-        ShardStateAction.ShardRoutingEntry shardRoutingEntry = (ShardStateAction.ShardRoutingEntry) shardFailedRequest.request;
+        ShardStateAction.ShardEntry shardEntry = (ShardStateAction.ShardEntry) shardFailedRequest.request;
         // the shard the request was sent to and the shard to be failed should be the same
-        assertEquals(shardRoutingEntry.getShardRouting(), replica);
+        assertEquals(shardEntry.getShardId(), replica.shardId());
+        assertEquals(shardEntry.getAllocationId(), replica.allocationId().getId());
         if (randomBoolean()) {
             // simulate success
             transport.handleResponse(shardFailedRequest.requestId, TransportResponse.Empty.INSTANCE);
@@ -551,7 +554,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         } else if (randomBoolean()) {
             // simulate the primary has been demoted
             transport.handleRemoteError(shardFailedRequest.requestId,
-                new ShardStateAction.NoLongerPrimaryShardException(shardRoutingEntry.getShardRouting().shardId(),
+                new ShardStateAction.NoLongerPrimaryShardException(replica.shardId(),
                     "shard-failed-test"));
             assertFalse(success.get());
             assertNotNull(failure.get());
@@ -677,6 +680,37 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertIndexShardCounter(0);
     }
 
+    /**
+     * This test ensures that replication operations adhere to the {@link IndexMetaData#SETTING_WAIT_FOR_ACTIVE_SHARDS} setting
+     * when the request is using the default value for waitForActiveShards.
+     */
+    public void testDefaultWaitForActiveShardsUsesIndexSetting() throws Exception {
+        final String indexName = "test";
+        final ShardId shardId = new ShardId(indexName, "_na_", 0);
+
+        // test wait_for_active_shards index setting used when the default is set on the request
+        int numReplicas = randomIntBetween(0, 5);
+        int idxSettingWaitForActiveShards = randomIntBetween(0, numReplicas + 1);
+        ClusterState state = stateWithActivePrimary(indexName, randomBoolean(), numReplicas);
+        IndexMetaData indexMetaData = state.metaData().index(indexName);
+        Settings indexSettings = Settings.builder().put(indexMetaData.getSettings())
+                                     .put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(idxSettingWaitForActiveShards))
+                                     .build();
+        MetaData.Builder metaDataBuilder = MetaData.builder(state.metaData())
+                                               .put(IndexMetaData.builder(indexMetaData).settings(indexSettings).build(), true);
+        state = ClusterState.builder(state).metaData(metaDataBuilder).build();
+        setState(clusterService, state);
+        Request request = new Request(shardId).waitForActiveShards(ActiveShardCount.DEFAULT); // set to default so index settings are used
+        action.resolveRequest(state.metaData(), state.metaData().index(indexName), request);
+        assertEquals(ActiveShardCount.from(idxSettingWaitForActiveShards), request.waitForActiveShards());
+
+        // test wait_for_active_shards when default not set on the request (request value should be honored over index setting)
+        int requestWaitForActiveShards = randomIntBetween(0, numReplicas + 1);
+        request = new Request(shardId).waitForActiveShards(ActiveShardCount.from(requestWaitForActiveShards));
+        action.resolveRequest(state.metaData(), state.metaData().index(indexName), request);
+        assertEquals(ActiveShardCount.from(requestWaitForActiveShards), request.waitForActiveShards());
+    }
+
     private void assertIndexShardCounter(int expected) {
         assertThat(count.get(), equalTo(expected));
     }
@@ -719,6 +753,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             this();
             this.shardId = shardId;
             this.index = shardId.getIndexName();
+            this.waitForActiveShards = ActiveShardCount.NONE;
             // keep things simple
         }
 
@@ -766,11 +801,6 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected boolean checkWriteConsistency() {
-            return false;
-        }
-
-        @Override
         protected boolean resolveIndex() {
             return false;
         }
@@ -815,7 +845,7 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     class NoopReplicationOperation extends ReplicationOperation<Request, Request, Action.PrimaryResult> {
         public NoopReplicationOperation(Request request, ActionListener<Action.PrimaryResult> listener) {
-            super(request, null, listener, true, true, null, null, TransportReplicationActionTests.this.logger, "noop");
+            super(request, null, listener, true, null, null, TransportReplicationActionTests.this.logger, "noop");
         }
 
         @Override

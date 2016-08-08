@@ -41,10 +41,16 @@ public class RestReindexActionTests extends ESTestCase {
     }
 
     public void testBuildRemoteInfoFullyLoaded() throws IOException {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("first", "a");
+        headers.put("second", "b");
+        headers.put("third", "");
+
         Map<String, Object> remote = new HashMap<>();
         remote.put("host", "https://example.com:9200");
         remote.put("username", "testuser");
         remote.put("password", "testpass");
+        remote.put("headers", headers);
 
         Map<String, Object> query = new HashMap<>();
         query.put("a", "b");
@@ -60,6 +66,7 @@ public class RestReindexActionTests extends ESTestCase {
         assertEquals("{\n  \"a\" : \"b\"\n}", remoteInfo.getQuery().utf8ToString());
         assertEquals("testuser", remoteInfo.getUsername());
         assertEquals("testpass", remoteInfo.getPassword());
+        assertEquals(headers, remoteInfo.getHeaders());
     }
 
     public void testBuildRemoteInfoWithoutAllParts() throws IOException {

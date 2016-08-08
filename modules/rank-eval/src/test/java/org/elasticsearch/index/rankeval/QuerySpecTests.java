@@ -20,7 +20,6 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -52,7 +51,7 @@ public class QuerySpecTests extends ESTestCase {
     @BeforeClass
     public static void init() throws IOException {
         aggsParsers = new AggregatorParsers(new ParseFieldRegistry<>("aggregation"), new ParseFieldRegistry<>("aggregation_pipes"));
-        searchModule = new SearchModule(Settings.EMPTY, new NamedWriteableRegistry(), false, emptyList());
+        searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         queriesRegistry = searchModule.getQueryParserRegistry();
         suggesters = searchModule.getSuggesters();
     }

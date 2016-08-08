@@ -1,6 +1,8 @@
 [[query-dsl-template-query]]
 === Template Query
 
+deprecated[5.0.0, Use the <<search-template>> API]
+
 A query that accepts a query template and a map of key/value pairs to fill in
 template parameters. Templating is based on Mustache. For simple token substitution all you provide
 is a query containing some variable that you want to substitute and the actual
@@ -21,6 +23,7 @@ GET /_search
 }
 ------------------------------------------
 // CONSOLE
+// TEST[warning:[template] query is deprecated, use search template api instead]
 
 The above request is translated into:
 
@@ -54,6 +57,7 @@ GET /_search
 }
 ------------------------------------------
 // CONSOLE
+// TEST[warning:[template] query is deprecated, use search template api instead]
 
 <1> New line characters (`\n`) should be escaped as `\\n` or removed,
     and quotes (`"`) should be escaped as `\\"`.
@@ -80,6 +84,7 @@ GET /_search
 }
 ------------------------------------------
 // CONSOLE
+// TEST[warning:[template] query is deprecated, use search template api instead]
 
 <1> Name of the query template in `config/scripts/`, i.e., `my_template.mustache`.
 
@@ -113,11 +118,10 @@ GET /_search
 ------------------------------------------
 // CONSOLE
 // TEST[continued]
+// TEST[warning:[template] query is deprecated, use search template api instead]
 
 <1> Name of the query template in `config/scripts/`, i.e., `my_template.mustache`.
 
 
 There is also a dedicated `template` endpoint, allows you to template an entire search request.
 Please see <<search-template>> for more details.
-
-

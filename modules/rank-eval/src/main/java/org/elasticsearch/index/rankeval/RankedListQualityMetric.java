@@ -28,6 +28,7 @@ import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Vector;
 
 /**
  * Classes implementing this interface provide a means to compute the quality of a result list
@@ -59,6 +60,9 @@ public abstract class RankedListQualityMetric implements NamedWriteable {
         case PrecisionAtN.NAME:
             rc = PrecisionAtN.fromXContent(parser, context);
             break;
+        case ReciprocalRank.NAME:
+            rc = ReciprocalRank.fromXContent(parser, context);
+            break;
         default:
             throw new ParsingException(parser.getTokenLocation(), "[_na] unknown query metric name [{}]", metricName);
         }
@@ -67,5 +71,9 @@ public abstract class RankedListQualityMetric implements NamedWriteable {
             parser.nextToken();
         }
         return rc;
+    }
+
+    double combine(Vector<EvalQueryQuality> partialResults) {
+        return partialResults.stream().mapToDouble(EvalQueryQuality::getQualityLevel).sum() / partialResults.size();
     }
 }

@@ -122,9 +122,7 @@ public class PrecisionAtN extends RankedListQualityMetric {
                 unknownDocIds.add(hitKey);
             }
         }
-
         double precision = (double) good / (good + bad);
-
         return new EvalQueryQuality(precision, unknownDocIds);
     }
 

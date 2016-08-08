@@ -20,8 +20,8 @@
 package org.elasticsearch.common.rounding;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.rounding.TimeZoneRounding.TimeIntervalRounding;
-import org.elasticsearch.common.rounding.TimeZoneRounding.TimeUnitRounding;
+import org.elasticsearch.common.rounding.Rounding.TimeIntervalRounding;
+import org.elasticsearch.common.rounding.Rounding.TimeUnitRounding;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Description;
@@ -47,32 +47,25 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class TimeZoneRoundingTests extends ESTestCase {
 
     public void testUTCTimeUnitRounding() {
-        Rounding tzRounding = TimeZoneRounding.builder(DateTimeUnit.MONTH_OF_YEAR).build();
+        Rounding tzRounding = Rounding.builder(DateTimeUnit.MONTH_OF_YEAR).build();
         DateTimeZone tz = DateTimeZone.UTC;
         assertThat(tzRounding.round(time("2009-02-03T01:01:01")), isDate(time("2009-02-01T00:00:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2009-02-01T00:00:00.000Z")), isDate(time("2009-03-01T00:00:00.000Z"), tz));
 
-        tzRounding = TimeZoneRounding.builder(DateTimeUnit.WEEK_OF_WEEKYEAR).build();
+        tzRounding = Rounding.builder(DateTimeUnit.WEEK_OF_WEEKYEAR).build();
         assertThat(tzRounding.round(time("2012-01-10T01:01:01")), isDate(time("2012-01-09T00:00:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2012-01-09T00:00:00.000Z")), isDate(time("2012-01-16T00:00:00.000Z"), tz));
-
-        tzRounding = TimeZoneRounding.builder(DateTimeUnit.WEEK_OF_WEEKYEAR).offset(-TimeValue.timeValueHours(24).millis()).build();
-        assertThat(tzRounding.round(time("2012-01-10T01:01:01")), isDate(time("2012-01-08T00:00:00.000Z"), tz));
-        assertThat(tzRounding.nextRoundingValue(time("2012-01-08T00:00:00.000Z")), isDate(time("2012-01-15T00:00:00.000Z"), tz));
     }
 
     public void testUTCIntervalRounding() {
-        Rounding tzRounding = TimeZoneRounding.builder(TimeValue.timeValueHours(12)).build();
+        Rounding tzRounding = Rounding.builder(TimeValue.timeValueHours(12)).build();
         DateTimeZone tz = DateTimeZone.UTC;
         assertThat(tzRounding.round(time("2009-02-03T01:01:01")), isDate(time("2009-02-03T00:00:00.000Z"), tz));
-        long roundKey = tzRounding.roundKey(time("2009-02-03T01:01:01"));
-        assertThat(roundKey, isDate(tzRounding.roundKey(time("2009-02-03T00:00:00.000Z")), tz));
-        assertThat(tzRounding.valueForKey(roundKey), isDate(time("2009-02-03T00:00:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2009-02-03T00:00:00.000Z")), isDate(time("2009-02-03T12:00:00.000Z"), tz));
         assertThat(tzRounding.round(time("2009-02-03T13:01:01")), isDate(time("2009-02-03T12:00:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2009-02-03T12:00:00.000Z")), isDate(time("2009-02-04T00:00:00.000Z"), tz));
 
-        tzRounding = TimeZoneRounding.builder(TimeValue.timeValueHours(48)).build();
+        tzRounding = Rounding.builder(TimeValue.timeValueHours(48)).build();
         assertThat(tzRounding.round(time("2009-02-03T01:01:01")), isDate(time("2009-02-03T00:00:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2009-02-03T00:00:00.000Z")), isDate(time("2009-02-05T00:00:00.000Z"), tz));
         assertThat(tzRounding.round(time("2009-02-05T13:01:01")), isDate(time("2009-02-05T00:00:00.000Z"), tz));
@@ -80,15 +73,12 @@ public class TimeZoneRoundingTests extends ESTestCase {
     }
 
     /**
-     * test TimeIntervalTimeZoneRounding, (interval &lt; 12h) with time zone shift
+     * test TimeIntervalRounding, (interval &lt; 12h) with time zone shift
      */
-    public void testTimeIntervalTimeZoneRounding() {
+    public void testTimeIntervalRounding() {
         DateTimeZone tz = DateTimeZone.forOffsetHours(-1);
-        Rounding tzRounding = TimeZoneRounding.builder(TimeValue.timeValueHours(6)).timeZone(tz).build();
+        Rounding tzRounding = Rounding.builder(TimeValue.timeValueHours(6)).timeZone(tz).build();
         assertThat(tzRounding.round(time("2009-02-03T00:01:01")), isDate(time("2009-02-02T19:00:00.000Z"), tz));
-        long roundKey = tzRounding.roundKey(time("2009-02-03T00:01:01"));
-        assertThat(roundKey, equalTo(tzRounding.roundKey(time("2009-02-02T19:00:00.000Z"))));
-        assertThat(tzRounding.valueForKey(roundKey), isDate(time("2009-02-02T19:00:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2009-02-02T19:00:00.000Z")), isDate(time("2009-02-03T01:00:00.000Z"), tz));
 
         assertThat(tzRounding.round(time("2009-02-03T13:01:01")), isDate(time("2009-02-03T13:00:00.000Z"), tz));
@@ -96,58 +86,49 @@ public class TimeZoneRoundingTests extends ESTestCase {
     }
 
     /**
-     * test DayIntervalTimeZoneRounding, (interval &gt;= 12h) with time zone shift
+     * test DayIntervalRounding, (interval &gt;= 12h) with time zone shift
      */
-    public void testDayIntervalTimeZoneRounding() {
+    public void testDayIntervalRounding() {
         DateTimeZone tz = DateTimeZone.forOffsetHours(-8);
-        Rounding tzRounding = TimeZoneRounding.builder(TimeValue.timeValueHours(12)).timeZone(tz).build();
+        Rounding tzRounding = Rounding.builder(TimeValue.timeValueHours(12)).timeZone(tz).build();
         assertThat(tzRounding.round(time("2009-02-03T00:01:01")), isDate(time("2009-02-02T20:00:00.000Z"), tz));
-        long roundKey = tzRounding.roundKey(time("2009-02-03T00:01:01"));
-        assertThat(roundKey, isDate(tzRounding.roundKey(time("2009-02-02T20:00:00.000Z")), tz));
-        assertThat(tzRounding.valueForKey(roundKey), isDate(time("2009-02-02T20:00:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2009-02-02T20:00:00.000Z")), isDate(time("2009-02-03T08:00:00.000Z"), tz));
 
         assertThat(tzRounding.round(time("2009-02-03T13:01:01")), isDate(time("2009-02-03T08:00:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2009-02-03T08:00:00.000Z")), isDate(time("2009-02-03T20:00:00.000Z"), tz));
     }
 
-    public void testDayTimeZoneRounding() {
+    public void testDayRounding() {
         int timezoneOffset = -2;
-        Rounding tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(DateTimeZone.forOffsetHours(timezoneOffset))
+        Rounding tzRounding = Rounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(DateTimeZone.forOffsetHours(timezoneOffset))
                 .build();
         assertThat(tzRounding.round(0), equalTo(0L - TimeValue.timeValueHours(24 + timezoneOffset).millis()));
         assertThat(tzRounding.nextRoundingValue(0L - TimeValue.timeValueHours(24 + timezoneOffset).millis()), equalTo(0L - TimeValue
                 .timeValueHours(timezoneOffset).millis()));
 
         DateTimeZone tz = DateTimeZone.forID("-08:00");
-        tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(tz).build();
+        tzRounding = Rounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(tz).build();
         assertThat(tzRounding.round(time("2012-04-01T04:15:30Z")), isDate(time("2012-03-31T08:00:00Z"), tz));
 
-        tzRounding = TimeZoneRounding.builder(DateTimeUnit.MONTH_OF_YEAR).timeZone(tz).build();
+        tzRounding = Rounding.builder(DateTimeUnit.MONTH_OF_YEAR).timeZone(tz).build();
         assertThat(tzRounding.round(time("2012-04-01T04:15:30Z")), equalTo(time("2012-03-01T08:00:00Z")));
 
         // date in Feb-3rd, but still in Feb-2nd in -02:00 timezone
         tz = DateTimeZone.forID("-02:00");
-        tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(tz).build();
+        tzRounding = Rounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(tz).build();
         assertThat(tzRounding.round(time("2009-02-03T01:01:01")), isDate(time("2009-02-02T02:00:00"), tz));
-        long roundKey = tzRounding.roundKey(time("2009-02-03T01:01:01"));
-        assertThat(roundKey, isDate(tzRounding.roundKey(time("2009-02-02T02:00:00.000Z")), tz));
-        assertThat(tzRounding.valueForKey(roundKey), isDate(time("2009-02-02T02:00:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2009-02-02T02:00:00")), isDate(time("2009-02-03T02:00:00"), tz));
 
         // date in Feb-3rd, also in -02:00 timezone
-        tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(tz).build();
+        tzRounding = Rounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(tz).build();
         assertThat(tzRounding.round(time("2009-02-03T02:01:01")), isDate(time("2009-02-03T02:00:00"), tz));
-        roundKey = tzRounding.roundKey(time("2009-02-03T02:01:01"));
-        assertThat(roundKey, isDate(tzRounding.roundKey(time("2009-02-03T02:00:00.000Z")), tz));
-        assertThat(tzRounding.valueForKey(roundKey), isDate(time("2009-02-03T02:00:00.000Z"), tz));
         assertThat(tzRounding.nextRoundingValue(time("2009-02-03T02:00:00")), isDate(time("2009-02-04T02:00:00"), tz));
     }
 
-    public void testTimeTimeZoneRounding() {
+    public void testTimeRounding() {
         // hour unit
         DateTimeZone tz = DateTimeZone.forOffsetHours(-2);
-        Rounding tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(tz).build();
+        Rounding tzRounding = Rounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(tz).build();
         assertThat(tzRounding.round(0), equalTo(0L));
         assertThat(tzRounding.nextRoundingValue(0L), equalTo(TimeValue.timeValueHours(1L).getMillis()));
 
@@ -159,23 +140,23 @@ public class TimeZoneRoundingTests extends ESTestCase {
         Rounding tzRounding;
         // testing savings to non savings switch
         DateTimeZone cet = DateTimeZone.forID("CET");
-        tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(cet).build();
+        tzRounding = Rounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(cet).build();
         assertThat(tzRounding.round(time("2014-10-26T01:01:01", cet)), isDate(time("2014-10-26T01:00:00+02:00"), cet));
         assertThat(tzRounding.nextRoundingValue(time("2014-10-26T01:00:00", cet)),isDate(time("2014-10-26T02:00:00+02:00"), cet));
         assertThat(tzRounding.nextRoundingValue(time("2014-10-26T02:00:00", cet)), isDate(time("2014-10-26T02:00:00+01:00"), cet));
 
         // testing non savings to savings switch
-        tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(cet).build();
+        tzRounding = Rounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(cet).build();
         assertThat(tzRounding.round(time("2014-03-30T01:01:01", cet)), isDate(time("2014-03-30T01:00:00+01:00"), cet));
         assertThat(tzRounding.nextRoundingValue(time("2014-03-30T01:00:00", cet)), isDate(time("2014-03-30T03:00:00", cet), cet));
         assertThat(tzRounding.nextRoundingValue(time("2014-03-30T03:00:00", cet)), isDate(time("2014-03-30T04:00:00", cet), cet));
 
         // testing non savings to savings switch (America/Chicago)
         DateTimeZone chg = DateTimeZone.forID("America/Chicago");
-        Rounding tzRounding_utc = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(DateTimeZone.UTC).build();
+        Rounding tzRounding_utc = Rounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(DateTimeZone.UTC).build();
         assertThat(tzRounding.round(time("2014-03-09T03:01:01", chg)), isDate(time("2014-03-09T03:00:00", chg), chg));
 
-        Rounding tzRounding_chg = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(chg).build();
+        Rounding tzRounding_chg = Rounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(chg).build();
         assertThat(tzRounding_chg.round(time("2014-03-09T03:01:01", chg)), isDate(time("2014-03-09T03:00:00", chg), chg));
 
         // testing savings to non savings switch 2013 (America/Chicago)
@@ -188,18 +169,21 @@ public class TimeZoneRoundingTests extends ESTestCase {
     }
 
     /**
-     * Randomized test on TimeUnitRounding.
-     * Test uses random {@link DateTimeUnit} and {@link DateTimeZone} and often (50% of the time) chooses
-     * test dates that are exactly on or close to offset changes (e.g. DST) in the chosen time zone.
+     * Randomized test on TimeUnitRounding. Test uses random
+     * {@link DateTimeUnit} and {@link DateTimeZone} and often (50% of the time)
+     * chooses test dates that are exactly on or close to offset changes (e.g.
+     * DST) in the chosen time zone.
      *
-     * It rounds the test date down and up and performs various checks on the rounding unit interval that is
-     * defined by this. Assumptions tested are described in {@link #assertInterval(long, long, long, TimeZoneRounding, DateTimeZone)}
+     * It rounds the test date down and up and performs various checks on the
+     * rounding unit interval that is defined by this. Assumptions tested are
+     * described in
+     * {@link #assertInterval(long, long, long, Rounding, DateTimeZone)}
      */
-    public void testTimeZoneRoundingRandom() {
+    public void testRoundingRandom() {
         for (int i = 0; i < 1000; ++i) {
             DateTimeUnit timeUnit = randomTimeUnit();
             DateTimeZone tz = randomDateTimeZone();
-            TimeZoneRounding rounding = new TimeZoneRounding.TimeUnitRounding(timeUnit, tz);
+            Rounding rounding = new Rounding.TimeUnitRounding(timeUnit, tz);
             long date = Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
             long unitMillis = timeUnit.field(tz).getDurationField().getUnitMillis();
             if (randomBoolean()) {
@@ -241,7 +225,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
     public void testTimeIntervalCET_DST_End() {
         long interval = TimeUnit.MINUTES.toMillis(20);
         DateTimeZone tz = DateTimeZone.forID("CET");
-        TimeZoneRounding rounding = new TimeIntervalRounding(interval, tz);
+        Rounding rounding = new TimeIntervalRounding(interval, tz);
 
         assertThat(rounding.round(time("2015-10-25T01:55:00+02:00")), isDate(time("2015-10-25T01:40:00+02:00"), tz));
         assertThat(rounding.round(time("2015-10-25T02:15:00+02:00")), isDate(time("2015-10-25T02:00:00+02:00"), tz));
@@ -261,7 +245,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
     public void testTimeIntervalCET_DST_Start() {
         long interval = TimeUnit.MINUTES.toMillis(20);
         DateTimeZone tz = DateTimeZone.forID("CET");
-        TimeZoneRounding rounding = new TimeIntervalRounding(interval, tz);
+        Rounding rounding = new TimeIntervalRounding(interval, tz);
         // test DST start
         assertThat(rounding.round(time("2016-03-27T01:55:00+01:00")), isDate(time("2016-03-27T01:40:00+01:00"), tz));
         assertThat(rounding.round(time("2016-03-27T02:00:00+01:00")), isDate(time("2016-03-27T03:00:00+02:00"), tz));
@@ -278,7 +262,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
     public void testTimeInterval_Kathmandu_DST_Start() {
         long interval = TimeUnit.MINUTES.toMillis(20);
         DateTimeZone tz = DateTimeZone.forID("Asia/Kathmandu");
-        TimeZoneRounding rounding = new TimeIntervalRounding(interval, tz);
+        Rounding rounding = new TimeIntervalRounding(interval, tz);
         assertThat(rounding.round(time("1985-12-31T23:55:00+05:30")), isDate(time("1985-12-31T23:40:00+05:30"), tz));
         assertThat(rounding.round(time("1986-01-01T00:16:00+05:45")), isDate(time("1986-01-01T00:15:00+05:45"), tz));
         assertThat(time("1986-01-01T00:15:00+05:45") - time("1985-12-31T23:40:00+05:30"), equalTo(TimeUnit.MINUTES.toMillis(20)));
@@ -296,7 +280,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
     public void testIntervalRounding_NotDivisibleInteval() {
         DateTimeZone tz = DateTimeZone.forID("CET");
         long interval = TimeUnit.MINUTES.toMillis(14);
-        TimeZoneRounding rounding = new TimeZoneRounding.TimeIntervalRounding(interval, tz);
+        Rounding rounding = new Rounding.TimeIntervalRounding(interval, tz);
 
         assertThat(rounding.round(time("2016-03-27T01:41:00+01:00")), isDate(time("2016-03-27T01:30:00+01:00"), tz));
         assertThat(rounding.round(time("2016-03-27T01:51:00+01:00")), isDate(time("2016-03-27T01:44:00+01:00"), tz));
@@ -313,7 +297,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
     public void testIntervalRounding_HalfDay_DST() {
         DateTimeZone tz = DateTimeZone.forID("CET");
         long interval = TimeUnit.HOURS.toMillis(12);
-        TimeZoneRounding rounding = new TimeZoneRounding.TimeIntervalRounding(interval, tz);
+        Rounding rounding = new Rounding.TimeIntervalRounding(interval, tz);
 
         assertThat(rounding.round(time("2016-03-26T01:00:00+01:00")), isDate(time("2016-03-26T00:00:00+01:00"), tz));
         assertThat(rounding.round(time("2016-03-26T13:00:00+01:00")), isDate(time("2016-03-26T12:00:00+01:00"), tz));
@@ -331,7 +315,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
             TimeUnit unit = randomFrom(new TimeUnit[] {TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS});
             long interval = unit.toMillis(randomIntBetween(1, 365));
             DateTimeZone tz = randomDateTimeZone();
-            TimeZoneRounding rounding = new TimeZoneRounding.TimeIntervalRounding(interval, tz);
+            Rounding rounding = new Rounding.TimeIntervalRounding(interval, tz);
             long mainDate = Math.abs(randomLong() % (2 * (long) 10e11)); // 1970-01-01T00:00:00Z - 2033-05-18T05:33:20.000+02:00
             if (randomBoolean()) {
                 mainDate = nastyDate(mainDate, tz, interval);
@@ -371,8 +355,8 @@ public class TimeZoneRoundingTests extends ESTestCase {
     public void testIntervalRoundingMonotonic_CET() {
         long interval = TimeUnit.MINUTES.toMillis(45);
         DateTimeZone tz = DateTimeZone.forID("CET");
-        TimeZoneRounding rounding = new TimeZoneRounding.TimeIntervalRounding(interval, tz);
-        List<Tuple<String, String>> expectedDates = new ArrayList<Tuple<String, String>>();
+        Rounding rounding = new Rounding.TimeIntervalRounding(interval, tz);
+        List<Tuple<String, String>> expectedDates = new ArrayList<>();
         // first date is the date to be rounded, second the expected result
         expectedDates.add(new Tuple<>("2011-10-30T01:40:00.000+02:00", "2011-10-30T01:30:00.000+02:00"));
         expectedDates.add(new Tuple<>("2011-10-30T02:02:30.000+02:00", "2011-10-30T01:30:00.000+02:00"));
@@ -402,7 +386,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
     public void testAmbiguousHoursAfterDSTSwitch() {
         Rounding tzRounding;
         final DateTimeZone tz = DateTimeZone.forID("Asia/Jerusalem");
-        tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(tz).build();
+        tzRounding = Rounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(tz).build();
         assertThat(tzRounding.round(time("2014-10-26T00:30:00+03:00")), isDate(time("2014-10-26T00:00:00+03:00"), tz));
         assertThat(tzRounding.round(time("2014-10-26T01:30:00+03:00")), isDate(time("2014-10-26T01:00:00+03:00"), tz));
         // the utc date for "2014-10-25T03:00:00+03:00" and "2014-10-25T03:00:00+02:00" is the same, local time turns back 1h here
@@ -411,7 +395,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
         assertThat(tzRounding.round(time("2014-10-26T02:30:00+02:00")), isDate(time("2014-10-26T02:00:00+02:00"), tz));
 
         // Day interval
-        tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(tz).build();
+        tzRounding = Rounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(tz).build();
         assertThat(tzRounding.round(time("2014-11-11T17:00:00", tz)), isDate(time("2014-11-11T00:00:00", tz), tz));
         // DST on
         assertThat(tzRounding.round(time("2014-08-11T17:00:00", tz)), isDate(time("2014-08-11T00:00:00", tz), tz));
@@ -421,17 +405,17 @@ public class TimeZoneRoundingTests extends ESTestCase {
         assertThat(tzRounding.round(time("2015-03-27T17:00:00", tz)), isDate(time("2015-03-27T00:00:00", tz), tz));
 
         // Month interval
-        tzRounding = TimeZoneRounding.builder(DateTimeUnit.MONTH_OF_YEAR).timeZone(tz).build();
+        tzRounding = Rounding.builder(DateTimeUnit.MONTH_OF_YEAR).timeZone(tz).build();
         assertThat(tzRounding.round(time("2014-11-11T17:00:00", tz)), isDate(time("2014-11-01T00:00:00", tz), tz));
         // DST on
         assertThat(tzRounding.round(time("2014-10-10T17:00:00", tz)), isDate(time("2014-10-01T00:00:00", tz), tz));
 
         // Year interval
-        tzRounding = TimeZoneRounding.builder(DateTimeUnit.YEAR_OF_CENTURY).timeZone(tz).build();
+        tzRounding = Rounding.builder(DateTimeUnit.YEAR_OF_CENTURY).timeZone(tz).build();
         assertThat(tzRounding.round(time("2014-11-11T17:00:00", tz)), isDate(time("2014-01-01T00:00:00", tz), tz));
 
         // Two timestamps in same year and different timezone offset ("Double buckets" issue - #9491)
-        tzRounding = TimeZoneRounding.builder(DateTimeUnit.YEAR_OF_CENTURY).timeZone(tz).build();
+        tzRounding = Rounding.builder(DateTimeUnit.YEAR_OF_CENTURY).timeZone(tz).build();
         assertThat(tzRounding.round(time("2014-11-11T17:00:00", tz)),
                 isDate(tzRounding.round(time("2014-08-11T17:00:00", tz)), tz));
     }
@@ -444,8 +428,8 @@ public class TimeZoneRoundingTests extends ESTestCase {
         DateTimeZone tz = DateTimeZone.forID("America/Sao_Paulo");
         long start = time("2014-10-18T20:50:00.000", tz);
         long end = time("2014-10-19T01:00:00.000", tz);
-        Rounding tzRounding = new TimeZoneRounding.TimeUnitRounding(DateTimeUnit.MINUTES_OF_HOUR, tz);
-        Rounding dayTzRounding = new TimeZoneRounding.TimeIntervalRounding(60000, tz);
+        Rounding tzRounding = new Rounding.TimeUnitRounding(DateTimeUnit.MINUTES_OF_HOUR, tz);
+        Rounding dayTzRounding = new Rounding.TimeIntervalRounding(60000, tz);
         for (long time = start; time < end; time = time + 60000) {
             assertThat(tzRounding.nextRoundingValue(time), greaterThan(time));
             assertThat(dayTzRounding.nextRoundingValue(time), greaterThan(time));
@@ -457,7 +441,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
             // standard +/-1 hour DST transition, CET
             DateTimeUnit timeUnit = DateTimeUnit.HOUR_OF_DAY;
             DateTimeZone tz = DateTimeZone.forID("CET");
-            TimeZoneRounding rounding = new TimeZoneRounding.TimeUnitRounding(timeUnit, tz);
+            Rounding rounding = new Rounding.TimeUnitRounding(timeUnit, tz);
 
             // 29 Mar 2015 - Daylight Saving Time Started
             // at 02:00:00 clocks were turned forward 1 hour to 03:00:00
@@ -481,7 +465,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
             // which is not a round value for hourly rounding
             DateTimeUnit timeUnit = DateTimeUnit.HOUR_OF_DAY;
             DateTimeZone tz = DateTimeZone.forID("Asia/Kathmandu");
-            TimeZoneRounding rounding = new TimeZoneRounding.TimeUnitRounding(timeUnit, tz);
+            Rounding rounding = new Rounding.TimeUnitRounding(timeUnit, tz);
 
             assertInterval(time("1985-12-31T22:00:00.000+05:30"), time("1985-12-31T23:00:00.000+05:30"), rounding, 60, tz);
             assertInterval(time("1985-12-31T23:00:00.000+05:30"), time("1986-01-01T01:00:00.000+05:45"), rounding, 105, tz);
@@ -494,7 +478,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
             // at 02:00:00 clocks were turned backward 0:30 hours to Sunday, 3 March 1991, 01:30:00
             DateTimeUnit timeUnit = DateTimeUnit.HOUR_OF_DAY;
             DateTimeZone tz = DateTimeZone.forID("Australia/Lord_Howe");
-            TimeZoneRounding rounding = new TimeZoneRounding.TimeUnitRounding(timeUnit, tz);
+            Rounding rounding = new Rounding.TimeUnitRounding(timeUnit, tz);
 
             assertInterval(time("1991-03-03T00:00:00.000+11:00"), time("1991-03-03T01:00:00.000+11:00"), rounding, 60, tz);
             assertInterval(time("1991-03-03T01:00:00.000+11:00"), time("1991-03-03T02:00:00.000+10:30"), rounding, 90, tz);
@@ -514,7 +498,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
             // at 03:45:00 clocks were turned backward 1 hour to 02:45:00
             DateTimeUnit timeUnit = DateTimeUnit.HOUR_OF_DAY;
             DateTimeZone tz = DateTimeZone.forID("Pacific/Chatham");
-            TimeZoneRounding rounding = new TimeZoneRounding.TimeUnitRounding(timeUnit, tz);
+            Rounding rounding = new Rounding.TimeUnitRounding(timeUnit, tz);
 
             assertInterval(time("2015-04-05T02:00:00.000+13:45"), time("2015-04-05T03:00:00.000+13:45"), rounding, 60, tz);
             assertInterval(time("2015-04-05T03:00:00.000+13:45"), time("2015-04-05T03:00:00.000+12:45"), rounding, 60, tz);
@@ -529,7 +513,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
         }
     }
 
-    private static void assertInterval(long rounded, long nextRoundingValue, TimeZoneRounding rounding, int minutes,
+    private static void assertInterval(long rounded, long nextRoundingValue, Rounding rounding, int minutes,
             DateTimeZone tz) {
         assertInterval(rounded, dateBetween(rounded, nextRoundingValue), nextRoundingValue, rounding, tz);
         assertEquals(DateTimeConstants.MILLIS_PER_MINUTE * minutes, nextRoundingValue - rounded);
@@ -542,7 +526,7 @@ public class TimeZoneRoundingTests extends ESTestCase {
      * @param nextRoundingValue the expected upper end of the rounding interval
      * @param rounding the rounding instance
      */
-    private static void assertInterval(long rounded, long unrounded, long nextRoundingValue, TimeZoneRounding rounding,
+    private static void assertInterval(long rounded, long unrounded, long nextRoundingValue, Rounding rounding,
             DateTimeZone tz) {
         assert rounded <= unrounded && unrounded <= nextRoundingValue;
         assertThat("rounding should be idempotent ", rounding.round(rounded), isDate(rounded, tz));

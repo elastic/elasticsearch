@@ -19,6 +19,7 @@
 package org.elasticsearch.test.rest.yaml.parser;
 
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.test.rest.yaml.section.LessThanAssertion;
 
 import java.io.IOException;
@@ -30,11 +31,12 @@ public class LessThanParser implements ClientYamlTestFragmentParser<LessThanAsse
 
     @Override
     public LessThanAssertion parse(ClientYamlTestSuiteParseContext parseContext) throws IOException, ClientYamlTestParseException {
+        XContentLocation location = parseContext.parser().getTokenLocation();
         Tuple<String,Object> stringObjectTuple = parseContext.parseTuple();
         if (! (stringObjectTuple.v2() instanceof Comparable) ) {
             throw new ClientYamlTestParseException("lt section can only be used with objects that support natural ordering, found "
                     + stringObjectTuple.v2().getClass().getSimpleName());
         }
-        return new LessThanAssertion(stringObjectTuple.v1(), stringObjectTuple.v2());
+        return new LessThanAssertion(location, stringObjectTuple.v1(), stringObjectTuple.v2());
     }
 }

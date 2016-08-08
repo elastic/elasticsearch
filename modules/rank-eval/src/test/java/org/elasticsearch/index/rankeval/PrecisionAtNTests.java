@@ -33,7 +33,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Vector;
 import java.util.concurrent.ExecutionException;
+
+import static java.util.Collections.emptyList;
 
 public class PrecisionAtNTests extends ESTestCase {
 
@@ -98,5 +101,14 @@ public class PrecisionAtNTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(xContent).createParser(xContent);
         PrecisionAtN precicionAt = PrecisionAtN.fromXContent(parser, () -> ParseFieldMatcher.STRICT);
         assertEquals(10, precicionAt.getN());
+    }
+
+    public void testCombine() {
+        PrecisionAtN metric = new PrecisionAtN();
+        Vector<EvalQueryQuality> partialResults = new Vector<>(3);
+        partialResults.add(new EvalQueryQuality(0.1, emptyList()));
+        partialResults.add(new EvalQueryQuality(0.2, emptyList()));
+        partialResults.add(new EvalQueryQuality(0.6, emptyList()));
+        assertEquals(0.3, metric.combine(partialResults), Double.MIN_VALUE);
     }
 }

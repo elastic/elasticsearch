@@ -17,6 +17,8 @@ request block and provide responses for all of the below items.
 
 **Elasticsearch version**:
 
+**Plugins installed**: []
+
 **JVM version**:
 
 **OS version**:

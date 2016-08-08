@@ -20,13 +20,16 @@
 package org.elasticsearch.index.reindex.remote;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
@@ -34,6 +37,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -130,6 +134,8 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
     private <T> void execute(String method, String uri, Map<String, String> params, HttpEntity entity,
             BiFunction<XContentParser, ParseFieldMatcherSupplier, T> parser, Consumer<? super T> listener) {
+        // Preserve the thread context so headers survive after the call
+        ThreadContext.StoredContext ctx = threadPool.getThreadContext().newStoredContext();
         class RetryHelper extends AbstractRunnable {
             private final Iterator<TimeValue> retries = backoffPolicy.iterator();
 
@@ -138,6 +144,8 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                 client.performRequest(method, uri, params, entity, new ResponseListener() {
                     @Override
                     public void onSuccess(org.elasticsearch.client.Response response) {
+                        // Restore the thread context to get the precious headers
+                        ctx.restore();
                         T parsedResponse;
                         try {
                             HttpEntity responseEntity = response.getEntity();
@@ -172,6 +180,8 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                                     return;
                                 }
                             }
+                            e = wrapExceptionToPreserveStatus(re.getResponse().getStatusLine().getStatusCode(),
+                                    re.getResponse().getEntity(), re);
                         }
                         fail.accept(e);
                     }
@@ -184,5 +194,32 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
             }
         }
         new RetryHelper().run();
+    }
+
+    /**
+     * Wrap the ResponseException in an exception that'll preserve its status code if possible so we can send it back to the user. We might
+     * not have a constant for the status code so in that case we just use 500 instead. We also extract make sure to include the response
+     * body in the message so the user can figure out *why* the remote Elasticsearch service threw the error back to us.
+     */
+    static ElasticsearchStatusException wrapExceptionToPreserveStatus(int statusCode, @Nullable HttpEntity entity, Exception cause) {
+        RestStatus status = RestStatus.fromCode(statusCode);
+        String messagePrefix = "";
+        if (status == null) {
+            messagePrefix = "Couldn't extract status [" + statusCode + "]. ";
+            status = RestStatus.INTERNAL_SERVER_ERROR;
+        }
+        String message;
+        if (entity == null) {
+            message = messagePrefix + "No error body.";
+        } else {
+            try {
+                message = messagePrefix + "body=" + EntityUtils.toString(entity);
+            } catch (IOException ioe) {
+                ElasticsearchStatusException e = new ElasticsearchStatusException(messagePrefix + "Failed to extract body.", status, cause);
+                e.addSuppressed(ioe);
+                return e;
+            }
+        }
+        return new ElasticsearchStatusException(message, status, cause);
     }
 }

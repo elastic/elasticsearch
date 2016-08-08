@@ -660,6 +660,11 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         }
 
         @Override
+        protected boolean needsSourceDocumentVersions() {
+            return randomBoolean();
+        }
+
+        @Override
         protected BulkRequest buildBulk(Iterable<? extends ScrollableHitSource.Hit> docs) {
             return new BulkRequest();
         }
@@ -773,7 +778,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                         UpdateRequest update = (UpdateRequest) item;
                         opType = "update";
                         response = new UpdateResponse(shardId, update.type(), update.id(),
-                                randomIntBetween(0, Integer.MAX_VALUE), DocWriteResponse.Operation.CREATE);
+                                randomIntBetween(0, Integer.MAX_VALUE), DocWriteResponse.Result.CREATED);
                     } else if (item instanceof DeleteRequest) {
                         DeleteRequest delete = (DeleteRequest) item;
                         opType = "delete";

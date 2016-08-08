@@ -108,8 +108,7 @@ public abstract class TransportClient extends AbstractClient {
         final List<Closeable> resourcesToClose = new ArrayList<>();
         final ThreadPool threadPool = new ThreadPool(settings);
         resourcesToClose.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
-        final NetworkService networkService = new NetworkService(settings);
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+        final NetworkService networkService = new NetworkService(settings, Collections.emptyList());
         try {
             final List<Setting<?>> additionalSettings = new ArrayList<>();
             final List<String> additionalSettingsFilter = new ArrayList<>();
@@ -120,14 +119,24 @@ public abstract class TransportClient extends AbstractClient {
             }
             SettingsModule settingsModule = new SettingsModule(settings, additionalSettings, additionalSettingsFilter);
 
+            NetworkModule networkModule = new NetworkModule(networkService, settings, true);
+            SearchModule searchModule = new SearchModule(settings, true, pluginsService.filterPlugins(SearchPlugin.class));
+            List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+            entries.addAll(networkModule.getNamedWriteables());
+            entries.addAll(searchModule.getNamedWriteables());
+            entries.addAll(pluginsService.filterPlugins(Plugin.class).stream()
+                                         .flatMap(p -> p.getNamedWriteables().stream())
+                                         .collect(Collectors.toList()));
+            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
+
             ModulesBuilder modules = new ModulesBuilder();
             // plugin modules must be added here, before others or we can get crazy injection errors...
             for (Module pluginModule : pluginsService.createGuiceModules()) {
                 modules.add(pluginModule);
             }
-            modules.add(new NetworkModule(networkService, settings, true, namedWriteableRegistry));
+            modules.add(networkModule);
             modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
-            modules.add(new SearchModule(settings, namedWriteableRegistry, true, pluginsService.filterPlugins(SearchPlugin.class)));
+            modules.add(searchModule);
             ActionModule actionModule = new ActionModule(false, true, settings, null, settingsModule.getClusterSettings(),
                 pluginsService.filterPlugins(ActionPlugin.class));
             modules.add(actionModule);
@@ -143,6 +152,7 @@ public abstract class TransportClient extends AbstractClient {
                 b.bind(BigArrays.class).toInstance(bigArrays);
                 b.bind(PluginsService.class).toInstance(pluginsService);
                 b.bind(CircuitBreakerService.class).toInstance(circuitBreakerService);
+                b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
             }));
 
             Injector injector = modules.createInjector();
@@ -160,7 +170,7 @@ public abstract class TransportClient extends AbstractClient {
             transportService.start();
             transportService.acceptIncomingRequests();
 
-            ClientTemplate transportClient = new ClientTemplate(injector, pluginLifecycleComponents, nodesService, proxy);
+            ClientTemplate transportClient = new ClientTemplate(injector, pluginLifecycleComponents, nodesService, proxy, namedWriteableRegistry);
             resourcesToClose.clear();
             return transportClient;
         } finally {
@@ -173,12 +183,15 @@ public abstract class TransportClient extends AbstractClient {
         private final List<LifecycleComponent> pluginLifecycleComponents;
         private final TransportClientNodesService nodesService;
         private final TransportProxyClient proxy;
+        private final NamedWriteableRegistry namedWriteableRegistry;
 
-        private ClientTemplate(Injector injector, List<LifecycleComponent> pluginLifecycleComponents, TransportClientNodesService nodesService, TransportProxyClient proxy) {
+        private ClientTemplate(Injector injector, List<LifecycleComponent> pluginLifecycleComponents,
+                TransportClientNodesService nodesService, TransportProxyClient proxy, NamedWriteableRegistry namedWriteableRegistry) {
             this.injector = injector;
             this.pluginLifecycleComponents = pluginLifecycleComponents;
             this.nodesService = nodesService;
             this.proxy = proxy;
+            this.namedWriteableRegistry = namedWriteableRegistry;
         }
 
         Settings getSettings() {
@@ -193,6 +206,7 @@ public abstract class TransportClient extends AbstractClient {
     public static final String CLIENT_TYPE = "transport";
 
     final Injector injector;
+    final NamedWriteableRegistry namedWriteableRegistry;
 
     private final List<LifecycleComponent> pluginLifecycleComponents;
     private final TransportClientNodesService nodesService;
@@ -221,6 +235,7 @@ public abstract class TransportClient extends AbstractClient {
         this.pluginLifecycleComponents = Collections.unmodifiableList(template.pluginLifecycleComponents);
         this.nodesService = template.nodesService;
         this.proxy = template.proxy;
+        this.namedWriteableRegistry = template.namedWriteableRegistry;
     }
 
     /**

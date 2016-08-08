@@ -74,7 +74,7 @@ import org.elasticsearch.http.netty4.pipelining.HttpPipeliningHandler;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.support.RestUtils;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.netty4.Netty4OpenChannelsHandler;
@@ -525,12 +525,12 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         return new HttpChannelHandler(this, detailedErrorsEnabled, threadPool.getThreadContext());
     }
 
-    static class HttpChannelHandler extends ChannelInitializer<SocketChannel> {
+    protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 
         private final Netty4HttpServerTransport transport;
         private final Netty4HttpRequestHandler requestHandler;
 
-        HttpChannelHandler(
+        protected HttpChannelHandler(
             final Netty4HttpServerTransport transport,
             final boolean detailedErrorsEnabled,
             final ThreadContext threadContext) {
@@ -539,7 +539,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         }
 
         @Override
-        protected void initChannel(SocketChannel ch) throws Exception {
+        protected void initChannel(Channel ch) throws Exception {
             ch.pipeline().addLast("openChannels", transport.serverOpenChannels);
             final HttpRequestDecoder decoder = new HttpRequestDecoder(
                 Math.toIntExact(transport.maxInitialLineLength.bytes()),

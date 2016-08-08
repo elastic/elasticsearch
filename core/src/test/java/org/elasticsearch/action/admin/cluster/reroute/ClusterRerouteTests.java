@@ -64,8 +64,8 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
         req.writeTo(out);
         BytesReference bytes = out.bytes();
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
-        new NetworkModule(null, Settings.EMPTY, true, namedWriteableRegistry);
+        NetworkModule networkModule = new NetworkModule(null, Settings.EMPTY, true);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(networkModule.getNamedWriteables());
         StreamInput wrap = new NamedWriteableAwareStreamInput(bytes.streamInput(),
             namedWriteableRegistry);
         ClusterRerouteRequest deserializedReq = new ClusterRerouteRequest();
@@ -166,7 +166,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
             .getDefault(Settings.EMPTY))
             .metaData(metaData).routingTable(routingTable).build();
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")))
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .build();
         RoutingTable prevRoutingTable = routingTable;
         routingTable = service.reroute(clusterState, "reroute").routingTable();

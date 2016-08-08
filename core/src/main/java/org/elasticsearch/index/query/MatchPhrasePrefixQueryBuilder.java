@@ -238,6 +238,10 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
                     }
                 }
             } else {
+                if (fieldName != null) {
+                    throw new ParsingException(parser.getTokenLocation(), "[match_phrase_prefix] query doesn't support multiple " +
+                            "fields, found [" + fieldName + "] and [" + parser.currentName() + "]");
+                }
                 fieldName = parser.currentName();
                 value = parser.objectText();
             }

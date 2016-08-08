@@ -171,5 +171,14 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
                 "}";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[match_phrase_prefix] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+
+        String shortJson = "{\n" +
+                "  \"match_phrase_prefix\" : {\n" +
+                "    \"message1\" : \"this is a test\",\n" +
+                "    \"message2\" : \"this is a test\"\n" +
+                "  }\n" +
+                "}";
+        e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
+        assertEquals("[match_phrase_prefix] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 }

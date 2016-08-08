@@ -345,6 +345,10 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
                     }
                 }
             } else {
+                if (fieldName != null) {
+                    throw new ParsingException(parser.getTokenLocation(), "[common] query doesn't support multiple fields, found ["
+                            + fieldName + "] and [" + parser.currentName() + "]");
+                }
                 fieldName = parser.currentName();
                 text = parser.objectText();
             }

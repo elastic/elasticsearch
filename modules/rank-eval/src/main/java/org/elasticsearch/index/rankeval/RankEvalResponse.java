@@ -38,42 +38,64 @@ import java.util.Map;
  * Documents of unknown quality - i.e. those that haven't been supplied in the set of annotated documents but have been returned
  * by the search are not taken into consideration when computing precision at n - they are ignored.
  *
- * TODO get rid of either this or RankEvalResult
  **/
+//TODO instead of just returning averages over complete results, think of other statistics, micro avg, macro avg, partial results
 public class RankEvalResponse extends ActionResponse implements ToXContent {
-
-    private RankEvalResult qualityResult;
+    /**ID of QA specification this result was generated for.*/
+    private String specId;
+    /**Average precision observed when issuing query intents with this specification.*/
+    private double qualityLevel;
+    /**Mapping from intent id to all documents seen for this intent that were not annotated.*/
+    private Map<String, Collection<String>> unknownDocs;
 
     public RankEvalResponse() {
-
     }
 
+    @SuppressWarnings("unchecked")
     public RankEvalResponse(StreamInput in) throws IOException {
         super.readFrom(in);
-        this.qualityResult = new RankEvalResult(in);
+        this.specId = in.readString();
+        this.qualityLevel = in.readDouble();
+        this.unknownDocs = (Map<String, Collection<String>>) in.readGenericValue();
+    }
+
+    public RankEvalResponse(String specId, double qualityLevel, Map<String, Collection<String>> unknownDocs) {
+        this.specId = specId;
+        this.qualityLevel = qualityLevel;
+        this.unknownDocs = unknownDocs;
+    }
+
+    public String getSpecId() {
+        return specId;
+    }
+
+    public double getQualityLevel() {
+        return qualityLevel;
+    }
+
+    public Map<String, Collection<String>> getUnknownDocs() {
+        return unknownDocs;
+    }
+
+    @Override
+    public String toString() {
+        return "RankEvalResult, ID :[" + specId + "], quality: " + qualityLevel + ", unknown docs: " + unknownDocs;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        qualityResult.writeTo(out);
-    }
-
-    public void setRankEvalResult(RankEvalResult result) {
-        this.qualityResult = result;
-    }
-
-    public RankEvalResult getRankEvalResult() {
-        return qualityResult;
+        out.writeString(specId);
+        out.writeDouble(qualityLevel);
+        out.writeGenericValue(getUnknownDocs());
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("rank_eval");
-        builder.field("spec_id", qualityResult.getSpecId());
-        builder.field("quality_level", qualityResult.getQualityLevel());
+        builder.field("spec_id", specId);
+        builder.field("quality_level", qualityLevel);
         builder.startArray("unknown_docs");
-        Map<String, Collection<String>> unknownDocs = qualityResult.getUnknownDocs();
         for (String key : unknownDocs.keySet()) {
             builder.startObject();
             builder.field(key, unknownDocs.get(key));

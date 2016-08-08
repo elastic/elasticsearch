@@ -158,6 +158,10 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
                     }
                 }
             } else {
+                if (fieldName != null) {
+                    throw new ParsingException(parser.getTokenLocation(), "[prefix] query doesn't support multiple fields, found ["
+                            + fieldName + "] and [" + parser.currentName() + "]");
+                }
                 fieldName = currentFieldName;
                 value = parser.textOrNull();
             }

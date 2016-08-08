@@ -270,7 +270,7 @@ class BuildPlugin implements Plugin<Project> {
 
         // add exclusions to the pom directly, for each of the transitive deps of this project's deps
         project.modifyPom { MavenPom pom ->
-            pom.withXml(removeTransitiveDependencies(project))
+            pom.withXml(fixupDependencies(project))
         }
     }
 
@@ -299,9 +299,16 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    /** Returns a closure which can be used with a MavenPom for removing transitive dependencies. */
-    private static Closure removeTransitiveDependencies(Project project) {
-        // TODO: remove this when enforcing gradle 2.13+, it now properly handles exclusions
+    /**
+     * Returns a closure which can be used with a MavenPom for fixing problems with gradle generated poms.
+     *
+     * <ul>
+     *     <li>Remove transitive dependencies (using wildcard exclusions, fixed in gradle 2.14)</li>
+     *     <li>Set compile time deps back to compile from runtime (known issue with maven-publish plugin)
+     * </ul>
+     */
+    private static Closure fixupDependencies(Project project) {
+        // TODO: remove this when enforcing gradle 2.14+, it now properly handles exclusions
         return { XmlProvider xml ->
             // first find if we have dependencies at all, and grab the node
             NodeList depsNodes = xml.asNode().get('dependencies')
@@ -315,6 +322,15 @@ class BuildPlugin implements Plugin<Project> {
                 String artifactId = depNode.get('artifactId').get(0).text()
                 String version = depNode.get('version').get(0).text()
 
+                // fix deps incorrectly marked as runtime back to compile time deps
+                // see https://discuss.gradle.org/t/maven-publish-plugin-generated-pom-making-dependency-scope-runtime/7494/4
+                boolean isCompileDep = project.configurations.compile.allDependencies.find { dep ->
+                    dep.name == depNode.artifactId.text()
+                }
+                if (depNode.scope.text() == 'runtime' && isCompileDep) {
+                    depNode.scope*.value = 'compile'
+                }
+
                 // collect the transitive deps now that we know what this dependency is
                 String depConfig = transitiveDepConfigName(groupId, artifactId, version)
                 Configuration configuration = project.configurations.findByName(depConfig)
@@ -327,17 +343,10 @@ class BuildPlugin implements Plugin<Project> {
                     continue
                 }
 
-                // we now know we have something to exclude, so add the exclusion elements
-                Node exclusions = depNode.appendNode('exclusions')
-                for (ResolvedArtifact transitiveArtifact : artifacts) {
-                    ModuleVersionIdentifier transitiveDep = transitiveArtifact.moduleVersion.id
-                    if (transitiveDep.group == groupId && transitiveDep.name == artifactId) {
-                        continue; // don't exclude the dependency itself!
-                    }
-                    Node exclusion = exclusions.appendNode('exclusion')
-                    exclusion.appendNode('groupId', transitiveDep.group)
-                    exclusion.appendNode('artifactId', transitiveDep.name)
-                }
+                // we now know we have something to exclude, so add a wildcard exclusion element
+                Node exclusion = depNode.appendNode('exclusions').appendNode('exclusion')
+                exclusion.appendNode('groupId', '*')
+                exclusion.appendNode('artifactId', '*')
             }
         }
     }
@@ -349,7 +358,7 @@ class BuildPlugin implements Plugin<Project> {
                 publications {
                     all { MavenPublication publication -> // we only deal with maven
                         // add exclusions to the pom directly, for each of the transitive deps of this project's deps
-                        publication.pom.withXml(removeTransitiveDependencies(project))
+                        publication.pom.withXml(fixupDependencies(project))
                     }
                 }
             }

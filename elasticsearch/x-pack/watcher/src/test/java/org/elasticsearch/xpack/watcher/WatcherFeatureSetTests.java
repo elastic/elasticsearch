@@ -5,14 +5,17 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.junit.Before;
 
@@ -63,15 +66,21 @@ public class WatcherFeatureSetTests extends ESTestCase {
         statsMap.put("foo", "bar");
         when(watcherService.usageStats()).thenReturn(statsMap);
 
-        WatcherFeatureSet featureSet = new WatcherFeatureSet(Settings.EMPTY, licenseState, watcherService);
-        XContentBuilder builder = jsonBuilder();
-        featureSet.usage().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        XPackFeatureSet.Usage watcherUsage = new WatcherFeatureSet(Settings.EMPTY, licenseState, watcherService).usage();
+        BytesStreamOutput out = new BytesStreamOutput();
+        watcherUsage.writeTo(out);
+        XPackFeatureSet.Usage serializedUsage = new WatcherFeatureSet.Usage(out.bytes().streamInput());
 
-        XContentSource source = new XContentSource(builder);
-        assertThat(source.getValue("foo"), is("bar"));
+        for (XPackFeatureSet.Usage usage : Arrays.asList(watcherUsage, serializedUsage)) {
+            XContentBuilder builder = jsonBuilder();
+            usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        assertThat(featureSet.usage(), instanceOf(WatcherFeatureSet.Usage.class));
-        WatcherFeatureSet.Usage usage = (WatcherFeatureSet.Usage) featureSet.usage();
-        assertThat(usage.stats(), hasEntry("foo", "bar"));
+            XContentSource source = new XContentSource(builder);
+            assertThat(source.getValue("foo"), is("bar"));
+
+            assertThat(usage, instanceOf(WatcherFeatureSet.Usage.class));
+            WatcherFeatureSet.Usage featureSetUsage = (WatcherFeatureSet.Usage) usage;
+            assertThat(featureSetUsage.stats(), hasEntry("foo", "bar"));
+        }
     }
 }

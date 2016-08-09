@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -156,55 +157,60 @@ public class SecurityFeatureSetTests extends ESTestCase {
 
         SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState, realms, rolesStore,
                 ipFilter, auditTrail, cryptoService);
-        XPackFeatureSet.Usage usage = featureSet.usage();
-        assertThat(usage, is(notNullValue()));
-        assertThat(usage.name(), is(XPackPlugin.SECURITY));
-        assertThat(usage.enabled(), is(enabled));
-        assertThat(usage.available(), is(authcAuthzAvailable));
-        XContentSource source = new XContentSource(usage);
+        XPackFeatureSet.Usage securityUsage = featureSet.usage();
+        BytesStreamOutput out = new BytesStreamOutput();
+        securityUsage.writeTo(out);
+        XPackFeatureSet.Usage serializedUsage = new SecurityFeatureSet.Usage(out.bytes().streamInput());
+        for (XPackFeatureSet.Usage usage : Arrays.asList(securityUsage, serializedUsage)) {
+            assertThat(usage, is(notNullValue()));
+            assertThat(usage.name(), is(XPackPlugin.SECURITY));
+            assertThat(usage.enabled(), is(enabled));
+            assertThat(usage.available(), is(authcAuthzAvailable));
+            XContentSource source = new XContentSource(usage);
 
-        if (enabled) {
-            if (authcAuthzAvailable) {
-                for (int i = 0; i < 5; i++) {
-                    assertThat(source.getValue("realms.type" + i + ".key1"), contains("value" + i));
-                    assertThat(source.getValue("realms.type" + i + ".key2"), contains(i));
-                    assertThat(source.getValue("realms.type" + i + ".key3"), contains(i % 2 == 0));
+            if (enabled) {
+                if (authcAuthzAvailable) {
+                    for (int i = 0; i < 5; i++) {
+                        assertThat(source.getValue("realms.type" + i + ".key1"), contains("value" + i));
+                        assertThat(source.getValue("realms.type" + i + ".key2"), contains(i));
+                        assertThat(source.getValue("realms.type" + i + ".key3"), contains(i % 2 == 0));
+                    }
+                } else {
+                    assertThat(source.getValue("realms"), is(notNullValue()));
                 }
+
+                // check SSL
+                assertThat(source.getValue("ssl.http.enabled"), is(httpSSLEnabled));
+                assertThat(source.getValue("ssl.transport.enabled"), is(transportSSLEnabled));
+
+                // auditing
+                assertThat(source.getValue("audit.enabled"), is(auditingEnabled));
+                assertThat(source.getValue("audit.outputs"), contains(auditOutputs));
+
+                // ip filter
+                assertThat(source.getValue("ipfilter.http.enabled"), is(httpIpFilterEnabled));
+                assertThat(source.getValue("ipfilter.transport.enabled"), is(transportIPFilterEnabled));
+
+                // roles
+                if (rolesStoreEnabled) {
+                    assertThat(source.getValue("roles.count"), is(1));
+                } else {
+                    assertThat(((Map) source.getValue("roles")).isEmpty(), is(true));
+                }
+
+                // system key
+                assertThat(source.getValue("system_key.enabled"), is(useSystemKey));
+
+                // anonymous
+                assertThat(source.getValue("anonymous.enabled"), is(anonymousEnabled));
             } else {
-                assertThat(source.getValue("realms"), is(notNullValue()));
+                assertThat(source.getValue("realms"), is(nullValue()));
+                assertThat(source.getValue("ssl"), is(nullValue()));
+                assertThat(source.getValue("audit"), is(nullValue()));
+                assertThat(source.getValue("anonymous"), is(nullValue()));
+                assertThat(source.getValue("ipfilter"), is(nullValue()));
+                assertThat(source.getValue("roles"), is(nullValue()));
             }
-
-            // check SSL
-            assertThat(source.getValue("ssl.http.enabled"), is(httpSSLEnabled));
-            assertThat(source.getValue("ssl.transport.enabled"), is(transportSSLEnabled));
-
-            // auditing
-            assertThat(source.getValue("audit.enabled"), is(auditingEnabled));
-            assertThat(source.getValue("audit.outputs"), contains(auditOutputs));
-
-            // ip filter
-            assertThat(source.getValue("ipfilter.http.enabled"), is(httpIpFilterEnabled));
-            assertThat(source.getValue("ipfilter.transport.enabled"), is(transportIPFilterEnabled));
-
-            // roles
-            if (rolesStoreEnabled) {
-                assertThat(source.getValue("roles.count"), is(1));
-            } else {
-                assertThat(((Map) source.getValue("roles")).isEmpty(), is(true));
-            }
-
-            // system key
-            assertThat(source.getValue("system_key.enabled"), is(useSystemKey));
-
-            // anonymous
-            assertThat(source.getValue("anonymous.enabled"), is(anonymousEnabled));
-        } else {
-            assertThat(source.getValue("realms"), is(nullValue()));
-            assertThat(source.getValue("ssl"), is(nullValue()));
-            assertThat(source.getValue("audit"), is(nullValue()));
-            assertThat(source.getValue("anonymous"), is(nullValue()));
-            assertThat(source.getValue("ipfilter"), is(nullValue()));
-            assertThat(source.getValue("roles"), is(nullValue()));
         }
     }
 }

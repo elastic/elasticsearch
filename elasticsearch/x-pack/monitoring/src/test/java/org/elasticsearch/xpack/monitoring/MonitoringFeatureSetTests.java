@@ -6,8 +6,10 @@
 package org.elasticsearch.xpack.monitoring;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -93,25 +95,30 @@ public class MonitoringFeatureSetTests extends ESTestCase {
         when(exporters.iterator()).thenReturn(exporterList.iterator());
 
         MonitoringFeatureSet featureSet = new MonitoringFeatureSet(Settings.EMPTY, licenseState, exporters);
-        XPackFeatureSet.Usage usage = featureSet.usage();
-        assertThat(usage.name(), is(featureSet.name()));
-        assertThat(usage.enabled(), is(featureSet.enabled()));
-        XContentSource source = new XContentSource(usage);
-        assertThat(source.getValue("enabled_exporters"), is(notNullValue()));
-        if (localCount > 0) {
-            assertThat(source.getValue("enabled_exporters.local"), is(localCount));
-        } else {
-            assertThat(source.getValue("enabled_exporters.local"), is(nullValue()));
-        }
-        if (httpCount > 0) {
-            assertThat(source.getValue("enabled_exporters.http"), is(httpCount));
-        } else {
-            assertThat(source.getValue("enabled_exporters.http"), is(nullValue()));
-        }
-        if (xCount > 0) {
-            assertThat(source.getValue("enabled_exporters." + xType), is(xCount));
-        } else {
-            assertThat(source.getValue("enabled_exporters." + xType), is(nullValue()));
+        XPackFeatureSet.Usage monitoringUsage = featureSet.usage();
+        BytesStreamOutput out = new BytesStreamOutput();
+        monitoringUsage.writeTo(out);
+        XPackFeatureSet.Usage serializedUsage = new MonitoringFeatureSet.Usage(out.bytes().streamInput());
+        for (XPackFeatureSet.Usage usage : Arrays.asList(monitoringUsage, serializedUsage)) {
+            assertThat(usage.name(), is(featureSet.name()));
+            assertThat(usage.enabled(), is(featureSet.enabled()));
+            XContentSource source = new XContentSource(usage);
+            assertThat(source.getValue("enabled_exporters"), is(notNullValue()));
+            if (localCount > 0) {
+                assertThat(source.getValue("enabled_exporters.local"), is(localCount));
+            } else {
+                assertThat(source.getValue("enabled_exporters.local"), is(nullValue()));
+            }
+            if (httpCount > 0) {
+                assertThat(source.getValue("enabled_exporters.http"), is(httpCount));
+            } else {
+                assertThat(source.getValue("enabled_exporters.http"), is(nullValue()));
+            }
+            if (xCount > 0) {
+                assertThat(source.getValue("enabled_exporters." + xType), is(xCount));
+            } else {
+                assertThat(source.getValue("enabled_exporters." + xType), is(nullValue()));
+            }
         }
     }
 

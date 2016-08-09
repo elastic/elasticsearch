@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.xpack.graph;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.XPackFeatureSet;
 import org.junit.Before;
 
 import static org.hamcrest.core.Is.is;
@@ -31,6 +33,12 @@ public class GraphFeatureSetTests extends ESTestCase {
         boolean available = randomBoolean();
         when(licenseState.isGraphAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
+        assertThat(featureSet.usage().available(), is(available));
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        featureSet.usage().writeTo(out);
+        XPackFeatureSet.Usage serializedUsage = new GraphFeatureSet.Usage(out.bytes().streamInput());
+        assertThat(serializedUsage.available(), is(available));
     }
 
     public void testEnabled() throws Exception {
@@ -45,6 +53,12 @@ public class GraphFeatureSetTests extends ESTestCase {
         }
         GraphFeatureSet featureSet = new GraphFeatureSet(settings.build(), licenseState);
         assertThat(featureSet.enabled(), is(enabled));
+        assertThat(featureSet.usage().enabled(), is(enabled));
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        featureSet.usage().writeTo(out);
+        XPackFeatureSet.Usage serializedUsage = new GraphFeatureSet.Usage(out.bytes().streamInput());
+        assertThat(serializedUsage.enabled(), is(enabled));
     }
 
 }

@@ -64,7 +64,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
         boolean changed = false;
         MetaData metaData = allocation.metaData();
         RoutingNodes routingNodes = allocation.routingNodes();
-        List<Runnable> recoveriesToCancel = new ArrayList<>();
+        List<Runnable> shardCancellationActions = new ArrayList<>();
         for (RoutingNode routingNode : routingNodes) {
             for (ShardRouting shard : routingNode) {
                 if (shard.primary() == true) {
@@ -121,14 +121,14 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                             "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node ["+ nodeWithHighestMatch + "]",
                             null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false, UnassignedInfo.AllocationStatus.NO_ATTEMPT);
                         // don't cancel shard in the loop as it will cause a ConcurrentModificationException
-                        recoveriesToCancel.add(() -> routingNodes.failShard(logger, shard, unassignedInfo, indexMetaData));
+                        shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo, indexMetaData));
                         changed = true;
                     }
                 }
             }
         }
-        for (Runnable cancellation : recoveriesToCancel) {
-            cancellation.run();
+        for (Runnable action : shardCancellationActions) {
+            action.run();
         }
         return changed;
     }

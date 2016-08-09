@@ -73,6 +73,7 @@ import org.elasticsearch.threadpool.ThreadPool.Cancellable;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.security.SecurityTemplateService.securityIndexMappingAndTemplateUpToDate;
 
 /**
  * ESNativeRolesStore is a {@code RolesStore} that, instead of reading from a
@@ -134,14 +135,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
             logger.debug("native roles store waiting until gateway has recovered from disk");
             return false;
         }
-
-        if (clusterState.metaData().templates().get(SecurityTemplateService.SECURITY_TEMPLATE_NAME) == null) {
-            logger.debug("native roles template [{}] does not exist, so service cannot start",
-                    SecurityTemplateService.SECURITY_TEMPLATE_NAME);
-            return false;
-        }
-        // Okay to start...
-        return true;
+        return securityIndexMappingAndTemplateUpToDate(clusterState, logger);
     }
 
     public void start() {

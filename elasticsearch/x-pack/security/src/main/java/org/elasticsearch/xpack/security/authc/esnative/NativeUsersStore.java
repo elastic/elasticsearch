@@ -77,6 +77,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.security.SecurityTemplateService.securityIndexMappingAndTemplateUpToDate;
 
 /**
  * ESNativeUsersStore is a {@code UserStore} that, instead of reading from a
@@ -501,9 +502,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             return false;
         }
 
-        if (clusterState.metaData().templates().get(SecurityTemplateService.SECURITY_TEMPLATE_NAME) == null) {
-            logger.debug("native users template [{}] does not exist, so service cannot start",
-                    SecurityTemplateService.SECURITY_TEMPLATE_NAME);
+        if (securityIndexMappingAndTemplateUpToDate(clusterState, logger) == false) {
             return false;
         }
 

@@ -33,7 +33,7 @@
   "mappings" : {
     "user" : {
       "_meta": {
-        "security-version": "5.0.0-alpha5"
+        "security-version": "4.0.0-alpha5"
       },
       "dynamic" : "strict",
       "properties" : {

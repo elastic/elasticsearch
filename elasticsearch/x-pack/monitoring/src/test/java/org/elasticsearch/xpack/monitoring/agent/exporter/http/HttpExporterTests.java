@@ -20,8 +20,10 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -35,7 +37,6 @@ import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.agent.resolver.bulk.MonitoringBulkTimestampedResolver;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
-import org.hamcrest.Matchers;
 import org.joda.time.format.DateTimeFormat;
 import org.junit.After;
 import org.junit.Before;
@@ -45,6 +46,7 @@ import java.net.BindException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -52,7 +54,10 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -85,6 +90,41 @@ public class HttpExporterTests extends MonitoringIntegTestCase {
         webServer.shutdown();
     }
 
+    private void assertMonitorTemplates() throws InterruptedException {
+        assertMonitorTemplates(null);
+    }
+
+    private void assertMonitorTemplates(final @Nullable Map<String, String[]> customHeaders) throws InterruptedException {
+        RecordedRequest request;
+
+        for (Map.Entry<String, String> template : monitoringTemplates().entrySet()) {
+            request = webServer.takeRequest();
+            assertThat(request.getMethod(), equalTo("GET"));
+            assertThat(request.getPath(), equalTo("/_template/" + template.getKey()));
+            assertHeaders(request, customHeaders);
+
+            request = webServer.takeRequest();
+            assertThat(request.getMethod(), equalTo("PUT"));
+            assertThat(request.getPath(), equalTo("/_template/" + template.getKey()));
+            assertThat(request.getBody().readUtf8(), equalTo(template.getValue()));
+            assertHeaders(request, customHeaders);
+        }
+    }
+
+    private void assertHeaders(final RecordedRequest request, final Map<String, String[]> customHeaders) {
+        if (customHeaders != null) {
+            for (final Map.Entry<String, String[]> entry : customHeaders.entrySet()) {
+                final String header = entry.getKey();
+                final String[] values = entry.getValue();
+
+                final List<String> headerValues = request.getHeaders().values(header);
+
+                assertThat(header, headerValues, hasSize(values.length));
+                assertThat(header, headerValues, containsInAnyOrder(values));
+            }
+        }
+    }
+
     public void testExport() throws Exception {
         enqueueGetClusterVersionResponse(Version.CURRENT);
         for (String template : monitoringTemplates().keySet()) {
@@ -111,20 +151,60 @@ public class HttpExporterTests extends MonitoringIntegTestCase {
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
         assertThat(recordedRequest.getPath(), equalTo("/"));
 
-        for (Map.Entry<String, String> template : monitoringTemplates().entrySet()) {
-            recordedRequest = webServer.takeRequest();
-            assertThat(recordedRequest.getMethod(), equalTo("GET"));
-            assertThat(recordedRequest.getPath(), equalTo("/_template/" + template.getKey()));
-
-            recordedRequest = webServer.takeRequest();
-            assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-            assertThat(recordedRequest.getPath(), equalTo("/_template/" + template.getKey()));
-            assertThat(recordedRequest.getBody().readUtf8(), equalTo(template.getValue()));
-        }
+        assertMonitorTemplates();
 
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("POST"));
         assertThat(recordedRequest.getPath(), equalTo("/_bulk"));
+
+        assertBulkRequest(recordedRequest.getBody(), nbDocs);
+    }
+
+    public void testExportWithHeaders() throws Exception {
+        final String headerValue = randomAsciiOfLengthBetween(3, 9);
+        final String[] array = generateRandomStringArray(2, 4, false);
+
+        final Map<String, String[]> headers = new HashMap<>();
+
+        headers.put("X-Cloud-Cluster", new String[] { headerValue });
+        headers.put("X-Found-Cluster", new String[] { headerValue });
+        headers.put("Array-Check", array);
+
+        enqueueGetClusterVersionResponse(Version.CURRENT);
+        for (String template : monitoringTemplates().keySet()) {
+            enqueueResponse(404, "template [" + template + "] does not exist");
+            enqueueResponse(201, "template [" + template + "] created");
+        }
+        enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
+
+        Settings.Builder builder = Settings.builder()
+                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
+                .put("xpack.monitoring.exporters._http.type", "http")
+                .put("xpack.monitoring.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
+                .put("xpack.monitoring.exporters._http.connection.keep_alive", false)
+                .put("xpack.monitoring.exporters._http.update_mappings", false)
+                .put("xpack.monitoring.exporters._http.headers.X-Cloud-Cluster", headerValue)
+                .put("xpack.monitoring.exporters._http.headers.X-Found-Cluster", headerValue)
+                .putArray("xpack.monitoring.exporters._http.headers.Array-Check", array);
+
+        internalCluster().startNode(builder);
+
+        final int nbDocs = randomIntBetween(1, 25);
+        export(newRandomMonitoringDocs(nbDocs));
+
+        assertThat(webServer.getRequestCount(), equalTo(2 + monitoringTemplates().size() * 2));
+
+        RecordedRequest recordedRequest = webServer.takeRequest();
+        assertThat(recordedRequest.getMethod(), equalTo("GET"));
+        assertThat(recordedRequest.getPath(), equalTo("/"));
+        assertHeaders(recordedRequest, headers);
+
+        assertMonitorTemplates(headers);
+
+        recordedRequest = webServer.takeRequest();
+        assertThat(recordedRequest.getMethod(), equalTo("POST"));
+        assertThat(recordedRequest.getPath(), equalTo("/_bulk"));
+        assertHeaders(recordedRequest, headers);
 
         assertBulkRequest(recordedRequest.getBody(), nbDocs);
     }
@@ -140,17 +220,17 @@ public class HttpExporterTests extends MonitoringIntegTestCase {
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                 .putArray("xpack.monitoring.exporters._http.host", "test1")));
-        assertThat(getExporter(nodeName).hosts, Matchers.arrayContaining("test1"));
+        assertThat(getExporter(nodeName).hosts, arrayContaining("test1"));
 
         // wipes the non array settings
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                 .putArray("xpack.monitoring.exporters._http.host", "test2")
                 .put("xpack.monitoring.exporters._http.host", "")));
-        assertThat(getExporter(nodeName).hosts, Matchers.arrayContaining("test2"));
+        assertThat(getExporter(nodeName).hosts, arrayContaining("test2"));
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                 .putArray("xpack.monitoring.exporters._http.host", "test3")));
-        assertThat(getExporter(nodeName).hosts, Matchers.arrayContaining("test3"));
+        assertThat(getExporter(nodeName).hosts, arrayContaining("test3"));
     }
 
     public void testHostChangeReChecksTemplate() throws Exception {
@@ -162,8 +242,6 @@ public class HttpExporterTests extends MonitoringIntegTestCase {
                 .put("xpack.monitoring.exporters._http.connection.keep_alive", false)
                 .put("xpack.monitoring.exporters._http.update_mappings", false);
 
-        logger.info("--> starting node");
-
         enqueueGetClusterVersionResponse(Version.CURRENT);
         for (String template : monitoringTemplates().keySet()) {
             enqueueResponse(404, "template [" + template + "] does not exist");
@@ -173,7 +251,6 @@ public class HttpExporterTests extends MonitoringIntegTestCase {
 
         String agentNode = internalCluster().startNode(builder);
 
-        logger.info("--> exporting data");
         HttpExporter exporter = getExporter(agentNode);
         assertThat(exporter.supportedClusterVersion, is(false));
         export(Collections.singletonList(newRandomMonitoringDoc()));
@@ -185,16 +262,7 @@ public class HttpExporterTests extends MonitoringIntegTestCase {
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
         assertThat(recordedRequest.getPath(), equalTo("/"));
 
-        for (Map.Entry<String, String> template : monitoringTemplates().entrySet()) {
-            recordedRequest = webServer.takeRequest();
-            assertThat(recordedRequest.getMethod(), equalTo("GET"));
-            assertThat(recordedRequest.getPath(), equalTo("/_template/" + template.getKey()));
-
-            recordedRequest = webServer.takeRequest();
-            assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-            assertThat(recordedRequest.getPath(), equalTo("/_template/" + template.getKey()));
-            assertThat(recordedRequest.getBody().readUtf8(), equalTo(template.getValue()));
-        }
+        assertMonitorTemplates();
 
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("POST"));
@@ -278,15 +346,12 @@ public class HttpExporterTests extends MonitoringIntegTestCase {
                 .put("xpack.monitoring.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
                 .put("xpack.monitoring.exporters._http.connection.keep_alive", false);
 
-        logger.info("--> starting node");
-
         // returning an unsupported cluster version
         enqueueGetClusterVersionResponse(randomFrom(Version.fromString("0.18.0"), Version.fromString("1.0.0"),
                 Version.fromString("1.4.0")));
 
         String agentNode = internalCluster().startNode(builder);
 
-        logger.info("--> exporting data");
         HttpExporter exporter = getExporter(agentNode);
         assertThat(exporter.supportedClusterVersion, is(false));
         assertNull(exporter.openBulk());

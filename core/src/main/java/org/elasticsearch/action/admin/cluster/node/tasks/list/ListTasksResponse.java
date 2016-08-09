@@ -51,7 +51,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
 
     private List<TaskGroup> groups;
 
-    private DiscoveryNodes discoveryNodes;
+    private final DiscoveryNodes discoveryNodes;
 
     public ListTasksResponse() {
         this(null, null, null, null);

@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -43,6 +42,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.xpack.security.SecurityTemplateService.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.SecurityTemplateService.SECURITY_INDEX_TEMPLATE_VERSION_PATTERN;
 import static org.elasticsearch.xpack.security.SecurityTemplateService.SECURITY_TEMPLATE_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -270,7 +270,8 @@ public class SecurityTemplateServiceTests extends ESTestCase {
     }
 
     private IndexMetaData.Builder createIndexMetadata(String templateString) throws IOException {
-        BytesReference template = TemplateUtils.load(templateString);
+        String template = TemplateUtils.loadTemplate(templateString, Version.CURRENT.toString()
+                , SECURITY_INDEX_TEMPLATE_VERSION_PATTERN);
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(template);
         IndexMetaData.Builder indexMetaData = IndexMetaData.builder(SECURITY_INDEX_NAME);
@@ -299,7 +300,8 @@ public class SecurityTemplateServiceTests extends ESTestCase {
     }
 
     private IndexTemplateMetaData.Builder getIndexTemplateMetaData(String templateString) throws IOException {
-        BytesReference template = TemplateUtils.load(templateString);
+        String template = TemplateUtils.loadTemplate(templateString, Version.CURRENT.toString()
+                , SECURITY_INDEX_TEMPLATE_VERSION_PATTERN);
         PutIndexTemplateRequest request = new PutIndexTemplateRequest();
         request.source(template);
         IndexTemplateMetaData.Builder templateBuilder = IndexTemplateMetaData.builder(SECURITY_TEMPLATE_NAME);

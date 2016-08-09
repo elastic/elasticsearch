@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.template.TemplateUtils;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Pattern;
 
 /**
  * SecurityTemplateService is responsible for adding the template needed for the
@@ -45,6 +46,7 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
     public static final String SECURITY_INDEX_NAME = ".security";
     public static final String SECURITY_TEMPLATE_NAME = "security-index-template";
     private static final String SECURITY_VERSION_STRING = "security-version";
+    static final String SECURITY_INDEX_TEMPLATE_VERSION_PATTERN = Pattern.quote("${security.template.version}");
 
     private final InternalClient client;
     final AtomicBoolean templateCreationPending = new AtomicBoolean(false);
@@ -95,15 +97,8 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
     }
 
     private void putSecurityMappings() {
-        BytesReference template;
-        try {
-            template = TemplateUtils.load("/" + SECURITY_TEMPLATE_NAME + ".json");
-        } catch (IOException e) {
-            updateMappingPending.set(false);
-            logger.error("failed to load security index template", e);
-            throw new ElasticsearchException("failed to load security index template", e);
-        }
-
+        String template = TemplateUtils.loadTemplate("/" + SECURITY_TEMPLATE_NAME + ".json", Version.CURRENT.toString()
+                , SECURITY_INDEX_TEMPLATE_VERSION_PATTERN);
         Map<String, Object> typeMappingMap;
         try {
             XContentParser xParser = XContentFactory.xContent(template).createParser(template);
@@ -157,15 +152,8 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
 
     private void putSecurityTemplate() {
         logger.debug("putting the security index template");
-        BytesReference template;
-        try {
-            template = TemplateUtils.load("/" + SECURITY_TEMPLATE_NAME + ".json");
-        } catch (Exception e) {
-            templateCreationPending.set(false);
-            logger.error("failed to load security index templates for [{}]",
-                    e, SECURITY_INDEX_NAME);
-            throw new ElasticsearchException("failed to load security index template", e);
-        }
+        String template = TemplateUtils.loadTemplate("/" + SECURITY_TEMPLATE_NAME + ".json", Version.CURRENT.toString()
+                , SECURITY_INDEX_TEMPLATE_VERSION_PATTERN);
 
         PutIndexTemplateRequest putTemplateRequest = client.admin().indices()
                 .preparePutTemplate(SECURITY_TEMPLATE_NAME).setSource(template).request();

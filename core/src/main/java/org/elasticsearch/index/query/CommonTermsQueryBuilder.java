@@ -285,10 +285,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
             } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (fieldName != null) {
-                    throw new ParsingException(parser.getTokenLocation(), "[common] query doesn't support multiple fields, found ["
-                            + fieldName + "] and [" + currentFieldName + "]");
-                }
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
                 fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -345,10 +342,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
                     }
                 }
             } else {
-                if (fieldName != null) {
-                    throw new ParsingException(parser.getTokenLocation(), "[common] query doesn't support multiple fields, found ["
-                            + fieldName + "] and [" + parser.currentName() + "]");
-                }
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
                 fieldName = parser.currentName();
                 text = parser.objectText();
             }

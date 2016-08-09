@@ -359,10 +359,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
                 fieldName = currentFieldName;
                 GeoUtils.parseGeoPoint(parser, point);
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (fieldName != null) {
-                    throw new ParsingException(parser.getTokenLocation(), "[geo_distance] query doesn't support multiple fields, found ["
-                            + fieldName + "] and [" + currentFieldName + "]");
-                }
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
                 // the json in the format of -> field : { lat : 30, lon : 12 }
                 String currentName = parser.currentName();
                 fieldName = currentFieldName;

@@ -195,10 +195,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (fieldName != null) {
-                    throw new ParsingException(parser.getTokenLocation(), "[regexp] query doesn't support multiple fields, found ["
-                            + fieldName + "] and [" + currentFieldName + "]");
-                }
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
                 fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -229,10 +226,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
                 if (parseContext.getParseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
-                    if (fieldName != null) {
-                        throw new ParsingException(parser.getTokenLocation(), "[regexp] query doesn't support multiple fields, found ["
-                                + fieldName + "] and [" + parser.currentName() + "]");
-                    }
+                    throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
                     fieldName = currentFieldName;
                     value = parser.textOrNull();
                 }

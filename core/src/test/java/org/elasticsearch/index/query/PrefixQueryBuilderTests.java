@@ -127,5 +127,15 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
                 "}";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[prefix] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
+
+        String shortJson =
+                "{\n" +
+                "    \"prefix\": {\n" +
+                "      \"user1\": \"ki\",\n" +
+                "      \"user2\": \"ki\"\n" +
+                "    }\n" +
+                "}";
+        e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
+        assertEquals("[prefix] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
     }
 }

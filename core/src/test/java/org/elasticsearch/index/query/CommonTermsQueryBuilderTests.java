@@ -194,5 +194,14 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
 
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[common] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+
+        String shortJson = "{\n" +
+                "  \"common\" : {\n" +
+                "    \"message1\" : \"nelly the elephant not as a cartoon\",\n" +
+                "    \"message2\" : \"nelly the elephant not as a cartoon\"\n" +
+                "  }\n" +
+                "}";
+        e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
+        assertEquals("[common] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 }

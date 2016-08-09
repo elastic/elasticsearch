@@ -104,10 +104,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (fieldName != null) {
-                    throw new ParsingException(parser.getTokenLocation(), "[span_term] query doesn't support multiple fields, found ["
-                            + fieldName + "] and [" + currentFieldName + "]");
-                }
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
                 fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -128,6 +125,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
                     }
                 }
             } else {
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
                 fieldName = parser.currentName();
                 value = parser.objectBytes();
             }

@@ -275,10 +275,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
             } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (fieldName != null) {
-                    throw new ParsingException(parser.getTokenLocation(), "[fuzzy] query doesn't support multiple fields, found ["
-                            + fieldName + "] and [" + currentFieldName + "]");
-                }
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
                 fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -309,6 +306,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
                     }
                 }
             } else {
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, parser.currentName());
                 fieldName = parser.currentName();
                 value = parser.objectBytes();
             }

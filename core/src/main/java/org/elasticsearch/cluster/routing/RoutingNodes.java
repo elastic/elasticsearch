@@ -55,7 +55,7 @@ import java.util.function.Predicate;
  * or disallowing changes to its elements.
  *
  * The main methods used to update routing entries are:
- * <p><ul>
+ * <ul>
  * <li> {@link #initializeShard} initializes an unassigned shard.
  * <li> {@link #startShard} starts an initializing shard / completes relocation of a shard.
  * <li> {@link #relocateShard} starts relocation of a started shard.

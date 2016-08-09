@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -30,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 
@@ -133,6 +131,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         if (getTaskFailures() != null && getTaskFailures().size() > 0) {
             builder.startArray("task_failures");
             for (TaskOperationFailure ex : getTaskFailures()){
@@ -196,6 +195,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
             }
             builder.endObject();
         }
+        builder.endObject();
         return builder;
     }
 

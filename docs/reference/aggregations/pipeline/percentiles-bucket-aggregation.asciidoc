@@ -51,14 +51,14 @@ The following snippet calculates the sum of all the total monthly `sales` bucket
         },
         "sum_monthly_sales": {
             "percentiles_bucket": {
-                "buckets_paths": "sales_per_month>sales", <1>
+                "buckets_path": "sales_per_month>sales", <1>
                 "percents": [ 25.0, 50.0, 75.0 ] <2>
             }
         }
     }
 }
 --------------------------------------------------
-<1> `bucket_paths` instructs this percentiles_bucket aggregation that we want to calculate percentiles for
+<1> `buckets_path` instructs this percentiles_bucket aggregation that we want to calculate percentiles for
 the `sales` aggregation in the `sales_per_month` date histogram.
 <2> `percents` specifies which percentiles we wish to calculate, in this case, the 25th, 50th and 75th percentil
 

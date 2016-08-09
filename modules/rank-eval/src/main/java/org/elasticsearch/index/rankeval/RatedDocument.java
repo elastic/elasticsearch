@@ -25,7 +25,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -40,23 +40,22 @@ public class RatedDocument extends ToXContentToBytes implements Writeable {
     public static final ParseField RATING_FIELD = new ParseField("rating");
     public static final ParseField KEY_FIELD = new ParseField("key");
 
-    private static final ObjectParser<RatedDocument, RankEvalContext> PARSER = new ObjectParser<>("ratings", RatedDocument::new);
-
+    private static final ConstructingObjectParser<RatedDocument, RankEvalContext> PARSER = new ConstructingObjectParser<>("rated_document", 
+            a -> new RatedDocument((RatedDocumentKey) a[0], (Integer) a[1])); 
+            
     static {
-        PARSER.declareObject(RatedDocument::setKey, (p, c) -> {
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
             try {
                 return RatedDocumentKey.fromXContent(p, c);
             } catch (IOException ex) {
                 throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
             }
         } , KEY_FIELD);
-        PARSER.declareInt(RatedDocument::setRating, RATING_FIELD);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), RATING_FIELD);
     }
 
     private RatedDocumentKey key;
     private int rating;
-
-    RatedDocument() {}
 
     void setRatedDocumentKey(RatedDocumentKey key) {
         this.key = key;
@@ -95,7 +94,7 @@ public class RatedDocument extends ToXContentToBytes implements Writeable {
     }
 
     public static RatedDocument fromXContent(XContentParser parser, RankEvalContext context) throws IOException {
-        return PARSER.parse(parser, context);
+        return PARSER.apply(parser, context);
     }
     
     @Override

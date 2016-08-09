@@ -154,7 +154,7 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 "  }\n" +
                 "}";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertEquals("[term] query does not support different field names, use [bool] query instead", e.getMessage());
+        assertEquals("[term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
 
         String shortJson = "{\n" +
                 "  \"term\" : {\n" +
@@ -163,6 +163,6 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 "  }\n" +
                 "}";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
-        assertEquals("[term] query does not support different field names, use [bool] query instead", e.getMessage());
+        assertEquals("[term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 }

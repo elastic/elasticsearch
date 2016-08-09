@@ -155,5 +155,14 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 "}";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[term] query does not support different field names, use [bool] query instead", e.getMessage());
+
+        String shortJson = "{\n" +
+                "  \"term\" : {\n" +
+                "    \"message1\" : \"this\",\n" +
+                "    \"message2\" : \"this\"\n" +
+                "  }\n" +
+                "}";
+        e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
+        assertEquals("[term] query does not support different field names, use [bool] query instead", e.getMessage());
     }
 }

@@ -52,7 +52,7 @@ PUT services/_mapping/service
 
 However contexts are specified (as type `category` or `geo`, which are discussed below), each
 context value generates a new sub-set of documents which can be queried by the completion
-suggester. All three types accept a `default` parameter which provides a default value to use
+suggester. Both types accept a `default` parameter which provides a default value to use
 if the corresponding context value is absent.
 
 The basic structure of this element is that each field forms a new context and the fieldname

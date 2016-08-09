@@ -25,7 +25,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -40,7 +39,6 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.CustomDocValuesField;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 
 import java.io.IOException;
@@ -109,7 +107,7 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
         @Override
         public GeoPointFieldMapperLegacy build(BuilderContext context, String simpleName, MappedFieldType fieldType,
                                                MappedFieldType defaultFieldType, Settings indexSettings, FieldMapper latMapper,
-                                               FieldMapper lonMapper, KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                                               FieldMapper lonMapper, FieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                                CopyTo copyTo) {
             fieldType.setTokenized(false);
             setupFieldType(context);
@@ -267,7 +265,7 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
 
     public GeoPointFieldMapperLegacy(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings,
                                      FieldMapper latMapper, FieldMapper lonMapper,
-                                     KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                                     FieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                      Explicit<Boolean> coerce, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, latMapper, lonMapper, geoHashMapper, multiFields,
                 ignoreMalformed, copyTo);

@@ -339,10 +339,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Test that wraps the randomly generated query into an array as follows: { "query_name" : [{}]}
      * This causes unexpected situations in parser code that may not be handled properly.
      */
-    public void testQueryWrappedInArray() throws IOException {
+    public final void testQueryWrappedInArray() throws IOException {
         QB queryBuilder = createTestQueryBuilder();
-        String validQuery = queryBuilder.toString();
         String queryName = queryBuilder.getName();
+        String validQuery = queryBuilder.toString();
+        queryWrappedInArrayTest(queryName, validQuery);
+        for (String query : getAlternateVersions().keySet()) {
+            queryWrappedInArrayTest(queryName, query);
+        }
+    }
+
+    private void queryWrappedInArrayTest(String queryName, String validQuery) throws IOException {
         int i = validQuery.indexOf("\"" + queryName + "\"");
         assertThat(i, greaterThan(0));
 

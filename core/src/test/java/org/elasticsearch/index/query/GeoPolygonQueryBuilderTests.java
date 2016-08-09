@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygonQueryBuilder> {
     @Override
     protected GeoPolygonQueryBuilder doCreateTestQueryBuilder() {
-        List<GeoPoint> polygon = randomPolygon(randomIntBetween(4, 50));
+        List<GeoPoint> polygon = randomPolygon();
         GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, polygon);
         if (randomBoolean()) {
             builder.setValidationMethod(randomFrom(GeoValidationMethod.values()));
@@ -119,13 +119,12 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
      * explicitly mapped
      */
     @Override
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/16399")
     public void testToQuery() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         super.testToQuery();
     }
 
-    public List<GeoPoint> randomPolygon(int numPoints) {
+    private static List<GeoPoint> randomPolygon() {
         ShapeBuilder shapeBuilder = null;
         // This is a temporary fix because sometimes the RandomShapeGenerator
         // returns null. This is if there is an error generating the polygon. So
@@ -143,7 +142,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testNullFieldName() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GeoPolygonQueryBuilder(null, randomPolygon(5)));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GeoPolygonQueryBuilder(null, randomPolygon()));
         assertEquals("fieldName must not be null", e.getMessage());
     }
 
@@ -370,7 +369,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testIgnoreUnmapped() throws IOException {
-        List<GeoPoint> polygon = randomPolygon(randomIntBetween(4, 50));
+        List<GeoPoint> polygon = randomPolygon();
         final GeoPolygonQueryBuilder queryBuilder = new GeoPolygonQueryBuilder("unmapped", polygon);
         queryBuilder.ignoreUnmapped(true);
         Query query = queryBuilder.toQuery(createShardContext());

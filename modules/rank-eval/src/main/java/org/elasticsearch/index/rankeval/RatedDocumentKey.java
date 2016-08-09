@@ -24,7 +24,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -36,14 +36,15 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField INDEX_FIELD = new ParseField("index");
 
-    private static final ObjectParser<RatedDocumentKey, RankEvalContext> PARSER = new ObjectParser<>("ratings", RatedDocumentKey::new);
+    private static final ConstructingObjectParser<RatedDocumentKey, RankEvalContext> PARSER = new ConstructingObjectParser<>("ratings",
+            a -> new RatedDocumentKey((String) a[0], (String) a[1], (String) a[2]));
 
     static {
-        PARSER.declareString(RatedDocumentKey::setIndex, INDEX_FIELD);
-        PARSER.declareString(RatedDocumentKey::setType, TYPE_FIELD);
-        PARSER.declareString(RatedDocumentKey::setDocId, DOC_ID_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), DOC_ID_FIELD);
     }
-    
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -53,14 +54,11 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
         builder.endObject();
         return builder;
     }
-    
+
     // TODO instead of docId use path to id and id itself
     private String docId;
     private String type;
     private String index;
-
-    public RatedDocumentKey() {}
-    
 
     void setIndex(String index) {
         this.index = index;
@@ -106,7 +104,7 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
     }
     
     public static RatedDocumentKey fromXContent(XContentParser parser, RankEvalContext context) throws IOException {
-        return PARSER.parse(parser, context);
+        return PARSER.apply(parser, context);
     }
 
     @Override

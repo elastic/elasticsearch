@@ -47,7 +47,7 @@ public class CompletionSuggestionTests extends ESTestCase {
         for (int i = 0; i < totalResults; i++) {
             Suggest.Suggestion<CompletionSuggestion.Entry> suggestion = randomFrom(shardSuggestions);
             suggestion.getEntries().get(0).addOption(new CompletionSuggestion.Entry.Option(i, new Text(""),
-                maxScore - i, Collections.emptyMap(), Collections.emptyMap()));
+                maxScore - i, Collections.emptyMap()));
         }
         CompletionSuggestion reducedSuggestion = CompletionSuggestion.reduceTo(shardSuggestions);
         assertNotNull(reducedSuggestion);

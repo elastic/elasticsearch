@@ -45,7 +45,6 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
     private FuzzyOptions fuzzyOptions;
     private RegexOptions regexOptions;
     private Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = Collections.emptyMap();
-    private List<String> payloadFields = Collections.emptyList();
     private CompletionFieldMapper2x.CompletionFieldType fieldType2x;
     private List<ContextQuery> contextQueries;
 
@@ -71,14 +70,6 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
 
     void setQueryContexts(Map<String, List<ContextMapping.InternalQueryContext>> queryContexts) {
         this.queryContexts = queryContexts;
-    }
-
-    void setPayloadFields(List<String> fields) {
-        this.payloadFields = fields;
-    }
-
-    List<String> getPayloadFields() {
-        return payloadFields;
     }
 
     public FuzzyOptions getFuzzyOptions() {

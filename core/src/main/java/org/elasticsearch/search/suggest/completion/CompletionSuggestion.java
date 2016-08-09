@@ -194,14 +194,12 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
 
         public static class Option extends Suggest.Suggestion.Entry.Option {
             private Map<String, Set<CharSequence>> contexts;
-            private Map<String, List<Object>> payload;
             private ScoreDoc doc;
             private InternalSearchHit hit;
 
-            public Option(int docID, Text text, float score, Map<String, Set<CharSequence>> contexts, Map<String, List<Object>> payload) {
+            public Option(int docID, Text text, float score, Map<String, Set<CharSequence>> contexts) {
                 super(text, score);
                 this.doc = new ScoreDoc(docID, score);
-                this.payload = payload;
                 this.contexts = contexts;
             }
 
@@ -214,10 +212,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 // Completion suggestions are reduced by
                 // org.elasticsearch.search.suggest.completion.CompletionSuggestion.reduce()
                 throw new UnsupportedOperationException();
-            }
-
-            public Map<String, List<Object>> getPayload() {
-                return payload;
             }
 
             public Map<String, Set<CharSequence>> getContexts() {
@@ -248,17 +242,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 } else {
                     builder.field("score", getScore());
                 }
-                if (payload.size() > 0) {
-                    builder.startObject("payload");
-                    for (Map.Entry<String, List<Object>> entry : payload.entrySet()) {
-                        builder.startArray(entry.getKey());
-                        for (Object payload : entry.getValue()) {
-                            builder.value(payload);
-                        }
-                        builder.endArray();
-                    }
-                    builder.endObject();
-                }
                 if (contexts.size() > 0) {
                     builder.startObject("contexts");
                     for (Map.Entry<String, Set<CharSequence>> entry : contexts.entrySet()) {
@@ -280,17 +263,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 if (in.readBoolean()) {
                     this.hit = InternalSearchHit.readSearchHit(in,
                         InternalSearchHits.streamContext().streamShardTarget(ShardTargetType.STREAM));
-                }
-                int payloadSize = in.readInt();
-                this.payload = new LinkedHashMap<>(payloadSize);
-                for (int i = 0; i < payloadSize; i++) {
-                    String payloadName = in.readString();
-                    int nValues = in.readVInt();
-                    List<Object> values = new ArrayList<>(nValues);
-                    for (int j = 0; j < nValues; j++) {
-                        values.add(in.readGenericValue());
-                    }
-                    this.payload.put(payloadName, values);
                 }
                 int contextSize = in.readInt();
                 this.contexts = new LinkedHashMap<>(contextSize);
@@ -315,15 +287,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 } else {
                     out.writeBoolean(false);
                 }
-                out.writeInt(payload.size());
-                for (Map.Entry<String, List<Object>> entry : payload.entrySet()) {
-                    out.writeString(entry.getKey());
-                    List<Object> values = entry.getValue();
-                    out.writeVInt(values.size());
-                    for (Object value : values) {
-                        out.writeGenericValue(value);
-                    }
-                }
                 out.writeInt(contexts.size());
                 for (Map.Entry<String, Set<CharSequence>> entry : contexts.entrySet()) {
                     out.writeString(entry.getKey());
@@ -341,14 +304,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 stringBuilder.append(getText());
                 stringBuilder.append(" score:");
                 stringBuilder.append(getScore());
-                stringBuilder.append(" payload:[");
-                for (Map.Entry<String, List<Object>> entry : payload.entrySet()) {
-                    stringBuilder.append(" ");
-                    stringBuilder.append(entry.getKey());
-                    stringBuilder.append(":");
-                    stringBuilder.append(entry.getValue());
-                }
-                stringBuilder.append("]");
                 stringBuilder.append(" context:[");
                 for (Map.Entry<String, Set<CharSequence>> entry: contexts.entrySet()) {
                     stringBuilder.append(" ");

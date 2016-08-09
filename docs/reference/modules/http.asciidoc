@@ -57,7 +57,7 @@ and 9 (maximum compression). Defaults to `3`.
 i.e. whether a browser on another origin can execute requests against
 Elasticsearch. Set to `true` to enable Elasticsearch to process pre-flight 
 https://en.wikipedia.org/wiki/Cross-origin_resource_sharing[CORS] requests. 
-Elasticsearch will respond with the `Access-Control-Allow-Origin` header 
+Elasticsearch will respond to those requests with the `Access-Control-Allow-Origin` header 
 if the `Origin` sent in the request is permitted by the `http.cors.allow-origin` 
 list. Set to `false` (the default) to make Elasticsearch ignore the `Origin` 
 request header, effectively disabling CORS requests because Elasticsearch will 

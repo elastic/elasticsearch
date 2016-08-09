@@ -131,7 +131,6 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
         if (getTaskFailures() != null && getTaskFailures().size() > 0) {
             builder.startArray("task_failures");
             for (TaskOperationFailure ex : getTaskFailures()){
@@ -195,7 +194,6 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
             }
             builder.endObject();
         }
-        builder.endObject();
         return builder;
     }
 

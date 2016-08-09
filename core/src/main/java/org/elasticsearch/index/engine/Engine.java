@@ -705,9 +705,6 @@ public abstract class Engine implements Closeable {
         if (Lucene.isCorruptionException(e)) {
             failEngine("corrupt file (source: [" + source + "])", e);
             return true;
-        } else if (ExceptionsHelper.isOOM(e)) {
-            failEngine("out of memory (source: [" + source + "])", e);
-            return true;
         }
         return false;
     }

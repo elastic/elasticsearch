@@ -40,9 +40,6 @@ import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class SimpleMapperTests extends ESSingleNodeTestCase {
     public void testSimpleMapper() throws Exception {
         IndexService indexService = createIndex("test");
@@ -112,25 +109,47 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
             indexService.mapperService()).build(indexService.mapperService());
 
         BytesReference json = new BytesArray("".getBytes(StandardCharsets.UTF_8));
-        try {
-            docMapper.parse("test", "person", "1", json).rootDoc();
-            fail("this point is never reached");
-        } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), equalTo("failed to parse, document is empty"));
-        }
+        MapperParsingException e = expectThrows(MapperParsingException.class, () ->
+            docMapper.parse("test", "person", "1", json).rootDoc());
+        assertThat(e.getMessage(), equalTo("failed to parse, document is empty"));
     }
 
-    public void testHazardousFieldNames() throws Exception {
+    public void testFieldNameWithDots() throws Exception {
         IndexService indexService = createIndex("test");
         DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
             .startObject("foo.bar").field("type", "text").endObject()
+            .startObject("foo.baz").field("type", "keyword").endObject()
             .endObject().endObject().endObject().string();
-        try {
-            mapperParser.parse("type", new CompressedXContent(mapping));
-            fail("Mapping parse should have failed");
-        } catch (MapperParsingException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("cannot contain '.'"));
-        }
+        DocumentMapper docMapper = mapperParser.parse("type", new CompressedXContent(mapping));
+        assertNotNull(docMapper.mappers().getMapper("foo.bar"));
+        assertNotNull(docMapper.mappers().getMapper("foo.baz"));
+        assertNotNull(docMapper.objectMappers().get("foo"));
+    }
+
+    public void testFieldNameWithDeepDots() throws Exception {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("foo.bar").field("type", "text").endObject()
+            .startObject("foo.baz").startObject("properties")
+            .startObject("deep.field").field("type", "keyword").endObject().endObject()
+            .endObject().endObject().endObject().endObject().string();
+        DocumentMapper docMapper = mapperParser.parse("type", new CompressedXContent(mapping));
+        assertNotNull(docMapper.mappers().getMapper("foo.bar"));
+        assertNotNull(docMapper.mappers().getMapper("foo.baz.deep.field"));
+        assertNotNull(docMapper.objectMappers().get("foo"));
+    }
+
+    public void testFieldNameWithDotsConflict() throws Exception {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("foo").field("type", "text").endObject()
+            .startObject("foo.baz").field("type", "keyword").endObject()
+            .endObject().endObject().endObject().string();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            mapperParser.parse("type", new CompressedXContent(mapping)));
+        assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] of different type"));
     }
 }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.Version;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -25,6 +26,7 @@ import static org.hamcrest.CoreMatchers.is;
  * is that this class
  * helps keeping track of this and eventually making changes when needed.
  */
+@AwaitsFix(bugUrl = "does this still make sense?")
 public class VersionCompatibilityTests extends ESTestCase {
     public void testCompatibility() {
         /**

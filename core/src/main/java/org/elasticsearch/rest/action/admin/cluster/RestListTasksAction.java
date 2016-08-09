@@ -81,7 +81,6 @@ public class RestListTasksAction extends BaseRestHandler {
         return new ActionListener<T>() {
             @Override
             public void onResponse(T response) {
-                response.setDiscoveryNodes(clusterService.state().nodes());
                 channelListener.onResponse(response);
             }
 

@@ -177,7 +177,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         deleteIndices(event); // also deletes shards of deleted indices
 
-        removeUnallocatedIndices(state); // also removes shards of removed indices
+        removeUnallocatedIndices(event); // also removes shards of removed indices
 
         failMissingShards(state);
 
@@ -216,7 +216,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 if (masterNode != null) { // TODO: can we remove this? Is resending shard failures the responsibility of shardStateAction?
                     String message = "master " + masterNode + " has not removed previously failed shard. resending shard failure";
                     logger.trace("[{}] re-sending failed shard [{}], reason [{}]", matchedRouting.shardId(), matchedRouting, message);
-                    shardStateAction.shardFailed(matchedRouting, matchedRouting, message, null, SHARD_STATE_ACTION_LISTENER);
+                    shardStateAction.localShardFailed(matchedRouting, message, null, SHARD_STATE_ACTION_LISTENER);
                 }
             }
         }
@@ -286,28 +286,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 });
             }
         }
-
-        // delete local indices that do neither exist in previous cluster state nor part of tombstones
-        for (AllocatedIndex<? extends Shard> indexService : indicesService) {
-            Index index = indexService.index();
-            IndexMetaData indexMetaData = event.state().metaData().index(index);
-            if (indexMetaData == null) {
-                assert false : "index" + index + " exists locally, doesn't have a metadata but is not part"
-                    + " of the delete index list. \nprevious state: " + event.previousState().prettyPrint()
-                    + "\n current state:\n" + event.state().prettyPrint();
-                logger.warn("[{}] isn't part of metadata but is part of in memory structures. removing", index);
-                indicesService.deleteIndex(index, "isn't part of metadata (explicit check)");
-            }
-        }
     }
 
     /**
      * Removes indices that have no shards allocated to this node. This does not delete the shard data as we wait for enough
      * shard copies to exist in the cluster before deleting shard data (triggered by {@link org.elasticsearch.indices.store.IndicesStore}).
      *
-     * @param state new cluster state
+     * @param event the cluster changed event
      */
-    private void removeUnallocatedIndices(final ClusterState state) {
+    private void removeUnallocatedIndices(final ClusterChangedEvent event) {
+        final ClusterState state = event.state();
         final String localNodeId = state.nodes().getLocalNodeId();
         assert localNodeId != null;
 
@@ -322,6 +310,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         for (AllocatedIndex<? extends Shard> indexService : indicesService) {
             Index index = indexService.index();
             if (indicesWithShards.contains(index) == false) {
+                // if the cluster change indicates a brand new cluster, we only want
+                // to remove the in-memory structures for the index and not delete the
+                // contents on disk because the index will later be re-imported as a
+                // dangling index
+                assert state.metaData().index(index) != null || event.isNewCluster() :
+                    "index " + index + " does not exist in the cluster state, it should either " +
+                    "have been deleted or the cluster must be new";
                 logger.debug("{} removing index, no shards allocated", index);
                 indicesService.removeIndex(index, "removing index (no shards allocated)");
             }
@@ -686,7 +681,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         try {
             logger.warn("[{}] marking and sending shard failed due to [{}]", failure, shardRouting.shardId(), message);
             failedShardsCache.put(shardRouting.shardId(), shardRouting);
-            shardStateAction.shardFailed(shardRouting, shardRouting, message, failure, SHARD_STATE_ACTION_LISTENER);
+            shardStateAction.localShardFailed(shardRouting, message, failure, SHARD_STATE_ACTION_LISTENER);
         } catch (Exception inner) {
             if (failure != null) inner.addSuppressed(failure);
             logger.warn(

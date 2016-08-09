@@ -93,7 +93,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -768,12 +767,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         threadPool.generic().execute(() -> {
             globalLock.writeLock().lock();
             try {
-                for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext(); ) {
-                    NodeChannels nodeChannels = it.next();
-                    it.remove();
-                    IOUtils.closeWhileHandlingException(nodeChannels);
-                }
-
+                // first stop to accept any incoming connections so nobody can connect to this transport
                 for (Map.Entry<String, List<Channel>> entry : serverChannels.entrySet()) {
                     try {
                         closeChannels(entry.getValue());
@@ -781,16 +775,13 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                         logger.debug("Error closing serverChannel for profile [{}]", e, entry.getKey());
                     }
                 }
-                try {
-                    stopInternal();
-                } finally {
-                    for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext(); ) {
-                        NodeChannels nodeChannels = it.next();
-                        it.remove();
-                        IOUtils.closeWhileHandlingException(nodeChannels);
-                    }
-                }
 
+                for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext(); ) {
+                    NodeChannels nodeChannels = it.next();
+                    it.remove();
+                    IOUtils.closeWhileHandlingException(nodeChannels);
+                }
+                stopInternal();
             } finally {
                 globalLock.writeLock().unlock();
                 latch.countDown();
@@ -800,7 +791,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         try {
             latch.await(30, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
-            Thread.interrupted();
+            Thread.currentThread().interrupt();
             // ignore
         }
     }

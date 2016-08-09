@@ -534,15 +534,16 @@ public class TransportReplicationActionTests extends ESTestCase {
         AtomicReference<Throwable> failure = new AtomicReference<>();
         AtomicReference<Throwable> ignoredFailure = new AtomicReference<>();
         AtomicBoolean success = new AtomicBoolean();
-        proxy.failShard(replica, shardRoutings.primaryShard(), "test", new ElasticsearchException("simulated"),
+        proxy.failShard(replica, randomIntBetween(1, 10), "test", new ElasticsearchException("simulated"),
             () -> success.set(true), failure::set, ignoredFailure::set
         );
         CapturingTransport.CapturedRequest[] shardFailedRequests = transport.getCapturedRequestsAndClear();
         assertEquals(1, shardFailedRequests.length);
         CapturingTransport.CapturedRequest shardFailedRequest = shardFailedRequests[0];
-        ShardStateAction.ShardRoutingEntry shardRoutingEntry = (ShardStateAction.ShardRoutingEntry) shardFailedRequest.request;
+        ShardStateAction.ShardEntry shardEntry = (ShardStateAction.ShardEntry) shardFailedRequest.request;
         // the shard the request was sent to and the shard to be failed should be the same
-        assertEquals(shardRoutingEntry.getShardRouting(), replica);
+        assertEquals(shardEntry.getShardId(), replica.shardId());
+        assertEquals(shardEntry.getAllocationId(), replica.allocationId().getId());
         if (randomBoolean()) {
             // simulate success
             transport.handleResponse(shardFailedRequest.requestId, TransportResponse.Empty.INSTANCE);
@@ -553,7 +554,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         } else if (randomBoolean()) {
             // simulate the primary has been demoted
             transport.handleRemoteError(shardFailedRequest.requestId,
-                new ShardStateAction.NoLongerPrimaryShardException(shardRoutingEntry.getShardRouting().shardId(),
+                new ShardStateAction.NoLongerPrimaryShardException(replica.shardId(),
                     "shard-failed-test"));
             assertFalse(success.get());
             assertNotNull(failure.get());

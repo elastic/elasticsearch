@@ -135,18 +135,17 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
     }
 
     void innerExecuteFetchPhase() throws Exception {
-        boolean useScroll = request.scroll() != null;
-        sortedShardList = searchPhaseController.sortDocs(useScroll, queryResults);
-        searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardList);
+        final boolean isScrollRequest = request.scroll() != null;
+        sortedShardDocs = searchPhaseController.sortDocs(isScrollRequest, queryResults);
+        searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardDocs);
 
         if (docIdsToLoad.asList().isEmpty()) {
             finishHim();
             return;
         }
 
-        final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(
-            request, sortedShardList, firstResults.length()
-        );
+        final ScoreDoc[] lastEmittedDocPerShard = (request.scroll() != null) ?
+            searchPhaseController.getLastEmittedDocPerShard(queryResults.asList(), sortedShardDocs, firstResults.length()) : null;
         final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
         for (final AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
             QuerySearchResult queryResult = queryResults.get(entry.index);
@@ -196,12 +195,10 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
         threadPool.executor(ThreadPool.Names.SEARCH).execute(new ActionRunnable<SearchResponse>(listener) {
             @Override
             public void doRun() throws IOException {
-                final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults,
+                final boolean isScrollRequest = request.scroll() != null;
+                final InternalSearchResponse internalResponse = searchPhaseController.merge(isScrollRequest, sortedShardDocs, queryResults,
                     fetchResults);
-                String scrollId = null;
-                if (request.scroll() != null) {
-                    scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults);
-                }
+                String scrollId = isScrollRequest ? TransportSearchHelper.buildScrollId(request.searchType(), firstResults) : null;
                 listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(),
                     buildTookInMillis(), buildShardFailures()));
                 releaseIrrelevantSearchContexts(queryResults, docIdsToLoad);

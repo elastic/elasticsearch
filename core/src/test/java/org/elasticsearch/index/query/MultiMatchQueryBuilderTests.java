@@ -154,33 +154,10 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     public void testIllegaArguments() {
-        try {
-            new MultiMatchQueryBuilder(null, "field");
-            fail("value must not be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            new MultiMatchQueryBuilder("value", (String[]) null);
-            fail("initial fields must be supplied at construction time must not be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            new MultiMatchQueryBuilder("value", new String[]{""});
-            fail("field names cannot be empty");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            new MultiMatchQueryBuilder("value", "field").type(null);
-            fail("type must not be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new MultiMatchQueryBuilder(null, "field"));
+        expectThrows(IllegalArgumentException.class, () -> new MultiMatchQueryBuilder("value", (String[]) null));
+        expectThrows(IllegalArgumentException.class, () -> new MultiMatchQueryBuilder("value", new String[]{""}));
+        expectThrows(IllegalArgumentException.class, () -> new MultiMatchQueryBuilder("value", "field").type(null));
     }
 
     public void testToQueryBoost() throws IOException {

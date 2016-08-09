@@ -46,6 +46,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
+import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -74,7 +75,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     protected final AtomicArray<FirstResult> firstResults;
     private volatile AtomicArray<ShardSearchFailure> shardFailures;
     private final Object shardFailuresMutex = new Object();
-    protected volatile ScoreDoc[] sortedShardList;
+    protected volatile ScoreDoc[] sortedShardDocs;
 
     protected AbstractSearchAsyncAction(ESLogger logger, SearchTransportService searchTransportService, ClusterService clusterService,
                                         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -321,8 +322,11 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         // we only release search context that we did not fetch from if we are not scrolling
         if (request.scroll() == null) {
             for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults.asList()) {
-                final TopDocs topDocs = entry.value.queryResult().queryResult().topDocs();
-                if (topDocs != null && topDocs.scoreDocs.length > 0 // the shard had matches
+                QuerySearchResult queryResult = entry.value.queryResult().queryResult();
+                final TopDocs topDocs = queryResult.topDocs();
+                final Suggest suggest = queryResult.suggest();
+                if (((topDocs != null && topDocs.scoreDocs.length > 0) // the shard had matches
+                    ||suggest != null && suggest.hasScoreDocs()) // or had suggest docs
                     && docIdsToLoad.get(entry.index) == null) { // but none of them made it to the global top docs
                     try {
                         DiscoveryNode node = nodes.get(entry.value.queryResult().shardTarget().nodeId());
@@ -343,12 +347,8 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
 
     protected ShardFetchSearchRequest createFetchRequest(QuerySearchResult queryResult, AtomicArray.Entry<IntArrayList> entry,
                                                          ScoreDoc[] lastEmittedDocPerShard) {
-        if (lastEmittedDocPerShard != null) {
-            ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[entry.index];
-            return new ShardFetchSearchRequest(request, queryResult.id(), entry.value, lastEmittedDoc);
-        } else {
-            return new ShardFetchSearchRequest(request, queryResult.id(), entry.value);
-        }
+        final ScoreDoc lastEmittedDoc = (lastEmittedDocPerShard != null) ? lastEmittedDocPerShard[entry.index] : null;
+        return new ShardFetchSearchRequest(request, queryResult.id(), entry.value, lastEmittedDoc);
     }
 
     protected abstract void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request,

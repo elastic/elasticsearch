@@ -58,7 +58,7 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("Adding two nodes and performing rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
         RoutingTable prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -82,7 +82,7 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
         assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), equalTo(2));
 
         logger.info("Start another node and perform rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node3"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
         prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
@@ -100,7 +100,7 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
             logger.info("kill the node [{}] of the primary shard for the relocating replica", indexShardRoutingTable.primaryShard().currentNodeId());
             clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(indexShardRoutingTable.primaryShard().currentNodeId())).build();
             prevRoutingTable = routingTable;
-            routingTable = strategy.reroute(clusterState, "reroute").routingTable();
+            routingTable = strategy.deassociateDeadNodes(clusterState, true, "reroute").routingTable();
             clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
             logger.info("make sure all the primary shards are active");

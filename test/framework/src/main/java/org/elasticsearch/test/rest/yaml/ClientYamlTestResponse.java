@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml;
 
+import org.apache.http.Header;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
@@ -25,6 +26,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Response obtained from a REST call, eagerly reads the response body into a string for later optional parsing.
@@ -68,6 +71,19 @@ public class ClientYamlTestResponse {
 
     public String getReasonPhrase() {
         return response.getStatusLine().getReasonPhrase();
+    }
+
+    /**
+     * Get a list of all of the values of all warning headers returned in the response.
+     */
+    public List<String> getWarningHeaders() {
+        List<String> warningHeaders = new ArrayList<>();
+        for (Header header : response.getHeaders()) {
+            if (header.getName().equals("Warning")) {
+                warningHeaders.add(header.getValue());
+            }
+        }
+        return warningHeaders;
     }
 
     /**

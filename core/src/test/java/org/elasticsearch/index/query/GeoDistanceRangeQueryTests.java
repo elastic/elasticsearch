@@ -41,7 +41,6 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanceRangeQueryBuilder> {
 
@@ -213,96 +212,57 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
     }
 
     public void testNullFieldName() {
-        try {
-            if (randomBoolean()) {
-                new GeoDistanceRangeQueryBuilder(null, new GeoPoint());
-            } else {
-                new GeoDistanceRangeQueryBuilder("", new GeoPoint());
-            }
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("fieldName must not be null"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> new GeoDistanceRangeQueryBuilder(null, new GeoPoint()));
+        assertEquals("fieldName must not be null", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class,
+                () -> new GeoDistanceRangeQueryBuilder("", new GeoPoint()));
+        assertEquals("fieldName must not be null", e.getMessage());
     }
 
     public void testNoPoint() {
-        try {
-            if (randomBoolean()) {
-                new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, (GeoPoint) null);
-            } else {
-                new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, (String) null);
-            }
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("point must not be null"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, (GeoPoint) null));
+        assertEquals("point must not be null", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class,
+                () -> new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, (String) null));
+        assertEquals("point must not be null", e.getMessage());
     }
 
     public void testInvalidFrom() {
         GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, new GeoPoint());
-        try {
-            if (randomBoolean()) {
-                builder.from((String) null);
-            } else {
-                builder.from((Number) null);
-            }
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("[from] must not be null"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.from((String) null));
+        assertEquals("[from] must not be null", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> builder.from((Number) null));
+        assertEquals("[from] must not be null", e.getMessage());
     }
 
     public void testInvalidTo() {
         GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, new GeoPoint());
-        try {
-            if (randomBoolean()) {
-                builder.to((String) null);
-            } else {
-                builder.to((Number) null);
-            }
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("[to] must not be null"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.to((String) null));
+        assertEquals("[to] must not be null", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> builder.to((Number) null));
+        assertEquals("[to] must not be null", e.getMessage());
     }
 
     public void testInvalidOptimizeBBox() {
         GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, new GeoPoint());
-        if (randomBoolean()) {
-            try {
-                builder.optimizeBbox(null);
-                fail("Expected IllegalArgumentException");
-            } catch (IllegalArgumentException e) {
-                assertThat(e.getMessage(), is("optimizeBbox must not be null"));
-            }
-        } else {
-            try {
-                builder.optimizeBbox("foo");
-                fail("Expected IllegalArgumentException");
-            } catch (IllegalArgumentException e) {
-                assertThat(e.getMessage(), is("optimizeBbox must be one of [none, memory, indexed]"));
-            }
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.optimizeBbox(null));
+        assertEquals("optimizeBbox must not be null", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> builder.optimizeBbox("foo"));
+        assertEquals("optimizeBbox must be one of [none, memory, indexed]", e.getMessage());
     }
 
     public void testInvalidGeoDistance() {
         GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, new GeoPoint());
-        try {
-            builder.geoDistance(null);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("geoDistance calculation mode must not be null"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.geoDistance(null));
+        assertEquals("geoDistance calculation mode must not be null", e.getMessage());
     }
 
     public void testInvalidDistanceUnit() {
         GeoDistanceRangeQueryBuilder builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, new GeoPoint());
-        try {
-            builder.unit(null);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("distance unit must not be null"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.unit(null));
+        assertEquals("distance unit must not be null", e.getMessage());
     }
 
     public void testNestedRangeQuery() throws IOException {

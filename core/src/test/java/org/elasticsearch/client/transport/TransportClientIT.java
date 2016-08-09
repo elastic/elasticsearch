@@ -42,6 +42,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 1.0)
 public class TransportClientIT extends ESIntegTestCase {
+
     public void testPickingUpChangesInDiscoveryNode() {
         String nodeName = internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false));
 

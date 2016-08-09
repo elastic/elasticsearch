@@ -173,6 +173,25 @@ The argument to `catch` can be any of:
 If `catch` is specified, then the `response` var must be cleared, and the test
 should fail if no error is thrown.
 
+If the arguments to `do` include `warnings` then we are expecting a `Warning`
+header to come back from the request. If the arguments *don't* include a
+`warnings` argument then we *don't* expect the response to include a `Warning`
+header. The warnings must match exactly. Using it looks like this:
+
+....
+    - do:
+        warnings:
+            - '[index] is deprecated'
+            - quotes are not required because yaml
+            - but this argument is always a list, never a single string
+            - no matter how many warnings you expect
+        get:
+            index:    test
+            type:    test
+            id:        1
+....
+
+
 === `set`
 
 For some tests, it is necessary to extract a value from the previous `response`, in
@@ -284,4 +303,3 @@ This depends on the datatype of the value being examined, eg:
     - length: { _tokens: 3 }   # the `_tokens` array has 3 elements
     - length: { _source: 5 }   # the `_source` hash has 5 keys
 ....
-

@@ -174,6 +174,9 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
             } else {
                 metadataSnapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
             }
+        } catch (org.apache.lucene.index.IndexNotFoundException e) {
+            // happens on an empty folder. no need to log
+            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
         } catch (IOException e) {
             logger.warn("error while listing local files, recover as if there are none", e);
             metadataSnapshot = Store.MetadataSnapshot.EMPTY;

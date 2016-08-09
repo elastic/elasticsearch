@@ -57,10 +57,9 @@ The above will delete a tweet with id 1, but will be routed based on the
 user. Note, issuing a delete without the correct routing, will cause the
 document to not be deleted.
 
-Many times, the routing value is not known when deleting a document. For
-those cases, when specifying the `_routing` mapping as `required`, and
-no routing value is specified, the delete will be broadcast
-automatically to all shards.
+When the `_routing` mapping is set as `required` and no routing value is
+specified, the delete api will throw a `RoutingMissingException` and reject
+the request.
 
 [float]
 [[delete-parent]]
@@ -74,6 +73,10 @@ children. One way of deleting all child documents given a parent's id is
 to use the <<docs-delete-by-query,Delete By Query API>> to perform a
  index with the automatically generated (and indexed)
 field _parent, which is in the format parent_type#parent_id.
+
+When deleting a child document its parent id must be specified, otherwise
+the delete request will be rejected and a `RoutingMissingException` will be
+thrown instead.
 
 [float]
 [[delete-index-creation]]

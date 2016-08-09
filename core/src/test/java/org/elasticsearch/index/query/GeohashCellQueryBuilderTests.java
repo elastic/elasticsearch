@@ -39,7 +39,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder> {
 
@@ -92,39 +91,23 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
     }
 
     public void testNullField() {
-        try {
-            if (randomBoolean()) {
-                new Builder(null, new GeoPoint());
-            } else {
-                new Builder("", new GeoPoint());
-            }
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("fieldName must not be null"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new Builder(null, new GeoPoint()));
+        assertEquals("fieldName must not be null", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> new Builder("", new GeoPoint()));
+        assertEquals("fieldName must not be null", e.getMessage());
     }
 
     public void testNullGeoPoint() {
-        try {
-            if (randomBoolean()) {
-                new Builder(GEO_POINT_FIELD_NAME, (GeoPoint) null);
-            } else {
-                new Builder(GEO_POINT_FIELD_NAME, "");
-            }
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("geohash or point must be defined"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new Builder(GEO_POINT_FIELD_NAME, (GeoPoint) null));
+        assertEquals("geohash or point must be defined", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> new Builder(GEO_POINT_FIELD_NAME, ""));
+        assertEquals("geohash or point must be defined", e.getMessage());
     }
 
     public void testInvalidPrecision() {
         GeohashCellQuery.Builder builder = new Builder(GEO_POINT_FIELD_NAME, new GeoPoint());
-        try {
-            builder.precision(-1);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("precision must be greater than 0"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.precision(-1));
+        assertThat(e.getMessage(), containsString("precision must be greater than 0"));
     }
 
     public void testLocationParsing() throws IOException {

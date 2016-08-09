@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -63,7 +62,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
-import static org.hamcrest.Matchers.is;
 
 public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQueryBuilder> {
     protected static final String PARENT_TYPE = "parent";
@@ -367,24 +365,17 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
      * Should throw {@link IllegalArgumentException} instead of NPE.
      */
     public void testThatNullFromStringThrowsException() {
-        try {
-            HasChildQueryBuilder.parseScoreMode(null);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("No score mode for child query [null] found"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> HasChildQueryBuilder.parseScoreMode(null));
+        assertEquals("No score mode for child query [null] found", e.getMessage());
     }
 
     /**
      * Failure should not change (and the value should never match anything...).
      */
     public void testThatUnrecognizedFromStringThrowsException() {
-        try {
-            HasChildQueryBuilder.parseScoreMode("unrecognized value");
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("No score mode for child query [unrecognized value] found"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> HasChildQueryBuilder.parseScoreMode("unrecognized value"));
+        assertEquals("No score mode for child query [unrecognized value] found", e.getMessage());
     }
 
     public void testIgnoreUnmapped() throws IOException {

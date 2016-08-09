@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 
 import java.io.IOException;
@@ -26,6 +27,10 @@ import java.io.IOException;
  * Represents a test fragment that can be executed (e.g. api call, assertion)
  */
 public interface ExecutableSection {
+    /**
+     * Get the location in the test that this was defined. 
+     */
+    XContentLocation getLocation();
 
     /**
      * Executes the section passing in the execution context

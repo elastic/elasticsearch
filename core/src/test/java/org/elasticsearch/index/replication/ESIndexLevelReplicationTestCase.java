@@ -316,7 +316,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
                 // OK!
                 result = Store.MetadataSnapshot.EMPTY;
             } catch (IOException e) {
-                logger.warn("{} failed read store, treating as empty", e);
+                logger.warn("failed read store, treating as empty", e);
                 result = Store.MetadataSnapshot.EMPTY;
             }
             return result;
@@ -477,7 +477,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
         }
 
         @Override
-        public void failShard(ShardRouting replica, ShardRouting primary, String message, Exception exception, Runnable onSuccess,
+        public void failShard(ShardRouting replica, long primaryTerm, String message, Exception exception, Runnable onSuccess,
                               Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
             throw new UnsupportedOperationException();
         }

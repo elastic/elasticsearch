@@ -340,17 +340,13 @@ final class DocumentParser {
             return;
         }
         XContentParser parser = context.parser();
-
-        String currentFieldName = parser.currentName();
-        if (atRoot && MapperService.isMetadataField(currentFieldName)) {
-            throw new MapperParsingException("Field [" + currentFieldName + "] is a metadata field and cannot be added inside a document. Use the index API request parameters.");
-        }
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_NULL) {
             // the object is null ("obj1" : null), simply bail
             return;
         }
 
+        String currentFieldName = parser.currentName();
         if (token.isValue()) {
             throw new MapperParsingException("object mapping for [" + mapper.name() + "] tried to parse field [" + currentFieldName + "] as object, but found a concrete value");
         }
@@ -384,6 +380,9 @@ final class DocumentParser {
                 parseArray(context, mapper, currentFieldName);
             } else if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+                if (MapperService.isMetadataField(context.path().pathAsText(currentFieldName))) {
+                    throw new MapperParsingException("Field [" + currentFieldName + "] is a metadata field and cannot be added inside a document. Use the index API request parameters.");
+                }
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 parseNullValue(context, mapper, currentFieldName);
             } else if (token == null) {

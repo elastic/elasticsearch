@@ -118,7 +118,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
         RoutingTable routingTable = routingTableBuilder.build();
         DiscoveryNodes.Builder builderDiscoNodes = DiscoveryNodes.builder();
         for (String node : nodes) {
-            builderDiscoNodes.put(newNode(node));
+            builderDiscoNodes.add(newNode(node));
         }
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).nodes(builderDiscoNodes.build()).build();
         if (balanceFirst()) {

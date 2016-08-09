@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
@@ -45,7 +44,7 @@ public class DateHistogramParser extends NumericValuesSourceParser {
     protected DateHistogramAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
                                                             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         DateHistogramAggregationBuilder factory = new DateHistogramAggregationBuilder(aggregationName);
-        Object interval = otherOptions.get(Rounding.Interval.INTERVAL_FIELD);
+        Object interval = otherOptions.get(Histogram.INTERVAL_FIELD);
         if (interval == null) {
             throw new ParsingException(null, "Missing required field [interval] for histogram aggregation [" + aggregationName + "]");
         } else if (interval instanceof Long) {
@@ -55,7 +54,7 @@ public class DateHistogramParser extends NumericValuesSourceParser {
         } else {
             throw new IllegalStateException("Unexpected interval class: " + interval.getClass());
         }
-        Long offset = (Long) otherOptions.get(Rounding.OffsetRounding.OFFSET_FIELD);
+        Long offset = (Long) otherOptions.get(Histogram.OFFSET_FIELD);
         if (offset != null) {
             factory.offset(offset);
         }
@@ -83,12 +82,12 @@ public class DateHistogramParser extends NumericValuesSourceParser {
     protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
             ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
         if (token.isValue()) {
-            if (parseFieldMatcher.match(currentFieldName, Rounding.Interval.INTERVAL_FIELD)) {
+            if (parseFieldMatcher.match(currentFieldName, Histogram.INTERVAL_FIELD)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
-                    otherOptions.put(Rounding.Interval.INTERVAL_FIELD, new DateHistogramInterval(parser.text()));
+                    otherOptions.put(Histogram.INTERVAL_FIELD, new DateHistogramInterval(parser.text()));
                     return true;
                 } else {
-                    otherOptions.put(Rounding.Interval.INTERVAL_FIELD, parser.longValue());
+                    otherOptions.put(Histogram.INTERVAL_FIELD, parser.longValue());
                     return true;
                 }
             } else if (parseFieldMatcher.match(currentFieldName, Histogram.MIN_DOC_COUNT_FIELD)) {
@@ -97,13 +96,13 @@ public class DateHistogramParser extends NumericValuesSourceParser {
             } else if (parseFieldMatcher.match(currentFieldName, Histogram.KEYED_FIELD)) {
                 otherOptions.put(Histogram.KEYED_FIELD, parser.booleanValue());
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, Rounding.OffsetRounding.OFFSET_FIELD)) {
+            } else if (parseFieldMatcher.match(currentFieldName, Histogram.OFFSET_FIELD)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
-                    otherOptions.put(Rounding.OffsetRounding.OFFSET_FIELD,
+                    otherOptions.put(Histogram.OFFSET_FIELD,
                             DateHistogramAggregationBuilder.parseStringOffset(parser.text()));
                     return true;
                 } else {
-                    otherOptions.put(Rounding.OffsetRounding.OFFSET_FIELD, parser.longValue());
+                    otherOptions.put(Histogram.OFFSET_FIELD, parser.longValue());
                     return true;
                 }
             } else {

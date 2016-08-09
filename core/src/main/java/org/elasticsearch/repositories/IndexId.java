@@ -38,15 +38,19 @@ public final class IndexId implements Writeable, ToXContent {
 
     private final String name;
     private final String id;
+    private final int hashCode;
 
     public IndexId(final String name, final String id) {
         this.name = name;
         this.id = id;
+        this.hashCode = computeHashCode();
+
     }
 
     public IndexId(final StreamInput in) throws IOException {
         this.name = in.readString();
         this.id = in.readString();
+        this.hashCode = computeHashCode();
     }
 
     /**
@@ -90,6 +94,10 @@ public final class IndexId implements Writeable, ToXContent {
 
     @Override
     public int hashCode() {
+        return hashCode;
+    }
+
+    private int computeHashCode() {
         return Objects.hash(name, id);
     }
 

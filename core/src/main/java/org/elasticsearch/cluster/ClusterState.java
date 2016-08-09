@@ -280,6 +280,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
+        sb.append("cluster uuid: ").append(metaData.clusterUUID()).append("\n");
         sb.append("version: ").append(version).append("\n");
         sb.append("state uuid: ").append(stateUUID).append("\n");
         sb.append("from_diff: ").append(wasReadFromDiff).append("\n");
@@ -624,6 +625,10 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             return this;
         }
 
+        public DiscoveryNodes nodes() {
+            return nodes;
+        }
+
         public Builder routingResult(RoutingAllocation.Result routingResult) {
             this.routingTable = routingResult.routingTable();
             this.metaData = routingResult.metaData();
@@ -722,7 +727,6 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         public static ClusterState readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
             return PROTO.readFrom(in, localNode);
         }
-
     }
 
     @Override

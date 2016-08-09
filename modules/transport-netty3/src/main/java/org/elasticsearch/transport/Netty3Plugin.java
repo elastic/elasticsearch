@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -35,31 +34,6 @@ import java.util.List;
 public class Netty3Plugin extends Plugin {
     public static final String NETTY_TRANSPORT_NAME = "netty3";
     public static final String NETTY_HTTP_TRANSPORT_NAME = "netty3";
-
-    public Netty3Plugin(Settings settings) {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            try {
-                Class.forName("org.jboss.netty.channel.socket.nio.SelectorUtil");
-            } catch (ClassNotFoundException e) {
-                throw new AssertionError(e); // we don't do anything with this
-            }
-            return null;
-        });
-        /*
-         * Asserts that sun.nio.ch.bugLevel has been set to a non-null value. This assertion will fail if the corresponding code
-         * is not executed in a doPrivileged block. This can be disabled via `netty.assert.buglevel` setting which isn't registered
-         * by default but test can do so if they depend on the jar instead of the module.
-         */
-        //TODO Once we have no jar level dependency we can get rid of this.
-        if (settings.getAsBoolean("netty.assert.buglevel", true)) {
-            assert System.getProperty("sun.nio.ch.bugLevel") != null :
-                "sun.nio.ch.bugLevel is null somebody pulls in SelectorUtil without doing stuff in a doPrivileged block?";
-        }
-    }
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -89,4 +63,5 @@ public class Netty3Plugin extends Plugin {
         }
         networkModule.registerTransport(NETTY_TRANSPORT_NAME, Netty3Transport.class);
     }
+
 }

@@ -210,7 +210,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assert node != null;
 
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(state.nodes())
-                .put(new DiscoveryNode("abc", new LocalTransportAddress("abc"), emptyMap(),
+                .add(new DiscoveryNode("abc", new LocalTransportAddress("abc"), emptyMap(),
                         emptySet(), Version.CURRENT)).masterNodeId("abc");
         ClusterState.Builder builder = ClusterState.builder(state);
         builder.nodes(nodes);

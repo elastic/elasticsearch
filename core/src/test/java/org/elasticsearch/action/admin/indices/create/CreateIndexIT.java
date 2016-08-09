@@ -481,29 +481,26 @@ public class CreateIndexIT extends ESIntegTestCase {
      * This test ensures that index creation adheres to the {@link IndexMetaData#SETTING_WAIT_FOR_ACTIVE_SHARDS}.
      */
     public void testDefaultWaitForActiveShardsUsesIndexSetting() throws Exception {
-        final String indexName = "test";
         final int numReplicas = internalCluster().numDataNodes();
         Settings settings = Settings.builder()
                                 .put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(numReplicas))
                                 .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                 .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicas)
                                 .build();
-        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(settings).get());
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
 
         // all should fail
         settings = Settings.builder()
                        .put(settings)
                        .put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "all")
                        .build();
-        assertFalse(client().admin().indices().prepareCreate(indexName).setSettings(settings).setTimeout("100ms").get().isShardsAcked());
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertFalse(client().admin().indices().prepareCreate("test-idx-2").setSettings(settings).setTimeout("100ms").get().isShardsAcked());
 
         // the numeric equivalent of all should also fail
         settings = Settings.builder()
                        .put(settings)
                        .put(SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), Integer.toString(numReplicas + 1))
                        .build();
-        assertFalse(client().admin().indices().prepareCreate(indexName).setSettings(settings).setTimeout("100ms").get().isShardsAcked());
+        assertFalse(client().admin().indices().prepareCreate("test-idx-3").setSettings(settings).setTimeout("100ms").get().isShardsAcked());
     }
 }

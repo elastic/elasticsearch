@@ -54,26 +54,10 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
     }
 
     public void testIllegalArguments() {
-        try {
-            new BoostingQueryBuilder(null, new MatchAllQueryBuilder());
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            //
-        }
-
-        try {
-            new BoostingQueryBuilder(new MatchAllQueryBuilder(), null);
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            //
-        }
-
-        try {
-            new BoostingQueryBuilder(new MatchAllQueryBuilder(), new MatchAllQueryBuilder()).negativeBoost(-1.0f);
-            fail("must not be negative");
-        } catch (IllegalArgumentException e) {
-            //
-        }
+        expectThrows(IllegalArgumentException.class, () -> new BoostingQueryBuilder(null, new MatchAllQueryBuilder()));
+        expectThrows(IllegalArgumentException.class, () -> new BoostingQueryBuilder(new MatchAllQueryBuilder(), null));
+        expectThrows(IllegalArgumentException.class,
+                () -> new BoostingQueryBuilder(new MatchAllQueryBuilder(), new MatchAllQueryBuilder()).negativeBoost(-1.0f));
     }
 
     public void testFromJson() throws IOException {
@@ -103,7 +87,6 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
 
         BoostingQueryBuilder queryBuilder = (BoostingQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);
-
         assertEquals(query, 42, queryBuilder.boost(), 0.00001);
         assertEquals(query, 23, queryBuilder.negativeBoost(), 0.00001);
         assertEquals(query, 8, queryBuilder.negativeQuery().boost(), 0.00001);

@@ -53,7 +53,7 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
     private volatile AtomicArray<ShardSearchFailure> shardFailures;
     final AtomicArray<QuerySearchResult> queryResults;
     final AtomicArray<FetchSearchResult> fetchResults;
-    private volatile ScoreDoc[] sortedShardList;
+    private volatile ScoreDoc[] sortedShardDocs;
     private final AtomicInteger successfulOps;
 
     SearchScrollQueryThenFetchAsyncAction(ESLogger logger, ClusterService clusterService,
@@ -165,9 +165,9 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
     }
 
     private void executeFetchPhase() throws Exception {
-        sortedShardList = searchPhaseController.sortDocs(true, queryResults);
+        sortedShardDocs = searchPhaseController.sortDocs(true, queryResults);
         AtomicArray<IntArrayList> docIdsToLoad = new AtomicArray<>(queryResults.length());
-        searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardList);
+        searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardDocs);
 
         if (docIdsToLoad.asList().isEmpty()) {
             finishHim();
@@ -175,7 +175,8 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
         }
 
 
-        final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(sortedShardList, queryResults.length());
+        final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(queryResults.asList(),
+            sortedShardDocs, queryResults.length());
         final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
         for (final AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
             IntArrayList docIds = entry.value;
@@ -216,7 +217,7 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
     }
 
     private void innerFinishHim() {
-        InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults);
+        InternalSearchResponse internalResponse = searchPhaseController.merge(true, sortedShardDocs, queryResults, fetchResults);
         String scrollId = null;
         if (request.scroll() != null) {
             scrollId = request.scrollId();

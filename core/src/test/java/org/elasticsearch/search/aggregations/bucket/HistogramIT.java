@@ -860,7 +860,7 @@ public class HistogramIT extends ESIntegTestCase {
                 return;
             }
 
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             if (invalidBoundsError) {
                 // expected
                 return;
@@ -937,7 +937,7 @@ public class HistogramIT extends ESIntegTestCase {
                 return;
             }
 
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             if (invalidBoundsError) {
                 // expected
                 return;

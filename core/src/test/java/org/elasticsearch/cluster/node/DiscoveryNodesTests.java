@@ -123,13 +123,13 @@ public class DiscoveryNodesTests extends ESTestCase {
         DiscoveryNode masterB = randomBoolean() ? null : RandomPicks.randomFrom(random(), nodesB);
 
         DiscoveryNodes.Builder builderA = DiscoveryNodes.builder();
-        nodesA.stream().forEach(builderA::put);
+        nodesA.stream().forEach(builderA::add);
         final String masterAId = masterA == null ? null : masterA.getId();
         builderA.masterNodeId(masterAId);
         builderA.localNodeId(RandomPicks.randomFrom(random(), nodesA).getId());
 
         DiscoveryNodes.Builder builderB = DiscoveryNodes.builder();
-        nodesB.stream().forEach(builderB::put);
+        nodesB.stream().forEach(builderB::add);
         final String masterBId = masterB == null ? null : masterB.getId();
         builderB.masterNodeId(masterBId);
         builderB.localNodeId(RandomPicks.randomFrom(random(), nodesB).getId());
@@ -186,7 +186,7 @@ public class DiscoveryNodesTests extends ESTestCase {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         List<DiscoveryNode> nodesList = randomNodes(numNodes);
         for (DiscoveryNode node : nodesList) {
-            discoBuilder = discoBuilder.put(node);
+            discoBuilder = discoBuilder.add(node);
         }
         discoBuilder.localNodeId(randomFrom(nodesList).getId());
         discoBuilder.masterNodeId(randomFrom(nodesList).getId());

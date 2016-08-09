@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.geo;
 
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -117,7 +118,7 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getField("point.lat"), nullValue());
         assertThat(doc.rootDoc().getField("point.lon"), nullValue());
-        assertThat(doc.rootDoc().get("point.geohash"), equalTo(stringEncode(1.3, 1.2)));
+        assertThat(doc.rootDoc().getBinaryValue("point.geohash"), equalTo(new BytesRef(stringEncode(1.3, 1.2))));
         assertThat(doc.rootDoc().get("point"), notNullValue());
     }
 

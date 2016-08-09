@@ -69,12 +69,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected ThreadPool threadPool;
 
     protected static final Version version0 = Version.CURRENT.minimumCompatibilityVersion();
-    protected DiscoveryNode nodeA;
-    protected MockTransportService serviceA;
+    protected volatile DiscoveryNode nodeA;
+    protected volatile MockTransportService serviceA;
 
     protected static final Version version1 = Version.fromId(Version.CURRENT.id + 1);
-    protected DiscoveryNode nodeB;
-    protected MockTransportService serviceB;
+    protected volatile DiscoveryNode nodeB;
+    protected volatile MockTransportService serviceB;
 
     protected abstract MockTransportService build(Settings settings, Version version);
 
@@ -489,9 +489,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(latch.await(5, TimeUnit.SECONDS), equalTo(true));
     }
 
-    @TestLogging("transport:DEBUG,transport.tracer:TRACE")
-    // boaz is on this
-    @AwaitsFix(bugUrl = "https://elasticsearch-ci.elastic.co/job/elastic+elasticsearch+master+multijob-os-compatibility/os=oraclelinux/835")
     public void testConcurrentSendRespondAndDisconnect() throws BrokenBarrierException, InterruptedException {
         Set<Exception> sendingErrors = ConcurrentCollections.newConcurrentSet();
         Set<Exception> responseErrors = ConcurrentCollections.newConcurrentSet();

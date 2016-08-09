@@ -69,6 +69,7 @@ dependencies {
   compile 'org.joda:joda-convert:1.2'
 
   // json and yaml
+  compile "org.yaml:snakeyaml:${versions.snakeyaml}"
   compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"

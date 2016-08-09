@@ -21,6 +21,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.xcontent.XContentLocation;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -36,8 +37,8 @@ public class GreaterThanEqualToAssertion extends Assertion {
 
     private static final ESLogger logger = Loggers.getLogger(GreaterThanEqualToAssertion.class);
 
-    public GreaterThanEqualToAssertion(String field, Object expectedValue) {
-        super(field, expectedValue);
+    public GreaterThanEqualToAssertion(XContentLocation location, String field, Object expectedValue) {
+        super(location, field, expectedValue);
     }
 
     @Override

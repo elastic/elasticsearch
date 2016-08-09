@@ -345,7 +345,8 @@ public class Node implements Closeable {
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
             client = new NodeClient(settings, threadPool);
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
-                .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService).stream())
+                .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
+                                                 scriptModule.getScriptService()).stream())
                 .collect(Collectors.toList());
             modules.add(b -> {
                     b.bind(PluginsService.class).toInstance(pluginsService);

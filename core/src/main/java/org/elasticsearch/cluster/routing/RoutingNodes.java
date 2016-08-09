@@ -108,7 +108,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                                 k -> new LinkedHashMap<>()); // LinkedHashMap to preserve order
                             // add the counterpart shard with relocatingNodeId reflecting the source from which
                             // it's relocating from.
-                            ShardRouting targetShardRouting = shard.buildTargetRelocatingShard();
+                            ShardRouting targetShardRouting = shard.getTargetRelocatingShard();
                             addInitialRecovery(targetShardRouting, indexShard.primary);
                             previousValue = entries.put(targetShardRouting.shardId(), targetShardRouting);
                             if (previousValue != null) {
@@ -276,6 +276,20 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return replicaSet == null ? EMPTY : Collections.unmodifiableList(replicaSet);
     }
 
+    @Nullable
+    public ShardRouting getByAllocationId(ShardId shardId, String allocationId) {
+        final List<ShardRouting> replicaSet = assignedShards.get(shardId);
+        if (replicaSet == null) {
+            return null;
+        }
+        for (ShardRouting shardRouting : replicaSet) {
+            if (shardRouting.allocationId().getId().equals(allocationId)) {
+                return shardRouting;
+            }
+        }
+        return null;
+    }
+
     /**
      * Returns the active primary shard for the given shard id or <code>null</code> if
      * no primary is found or the primary is not active.
@@ -406,7 +420,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         ensureMutable();
         relocatingShards++;
         ShardRouting source = shard.relocate(nodeId, expectedShardSize);
-        ShardRouting target = source.buildTargetRelocatingShard();
+        ShardRouting target = source.getTargetRelocatingShard();
         updateAssigned(shard, source);
         node(target.currentNodeId()).add(target);
         assignedShardsAdd(target);

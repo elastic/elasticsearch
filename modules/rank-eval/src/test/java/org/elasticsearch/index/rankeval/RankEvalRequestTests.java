@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionAtN.Rating;
 import org.elasticsearch.index.rankeval.QuerySpec;
 import org.elasticsearch.index.rankeval.RankEvalAction;
@@ -36,6 +38,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map.Entry;
@@ -74,24 +77,19 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
     }
 
     public void testPrecisionAtRequest() {
-        ArrayList<String> indices = new ArrayList<>();
-        indices.add("test");
-        ArrayList<String> types = new ArrayList<>();
-        types.add("testtype");
+        List<String> indices = Arrays.asList(new String[] { "test" });
+        List<String> types = Arrays.asList(new String[] { "testtype" });
 
         String specId = randomAsciiOfLength(10);
         List<QuerySpec> specifications = new ArrayList<>();
         SearchSourceBuilder testQuery = new SearchSourceBuilder();
         testQuery.query(new MatchAllQueryBuilder());
-        specifications.add(new QuerySpec("amsterdam_query",  testQuery, indices, types, createRelevant("2", "3", "4", "5")));
-        specifications.add(new QuerySpec("berlin_query",  testQuery, indices, types, createRelevant("1")));
+        specifications.add(new QuerySpec("amsterdam_query", testQuery, indices, types, createRelevant("2", "3", "4", "5")));
+        specifications.add(new QuerySpec("berlin_query", testQuery, indices, types, createRelevant("1")));
 
         RankEvalSpec task = new RankEvalSpec(specId, specifications, new PrecisionAtN(10));
 
-        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(
-                client(),
-                RankEvalAction.INSTANCE,
-                new RankEvalRequest());
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
@@ -107,6 +105,31 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
                 assertEquals(5, entry.getValue().size());
             }
         }
+    }
+
+    /**
+     * test that running a bad query (e.g. one that will target a non existing field) will error
+     */
+    public void testBadQuery() {
+        List<String> indices = Arrays.asList(new String[] { "test" });
+        List<String> types = Arrays.asList(new String[] { "testtype" });
+
+        String specId = randomAsciiOfLength(10);
+        List<QuerySpec> specifications = new ArrayList<>();
+        SearchSourceBuilder amsterdamQuery = new SearchSourceBuilder();
+        amsterdamQuery.query(new MatchAllQueryBuilder());
+        specifications.add(new QuerySpec("amsterdam_query", amsterdamQuery, indices, types, createRelevant("2", "3", "4", "5")));
+        SearchSourceBuilder brokenQuery = new SearchSourceBuilder();
+        RangeQueryBuilder brokenRangeQuery = new RangeQueryBuilder("text").timeZone("CET");
+        brokenQuery.query(brokenRangeQuery);
+        specifications.add(new QuerySpec("broken_query", brokenQuery, indices, types, createRelevant("1")));
+
+        RankEvalSpec task = new RankEvalSpec(specId, specifications, new PrecisionAtN(10));
+
+        RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
+        builder.setRankEvalSpec(task);
+
+        expectThrows(SearchPhaseExecutionException.class, () -> client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet());
     }
 
     private static List<RatedDocument> createRelevant(String... docs) {

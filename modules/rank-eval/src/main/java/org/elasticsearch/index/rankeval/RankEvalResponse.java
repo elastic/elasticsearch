@@ -51,10 +51,6 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
     public RankEvalResponse() {
     }
 
-    public RankEvalResponse(StreamInput in) throws IOException {
-        this.readFrom(in);
-    }
-
     public RankEvalResponse(String specId, double qualityLevel, Map<String, Collection<RatedDocumentKey>> unknownDocs) {
         this.specId = specId;
         this.qualityLevel = qualityLevel;
@@ -62,7 +58,7 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
     }
 
 
-    public Object getSpecId() {
+    public String getSpecId() {
         return specId;
     }
 
@@ -82,8 +78,8 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalString(specId);
-        out.writeOptionalDouble(qualityLevel);
+        out.writeString(specId);
+        out.writeDouble(qualityLevel);
         out.writeGenericValue(getUnknownDocs());
     }
 
@@ -91,9 +87,9 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
     @SuppressWarnings("unchecked")
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        this.specId = in.readOptionalString();
-        this.qualityLevel = in.readOptionalDouble();
-        this.unknownDocs = (Map<String, Collection<String>>) in.readGenericValue();
+        this.specId = in.readString();
+        this.qualityLevel = in.readDouble();
+        this.unknownDocs = (Map<String, Collection<RatedDocumentKey>>) in.readGenericValue();
     }
 
     @Override

@@ -109,6 +109,7 @@ public class ReciprocalRank extends RankedListQualityMetric {
         int firstRelevant = -1;
         boolean found = false;
         for (int i = 0; i < hits.length; i++) {
+            // TODO here we use index/type/id triple not for a rated document but an unrated document in the search hits. Maybe rename?
             RatedDocumentKey id = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].getId());
             if (relevantDocIds.contains(id)) {
                 if (found == false && i < maxAcceptableRank) {

@@ -63,16 +63,15 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     @Override
     protected void doExecute(RankEvalRequest request, ActionListener<RankEvalResponse> listener) {
         RankEvalSpec qualityTask = request.getRankEvalSpec();
-        RankedListQualityMetric metric = qualityTask.getEvaluator();
 
         Map<String, Collection<RatedDocumentKey>> unknownDocs = new HashMap<>();
         Collection<QuerySpec> specifications = qualityTask.getSpecifications();
-        AtomicInteger numberOfEvaluationQueries = new AtomicInteger(specifications.size());
+        AtomicInteger responseCounter = new AtomicInteger(specifications.size());
         Map<String, EvalQueryQuality> partialResults = new ConcurrentHashMap<>(specifications.size());
 
         for (QuerySpec querySpecification : specifications) {
             final RankEvalActionListener searchListener = new RankEvalActionListener(listener, qualityTask, querySpecification,
-                    partialResults, unknownDocs, numberOfEvaluationQueries);
+                    partialResults, unknownDocs, responseCounter);
             SearchSourceBuilder specRequest = querySpecification.getTestRequest();
             String[] indices = new String[querySpecification.getIndices().size()];
             querySpecification.getIndices().toArray(indices);
@@ -111,7 +110,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             partialResults.put(specification.getSpecId(), queryQuality);
             unknownDocs.put(specification.getSpecId(), queryQuality.getUnknownDocs());
 
-            if (responseCounter.decrementAndGet() == 0) {
+            if (responseCounter.decrementAndGet() < 1) {
                 // TODO add other statistics like micro/macro avg?
                 listener.onResponse(
                         new RankEvalResponse(task.getTaskId(), task.getEvaluator().combine(partialResults.values()), unknownDocs));
@@ -120,7 +119,6 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
 
         @Override
         public void onFailure(Exception exception) {
-            // TODO this fails the complete request. Investigate if maybe we want to collect errors and still return partial result.
             this.listener.onFailure(exception);
         }
     }

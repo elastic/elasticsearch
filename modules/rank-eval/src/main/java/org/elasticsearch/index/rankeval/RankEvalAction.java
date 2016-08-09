@@ -43,5 +43,4 @@ public class RankEvalAction extends Action<RankEvalRequest, RankEvalResponse, Ra
     public RankEvalResponse newResponse() {
         return new RankEvalResponse();
     }
-
 }

@@ -33,12 +33,12 @@ import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.oio.OioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.channel.socket.oio.OioServerSocketChannel;
 import io.netty.channel.socket.oio.OioSocketChannel;
 import io.netty.util.concurrent.Future;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -495,7 +495,8 @@ public class Netty4Transport extends TcpTransport<Channel> {
             for (final Tuple<String, Future<?>> future : serverBootstrapCloseFutures) {
                 future.v2().awaitUninterruptibly();
                 if (!future.v2().isSuccess()) {
-                    logger.debug("Error closing server bootstrap for profile [{}]", future.v2().cause(), future.v1());
+                    logger.debug(
+                        new ParameterizedMessage("Error closing server bootstrap for profile [{}]", future.v1()), future.v2().cause());
                 }
             }
             serverBootstraps.clear();

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequest;
@@ -30,8 +31,8 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
-import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
+import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -183,9 +184,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private <ReplicationRequestT extends ReplicationRequest<ReplicationRequestT>> void logFailure(Throwable t, String operation, ShardId shardId, ReplicationRequest<ReplicationRequestT> request) {
         if (ExceptionsHelper.status(t) == RestStatus.CONFLICT) {
-            logger.trace("{} failed to execute bulk item ({}) {}", t, shardId, operation, request);
+            logger.trace(new ParameterizedMessage("{} failed to execute bulk item ({}) {}", shardId, operation, request), t);
         } else {
-            logger.debug("{} failed to execute bulk item ({}) {}", t, shardId, operation, request);
+            logger.debug(new ParameterizedMessage("{} failed to execute bulk item ({}) {}", shardId, operation, request), t);
         }
     }
 

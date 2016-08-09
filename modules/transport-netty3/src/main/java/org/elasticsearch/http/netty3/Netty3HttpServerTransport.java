@@ -21,6 +21,7 @@ package org.elasticsearch.http.netty3;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -495,10 +496,18 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
                 return;
             }
             if (!NetworkExceptionHelper.isCloseConnectionException(e.getCause())) {
-                logger.warn("Caught exception while handling client http traffic, closing connection {}", e.getCause(), ctx.getChannel());
+                logger.warn(
+                    new ParameterizedMessage(
+                        "Caught exception while handling client http traffic, closing connection {}",
+                        ctx.getChannel()),
+                    e.getCause());
                 ctx.getChannel().close();
             } else {
-                logger.debug("Caught exception while handling client http traffic, closing connection {}", e.getCause(), ctx.getChannel());
+                logger.debug(
+                    new ParameterizedMessage(
+                        "Caught exception while handling client http traffic, closing connection {}",
+                        ctx.getChannel()),
+                    e.getCause());
                 ctx.getChannel().close();
             }
         }

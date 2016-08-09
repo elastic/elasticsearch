@@ -20,12 +20,13 @@
 package org.elasticsearch.action.search;
 
 import com.carrotsearch.hppc.IntArrayList;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.search.controller.SearchPhaseController;
@@ -43,7 +44,7 @@ import static org.elasticsearch.action.search.TransportSearchHelper.internalScro
 
 class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
 
-    private final ESLogger logger;
+    private final Logger logger;
     private final SearchTransportService searchTransportService;
     private final SearchPhaseController searchPhaseController;
     private final SearchScrollRequest request;
@@ -56,7 +57,7 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
     private volatile ScoreDoc[] sortedShardDocs;
     private final AtomicInteger successfulOps;
 
-    SearchScrollQueryThenFetchAsyncAction(ESLogger logger, ClusterService clusterService,
+    SearchScrollQueryThenFetchAsyncAction(Logger logger, ClusterService clusterService,
                                           SearchTransportService searchTransportService, SearchPhaseController searchPhaseController,
                                           SearchScrollRequest request, ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
         this.logger = logger;
@@ -146,7 +147,7 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
 
     void onQueryPhaseFailure(final int shardIndex, final AtomicInteger counter, final long searchId, Exception failure) {
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}] Failed to execute query phase", failure, searchId);
+            logger.debug(new ParameterizedMessage("[{}] Failed to execute query phase", searchId), failure);
         }
         addShardFailure(shardIndex, new ShardSearchFailure(failure));
         successfulOps.decrementAndGet();

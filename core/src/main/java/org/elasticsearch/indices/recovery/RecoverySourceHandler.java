@@ -19,6 +19,8 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -36,7 +38,6 @@ import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
@@ -72,7 +73,7 @@ import java.util.stream.StreamSupport;
  */
 public class RecoverySourceHandler {
 
-    protected final ESLogger logger;
+    protected final Logger logger;
     // Shard that is going to be recovered (the "source")
     private final IndexShard shard;
     private final String indexName;
@@ -107,7 +108,7 @@ public class RecoverySourceHandler {
                                  final Supplier<Long> currentClusterStateVersionSupplier,
                                  Function<String, Releasable> delayNewRecoveries,
                                  final int fileChunkSizeInBytes,
-                                 final ESLogger logger) {
+                                 final Logger logger) {
         this.shard = shard;
         this.recoveryTarget = recoveryTarget;
         this.request = request;
@@ -314,8 +315,12 @@ public class RecoverySourceHandler {
                         RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but " +
                                 "checksums are ok", null);
                         exception.addSuppressed(targetException);
-                        logger.warn("{} Remote file corruption during finalization of recovery on node {}. local checksum OK",
-                                corruptIndexException, shard.shardId(), request.targetNode());
+                        logger.warn(
+                            new ParameterizedMessage(
+                                "{} Remote file corruption during finalization of recovery on node {}. local checksum OK",
+                                shard.shardId(),
+                                request.targetNode()),
+                            corruptIndexException);
                         throw exception;
                     } else {
                         throw targetException;
@@ -557,8 +562,13 @@ public class RecoverySourceHandler {
                             RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but " +
                                     "checksums are ok", null);
                             exception.addSuppressed(e);
-                            logger.warn("{} Remote file corruption on node {}, recovering {}. local checksum OK",
-                                    corruptIndexException, shardId, request.targetNode(), md);
+                            logger.warn(
+                                new ParameterizedMessage(
+                                    "{} Remote file corruption on node {}, recovering {}. local checksum OK",
+                                    shardId,
+                                    request.targetNode(),
+                                    md),
+                                corruptIndexException);
                             throw exception;
                         }
                     } else {

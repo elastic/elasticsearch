@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -113,16 +114,16 @@ public class RoutingService extends AbstractLifecycleComponent {
                     rerouting.set(false);
                     ClusterState state = clusterService.state();
                     if (logger.isTraceEnabled()) {
-                        logger.error("unexpected failure during [{}], current state:\n{}", e, source, state.prettyPrint());
+                        logger.error(new ParameterizedMessage("unexpected failure during [{}], current state:\n{}", source, state.prettyPrint()), e);
                     } else {
-                        logger.error("unexpected failure during [{}], current state version [{}]", e, source, state.version());
+                        logger.error(new ParameterizedMessage("unexpected failure during [{}], current state version [{}]", source, state.version()), e);
                     }
                 }
             });
         } catch (Exception e) {
             rerouting.set(false);
             ClusterState state = clusterService.state();
-            logger.warn("failed to reroute routing table, current state:\n{}", e, state.prettyPrint());
+            logger.warn(new ParameterizedMessage("failed to reroute routing table, current state:\n{}", state.prettyPrint()), e);
         }
     }
 }

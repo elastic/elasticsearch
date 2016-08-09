@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -105,7 +106,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    logger.error("unexpected failure during [{}]", e, source);
+                    logger.error(new ParameterizedMessage("unexpected failure during [{}]", source), e);
                     listener.onFailure(e);
                 }
 

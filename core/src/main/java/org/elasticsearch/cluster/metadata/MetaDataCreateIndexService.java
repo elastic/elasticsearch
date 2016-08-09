@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -446,9 +447,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     @Override
                     public void onFailure(String source, Exception e) {
                         if (e instanceof IndexAlreadyExistsException) {
-                            logger.trace("[{}] failed to create", e, request.index());
+                            logger.trace(new ParameterizedMessage("[{}] failed to create", request.index()), e);
                         } else {
-                            logger.debug("[{}] failed to create", e, request.index());
+                            logger.debug(new ParameterizedMessage("[{}] failed to create", request.index()), e);
                         }
                         super.onFailure(source, e);
                     }

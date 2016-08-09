@@ -22,6 +22,7 @@ package org.elasticsearch.discovery.gce;
 import com.google.api.services.compute.model.AccessConfig;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.NetworkInterface;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.gce.GceInstancesService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -245,7 +246,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                         }
                     }
                 } catch (Exception e) {
-                    logger.warn("failed to add {}, address {}", e, name, ip_private);
+                    logger.warn(new ParameterizedMessage("failed to add {}, address {}", name, ip_private), e);
                 }
 
             }

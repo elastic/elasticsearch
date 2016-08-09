@@ -27,6 +27,7 @@ import com.microsoft.azure.storage.blob.CloudBlobClient;
 import com.microsoft.azure.storage.blob.CloudBlobContainer;
 import com.microsoft.azure.storage.blob.CloudBlockBlob;
 import com.microsoft.azure.storage.blob.ListBlobItem;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
@@ -172,7 +173,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
             logger.trace("creating container [{}]", container);
             blobContainer.createIfNotExists();
         } catch (IllegalArgumentException e) {
-            logger.trace("fails creating container [{}]", e, container);
+            logger.trace(() -> new ParameterizedMessage("fails creating container [{}]", container), e);
             throw new RepositoryException(container, e.getMessage());
         }
     }

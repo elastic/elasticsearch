@@ -19,10 +19,11 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -100,7 +101,7 @@ final class BootstrapCheck {
             final boolean enforceLimits,
             final boolean ignoreSystemChecks,
             final List<Check> checks,
-            final ESLogger logger) {
+            final Logger logger) {
         final List<String> errors = new ArrayList<>();
         final List<String> ignoredErrors = new ArrayList<>();
 
@@ -136,7 +137,7 @@ final class BootstrapCheck {
 
     }
 
-    static void log(final ESLogger logger, final String error) {
+    static void log(final Logger logger, final String error) {
         logger.warn(error);
     }
 
@@ -417,7 +418,7 @@ final class BootstrapCheck {
         }
 
         // visible for testing
-        long getMaxMapCount(ESLogger logger) {
+        long getMaxMapCount(Logger logger) {
             final Path path = getProcSysVmMaxMapCountPath();
             try (final BufferedReader bufferedReader = getBufferedReader(path)) {
                 final String rawProcSysVmMaxMapCount = readProcSysVmMaxMapCount(bufferedReader);
@@ -425,11 +426,11 @@ final class BootstrapCheck {
                     try {
                         return parseProcSysVmMaxMapCount(rawProcSysVmMaxMapCount);
                     } catch (final NumberFormatException e) {
-                        logger.warn("unable to parse vm.max_map_count [{}]", e, rawProcSysVmMaxMapCount);
+                        logger.warn(new ParameterizedMessage("unable to parse vm.max_map_count [{}]", rawProcSysVmMaxMapCount), e);
                     }
                 }
             } catch (final IOException e) {
-                logger.warn("I/O exception while trying to read [{}]", e, path);
+                logger.warn(new ParameterizedMessage("I/O exception while trying to read [{}]", path), e);
             }
             return -1;
         }

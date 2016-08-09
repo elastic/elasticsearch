@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.local;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -71,9 +72,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 
-/**
- *
- */
 public class LocalTransport extends AbstractLifecycleComponent implements Transport {
 
     public static final String LOCAL_TRANSPORT_THREAD_NAME_PREFIX = "local_transport";
@@ -306,7 +304,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
                     });
                 }
             } else {
-                logger.warn("Failed to receive message for action [{}]", e, action);
+                logger.warn(new ParameterizedMessage("Failed to receive message for action [{}]", action), e);
             }
         }
     }
@@ -355,7 +353,8 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
                                 transportChannel.sendResponse(e);
                             } catch (Exception inner) {
                                 inner.addSuppressed(e);
-                                logger.warn("Failed to send error message back to client for action [{}]", inner, action);
+                                logger.warn(
+                                    new ParameterizedMessage("Failed to send error message back to client for action [{}]", action), inner);
                             }
                         }
                     }
@@ -366,7 +365,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
                 transportChannel.sendResponse(e);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
-                logger.warn("Failed to send error message back to client for action [{}]", inner, action);
+                logger.warn(new ParameterizedMessage("Failed to send error message back to client for action [{}]", action), inner);
             }
 
         }
@@ -414,7 +413,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
         try {
             handler.handleException(rtx);
         } catch (Exception e) {
-            logger.error("failed to handle exception response [{}]", e, handler);
+            logger.error(new ParameterizedMessage("failed to handle exception response [{}]", handler), e);
         }
     }
 

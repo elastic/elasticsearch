@@ -21,7 +21,6 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -54,7 +53,7 @@ public class PluginCli extends MultiCommand {
                 .put("rootLogger", "${logger.level}, terminal")
                 .put("logger.level", loggerLevel)
                 .build(), Terminal.DEFAULT);
-        LogConfigurator.configure(loggingEnvironment.settings(), false);
+        // LogConfigurator.configure(loggingEnvironment.settings(), false);
 
         exit(new PluginCli().main(args, Terminal.DEFAULT));
     }

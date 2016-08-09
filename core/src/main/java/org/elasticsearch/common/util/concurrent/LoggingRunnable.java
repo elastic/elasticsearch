@@ -19,17 +19,15 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 
-/**
- */
 public class LoggingRunnable implements Runnable {
 
     private final Runnable runnable;
+    private final Logger logger;
 
-    private final ESLogger logger;
-
-    public LoggingRunnable(ESLogger logger, Runnable runnable) {
+    public LoggingRunnable(Logger logger, Runnable runnable) {
         this.runnable = runnable;
         this.logger = logger;
     }
@@ -39,7 +37,8 @@ public class LoggingRunnable implements Runnable {
         try {
             runnable.run();
         } catch (Exception e) {
-            logger.warn("failed to execute [{}]", e, runnable.toString());
+            logger.warn(new ParameterizedMessage("failed to execute [{}]", runnable.toString()), e);
         }
     }
+
 }

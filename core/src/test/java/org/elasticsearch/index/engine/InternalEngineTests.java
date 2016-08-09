@@ -20,11 +20,12 @@
 package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.apache.log4j.AppenderSkeleton;
-import org.apache.log4j.Level;
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
-import org.apache.log4j.spi.LoggingEvent;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -58,8 +59,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.PrefixMessageFactory;
+import org.elasticsearch.common.logging.TestLoggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -1504,16 +1506,21 @@ public class InternalEngineTests extends ESTestCase {
         assertTrue(index.isCreated());
     }
 
-    private static class MockAppender extends AppenderSkeleton {
+    private static class MockAppender extends AbstractAppender {
         public boolean sawIndexWriterMessage;
 
         public boolean sawIndexWriterIFDMessage;
 
+        public MockAppender(final String name) throws IllegalAccessException {
+            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], true, null, null), null);
+        }
+
         @Override
-        protected void append(LoggingEvent event) {
-            if (event.getLevel() == Level.TRACE && event.getMessage().toString().contains("[index][1] ")) {
+        public void append(LogEvent event) {
+            final String formattedMessage = event.getMessage().getFormattedMessage();
+            if (event.getLevel() == Level.TRACE && formattedMessage.contains("[index][1] ")) {
                 if (event.getLoggerName().endsWith("lucene.iw") &&
-                        event.getMessage().toString().contains("IW: apply all deletes during flush")) {
+                    formattedMessage.contains("IW: apply all deletes during flush")) {
                     sawIndexWriterMessage = true;
                 }
                 if (event.getLoggerName().endsWith("lucene.iw.ifd")) {
@@ -1521,28 +1528,20 @@ public class InternalEngineTests extends ESTestCase {
                 }
             }
         }
-
-        @Override
-        public boolean requiresLayout() {
-            return false;
-        }
-
-        @Override
-        public void close() {
-        }
     }
 
     // #5891: make sure IndexWriter's infoStream output is
     // sent to lucene.iw with log level TRACE:
 
-    public void testIndexWriterInfoStream() {
+    public void testIndexWriterInfoStream() throws IllegalAccessException {
         assumeFalse("who tests the tester?", VERBOSE);
-        MockAppender mockAppender = new MockAppender();
+        MockAppender mockAppender = new MockAppender("testIndexWriterInfoStream");
 
-        Logger rootLogger = Logger.getRootLogger();
+        Logger rootLogger = LogManager.getRootLogger();
         Level savedLevel = rootLogger.getLevel();
-        rootLogger.addAppender(mockAppender);
-        rootLogger.setLevel(Level.DEBUG);
+        TestLoggers.addAppender(rootLogger, mockAppender);
+        Loggers.setLevel(rootLogger, Level.DEBUG);
+        rootLogger = LogManager.getRootLogger();
 
         try {
             // First, with DEBUG, which should NOT log IndexWriter output:
@@ -1552,32 +1551,35 @@ public class InternalEngineTests extends ESTestCase {
             assertFalse(mockAppender.sawIndexWriterMessage);
 
             // Again, with TRACE, which should log IndexWriter output:
-            rootLogger.setLevel(Level.TRACE);
+            Loggers.setLevel(rootLogger, Level.TRACE);
             engine.index(new Engine.Index(newUid("2"), doc));
             engine.flush();
             assertTrue(mockAppender.sawIndexWriterMessage);
 
         } finally {
-            rootLogger.removeAppender(mockAppender);
-            rootLogger.setLevel(savedLevel);
+            TestLoggers.removeAppender(rootLogger, mockAppender);
+            Loggers.setLevel(rootLogger, savedLevel.toString());
         }
     }
 
     // #8603: make sure we can separately log IFD's messages
-    public void testIndexWriterIFDInfoStream() {
+    public void testIndexWriterIFDInfoStream() throws IllegalAccessException {
         assumeFalse("who tests the tester?", VERBOSE);
-        MockAppender mockAppender = new MockAppender();
+        MockAppender mockAppender = new MockAppender("testIndexWriterIFDInfoStream");
 
-        // Works when running this test inside Intellij:
-        Logger iwIFDLogger = LogManager.exists("org.elasticsearch.index.engine.lucene.iw.ifd");
-        if (iwIFDLogger == null) {
-            // Works when running this test from command line:
-            iwIFDLogger = LogManager.exists("index.engine.lucene.iw.ifd");
+        final Logger iwIFDLogger;
+        if (LogManager.getContext(false).hasLogger("org.elasticsearch.index.engine.lucene.iw.ifd", new PrefixMessageFactory())) {
+            // Works when running this test inside Intellij:
+            iwIFDLogger = LogManager.getLogger("org.elasticsearch.index.engine.lucene.iw.ifd");
             assertNotNull(iwIFDLogger);
+        } else {
+            // Works when running this test from command line:
+            assertTrue(LogManager.getContext(false).hasLogger("index.engine.lucene.iw.ifd", new PrefixMessageFactory()));
+            iwIFDLogger = LogManager.getLogger("index.engine.lucene.iw.ifd");
         }
 
-        iwIFDLogger.addAppender(mockAppender);
-        iwIFDLogger.setLevel(Level.DEBUG);
+        TestLoggers.addAppender(iwIFDLogger, mockAppender);
+        Loggers.setLevel(iwIFDLogger, Level.DEBUG);
 
         try {
             // First, with DEBUG, which should NOT log IndexWriter output:
@@ -1588,15 +1590,15 @@ public class InternalEngineTests extends ESTestCase {
             assertFalse(mockAppender.sawIndexWriterIFDMessage);
 
             // Again, with TRACE, which should only log IndexWriter IFD output:
-            iwIFDLogger.setLevel(Level.TRACE);
+            Loggers.setLevel(iwIFDLogger, Level.TRACE);
             engine.index(new Engine.Index(newUid("2"), doc));
             engine.flush();
             assertFalse(mockAppender.sawIndexWriterMessage);
             assertTrue(mockAppender.sawIndexWriterIFDMessage);
 
         } finally {
-            iwIFDLogger.removeAppender(mockAppender);
-            iwIFDLogger.setLevel(null);
+            TestLoggers.removeAppender(iwIFDLogger, mockAppender);
+            Loggers.setLevel(iwIFDLogger, (Level) null);
         }
     }
 
@@ -2003,7 +2005,7 @@ public class InternalEngineTests extends ESTestCase {
 
         public final AtomicInteger recoveredOps = new AtomicInteger(0);
 
-        public TranslogHandler(String indexName, ESLogger logger) {
+        public TranslogHandler(String indexName, Logger logger) {
             super(new ShardId("test", "_na_", 0), null, logger);
             Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
             RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("test");

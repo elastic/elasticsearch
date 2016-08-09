@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -144,7 +145,7 @@ public class TransportClearScrollAction extends HandledTransportAction<ClearScro
         }
 
         void onFailedFreedContext(Throwable e, DiscoveryNode node) {
-            logger.warn("Clear SC failed on node[{}]", e, node);
+            logger.warn(new ParameterizedMessage("Clear SC failed on node[{}]", node), e);
             if (expectedOps.countDown()) {
                 listener.onResponse(new ClearScrollResponse(false, numberOfFreedSearchContexts.get()));
             } else {

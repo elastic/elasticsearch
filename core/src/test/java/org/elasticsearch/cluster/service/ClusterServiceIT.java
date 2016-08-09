@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.cluster.service;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -125,7 +126,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error("failed to execute callback in test {}", e, source);
+                logger.error(new ParameterizedMessage("failed to execute callback in test {}", source), e);
                 onFailure.set(true);
                 latch.countDown();
             }
@@ -196,7 +197,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error("failed to execute callback in test {}", e, source);
+                logger.error(new ParameterizedMessage("failed to execute callback in test {}", source), e);
                 onFailure.set(true);
                 latch.countDown();
             }
@@ -270,7 +271,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error("failed to execute callback in test {}", e, source);
+                logger.error(new ParameterizedMessage("failed to execute callback in test {}", source), e);
                 onFailure.set(true);
                 latch.countDown();
             }
@@ -344,7 +345,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.error("failed to execute callback in test {}", e, source);
+                logger.error(new ParameterizedMessage("failed to execute callback in test {}", source), e);
                 onFailure.set(true);
                 latch.countDown();
             }

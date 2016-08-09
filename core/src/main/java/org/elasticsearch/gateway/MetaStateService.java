@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
@@ -127,7 +128,7 @@ public class MetaStateService extends AbstractComponent {
             IndexMetaData.FORMAT.write(indexMetaData,
                 nodeEnv.indexPaths(indexMetaData.getIndex()));
         } catch (Exception ex) {
-            logger.warn("[{}]: failed to write index state", ex, index);
+            logger.warn(new ParameterizedMessage("[{}]: failed to write index state", index), ex);
             throw new IOException("failed to write state for [" + index + "]", ex);
         }
     }

@@ -20,13 +20,14 @@
 package org.elasticsearch.action.search;
 
 import com.carrotsearch.hppc.IntArrayList;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchTransportService;
@@ -46,7 +47,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
     final AtomicArray<FetchSearchResult> fetchResults;
     final AtomicArray<IntArrayList> docIdsToLoad;
 
-    SearchQueryThenFetchAsyncAction(ESLogger logger, SearchTransportService searchService,
+    SearchQueryThenFetchAsyncAction(Logger logger, SearchTransportService searchService,
                                             ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
                                             SearchPhaseController searchPhaseController, ThreadPool threadPool,
                                             SearchRequest request, ActionListener<SearchResponse> listener) {
@@ -115,7 +116,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
     void onFetchFailure(Exception e, ShardFetchSearchRequest fetchSearchRequest, int shardIndex, SearchShardTarget shardTarget,
                         AtomicInteger counter) {
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}] Failed to execute fetch phase", e, fetchSearchRequest.id());
+            logger.debug(new ParameterizedMessage("[{}] Failed to execute fetch phase", fetchSearchRequest.id()), e);
         }
         this.addShardFailure(shardIndex, shardTarget, e);
         successfulOps.decrementAndGet();

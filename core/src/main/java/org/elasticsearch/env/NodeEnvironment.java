@@ -19,6 +19,8 @@
 
 package org.elasticsearch.env;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
@@ -36,7 +38,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -83,7 +84,7 @@ import static java.util.Collections.unmodifiableSet;
  */
 public final class NodeEnvironment  implements Closeable {
 
-    private final ESLogger logger;
+    private final Logger logger;
 
     public static class NodePath {
         /* ${data.paths}/nodes/{node.id} */
@@ -196,7 +197,7 @@ public final class NodeEnvironment  implements Closeable {
         boolean success = false;
 
         // trace logger to debug issues before the default node name is derived from the node id
-        ESLogger startupTraceLogger = Loggers.getLogger(getClass(), settings);
+        Logger startupTraceLogger = Loggers.getLogger(getClass(), settings);
 
         try {
             sharedDataPath = environment.sharedDataFile();
@@ -231,7 +232,7 @@ public final class NodeEnvironment  implements Closeable {
                         }
 
                     } catch (IOException e) {
-                        startupTraceLogger.trace("failed to obtain node lock on {}", e, dir.toAbsolutePath());
+                        startupTraceLogger.trace(new ParameterizedMessage("failed to obtain node lock on {}", dir.toAbsolutePath()), e);
                         lastException = new IOException("failed to obtain lock on " + dir.toAbsolutePath(), e);
                         // release all the ones that were obtained up until now
                         releaseAndNullLocks(locks);
@@ -392,7 +393,7 @@ public final class NodeEnvironment  implements Closeable {
      * scans the node paths and loads existing metaData file. If not found a new meta data will be generated
      * and persisted into the nodePaths
      */
-    private static NodeMetaData loadOrCreateNodeMetaData(Settings settings, ESLogger logger,
+    private static NodeMetaData loadOrCreateNodeMetaData(Settings settings, Logger logger,
                                                          NodePath... nodePaths) throws IOException {
         final Path[] paths = Arrays.stream(nodePaths).map(np -> np.path).toArray(Path[]::new);
         NodeMetaData metaData = NodeMetaData.FORMAT.loadLatestState(logger, paths);
@@ -884,7 +885,7 @@ public final class NodeEnvironment  implements Closeable {
                     logger.trace("releasing lock [{}]", lock);
                     lock.close();
                 } catch (IOException e) {
-                    logger.trace("failed to release lock [{}]", e, lock);
+                    logger.trace(new ParameterizedMessage("failed to release lock [{}]", lock), e);
                 }
             }
         }

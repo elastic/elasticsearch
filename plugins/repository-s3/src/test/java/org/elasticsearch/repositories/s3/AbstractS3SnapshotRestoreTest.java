@@ -24,6 +24,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -511,7 +512,7 @@ public abstract class AbstractS3SnapshotRestoreTest extends AbstractAwsTestCase 
                     client.deleteObjects(multiObjectDeleteRequest);
                 }
             } catch (Exception ex) {
-                logger.warn("Failed to delete S3 repository [{}] in [{}]", ex, bucketName, region);
+                logger.warn(new ParameterizedMessage("Failed to delete S3 repository [{}] in [{}]", bucketName, region), ex);
             }
         }
     }

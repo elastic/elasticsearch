@@ -1,0 +1,129 @@
+---
+"Response format":
+
+  - do:
+      index:
+        index:   foo
+        type:    bar
+        id:      doc1
+        body:    { "bar": 1 }
+
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc2
+        body:   { "bar": 2 }
+
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc3
+        body:   { "bar": 3 }
+        
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc4
+        body:   { "bar": 4 }
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc5
+        body:   { "bar": 5 }
+  - do:
+      index:
+        index:  foo
+        type:   bar
+        id:     doc6
+        body:   { "bar": 6 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      rank_eval:
+        body: {
+          "spec_id" : "dcg_qa_queries",
+          "requests" : [
+            {
+                "id": "dcg_query",
+                "request": { "query": { "match_all" : {}}, "sort" : [ "bar" ] },
+                "ratings": [
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc1"}, "rating": 3},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc2"}, "rating": 2},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc3"}, "rating": 3},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc4"}, "rating": 0},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc5"}, "rating": 1},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc6"}, "rating": 2}]
+            }
+          ],
+          "metric" : { "dcg_at_n": { "size": 6}}
+        }
+
+  - match: {rank_eval.spec_id: "dcg_qa_queries"}
+  - match: {rank_eval.quality_level: 13.84826362927298}
+
+# reverse the order in which the results are returned (less relevant docs first)
+
+  - do:
+      rank_eval:
+        body: {
+          "spec_id" : "dcg_qa_queries",
+          "requests" : [
+            {
+                "id": "dcg_query_reverse",
+                "request": { "query": { "match_all" : {}}, "sort" : [ {"bar" : "desc" }] },
+                "ratings": [
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc1"}, "rating": 3},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc2"}, "rating": 2},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc3"}, "rating": 3},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc4"}, "rating": 0},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc5"}, "rating": 1},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc6"}, "rating": 2}]
+            }, 
+          ],
+          "metric" : { "dcg_at_n": { "size": 6}}
+        }
+
+  - match: {rank_eval.spec_id: "dcg_qa_queries"}
+  - match: {rank_eval.quality_level: 10.29967439154499}
+
+# if we mix both, we should get the average
+  
+  - do:
+    rank_eval:
+      body: {
+        "spec_id" : "dcg_qa_queries",
+        "requests" : [
+          {
+              "id": "dcg_query",
+              "request": { "query": { "match_all" : {}}, "sort" : [ "bar" ] },
+              "ratings": [
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc1"}, "rating": 3},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc2"}, "rating": 2},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc3"}, "rating": 3},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc4"}, "rating": 0},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc5"}, "rating": 1},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc6"}, "rating": 2}]
+          },
+          {
+              "id": "dcg_query_reverse",
+              "request": { "query": { "match_all" : {}}, "sort" : [ {"bar" : "desc" }] },
+              "ratings": [
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc1"}, "rating": 3},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc2"}, "rating": 2},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc3"}, "rating": 3},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc4"}, "rating": 0},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc5"}, "rating": 1},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc6"}, "rating": 2}]
+          }, 
+        ],
+        "metric" : { "dcg_at_n": { "size": 6}}
+      }
+
+  - match: {rank_eval.spec_id: "dcg_qa_queries"}
+  - match: {rank_eval.quality_level: 12.073969010408984}

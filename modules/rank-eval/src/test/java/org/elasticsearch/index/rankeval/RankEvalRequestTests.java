@@ -20,7 +20,6 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.rankeval.PrecisionAtN;
 import org.elasticsearch.index.rankeval.PrecisionAtN.Rating;
 import org.elasticsearch.index.rankeval.QuerySpec;
 import org.elasticsearch.index.rankeval.RankEvalAction;
@@ -28,7 +27,6 @@ import org.elasticsearch.index.rankeval.RankEvalPlugin;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.rankeval.RankEvalRequestBuilder;
 import org.elasticsearch.index.rankeval.RankEvalResponse;
-import org.elasticsearch.index.rankeval.RankEvalResult;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedDocument;
 import org.elasticsearch.index.rankeval.RatedDocumentKey;
@@ -98,10 +96,9 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
         builder.setRankEvalSpec(task);
 
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
-        RankEvalResult result = response.getRankEvalResult();
-        assertEquals(specId, result.getSpecId());
-        assertEquals(1.0, result.getQualityLevel(), Double.MIN_VALUE);
-        Set<Entry<String, Collection<RatedDocumentKey>>> entrySet = result.getUnknownDocs().entrySet();
+        assertEquals(specId, response.getSpecId());
+        assertEquals(1.0, response.getQualityLevel(), Double.MIN_VALUE);
+        Set<Entry<String, Collection<RatedDocumentKey>>> entrySet = response.getUnknownDocs().entrySet();
         assertEquals(2, entrySet.size());
         for (Entry<String, Collection<RatedDocumentKey>> entry : entrySet) {
             if (entry.getKey() == "amsterdam_query") {

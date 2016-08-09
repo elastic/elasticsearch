@@ -105,10 +105,8 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             unknownDocs.put(spec.getSpecId(), queryQuality.getUnknownDocs());
         }
 
-        RankEvalResponse response = new RankEvalResponse();
         // TODO add other statistics like micro/macro avg?
-        RankEvalResult result = new RankEvalResult(qualityTask.getTaskId(), metric.combine(partialResults), unknownDocs);
-        response.setRankEvalResult(result);
+        RankEvalResponse response = new RankEvalResponse(qualityTask.getTaskId(), metric.combine(partialResults), unknownDocs);
         listener.onResponse(response);
     }
 }

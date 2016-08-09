@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.security.support;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.XPackPlugin;
 
 /**
  *
@@ -19,13 +19,13 @@ public class Exceptions {
 
     public static ElasticsearchSecurityException authenticationError(String msg, Throwable cause, Object... args) {
         ElasticsearchSecurityException e = new ElasticsearchSecurityException(msg, RestStatus.UNAUTHORIZED, cause, args);
-        e.addHeader("WWW-Authenticate", "Basic realm=\"" + Security.NAME + "\" charset=\"UTF-8\"");
+        e.addHeader("WWW-Authenticate", "Basic realm=\"" + XPackPlugin.SECURITY + "\" charset=\"UTF-8\"");
         return e;
     }
 
     public static ElasticsearchSecurityException authenticationError(String msg, Object... args) {
         ElasticsearchSecurityException e = new ElasticsearchSecurityException(msg, RestStatus.UNAUTHORIZED, args);
-        e.addHeader("WWW-Authenticate", "Basic realm=\"" + Security.NAME + "\" charset=\"UTF-8\"");
+        e.addHeader("WWW-Authenticate", "Basic realm=\"" + XPackPlugin.SECURITY + "\" charset=\"UTF-8\"");
         return e;
     }
 

@@ -22,21 +22,17 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.monitoring.Monitoring;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.TestCluster;
-import org.elasticsearch.xpack.graph.Graph;
-import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -50,9 +46,6 @@ import static org.hamcrest.Matchers.equalTo;
 @ClusterScope(scope = Scope.TEST, transportClientRatio = 0, numClientNodes = 1, numDataNodes = 0)
 public abstract class TribeTransportTestCase extends ESIntegTestCase {
 
-    private static final Collection<String> ALL_FEATURES = Arrays.asList(Security.NAME, Monitoring.NAME,
-            Watcher.NAME, Graph.NAME);
-
     protected List<String> enabledFeatures() {
         return Collections.emptyList();
     }
@@ -64,9 +57,10 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
                 .put("transport.type", "local")
                 .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local");
         List<String> enabledFeatures = enabledFeatures();
-        for (String feature : ALL_FEATURES) {
-            builder.put(XPackPlugin.featureEnabledSetting(feature), enabledFeatures.contains(feature));
-        }
+        builder.put(XPackSettings.SECURITY_ENABLED.getKey(), enabledFeatures.contains(XPackPlugin.SECURITY));
+        builder.put(XPackSettings.MONITORING_ENABLED.getKey(), enabledFeatures.contains(XPackPlugin.MONITORING));
+        builder.put(XPackSettings.WATCHER_ENABLED.getKey(), enabledFeatures.contains(XPackPlugin.WATCHER));
+        builder.put(XPackSettings.GRAPH_ENABLED.getKey(), enabledFeatures.contains(XPackPlugin.GRAPH));
         return builder.build();
     }
 

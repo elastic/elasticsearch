@@ -32,7 +32,7 @@ import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.support.RefreshListener;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.IndicesPermission.Group;
@@ -201,10 +201,10 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
             // first check if FLS/DLS is enabled on the role...
             for (RoleDescriptor.IndicesPrivileges privilege : descriptor.getIndicesPrivileges()) {
                 if ((privilege.getQuery() != null || privilege.getFields() != null)
-                        && Security.flsDlsEnabled(settings) == false) {
+                        && XPackSettings.DLS_FLS_ENABLED.get(settings) == false) {
                     logger.error("invalid role definition [{}] in roles file [{}]. document and field level security is not " +
                                     "enabled. set [{}] to [true] in the configuration file. skipping role...", roleName, path
-                            .toAbsolutePath(), XPackPlugin.featureEnabledSetting(Security.DLS_FLS_FEATURE));
+                            .toAbsolutePath(), XPackSettings.DLS_FLS_ENABLED.getKey());
                     return null;
                 }
             }

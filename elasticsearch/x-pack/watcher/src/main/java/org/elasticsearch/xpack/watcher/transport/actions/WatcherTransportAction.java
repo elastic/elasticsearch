@@ -5,22 +5,22 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions;
 
+import java.util.function.Supplier;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.watcher.Watcher;
-
-import java.util.function.Supplier;
+import org.elasticsearch.xpack.XPackPlugin;
 
 /**
  *
@@ -43,7 +43,7 @@ public abstract class WatcherTransportAction<Request extends MasterNodeRequest<R
         if (licenseState.isWatcherAllowed()) {
             super.doExecute(task, request, listener);
         } else {
-            listener.onFailure(LicenseUtils.newComplianceException(Watcher.NAME));
+            listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.WATCHER));
         }
     }
 }

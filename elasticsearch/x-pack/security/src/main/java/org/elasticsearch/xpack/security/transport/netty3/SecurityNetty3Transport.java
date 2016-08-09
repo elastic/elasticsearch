@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.List;
 
-import static org.elasticsearch.xpack.security.Security.featureEnabledSetting;
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.Security.settingPrefix;
 import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isCloseDuringHandshakeException;
@@ -53,7 +52,7 @@ public class SecurityNetty3Transport extends Netty3Transport {
                     new Property[]{Property.NodeScope, Property.Filtered, Property.Deprecated, Property.Shared});
 
     public static final Setting<Boolean> HOSTNAME_VERIFICATION_SETTING =
-            Setting.boolSetting(featureEnabledSetting("ssl.hostname_verification"), DEPRECATED_HOSTNAME_VERIFICATION_SETTING,
+            Setting.boolSetting(setting("ssl.hostname_verification.enabled"), DEPRECATED_HOSTNAME_VERIFICATION_SETTING,
                     Property.NodeScope, Property.Filtered, Property.Shared);
 
     public static final Setting<Boolean> HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING =

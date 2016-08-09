@@ -25,6 +25,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.watcher.actions.WatcherActionModule;
 import org.elasticsearch.xpack.watcher.client.WatcherClientModule;
 import org.elasticsearch.xpack.watcher.condition.ConditionModule;
@@ -81,8 +82,6 @@ import static java.util.Collections.emptyList;
 
 public class Watcher implements ActionPlugin {
 
-    public static final String NAME = "watcher";
-
     public static final Setting<String> INDEX_WATCHER_VERSION_SETTING =
             new Setting<>("index.xpack.watcher.plugin.version", "", Function.identity(), Setting.Property.IndexScope);
     public static final Setting<String> INDEX_WATCHER_TEMPLATE_VERSION_SETTING =
@@ -105,7 +104,7 @@ public class Watcher implements ActionPlugin {
     public Watcher(Settings settings) {
         this.settings = settings;
         transportClient = "transport".equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
-        enabled = enabled(settings);
+        this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
         validAutoCreateIndex(settings);
     }
 
@@ -143,7 +142,6 @@ public class Watcher implements ActionPlugin {
         settings.add(ExecutionService.DEFAULT_THROTTLE_PERIOD_SETTING);
         settings.add(Setting.intSetting("xpack.watcher.execution.scroll.size", 0, Setting.Property.NodeScope));
         settings.add(Setting.intSetting("xpack.watcher.watch.scroll.size", 0, Setting.Property.NodeScope));
-        settings.add(Setting.boolSetting(XPackPlugin.featureEnabledSetting(Watcher.NAME), true, Setting.Property.NodeScope));
         settings.add(ENCRYPT_SENSITIVE_DATA_SETTING);
 
         settings.add(Setting.simpleString("xpack.watcher.internal.ops.search.default_timeout", Setting.Property.NodeScope));
@@ -161,7 +159,7 @@ public class Watcher implements ActionPlugin {
     }
 
     public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
-        if (XPackPlugin.featureEnabled(settings, Watcher.NAME, true)) {
+        if (enabled) {
             final FixedExecutorBuilder builder =
                     new FixedExecutorBuilder(
                             settings,
@@ -203,10 +201,6 @@ public class Watcher implements ActionPlugin {
                 RestActivateWatchAction.class,
                 RestExecuteWatchAction.class,
                 RestHijackOperationAction.class);
-    }
-
-    public static boolean enabled(Settings settings) {
-        return XPackPlugin.featureEnabled(settings, NAME, true);
     }
 
     static void validAutoCreateIndex(Settings settings) {

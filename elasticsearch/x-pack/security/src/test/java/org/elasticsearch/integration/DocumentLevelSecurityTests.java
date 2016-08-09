@@ -25,11 +25,10 @@ import org.elasticsearch.search.aggregations.bucket.children.Children;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.Collections;
 
@@ -100,7 +99,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
     public Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(XPackPlugin.featureEnabledSetting(Security.DLS_FLS_FEATURE), true)
+                .put(XPackSettings.DLS_FLS_ENABLED.getKey(), true)
                 .build();
     }
 

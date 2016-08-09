@@ -98,8 +98,20 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
     public static final String NAME = "x-pack";
 
+    /** Name constant for the security feature. */
+    public static final String SECURITY = "security";
+
+    /** Name constant for the monitoring feature. */
+    public static final String MONITORING = "monitoring";
+
+    /** Name constant for the watcher feature. */
+    public static final String WATCHER = "watcher";
+
+    /** Name constant for the graph feature. */
+    public static final String GRAPH = "graph";
+
     // inside of YAML settings we still use xpack do not having handle issues with dashes
-    public static final String SETTINGS_NAME = "xpack";
+    private static final String SETTINGS_NAME = "xpack";
 
     // TODO: clean up this library to not ask for write access to all system properties!
     static {
@@ -274,8 +286,10 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         settings.addAll(security.getSettings());
         settings.addAll(MonitoringSettings.getSettings());
         settings.addAll(watcher.getSettings());
-        settings.addAll(graph.getSettings());
         settings.addAll(licensing.getSettings());
+
+        settings.addAll(XPackSettings.getAllSettings());
+
         // we add the `xpack.version` setting to all internal indices
         settings.add(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
 
@@ -360,10 +374,10 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Arrays.asList(
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, Security.NAME, SecurityFeatureSet.Usage::new),
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, Watcher.NAME, WatcherFeatureSet.Usage::new),
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, Monitoring.NAME, MonitoringFeatureSet.Usage::new),
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, Graph.NAME, GraphFeatureSet.Usage::new)
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, SECURITY, SecurityFeatureSet.Usage::new),
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, WATCHER, WatcherFeatureSet.Usage::new),
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, MONITORING, MonitoringFeatureSet.Usage::new),
+            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, GRAPH, GraphFeatureSet.Usage::new)
         );
     }
 
@@ -394,45 +408,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         return env.configFile().resolve(NAME).resolve(name);
     }
 
-    /**
-     * A consistent way to enable disable features using the following setting:
-     *
-     *          {@code "xpack.<feature>.enabled": true | false}
-     *
-     *  Also supports the following setting as a fallback (for BWC with 1.x/2.x):
-     *
-     *          {@code "<feature>.enabled": true | false}
-     */
-    public static boolean featureEnabled(Settings settings, String featureName, boolean defaultValue) {
-        return settings.getAsBoolean(featureEnabledSetting(featureName),
-                settings.getAsBoolean(legacyFeatureEnabledSetting(featureName), defaultValue)); // for bwc
-    }
-
-    public static String featureEnabledSetting(String featureName) {
-        return featureSettingPrefix(featureName) + ".enabled";
-    }
-
     public static String featureSettingPrefix(String featureName) {
         return SETTINGS_NAME + "." + featureName;
-    }
-
-    public static String legacyFeatureEnabledSetting(String featureName) {
-        return featureName + ".enabled";
-    }
-
-    /**
-     * A consistent way to register the settings used to enable disable features, supporting the following format:
-     *
-     *          {@code "xpack.<feature>.enabled": true | false}
-     *
-     *  Also supports the following setting as a fallback (for BWC with 1.x/2.x):
-     *
-     *          {@code "<feature>.enabled": true | false}
-     */
-    public static void addFeatureEnabledSettings(List<Setting<?>> settingsList, String featureName, boolean defaultValue) {
-        settingsList.add(Setting.boolSetting(featureEnabledSetting(featureName), defaultValue, Setting.Property.NodeScope));
-        settingsList.add(Setting.boolSetting(legacyFeatureEnabledSetting(featureName),
-                defaultValue, Setting.Property.NodeScope));
     }
 
     public static Path resolveXPackExtensionsFile(Environment env) {

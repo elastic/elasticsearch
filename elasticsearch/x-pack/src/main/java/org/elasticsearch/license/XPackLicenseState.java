@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License.OperationMode;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.graph.Graph;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
@@ -29,20 +30,20 @@ public class XPackLicenseState {
     static final Map<String, String[]> EXPIRATION_MESSAGES;
     static {
         Map<String, String[]> messages = new LinkedHashMap<>();
-        messages.put(Security.NAME, new String[] {
+        messages.put(XPackPlugin.SECURITY, new String[] {
             "Cluster health, cluster stats and indices stats operations are blocked",
             "All data operations (read and write) continue to work"
         });
-        messages.put(Watcher.NAME, new String[] {
+        messages.put(XPackPlugin.WATCHER, new String[] {
             "PUT / GET watch APIs are disabled, DELETE watch API continues to work",
             "Watches execute and write to the history",
             "The actions of the watches don't execute"
         });
-        messages.put(Monitoring.NAME, new String[] {
+        messages.put(XPackPlugin.MONITORING, new String[] {
             "The agent will stop collecting cluster and indices metrics",
             "The agent will stop automatically cleaning indices older than [xpack.monitoring.history.duration]"
         });
-        messages.put(Graph.NAME, new String[] {
+        messages.put(XPackPlugin.GRAPH, new String[] {
             "Graph explore APIs are disabled"
         });
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
@@ -55,10 +56,10 @@ public class XPackLicenseState {
     static final Map<String, BiFunction<OperationMode, OperationMode, String[]>> ACKNOWLEDGMENT_MESSAGES;
     static {
         Map<String, BiFunction<OperationMode, OperationMode, String[]>> messages = new LinkedHashMap<>();
-        messages.put(Security.NAME, XPackLicenseState::securityAcknowledgementMessages);
-        messages.put(Watcher.NAME, XPackLicenseState::watcherAcknowledgementMessages);
-        messages.put(Monitoring.NAME, XPackLicenseState::monitoringAcknowledgementMessages);
-        messages.put(Graph.NAME, XPackLicenseState::graphAcknowledgementMessages);
+        messages.put(XPackPlugin.SECURITY, XPackLicenseState::securityAcknowledgementMessages);
+        messages.put(XPackPlugin.WATCHER, XPackLicenseState::watcherAcknowledgementMessages);
+        messages.put(XPackPlugin.MONITORING, XPackLicenseState::monitoringAcknowledgementMessages);
+        messages.put(XPackPlugin.GRAPH, XPackLicenseState::graphAcknowledgementMessages);
         ACKNOWLEDGMENT_MESSAGES = Collections.unmodifiableMap(messages);
     }
 

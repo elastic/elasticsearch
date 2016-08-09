@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.security.test;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;
@@ -21,6 +21,6 @@ public class SecurityAssertions {
         assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
         assertThat(e.getHeaderKeys(), hasSize(1));
         assertThat(e.getHeader("WWW-Authenticate"), notNullValue());
-        assertThat(e.getHeader("WWW-Authenticate"), contains("Basic realm=\"" + Security.NAME + "\" charset=\"UTF-8\""));
+        assertThat(e.getHeader("WWW-Authenticate"), contains("Basic realm=\"" + XPackPlugin.SECURITY + "\" charset=\"UTF-8\""));
     }
 }

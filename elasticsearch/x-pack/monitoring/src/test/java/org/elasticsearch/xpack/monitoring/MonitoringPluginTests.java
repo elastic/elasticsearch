@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.monitoring.agent.AgentService;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 
@@ -41,7 +42,7 @@ public class MonitoringPluginTests extends MonitoringIntegTestCase {
 
     public void testMonitoringEnabled() {
         internalCluster().startNode(Settings.builder()
-                .put(XPackPlugin.featureEnabledSetting(Monitoring.NAME), true)
+                .put(XPackSettings.MONITORING_ENABLED.getKey(), true)
                 .build());
         assertPluginIsLoaded();
         assertServiceIsBound(AgentService.class);
@@ -49,7 +50,7 @@ public class MonitoringPluginTests extends MonitoringIntegTestCase {
 
     public void testMonitoringDisabled() {
         internalCluster().startNode(Settings.builder()
-                .put(XPackPlugin.featureEnabledSetting(Monitoring.NAME), false)
+                .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
                 .build());
         assertPluginIsLoaded();
         assertServiceIsNotBound(AgentService.class);
@@ -57,7 +58,7 @@ public class MonitoringPluginTests extends MonitoringIntegTestCase {
 
     public void testMonitoringEnabledOnTribeNode() {
         internalCluster().startNode(Settings.builder()
-                .put(XPackPlugin.featureEnabledSetting(Monitoring.NAME), true)
+                .put(XPackSettings.MONITORING_ENABLED.getKey(), true)
                 .put("tribe.name", "t1")
                 .build());
         assertPluginIsLoaded();

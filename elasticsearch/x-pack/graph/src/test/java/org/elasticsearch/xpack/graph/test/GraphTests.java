@@ -7,13 +7,12 @@ package org.elasticsearch.xpack.graph.test;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
-import org.elasticsearch.xpack.monitoring.Monitoring;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.AbstractSearchScript;
@@ -21,9 +20,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.graph.action.GraphExploreAction;
 import org.elasticsearch.xpack.graph.action.GraphExploreRequest;
@@ -128,9 +125,9 @@ public class GraphTests extends ESSingleNodeTestCase {
     public Settings nodeSettings()  {
         // Disable security otherwise authentication failures happen creating indices.
         Builder newSettings = Settings.builder();
-        newSettings.put(XPackPlugin.featureEnabledSetting(Security.NAME), false);
-        newSettings.put(XPackPlugin.featureEnabledSetting(Monitoring.NAME), false);
-        newSettings.put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false);          
+        newSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
+        newSettings.put(XPackSettings.MONITORING_ENABLED.getKey(), false);
+        newSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         return newSettings.build();
     }
 

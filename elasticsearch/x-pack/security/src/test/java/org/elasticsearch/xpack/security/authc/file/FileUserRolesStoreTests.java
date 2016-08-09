@@ -11,6 +11,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.RefreshListener;
@@ -18,8 +19,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.watcher.Watcher;
 import org.junit.After;
 import org.junit.Before;
 
@@ -226,7 +225,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
             Path usersRoles = writeUsersRoles("role1:admin");
 
             Settings settings = Settings.builder()
-                    .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), "false")
+                    .put(XPackSettings.WATCHER_ENABLED.getKey(), "false")
                     .put("path.home", createTempDir())
                     .build();
 

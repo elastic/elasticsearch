@@ -18,10 +18,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.graph.Graph;
-import org.elasticsearch.xpack.monitoring.Monitoring;
-import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.watcher.Watcher;
+import org.elasticsearch.xpack.XPackSettings;
 
 import static org.elasticsearch.license.TestUtils.generateSignedLicense;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,12 +35,11 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().
-                put(XPackPlugin.featureEnabledSetting(Security.NAME), false)
-                .put(XPackPlugin.featureEnabledSetting(Monitoring.NAME), false)
-                .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
-                .put(XPackPlugin.featureEnabledSetting(Graph.NAME), false)
-                .build();
+        return Settings.builder()
+            .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+            .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
+            .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
+            .put(XPackSettings.GRAPH_ENABLED.getKey(), false).build();
     }
 
     @Override

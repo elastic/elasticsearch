@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
@@ -209,7 +210,7 @@ public class AuditTrailService extends AbstractComponent implements AuditTrail {
 
     public Map<String, Object> usageStats() {
         Map<String, Object> map = new HashMap<>(2);
-        map.put("enabled", Security.AUDIT_ENABLED_SETTING.get(settings));
+        map.put("enabled", XPackSettings.AUDIT_ENABLED.get(settings));
         map.put("outputs", Security.AUDIT_OUTPUTS_SETTING.get(settings));
         return map;
     }

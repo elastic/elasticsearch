@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.transport.SecurityServerTransportService;
-import org.elasticsearch.test.SecurityIntegTestCase;
-
 import java.util.Map;
+
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.security.transport.SecurityServerTransportService;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
@@ -21,7 +21,7 @@ public class SecurityServerTransportServiceTests extends SecurityIntegTestCase {
     protected Settings transportClientSettings() {
         return Settings.builder()
                 .put(super.transportClientSettings())
-                .put(Security.enabledSetting(), true)
+                .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
                 .build();
     }
 

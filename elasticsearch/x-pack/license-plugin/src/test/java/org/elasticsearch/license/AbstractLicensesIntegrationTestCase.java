@@ -5,33 +5,30 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.monitoring.Monitoring;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.watcher.Watcher;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.graph.Graph;
-
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
+
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 
 public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
-                .put(XPackPlugin.featureEnabledSetting(Security.NAME), false)
-                .put(XPackPlugin.featureEnabledSetting(Monitoring.NAME), false)
-                .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
-                .put(XPackPlugin.featureEnabledSetting(Graph.NAME), false)
+                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+                .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
+                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
+                .put(XPackSettings.GRAPH_ENABLED.getKey(), false)
                 .build();
     }
 

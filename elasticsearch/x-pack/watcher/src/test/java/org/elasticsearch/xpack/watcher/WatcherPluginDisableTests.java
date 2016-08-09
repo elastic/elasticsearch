@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+
 import org.apache.http.HttpStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -13,19 +17,14 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.Netty3Plugin;
 import org.elasticsearch.transport.Netty4Plugin;
-import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.watcher.execution.InternalWatchExecutor;
-
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.hamcrest.Matchers.is;
@@ -40,11 +39,11 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(XPackPlugin.featureEnabledSetting(Watcher.NAME), false)
+                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
 
                 // disable security because of query cache check and authentication/authorization
-                .put(XPackPlugin.featureEnabledSetting(Security.NAME), false)
-                .put(XPackPlugin.featureEnabledSetting(Monitoring.NAME), false)
+                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+                .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
 
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();

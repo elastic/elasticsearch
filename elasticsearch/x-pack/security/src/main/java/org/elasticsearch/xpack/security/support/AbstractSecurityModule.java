@@ -9,7 +9,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.XPackSettings;
 
 /**
  *
@@ -23,7 +23,7 @@ public abstract class AbstractSecurityModule extends AbstractModule {
     public AbstractSecurityModule(Settings settings) {
         this.settings = settings;
         this.clientMode = TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
-        this.securityEnabled = Security.enabled(settings);
+        this.securityEnabled = XPackSettings.SECURITY_ENABLED.get(settings);
     }
 
     @Override

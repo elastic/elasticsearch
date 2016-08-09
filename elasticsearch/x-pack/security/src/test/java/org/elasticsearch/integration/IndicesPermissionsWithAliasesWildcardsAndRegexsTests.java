@@ -8,11 +8,10 @@ package org.elasticsearch.integration;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.Collections;
 
@@ -62,7 +61,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
     public Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(XPackPlugin.featureEnabledSetting(Security.DLS_FLS_FEATURE), true)
+                .put(XPackSettings.DLS_FLS_ENABLED.getKey(), true)
                 .build();
     }
 

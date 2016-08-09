@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackFeatureSet;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -157,7 +158,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
                 ipFilter, auditTrail, cryptoService);
         XPackFeatureSet.Usage usage = featureSet.usage();
         assertThat(usage, is(notNullValue()));
-        assertThat(usage.name(), is(Security.NAME));
+        assertThat(usage.name(), is(XPackPlugin.SECURITY));
         assertThat(usage.enabled(), is(enabled));
         assertThat(usage.available(), is(authcAuthzAvailable));
         XContentSource source = new XContentSource(usage);

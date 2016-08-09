@@ -31,6 +31,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -1633,6 +1634,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 // from failing on nodes without enough disk space
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b")
+                .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 1000)
                 .put("script.stored", "true")
                 .put("script.inline", "true")
                 // by default we never cache below 10k docs in a segment,

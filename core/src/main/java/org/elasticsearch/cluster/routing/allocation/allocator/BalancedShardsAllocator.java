@@ -553,7 +553,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     Decision allocationDecision = allocation.deciders().canAllocate(shardRouting, target, allocation);
                     if (allocationDecision.type() == Type.YES) { // TODO maybe we can respect throttling here too?
                         sourceNode.removeShard(shardRouting);
-                        Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocate(shardRouting, target.nodeId(), allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
+                        Tuple<ShardRouting, ShardRouting> relocatingShards = routingNodes.relocateShard(shardRouting, target.nodeId(), allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
                         currentNode.addShard(relocatingShards.v2());
                         if (logger.isTraceEnabled()) {
                             logger.trace("Moved shard [{}] to node [{}]", shardRouting, routingNode.node());
@@ -728,7 +728,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                                 logger.trace("Assigned shard [{}] to [{}]", shard, minNode.getNodeId());
                             }
 
-                            shard = routingNodes.initialize(shard, minNode.getNodeId(), null, shardSize);
+                            shard = routingNodes.initializeShard(shard, minNode.getNodeId(), null, shardSize);
                             minNode.addShard(shard);
                             changed = true;
                             continue; // don't add to ignoreUnassigned
@@ -820,7 +820,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                                     minNode.getNodeId());
                         }
                         /* now allocate on the cluster */
-                        minNode.addShard(routingNodes.relocate(candidate, minNode.getNodeId(), shardSize).v1());
+                        minNode.addShard(routingNodes.relocateShard(candidate, minNode.getNodeId(), shardSize).v1());
                         return true;
                     } else {
                         assert decision.type() == Type.THROTTLE;

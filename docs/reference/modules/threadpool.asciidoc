@@ -64,9 +64,10 @@ thread pool to have more threads:
 
 [source,yaml]
 --------------------------------------------------
-threadpool:
+thread_pool:
     index:
         size: 30
+        queue_size: 1000
 --------------------------------------------------
 
 NOTE: you can update thread pool settings dynamically using <<cluster-update-settings>>.

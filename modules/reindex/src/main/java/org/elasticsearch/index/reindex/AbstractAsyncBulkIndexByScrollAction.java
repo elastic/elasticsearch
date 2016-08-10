@@ -450,6 +450,8 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
             }
             if (context == null) {
                 context = new HashMap<>();
+            } else {
+                context.clear();
             }
 
             context.put(IndexFieldMapper.NAME, doc.getIndex());
@@ -485,23 +487,23 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
              */
             request.setSource((Map<String, Object>) resultCtx.remove(SourceFieldMapper.NAME));
 
-            Object newValue = context.remove(IndexFieldMapper.NAME);
+            Object newValue = resultCtx.remove(IndexFieldMapper.NAME);
             if (false == doc.getIndex().equals(newValue)) {
                 scriptChangedIndex(request, newValue);
             }
-            newValue = context.remove(TypeFieldMapper.NAME);
+            newValue = resultCtx.remove(TypeFieldMapper.NAME);
             if (false == doc.getType().equals(newValue)) {
                 scriptChangedType(request, newValue);
             }
-            newValue = context.remove(IdFieldMapper.NAME);
+            newValue = resultCtx.remove(IdFieldMapper.NAME);
             if (false == doc.getId().equals(newValue)) {
                 scriptChangedId(request, newValue);
             }
-            newValue = context.remove(VersionFieldMapper.NAME);
+            newValue = resultCtx.remove(VersionFieldMapper.NAME);
             if (false == Objects.equals(oldVersion, newValue)) {
                 scriptChangedVersion(request, newValue);
             }
-            newValue = context.remove(ParentFieldMapper.NAME);
+            newValue = resultCtx.remove(ParentFieldMapper.NAME);
             if (false == Objects.equals(oldParent, newValue)) {
                 scriptChangedParent(request, newValue);
             }
@@ -509,26 +511,26 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
              * Its important that routing comes after parent in case you want to
              * change them both.
              */
-            newValue = context.remove(RoutingFieldMapper.NAME);
+            newValue = resultCtx.remove(RoutingFieldMapper.NAME);
             if (false == Objects.equals(oldRouting, newValue)) {
                 scriptChangedRouting(request, newValue);
             }
-            newValue = context.remove(TimestampFieldMapper.NAME);
+            newValue = resultCtx.remove(TimestampFieldMapper.NAME);
             if (false == Objects.equals(oldTimestamp, newValue)) {
                 scriptChangedTimestamp(request, newValue);
             }
-            newValue = context.remove(TTLFieldMapper.NAME);
+            newValue = resultCtx.remove(TTLFieldMapper.NAME);
             if (false == Objects.equals(oldTTL, newValue)) {
                 scriptChangedTTL(request, newValue);
             }
 
             OpType newOpType = OpType.fromString(newOp);
-            if (newOpType !=  oldOpType) {
+            if (newOpType != oldOpType) {
                 return scriptChangedOpType(request, oldOpType, newOpType);
             }
 
-            if (false == context.isEmpty()) {
-                throw new IllegalArgumentException("Invalid fields added to context [" + String.join(",", context.keySet()) + ']');
+            if (false == resultCtx.isEmpty()) {
+                throw new IllegalArgumentException("Invalid fields added to context [" + String.join(",", resultCtx.keySet()) + ']');
             }
             return request;
         }

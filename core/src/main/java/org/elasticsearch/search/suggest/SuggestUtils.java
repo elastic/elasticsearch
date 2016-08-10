@@ -22,59 +22,16 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
-import org.apache.lucene.search.spell.DirectSpellChecker;
-import org.apache.lucene.search.spell.SuggestWord;
-import org.apache.lucene.search.spell.SuggestWordFrequencyComparator;
-import org.apache.lucene.search.spell.SuggestWordQueue;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.ParseField;
 
 import java.io.IOException;
-import java.util.Comparator;
 
 public final class SuggestUtils {
-    private static final Comparator<SuggestWord> LUCENE_FREQUENCY = new SuggestWordFrequencyComparator();
-    private static final Comparator<SuggestWord> SCORE_COMPARATOR = SuggestWordQueue.DEFAULT_COMPARATOR;
 
     private SuggestUtils() {
         // utils!!
-    }
-
-    public static DirectSpellChecker getDirectSpellChecker(DirectSpellcheckerSettings suggestion) {
-        DirectSpellChecker directSpellChecker = new DirectSpellChecker();
-        directSpellChecker.setAccuracy(suggestion.accuracy());
-        Comparator<SuggestWord> comparator;
-        switch (suggestion.sort()) {
-            case SCORE:
-                comparator = SCORE_COMPARATOR;
-                break;
-            case FREQUENCY:
-                comparator = LUCENE_FREQUENCY;
-                break;
-            default:
-                throw new IllegalArgumentException("Illegal suggest sort: " + suggestion.sort());
-        }
-        directSpellChecker.setComparator(comparator);
-        directSpellChecker.setDistance(suggestion.stringDistance());
-        directSpellChecker.setMaxEdits(suggestion.maxEdits());
-        directSpellChecker.setMaxInspections(suggestion.maxInspections());
-        directSpellChecker.setMaxQueryFrequency(suggestion.maxTermFreq());
-        directSpellChecker.setMinPrefix(suggestion.prefixLength());
-        directSpellChecker.setMinQueryLength(suggestion.minWordLength());
-        directSpellChecker.setThresholdFrequency(suggestion.minDocFreq());
-        directSpellChecker.setLowerCaseTerms(false);
-        return directSpellChecker;
-    }
-
-    public static BytesRef join(BytesRef separator, BytesRefBuilder result, BytesRef... toJoin) {
-        result.clear();
-        for (int i = 0; i < toJoin.length - 1; i++) {
-            result.append(toJoin[i]);
-            result.append(separator);
-        }
-        result.append(toJoin[toJoin.length-1]);
-        return result.get();
     }
 
     public abstract static class TokenConsumer {

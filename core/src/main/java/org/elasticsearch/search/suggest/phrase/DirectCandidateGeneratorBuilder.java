@@ -449,7 +449,8 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
             return new LuceneLevenshteinDistance();
         } else if ("levenstein".equals(distanceVal)) {
             return new LevensteinDistance();
-            //TODO Jaro and Winkler are 2 people - so apply same naming logic as damerau_levenshtein
+            // TODO Jaro and Winkler are 2 people - so apply same naming logic
+            // as damerau_levenshtein
         } else if ("jarowinkler".equals(distanceVal)) {
             return new JaroWinklerDistance();
         } else if ("ngram".equals(distanceVal)) {

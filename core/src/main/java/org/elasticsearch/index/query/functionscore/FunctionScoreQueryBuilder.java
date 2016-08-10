@@ -44,15 +44,24 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+
 
 /**
  * A query that uses a filters with a script associated with them to compute the
@@ -65,16 +74,21 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     static final String MISPLACED_FUNCTION_MESSAGE_PREFIX = "you can either define [functions] array or a single function, not both. ";
 
     public static final ParseField WEIGHT_FIELD = new ParseField("weight");
+    public static final ParseField NO_MATCH_SCORE_FIELD = new ParseField("no_match_score");
+    public static final ParseField VAR_NAME_FIELD = new ParseField("var_name");
     public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField FILTER_FIELD = new ParseField("filter");
     public static final ParseField FUNCTIONS_FIELD = new ParseField("functions");
     public static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
+    public static final ParseField SCORE_SCRIPT_FIELD = new ParseField("score_script");
     public static final ParseField BOOST_MODE_FIELD = new ParseField("boost_mode");
     public static final ParseField MAX_BOOST_FIELD = new ParseField("max_boost");
     public static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
 
     public static final CombineFunction DEFAULT_BOOST_MODE = CombineFunction.MULTIPLY;
     public static final FiltersFunctionScoreQuery.ScoreMode DEFAULT_SCORE_MODE = FiltersFunctionScoreQuery.ScoreMode.MULTIPLY;
+
+    public static final Pattern varNamePattern = Pattern.compile("^([A-Za-z][A-Za-z0-9_]*)$");
 
     private final QueryBuilder query;
 
@@ -87,6 +101,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     private Float minScore = null;
 
     private final FilterFunctionBuilder[] filterFunctionBuilders;
+    private final Script scoreScript;
 
     /**
      * Creates a function_score query without functions
@@ -94,7 +109,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      * @param query the query that needs to be custom scored
      */
     public FunctionScoreQueryBuilder(QueryBuilder query) {
-        this(query, new FilterFunctionBuilder[0]);
+        this(query, new FilterFunctionBuilder[0], null);
     }
 
     /**
@@ -103,7 +118,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      * @param filterFunctionBuilders the filters and functions
      */
     public FunctionScoreQueryBuilder(FilterFunctionBuilder[] filterFunctionBuilders) {
-        this(new MatchAllQueryBuilder(), filterFunctionBuilders);
+        this(new MatchAllQueryBuilder(), filterFunctionBuilders, null);
     }
 
     /**
@@ -112,7 +127,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      * @param scoreFunctionBuilder score function that is executed
      */
     public FunctionScoreQueryBuilder(ScoreFunctionBuilder<?> scoreFunctionBuilder) {
-        this(new MatchAllQueryBuilder(), new FilterFunctionBuilder[]{new FilterFunctionBuilder(scoreFunctionBuilder)});
+        this(new MatchAllQueryBuilder(), new FilterFunctionBuilder[]{new FilterFunctionBuilder(scoreFunctionBuilder)}, null);
     }
 
     /**
@@ -122,7 +137,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      * @param scoreFunctionBuilder score function that is executed
      */
     public FunctionScoreQueryBuilder(QueryBuilder query, ScoreFunctionBuilder<?> scoreFunctionBuilder) {
-        this(query, new FilterFunctionBuilder[]{new FilterFunctionBuilder(scoreFunctionBuilder)});
+        this(query, new FilterFunctionBuilder[]{new FilterFunctionBuilder(scoreFunctionBuilder)}, null);
     }
 
     /**
@@ -131,7 +146,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
      * @param query the query that defines which documents the function_score query will be executed on.
      * @param filterFunctionBuilders the filters and functions
      */
-    public FunctionScoreQueryBuilder(QueryBuilder query, FilterFunctionBuilder[] filterFunctionBuilders) {
+    public FunctionScoreQueryBuilder(QueryBuilder query, FilterFunctionBuilder[] filterFunctionBuilders,
+                                     Script scoreScript) {
         if (query == null) {
             throw new IllegalArgumentException("function_score: query must not be null");
         }
@@ -143,8 +159,27 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                 throw new IllegalArgumentException("function_score: each filter and function must not be null");
             }
         }
+        if (scoreScript != null) {
+            this.scoreMode = FiltersFunctionScoreQuery.ScoreMode.SCRIPT;
+            Set<String> varNames = new HashSet<>();
+            for (FilterFunctionBuilder filterFunctionBuilder : filterFunctionBuilders) {
+                String varName = filterFunctionBuilder.getVarName();
+                if (varName == null) {
+                    throw new IllegalArgumentException("function_score: when a script is specified var_name must be specified for " +
+                        "each function");
+                }
+                if (varNames.contains(varName)) {
+                    throw new IllegalArgumentException("function_score: each function must have a unique var_name");
+                }
+                varNames.add(varName);
+            }
+        }
+
+
         this.query = query;
         this.filterFunctionBuilders = filterFunctionBuilders;
+        this.scoreScript = scoreScript;
+
     }
 
     /**
@@ -158,6 +193,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         minScore = in.readOptionalFloat();
         boostMode = in.readOptionalWriteable(CombineFunction::readFromStream);
         scoreMode = FiltersFunctionScoreQuery.ScoreMode.readFromStream(in);
+        scoreScript = in.readOptionalWriteable(Script::new);
     }
 
     @Override
@@ -168,6 +204,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         out.writeOptionalFloat(minScore);
         out.writeOptionalWriteable(boostMode);
         scoreMode.writeTo(out);
+        out.writeOptionalWriteable(scoreScript);
     }
 
     /**
@@ -191,6 +228,11 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     public FunctionScoreQueryBuilder scoreMode(FiltersFunctionScoreQuery.ScoreMode scoreMode) {
         if (scoreMode == null) {
             throw new IllegalArgumentException("[" + NAME + "]  requires 'score_mode' field");
+        }
+        if ( (scoreScript != null && scoreMode != FiltersFunctionScoreQuery.ScoreMode.SCRIPT) ||
+            (scoreScript == null && scoreMode == FiltersFunctionScoreQuery.ScoreMode.SCRIPT)) {
+            throw new IllegalArgumentException("[score_mode] may only be [" + FiltersFunctionScoreQuery.ScoreMode.SCRIPT +
+                "] when [score_script] is specified");
         }
         this.scoreMode = scoreMode;
         return this;
@@ -262,6 +304,10 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         if (minScore != null) {
             builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
         }
+        if (getScoreScript()!=null) {
+            builder.field(SCORE_SCRIPT_FIELD.getPreferredName());
+            getScoreScript().toXContent(builder, params);
+        }
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -303,7 +349,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         for (FilterFunctionBuilder filterFunctionBuilder : filterFunctionBuilders) {
             Query filter = filterFunctionBuilder.getFilter().toQuery(context);
             ScoreFunction scoreFunction = filterFunctionBuilder.getScoreFunction().toFunction(context);
-            filterFunctions[i++] = new FilterFunction(filter, scoreFunction);
+            filterFunctions[i++] = new FilterFunction(filter, scoreFunction, filterFunctionBuilder.getVarName(),
+                filterFunctionBuilder.getNoMatchScore());
         }
 
         Query query = this.query.toQuery(context);
@@ -325,9 +372,22 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             }
             return new FunctionScoreQuery(query, function, minScore, combineFunction, maxBoost);
         }
+
         // in all other cases we create a FiltersFunctionScoreQuery
+        FiltersFunctionScoreQuery.ScoreScript filtFuncScoreQueryScoreScript = null;
+        if (scoreScript != null) {
+            SearchScript searchScoreScript = context.getScriptService().search(context.lookup(), scoreScript, ScriptContext.Standard.SEARCH,
+                Collections.emptyMap());
+            filtFuncScoreQueryScoreScript = new FiltersFunctionScoreQuery.ScoreScript(scoreScript, searchScoreScript);
+        }
+
         CombineFunction boostMode = this.boostMode == null ? DEFAULT_BOOST_MODE : this.boostMode;
-        return new FiltersFunctionScoreQuery(query, scoreMode, filterFunctions, maxBoost, minScore, boostMode);
+        return new FiltersFunctionScoreQuery(query, scoreMode, filtFuncScoreQueryScoreScript, filterFunctions, maxBoost, minScore,
+            boostMode);
+    }
+
+    public Script getScoreScript() {
+        return scoreScript;
     }
 
     /**
@@ -337,12 +397,18 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
     public static class FilterFunctionBuilder implements ToXContent, Writeable {
         private final QueryBuilder filter;
         private final ScoreFunctionBuilder<?> scoreFunction;
+        private final String varName;
+        private final Float noMatchScore;
 
         public FilterFunctionBuilder(ScoreFunctionBuilder<?> scoreFunctionBuilder) {
-            this(new MatchAllQueryBuilder(), scoreFunctionBuilder);
+            this(new MatchAllQueryBuilder(), scoreFunctionBuilder, null, null);
         }
 
-        public FilterFunctionBuilder(QueryBuilder filter, ScoreFunctionBuilder<?> scoreFunction) {
+        public FilterFunctionBuilder(QueryBuilder filter, ScoreFunctionBuilder<?> scoreFunctionBuilder) {
+            this(filter, scoreFunctionBuilder, null, null);
+        }
+
+        public FilterFunctionBuilder(QueryBuilder filter, ScoreFunctionBuilder<?> scoreFunction, String varName, Float noMatchWeight) {
             if (filter == null) {
                 throw new IllegalArgumentException("function_score: filter must not be null");
             }
@@ -351,6 +417,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             }
             this.filter = filter;
             this.scoreFunction = scoreFunction;
+            this.varName = varName;
+            this.noMatchScore = noMatchWeight;
         }
 
         /**
@@ -359,12 +427,16 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         public FilterFunctionBuilder(StreamInput in) throws IOException {
             filter = in.readNamedWriteable(QueryBuilder.class);
             scoreFunction = in.readNamedWriteable(ScoreFunctionBuilder.class);
+            varName = in.readOptionalString();
+            noMatchScore = in.readOptionalFloat();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeNamedWriteable(filter);
             out.writeNamedWriteable(scoreFunction);
+            out.writeOptionalString(varName);
+            out.writeOptionalFloat(noMatchScore);
         }
 
         public QueryBuilder getFilter() {
@@ -375,19 +447,33 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             return scoreFunction;
         }
 
+        public String getVarName() {
+            return varName;
+        }
+
+        public Float getNoMatchScore() {
+            return noMatchScore;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(FILTER_FIELD.getPreferredName());
             filter.toXContent(builder, params);
             scoreFunction.toXContent(builder, params);
+            if (varName != null) {
+                builder.field(VAR_NAME_FIELD.getPreferredName(), varName);
+            }
+            if (noMatchScore != null) {
+                builder.field(NO_MATCH_SCORE_FIELD.getPreferredName(), noMatchScore);
+            }
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(filter, scoreFunction);
+            return Objects.hash(filter, scoreFunction, varName, noMatchScore);
         }
 
         @Override
@@ -400,7 +486,9 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             }
             FilterFunctionBuilder that = (FilterFunctionBuilder) obj;
             return Objects.equals(this.filter, that.filter) &&
-                    Objects.equals(this.scoreFunction, that.scoreFunction);
+                Objects.equals(this.scoreFunction, that.scoreFunction) &&
+                Objects.equals(this.varName, that.varName) &&
+                Objects.equals(this.noMatchScore, that.noMatchScore);
         }
 
         public FilterFunctionBuilder rewrite(QueryRewriteContext context) throws IOException {
@@ -423,7 +511,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             rewrittenBuilders[i] = rewrite;
         }
         if (queryBuilder != query || rewritten) {
-            FunctionScoreQueryBuilder newQueryBuilder = new FunctionScoreQueryBuilder(queryBuilder, rewrittenBuilders);
+            FunctionScoreQueryBuilder newQueryBuilder = new FunctionScoreQueryBuilder(queryBuilder, rewrittenBuilders, null);
             newQueryBuilder.scoreMode = scoreMode;
             newQueryBuilder.minScore = minScore;
             newQueryBuilder.maxBoost = maxBoost;
@@ -446,6 +534,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         String queryName = null;
 
         FiltersFunctionScoreQuery.ScoreMode scoreMode = FunctionScoreQueryBuilder.DEFAULT_SCORE_MODE;
+        Script scoreScript = null;
         float maxBoost = FunctionScoreQuery.DEFAULT_MAX_BOOST;
         Float minScore = null;
 
@@ -468,6 +557,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                                 NAME);
                     }
                     query = parseContext.parseInnerQueryBuilder().orElse(QueryBuilders.matchAllQuery());
+                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, SCORE_SCRIPT_FIELD)) {
+                    scoreScript = Script.parse(parser, parseContext.getParseFieldMatcher());
                 } else {
                     if (singleFunctionFound) {
                         throw new ParsingException(parser.getTokenLocation(),
@@ -543,8 +634,38 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             query = new MatchAllQueryBuilder();
         }
 
+        if (scoreMode == FiltersFunctionScoreQuery.ScoreMode.SCRIPT) {
+            if (scoreScript == null) {
+                throw new ParsingException(null,
+                    "failed to parse [{}] query. if [{}] is [{}] then a script must be specified in the [{}] field.",
+                    NAME, SCORE_MODE_FIELD, FiltersFunctionScoreQuery.ScoreMode.SCRIPT, SCORE_SCRIPT_FIELD);
+            }
+            for (FunctionScoreQueryBuilder.FilterFunctionBuilder filterFunctionBuilder: filterFunctionBuilders) {
+                if (filterFunctionBuilder.getVarName() == null) {
+                    throw new ParsingException(null,
+                        "failed to parse [{}] query. if [{}] is [{}] then a [{}] must be specified for each function.",
+                        NAME, SCORE_MODE_FIELD, FiltersFunctionScoreQuery.ScoreMode.SCRIPT, VAR_NAME_FIELD);
+                }
+            }
+        } else {
+            if (scoreScript != null) {
+                throw new ParsingException(null,
+                    "failed to parse [{}] query. [{}] may only be specified for [{} = {}].",
+                    NAME, SCORE_SCRIPT_FIELD, SCORE_MODE_FIELD,
+                    FiltersFunctionScoreQuery.ScoreMode.SCRIPT);
+            }
+            for (FunctionScoreQueryBuilder.FilterFunctionBuilder filterFunctionBuilder: filterFunctionBuilders) {
+                if (filterFunctionBuilder.getNoMatchScore() != null) {
+                    throw new ParsingException(null,
+                        "failed to parse [{}] query. [{}] may only be specified when [{} = {}].",
+                        NAME, NO_MATCH_SCORE_FIELD, SCORE_MODE_FIELD, FiltersFunctionScoreQuery.ScoreMode.SCRIPT);
+                }
+            }
+        }
+
         FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(query,
-                filterFunctionBuilders.toArray(new FunctionScoreQueryBuilder.FilterFunctionBuilder[filterFunctionBuilders.size()]));
+            filterFunctionBuilders.toArray(new FunctionScoreQueryBuilder.FilterFunctionBuilder[filterFunctionBuilders.size()]),
+            scoreScript);
         if (combineFunction != null) {
             functionScoreQueryBuilder.boostMode(combineFunction);
         }
@@ -555,6 +676,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
         }
         functionScoreQueryBuilder.boost(boost);
         functionScoreQueryBuilder.queryName(queryName);
+
         return Optional.of(functionScoreQueryBuilder);
     }
 
@@ -573,6 +695,8 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             QueryBuilder filter = null;
             ScoreFunctionBuilder<?> scoreFunction = null;
             Float functionWeight = null;
+            String varName = null;
+            Float noMatchScore = null;
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new ParsingException(parser.getTokenLocation(),
                         "failed to parse [{}]. malformed query, expected a [{}] while parsing functions but got a [{}] instead",
@@ -596,6 +720,17 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                     } else if (token.isValue()) {
                         if (parseContext.getParseFieldMatcher().match(currentFieldName, WEIGHT_FIELD)) {
                             functionWeight = parser.floatValue();
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, VAR_NAME_FIELD)) {
+                            varName = parser.text();
+                            Matcher matcher = varNamePattern.matcher(varName);
+                            if (!matcher.matches()) {
+                                throw new ParsingException(parser.getTokenLocation(),
+                                    "failed to parse [{}] query. [var_name] must be must only contain letters, numbers, " +
+                                    "or underscore and must start with a letter.",
+                                    NAME, currentFieldName);
+                            }
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, NO_MATCH_SCORE_FIELD)) {
+                            noMatchScore = parser.floatValue();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "failed to parse [{}] query. field [{}] is not supported",
                                     NAME, currentFieldName);
@@ -617,7 +752,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
                 throw new ParsingException(parser.getTokenLocation(),
                         "failed to parse [{}] query. an entry in functions list is missing a function.", NAME);
             }
-            filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(filter, scoreFunction));
+            filterFunctionBuilders.add(new FunctionScoreQueryBuilder.FilterFunctionBuilder(filter, scoreFunction, varName, noMatchScore));
         }
         return currentFieldName;
     }

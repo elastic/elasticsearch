@@ -1,0 +1,83 @@
+# Integration tests for groovy search scripting
+#
+
+"function_score with script combine":
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body: { "dummy_field": 1 }
+    - do:
+        indices.refresh: {}
+
+
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    function_score:
+                        score_mode: script
+                        boost_mode: replace
+                        "functions": [ {
+                            "weight": 3,
+                            "var_name": "a"
+                        }, {
+                            "weight": 2,
+                            "var_name": "b"
+                        }, {
+                         "weight": 1,
+                         "var_name": "c"
+                        }]
+                        score_script:
+                           lang: groovy
+                           inline: "a+b-c"
+
+    - match: { hits.total: 1 }
+    - match: { hits.hits.0._score: 4 }
+
+
+---
+"function_score with script combine and _score":
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body: { "dummy_field": 1 }
+    - do:
+        indices.refresh: {}
+
+
+    - do:
+        index: test
+        search:
+            body:
+                query:
+                    function_score:
+                        query:
+                            function_score:
+                                boost_mode: replace
+                                "functions": [ {
+                                    "weight": 3
+                                }]
+                        score_mode: script
+                        boost_mode: sum
+                        "functions": [ {
+                            "weight": 3,
+                            "var_name": "a"
+                        }, {
+                            "weight": 2,
+                            "var_name": "b"
+                        }, {
+                         "weight": 1,
+                         "var_name": "c"
+                        }]
+                        score_script:
+                           lang: groovy
+                           inline: "(a+b-c)*_score -_score"
+
+    - match: { hits.total: 1 }
+    - match: { hits.hits.0._score: 12 }
+

@@ -34,34 +34,6 @@ import java.util.Objects;
 
 public class ScriptScoreFunction extends ScoreFunction {
 
-    static final class CannedScorer extends Scorer {
-        protected int docid;
-        protected float score;
-
-        public CannedScorer() {
-            super(null);
-        }
-
-        @Override
-        public int docID() {
-            return docid;
-        }
-
-        @Override
-        public float score() throws IOException {
-            return score;
-        }
-
-        @Override
-        public int freq() throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public DocIdSetIterator iterator() {
-            throw new UnsupportedOperationException();
-        }
-    }
 
     private final Script sScript;
 
@@ -77,7 +49,7 @@ public class ScriptScoreFunction extends ScoreFunction {
     @Override
     public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
         final LeafSearchScript leafScript = script.getLeafSearchScript(ctx);
-        final CannedScorer scorer = new CannedScorer();
+        final FiltersFunctionScoreQuery.CannedScorer scorer = new FiltersFunctionScoreQuery.CannedScorer();
         leafScript.setScorer(scorer);
         return new LeafScoreFunction() {
             @Override

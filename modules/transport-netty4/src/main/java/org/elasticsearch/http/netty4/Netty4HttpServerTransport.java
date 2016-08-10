@@ -548,12 +548,12 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             ch.pipeline().addLast("decoder", decoder);
             ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor());
+            ch.pipeline().addLast("encoder", new HttpResponseEncoder());
             final HttpObjectAggregator aggregator = new HttpObjectAggregator(Math.toIntExact(transport.maxContentLength.bytes()));
             if (transport.maxCompositeBufferComponents != -1) {
                 aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             }
             ch.pipeline().addLast("aggregator", aggregator);
-            ch.pipeline().addLast("encoder", new HttpResponseEncoder());
             if (transport.compression) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(transport.compressionLevel));
             }

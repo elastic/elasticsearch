@@ -381,7 +381,8 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         return publishPort;
     }
 
-    private Netty4CorsConfig buildCorsConfig(Settings settings) {
+    // package private for testing
+    static Netty4CorsConfig buildCorsConfig(Settings settings) {
         if (SETTING_CORS_ENABLED.get(settings) == false) {
             return Netty4CorsConfigBuilder.forOrigins().disable().build();
         }

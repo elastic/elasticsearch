@@ -37,7 +37,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
@@ -48,7 +47,6 @@ import org.elasticsearch.search.suggest.completion2x.context.GeolocationContextM
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -90,10 +88,10 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         TLP_PARSER.declareField((parser, completionSuggestionContext, context) ->
             completionSuggestionContext.regexOptions = RegexOptions.parse(parser, context),
             RegexOptions.REGEX_OPTIONS, ObjectParser.ValueType.OBJECT);
-        TLP_PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::field, SuggestUtils.Fields.FIELD);
-        TLP_PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::analyzer, SuggestUtils.Fields.ANALYZER);
-        TLP_PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::size, SuggestUtils.Fields.SIZE);
-        TLP_PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::shardSize, SuggestUtils.Fields.SHARD_SIZE);
+        TLP_PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::field, FIELDNAME_FIELD);
+        TLP_PARSER.declareString(CompletionSuggestionBuilder.InnerBuilder::analyzer, ANALYZER_FIELD);
+        TLP_PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::size, SIZE_FIELD);
+        TLP_PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::shardSize, SHARDSIZE_FIELD);
         TLP_PARSER.declareField((p, v, c) -> {
             // Copy the current structure. We will parse, once the mapping is provided
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -353,7 +351,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         // now we should have field name, check and copy fields over to the suggestion builder we return
         if (field == null) {
             throw new ElasticsearchParseException(
-                "the required field option [" + SuggestUtils.Fields.FIELD.getPreferredName() + "] is missing");
+                "the required field option [" + FIELDNAME_FIELD.getPreferredName() + "] is missing");
         }
         return new CompletionSuggestionBuilder(field, builder);
     }

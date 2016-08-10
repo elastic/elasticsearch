@@ -34,6 +34,7 @@ import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
+import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -73,7 +74,7 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
     private List<Token> queryTerms(SuggestionContext suggestion, CharsRefBuilder spare) throws IOException {
         final List<Token> result = new ArrayList<>();
         final String field = suggestion.getField();
-        SuggestUtils.analyze(suggestion.getAnalyzer(), suggestion.getText(), field, new SuggestUtils.TokenConsumer() {
+        DirectCandidateGenerator.analyze(suggestion.getAnalyzer(), suggestion.getText(), field, new SuggestUtils.TokenConsumer() {
             @Override
             public void nextToken() {
                 Term term = new Term(field, BytesRef.deepCopyOf(fillBytesRef(new BytesRefBuilder())));

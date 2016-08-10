@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.suggest;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
@@ -29,11 +28,7 @@ import org.apache.lucene.search.spell.SuggestWordFrequencyComparator;
 import org.apache.lucene.search.spell.SuggestWordQueue;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.CharsRef;
-import org.apache.lucene.util.CharsRefBuilder;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.FastCharArrayReader;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -101,44 +96,6 @@ public final class SuggestUtils {
         public abstract void nextToken() throws IOException;
 
         public void end() {}
-    }
-
-    public static int analyze(Analyzer analyzer, BytesRef toAnalyze, String field, TokenConsumer consumer, CharsRefBuilder spare) throws IOException {
-        spare.copyUTF8Bytes(toAnalyze);
-        return analyze(analyzer, spare.get(), field, consumer);
-    }
-
-    public static int analyze(Analyzer analyzer, CharsRef toAnalyze, String field, TokenConsumer consumer) throws IOException {
-        try (TokenStream ts = analyzer.tokenStream(
-                                  field, new FastCharArrayReader(toAnalyze.chars, toAnalyze.offset, toAnalyze.length))) {
-             return analyze(ts, consumer);
-        }
-    }
-
-    /** NOTE: this method closes the TokenStream, even on exception, which is awkward
-     *  because really the caller who called {@link Analyzer#tokenStream} should close it,
-     *  but when trying that there are recursion issues when we try to use the same
-     *  TokenStream twice in the same recursion... */
-    public static int analyze(TokenStream stream, TokenConsumer consumer) throws IOException {
-        int numTokens = 0;
-        boolean success = false;
-        try {
-            stream.reset();
-            consumer.reset(stream);
-            while (stream.incrementToken()) {
-                consumer.nextToken();
-                numTokens++;
-            }
-            consumer.end();
-            success = true;
-        } finally {
-            if (success) {
-                stream.close();
-            } else {
-                IOUtils.closeWhileHandlingException(stream);
-            }
-        }
-        return numTokens;
     }
 
     public static class Fields {

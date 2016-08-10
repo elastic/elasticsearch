@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest.phrase;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Term;
@@ -29,8 +30,12 @@ import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.search.spell.SuggestWord;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.io.FastCharArrayReader;
 import org.elasticsearch.search.suggest.SuggestUtils;
+import org.elasticsearch.search.suggest.SuggestUtils.TokenConsumer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,7 +49,7 @@ import static java.lang.Math.log10;
 import static java.lang.Math.max;
 import static java.lang.Math.round;
 
-final class DirectCandidateGenerator extends CandidateGenerator {
+public final class DirectCandidateGenerator extends CandidateGenerator {
 
     private final DirectSpellChecker spellchecker;
     private final String field;
@@ -140,7 +145,7 @@ final class DirectCandidateGenerator extends CandidateGenerator {
             return term;
         }
         final BytesRefBuilder result = byteSpare;
-        SuggestUtils.analyze(preFilter, term, field, new SuggestUtils.TokenConsumer() {
+        analyze(preFilter, term, field, new SuggestUtils.TokenConsumer() {
 
             @Override
             public void nextToken() throws IOException {
@@ -156,7 +161,7 @@ final class DirectCandidateGenerator extends CandidateGenerator {
             candidates.add(candidate);
         } else {
             final BytesRefBuilder result = byteSpare;
-            SuggestUtils.analyze(postFilter, candidate.term, field, new SuggestUtils.TokenConsumer() {
+            analyze(postFilter, candidate.term, field, new SuggestUtils.TokenConsumer() {
                 @Override
                 public void nextToken() throws IOException {
                     this.fillBytesRef(result);
@@ -281,6 +286,41 @@ final class DirectCandidateGenerator extends CandidateGenerator {
     @Override
     public Candidate createCandidate(BytesRef term, long frequency, double channelScore, boolean userInput) throws IOException {
         return new Candidate(term, frequency, channelScore, score(frequency, channelScore, dictSize), userInput);
+    }
+
+    public static int analyze(Analyzer analyzer, BytesRef toAnalyze, String field, TokenConsumer consumer, CharsRefBuilder spare) throws IOException {
+        spare.copyUTF8Bytes(toAnalyze);
+        CharsRef charsRef = spare.get();
+        try (TokenStream ts = analyzer.tokenStream(
+                                  field, new FastCharArrayReader(charsRef.chars, charsRef.offset, charsRef.length))) {
+             return analyze(ts, consumer);
+        }
+    }
+
+    /** NOTE: this method closes the TokenStream, even on exception, which is awkward
+     *  because really the caller who called {@link Analyzer#tokenStream} should close it,
+     *  but when trying that there are recursion issues when we try to use the same
+     *  TokenStream twice in the same recursion... */
+    public static int analyze(TokenStream stream, TokenConsumer consumer) throws IOException {
+        int numTokens = 0;
+        boolean success = false;
+        try {
+            stream.reset();
+            consumer.reset(stream);
+            while (stream.incrementToken()) {
+                consumer.nextToken();
+                numTokens++;
+            }
+            consumer.end();
+            success = true;
+        } finally {
+            if (success) {
+                stream.close();
+            } else {
+                IOUtils.closeWhileHandlingException(stream);
+            }
+        }
+        return numTokens;
     }
 
 }

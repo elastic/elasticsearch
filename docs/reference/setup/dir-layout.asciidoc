@@ -31,7 +31,7 @@ written to the same path. This can be configured as follows:
     path.data: /mnt/first,/mnt/second
     ---------------------------------
 
- Or  in an array format:
+Or  in an array format:
 
     ----------------------------------------
     path.data: ["/mnt/first", "/mnt/second"]

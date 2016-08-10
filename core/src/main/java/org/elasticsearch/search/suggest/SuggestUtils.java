@@ -38,17 +38,12 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.FastCharArrayReader;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -135,7 +130,7 @@ public final class SuggestUtils {
     /** NOTE: this method closes the TokenStream, even on exception, which is awkward
      *  because really the caller who called {@link Analyzer#tokenStream} should close it,
      *  but when trying that there are recursion issues when we try to use the same
-     *  TokenStrem twice in the same recursion... */
+     *  TokenStream twice in the same recursion... */
     public static int analyze(TokenStream stream, TokenConsumer consumer) throws IOException {
         int numTokens = 0;
         boolean success = false;
@@ -194,8 +189,7 @@ public final class SuggestUtils {
         public static final ParseField MAX_EDITS = new ParseField("max_edits");
         public static final ParseField MAX_INSPECTIONS = new ParseField("max_inspections");
         // TODO some of these constants are the same as MLT constants and
-        // could be moved to a shared class for maintaining consistency across
-        // the platform
+        // could be moved to a shared class for consistency
         public static final ParseField MAX_TERM_FREQ = new ParseField("max_term_freq");
         public static final ParseField PREFIX_LENGTH = new ParseField("prefix_length", "prefix_len");
         public static final ParseField MIN_WORD_LENGTH = new ParseField("min_word_length", "min_word_len");
@@ -207,78 +201,6 @@ public final class SuggestUtils {
         public static final ParseField SORT = new ParseField("sort");
         public static final ParseField ACCURACY = new ParseField("accuracy");
    }
-
-    public static boolean parseDirectSpellcheckerSettings(XContentParser parser, String fieldName,
-                DirectSpellcheckerSettings suggestion, ParseFieldMatcher parseFieldMatcher) throws IOException {
-            if (parseFieldMatcher.match(fieldName, Fields.ACCURACY)) {
-                suggestion.accuracy(parser.floatValue());
-            } else if (parseFieldMatcher.match(fieldName, Fields.SUGGEST_MODE)) {
-                suggestion.suggestMode(SuggestUtils.resolveSuggestMode(parser.text()));
-            } else if (parseFieldMatcher.match(fieldName, Fields.SORT)) {
-                suggestion.sort(SortBy.resolve(parser.text()));
-            } else if (parseFieldMatcher.match(fieldName, Fields.STRING_DISTANCE)) {
-                suggestion.stringDistance(SuggestUtils.resolveDistance(parser.text()));
-            } else if (parseFieldMatcher.match(fieldName, Fields.MAX_EDITS)) {
-                suggestion.maxEdits(parser.intValue());
-                if (suggestion.maxEdits() < 1 || suggestion.maxEdits() > LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE) {
-                    throw new IllegalArgumentException("Illegal max_edits value " + suggestion.maxEdits());
-                }
-            } else if (parseFieldMatcher.match(fieldName, Fields.MAX_INSPECTIONS)) {
-                suggestion.maxInspections(parser.intValue());
-            } else if (parseFieldMatcher.match(fieldName, Fields.MAX_TERM_FREQ)) {
-                suggestion.maxTermFreq(parser.floatValue());
-            } else if (parseFieldMatcher.match(fieldName, Fields.PREFIX_LENGTH)) {
-                suggestion.prefixLength(parser.intValue());
-            } else if (parseFieldMatcher.match(fieldName, Fields.MIN_WORD_LENGTH)) {
-                suggestion.minWordLength(parser.intValue());
-            } else if (parseFieldMatcher.match(fieldName, Fields.MIN_DOC_FREQ)) {
-                suggestion.minDocFreq(parser.floatValue());
-            } else {
-                return false;
-            }
-            return true;
-    }
-
-    public static boolean parseSuggestContext(XContentParser parser, MapperService mapperService, String fieldName,
-            SuggestionSearchContext.SuggestionContext suggestion, ParseFieldMatcher parseFieldMatcher) throws IOException {
-
-        if (parseFieldMatcher.match(fieldName, Fields.ANALYZER)) {
-            String analyzerName = parser.text();
-            Analyzer analyzer = mapperService.analysisService().analyzer(analyzerName);
-            if (analyzer == null) {
-                throw new IllegalArgumentException("Analyzer [" + analyzerName + "] doesn't exists");
-            }
-            suggestion.setAnalyzer(analyzer);
-        } else if (parseFieldMatcher.match(fieldName, Fields.FIELD)) {
-            suggestion.setField(parser.text());
-        } else if (parseFieldMatcher.match(fieldName, Fields.SIZE)) {
-            suggestion.setSize(parser.intValue());
-        } else if (parseFieldMatcher.match(fieldName, Fields.SHARD_SIZE)) {
-            suggestion.setShardSize(parser.intValue());
-        } else {
-           return false;
-        }
-        return true;
-    }
-
-    public static void verifySuggestion(MapperService mapperService, BytesRef globalText, SuggestionContext suggestion) {
-        // Verify options and set defaults
-        if (suggestion.getField() == null) {
-            throw new IllegalArgumentException("The required field option is missing");
-        }
-        if (suggestion.getText() == null) {
-            if (globalText == null) {
-                throw new IllegalArgumentException("The required text option is missing");
-            }
-            suggestion.setText(globalText);
-        }
-        if (suggestion.getAnalyzer() == null) {
-            suggestion.setAnalyzer(mapperService.searchAnalyzer());
-        }
-        if (suggestion.getShardSize() == -1) {
-            suggestion.setShardSize(Math.max(suggestion.getSize(), 5));
-        }
-    }
 
     public static ShingleTokenFilterFactory.Factory getShingleFilterFactory(Analyzer analyzer) {
         if (analyzer instanceof NamedAnalyzer) {

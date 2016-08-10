@@ -94,7 +94,7 @@ public class HttpExporterTests extends MonitoringIntegTestCase {
         assertMonitorTemplates(null);
     }
 
-    private void assertMonitorTemplates(final @Nullable Map<String, String[]> customHeaders) throws InterruptedException {
+    private void assertMonitorTemplates(@Nullable final Map<String, String[]> customHeaders) throws InterruptedException {
         RecordedRequest request;
 
         for (Map.Entry<String, String> template : monitoringTemplates().entrySet()) {

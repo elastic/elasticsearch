@@ -87,9 +87,9 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
     }
 
     // visible for testing
-    @SuppressForbidden(reason = "halt")
     void halt(int status) {
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @SuppressForbidden(reason = "halt")
             @Override
             public Void run() {
                 // we halt to prevent shutdown hooks from running

@@ -109,6 +109,7 @@ public class DefaultSearchContext extends SearchContext {
     private List<String> fieldNames;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
+    private boolean fetchMetadata = true;
     private int from = -1;
     private int size = -1;
     private SortAndFormats sort;
@@ -468,6 +469,18 @@ public class DefaultSearchContext extends SearchContext {
         this.fetchSourceContext = fetchSourceContext;
         return this;
     }
+
+    @Override
+    public boolean fetchMetadata() {
+        return fetchMetadata;
+    }
+
+    @Override
+    public SearchContext fetchMetadata(boolean fetch) {
+        this.fetchMetadata = fetch;
+        return this;
+    }
+
 
     @Override
     public ContextIndexSearcher searcher() {

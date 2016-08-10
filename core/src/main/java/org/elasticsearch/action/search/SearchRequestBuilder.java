@@ -289,6 +289,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    public SearchRequestBuilder setFetchMetadata(boolean fetch) {
+        sourceBuilder().fetchMetadata(fetch);
+        return this;
+    }
+
     /**
      * Adds a docvalue based field to load and return. The field does not have to be stored,
      * but its recommended to use non analyzed or numeric fields.

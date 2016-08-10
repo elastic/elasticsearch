@@ -18,10 +18,6 @@
  */
 package org.elasticsearch.test;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
@@ -64,6 +60,10 @@ import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class TestSearchContext extends SearchContext {
 
@@ -258,6 +258,16 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext) {
+        return null;
+    }
+
+    @Override
+    public boolean fetchMetadata() {
+        return false;
+    }
+
+    @Override
+    public SearchContext fetchMetadata(boolean fetch) {
         return null;
     }
 

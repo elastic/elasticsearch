@@ -21,7 +21,6 @@ package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -812,6 +811,24 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 throw new SearchContextException(context, "`slice` cannot be used outside of a scroll context");
             }
             context.sliceBuilder(source.slice());
+        }
+
+        if (source.fetchMetadata() != null) {
+            if (source.fetchMetadata() == false) {
+                if (context.version()) {
+                    throw new SearchContextException(context,
+                        "`fetch_metadata` is required when version is requested");
+                }
+                if (context.hasFieldNames()) {
+                    throw new SearchContextException(context,
+                        "`fetch_metadata` is required when stored fields are requested");
+                }
+                if (context.sourceRequested() ||
+                    (context.hasFetchSourceContext() == false && context.hasScriptFields())) {
+                    throw new SearchContextException(context, "`fetch_metadata` cannot be false if _source is requested");
+                }
+            }
+            context.fetchMetadata(source.fetchMetadata());
         }
     }
 

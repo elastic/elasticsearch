@@ -408,6 +408,10 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 builder.slice(new SliceBuilder(field, id, max));
             }
         }
+
+        if (randomBoolean()) {
+            builder.fetchMetadata(randomBoolean());
+        }
         return builder;
     }
 
@@ -550,14 +554,14 @@ public class SearchSourceBuilderTests extends ESTestCase {
 
     public void testAggsParsing() throws IOException {
         {
-            String restContent = "{\n" + "    " + 
-                    "\"aggs\": {" + 
-                    "        \"test_agg\": {\n" + 
-                    "            " + "\"terms\" : {\n" + 
-                    "                \"field\": \"foo\"\n" + 
-                    "            }\n" + 
-                    "        }\n" + 
-                    "    }\n" + 
+            String restContent = "{\n" + "    " +
+                    "\"aggs\": {" +
+                    "        \"test_agg\": {\n" +
+                    "            " + "\"terms\" : {\n" +
+                    "                \"field\": \"foo\"\n" +
+                    "            }\n" +
+                    "        }\n" +
+                    "    }\n" +
                     "}\n";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser), aggParsers,
@@ -566,14 +570,14 @@ public class SearchSourceBuilderTests extends ESTestCase {
             }
         }
         {
-            String restContent = "{\n" + 
-                    "    \"aggregations\": {" + 
-                    "        \"test_agg\": {\n" + 
-                    "            \"terms\" : {\n" + 
-                    "                \"field\": \"foo\"\n" + 
-                    "            }\n" + 
-                    "        }\n" + 
-                    "    }\n" + 
+            String restContent = "{\n" +
+                    "    \"aggregations\": {" +
+                    "        \"test_agg\": {\n" +
+                    "            \"terms\" : {\n" +
+                    "                \"field\": \"foo\"\n" +
+                    "            }\n" +
+                    "        }\n" +
+                    "    }\n" +
                     "}\n";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser), aggParsers,

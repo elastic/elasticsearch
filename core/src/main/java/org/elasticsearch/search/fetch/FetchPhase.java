@@ -97,12 +97,21 @@ public class FetchPhase implements SearchPhase {
         List<String> fieldNamePatterns = null;
         if (!context.hasFieldNames()) {
             // no fields specified, default to return source if no explicit indication
-            if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
+            if (!context.hasScriptFields() && !context.hasFetchSourceContext() && context.fetchMetadata()) {
                 context.fetchSourceContext(new FetchSourceContext(true));
             }
-            fieldsVisitor = new FieldsVisitor(context.sourceRequested());
+            if (context.fetchMetadata() == false) {
+                assert context.sourceRequested() == false;
+                fieldsVisitor = null;
+            } else {
+              fieldsVisitor = new FieldsVisitor(context.sourceRequested());
+            }
         } else if (context.fieldNames().isEmpty()) {
-            fieldsVisitor = new FieldsVisitor(context.sourceRequested());
+            if (context.fetchMetadata() == false && context.sourceRequested() == false) {
+                fieldsVisitor = null;
+            } else {
+                fieldsVisitor = new FieldsVisitor(context.sourceRequested());
+            }
         } else {
             for (String fieldName : context.fieldNames()) {
                 if (fieldName.equals(SourceFieldMapper.NAME)) {
@@ -182,6 +191,9 @@ public class FetchPhase implements SearchPhase {
     }
 
     private InternalSearchHit createSearchHit(SearchContext context, FieldsVisitor fieldsVisitor, int docId, int subDocId, LeafReaderContext subReaderContext) {
+        if (fieldsVisitor == null) {
+            return new InternalSearchHit(docId, null, null, null);
+        }
         loadStoredFields(context, subReaderContext, fieldsVisitor, subDocId);
         fieldsVisitor.postProcess(context.mapperService());
 
@@ -193,14 +205,18 @@ public class FetchPhase implements SearchPhase {
             }
         }
 
-        DocumentMapper documentMapper = context.mapperService().documentMapper(fieldsVisitor.uid().type());
-        Text typeText;
-        if (documentMapper == null) {
-            typeText = new Text(fieldsVisitor.uid().type());
-        } else {
-            typeText = documentMapper.typeText();
+        Text typeText = null;
+        String id = null;
+        if (context.fetchMetadata()) {
+            DocumentMapper documentMapper = context.mapperService().documentMapper(fieldsVisitor.uid().type());
+            if (documentMapper == null) {
+                typeText = new Text(fieldsVisitor.uid().type());
+            } else {
+                typeText = documentMapper.typeText();
+            }
+            id = fieldsVisitor.uid().id();
         }
-        InternalSearchHit searchHit = new InternalSearchHit(docId, fieldsVisitor.uid().id(), typeText, searchFields);
+        InternalSearchHit searchHit = new InternalSearchHit(docId, id, typeText, searchFields);
         // Set _source if requested.
         SourceLookup sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, subDocId);

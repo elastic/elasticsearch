@@ -115,3 +115,20 @@ setup:
       search:
         docvalue_fields: [ "count" ]
   - match: { hits.hits.0.fields.count: [1] }
+
+---
+"fetch_metadata: true":
+  - do:
+      search:
+        fetch_metadata: true
+  - is_true: hits.hits.0.id
+  - is_true: hits.hits.0.type
+
+---
+"fetch_metadata: false":
+  - do:
+      search:
+        fetch_metadata: false
+  - is_false: hits.hits.0.id
+  - is_false: hits.hits.0.type
+

@@ -220,6 +220,16 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public boolean fetchMetadata() {
+        return in.fetchMetadata();
+    }
+
+    @Override
+    public SearchContext fetchMetadata(boolean fetch) {
+        return in.fetchMetadata(fetch);
+    }
+
+    @Override
     public ContextIndexSearcher searcher() {
         return in.searcher();
     }

@@ -100,16 +100,16 @@ public class InternalSearchHit implements SearchHit {
 
     }
 
-    public InternalSearchHit(int docId, String id, Text type, Map<String, SearchHitField> fields) {
+    public InternalSearchHit(int docId, @Nullable String id, @Nullable Text type, @Nullable Map<String, SearchHitField> fields) {
         this.docId = docId;
-        this.id = new Text(id);
+        this.id = id != null ? new Text(id) : null;
         this.type = type;
         this.fields = fields;
     }
 
     public InternalSearchHit(int nestedTopDocId, String id, Text type, InternalNestedIdentity nestedIdentity, Map<String, SearchHitField> fields) {
         this.docId = nestedTopDocId;
-        this.id = new Text(id);
+        this.id = id != null ? new Text(id) : null;
         this.type = type;
         this.nestedIdentity = nestedIdentity;
         this.fields = fields;
@@ -168,7 +168,7 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public String id() {
-        return id.string();
+        return id != null ? id.string() : null;
     }
 
     @Override
@@ -178,7 +178,7 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public String type() {
-        return type.string();
+        return type != null ? type.string() : null;
     }
 
     @Override
@@ -444,8 +444,12 @@ public class InternalSearchHit implements SearchHit {
             if (shard != null) {
                 builder.field(Fields._INDEX, shard.indexText());
             }
-            builder.field(Fields._TYPE, type);
-            builder.field(Fields._ID, id);
+            if (type != null) {
+                builder.field(Fields._TYPE, type);
+            }
+            if (id != null) {
+                builder.field(Fields._ID, id);
+            }
         }
         if (version != -1) {
             builder.field(Fields._VERSION, version);
@@ -555,8 +559,8 @@ public class InternalSearchHit implements SearchHit {
 
     public void readFrom(StreamInput in, InternalSearchHits.StreamContext context) throws IOException {
         score = in.readFloat();
-        id = in.readText();
-        type = in.readText();
+        id = in.readOptionalText();
+        type = in.readOptionalText();
         nestedIdentity = in.readOptionalStreamable(InternalNestedIdentity::new);
         version = in.readLong();
         source = in.readBytesReference();
@@ -664,8 +668,8 @@ public class InternalSearchHit implements SearchHit {
 
     public void writeTo(StreamOutput out, InternalSearchHits.StreamContext context) throws IOException {
         out.writeFloat(score);
-        out.writeText(id);
-        out.writeText(type);
+        out.writeOptionalText(id);
+        out.writeOptionalText(type);
         out.writeOptionalStreamable(nestedIdentity);
         out.writeLong(version);
         out.writeBytesReference(source);

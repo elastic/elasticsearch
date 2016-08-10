@@ -1,0 +1,22 @@
+[[search-request-fetch-metadata]]
+=== Fetch metadata
+
+Allows to disable the retrieval of the metadata fields (`_source`, `_id`, `_type`, `routing`, `parent`).
+
+By default search operations return the metadata fields of each search result.
+
+You can turn off the retrieval by using the `fetch_metadata` parameter:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "fetch_metadata": false
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+NOTE: <<search-request-source-filtering,`_source`>>, <<search-request-version, `version`>> and <<search-request-fields, `stored_fields`>> parameters cannot be used if `fetch_metadata` is disabled.

@@ -82,6 +82,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField VERSION_FIELD = new ParseField("version");
     public static final ParseField EXPLAIN_FIELD = new ParseField("explain");
     public static final ParseField _SOURCE_FIELD = new ParseField("_source");
+    public static final ParseField FETCH_METADATA_FIELD = new ParseField("fetch_metadata");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
     public static final ParseField STORED_FIELDS_FIELD = new ParseField("stored_fields");
     public static final ParseField DOCVALUE_FIELDS_FIELD = new ParseField("docvalue_fields", "fielddata_fields");
@@ -152,6 +153,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     private List<String> docValueFields;
     private List<ScriptField> scriptFields;
     private FetchSourceContext fetchSourceContext;
+    private Boolean fetchMetadata;
 
     private AggregatorFactories.Builder aggregations;
 
@@ -183,6 +185,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         aggregations = in.readOptionalWriteable(AggregatorFactories.Builder::new);
         explain = in.readOptionalBoolean();
         fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
+        fetchMetadata = in.readOptionalBoolean();
         docValueFields = (List<String>) in.readGenericValue();
         storedFieldNames = (List<String>) in.readGenericValue();
         from = in.readVInt();
@@ -243,6 +246,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         out.writeOptionalWriteable(aggregations);
         out.writeOptionalBoolean(explain);
         out.writeOptionalStreamable(fetchSourceContext);
+        out.writeOptionalBoolean(fetchMetadata);
         out.writeGenericValue(docValueFields);
         out.writeGenericValue(storedFieldNames);
         out.writeVInt(from);
@@ -706,6 +710,21 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     }
 
     /**
+     * Indicate if the metadata fields should be fetched
+     */
+    public SearchSourceBuilder fetchMetadata(boolean fetch) {
+        this.fetchMetadata = fetch;
+        return this;
+    }
+
+    /**
+     * Returns true if the metadata fields should be fetched
+     */
+    public Boolean fetchMetadata() {
+        return fetchMetadata;
+    }
+
+    /**
      * Adds a stored field to load and return as part of the
      * search request. If none are specified, the source of the document will be
      * return.
@@ -911,6 +930,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             rewrittenBuilder.explain = explain;
             rewrittenBuilder.ext = ext;
             rewrittenBuilder.fetchSourceContext = fetchSourceContext;
+            rewrittenBuilder.fetchMetadata = fetchMetadata;
             rewrittenBuilder.docValueFields = docValueFields;
             rewrittenBuilder.storedFieldNames = storedFieldNames;
             rewrittenBuilder.from = from;
@@ -972,6 +992,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     trackScores = parser.booleanValue();
                 } else if (context.getParseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
                     fetchSourceContext = FetchSourceContext.parse(context);
+                } else if (context.getParseFieldMatcher().match(currentFieldName, FETCH_METADATA_FIELD)) {
+                    fetchMetadata = parser.booleanValue();
                 } else if (context.getParseFieldMatcher().match(currentFieldName, STORED_FIELDS_FIELD)) {
                     storedField(parser.text());
                 } else if (context.getParseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
@@ -1139,6 +1161,10 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
         if (fetchSourceContext != null) {
             builder.field(_SOURCE_FIELD.getPreferredName(), fetchSourceContext);
+        }
+
+        if (fetchMetadata != null) {
+            builder.field(FETCH_METADATA_FIELD.getPreferredName(), fetchMetadata);
         }
 
         if (storedFieldNames != null) {
@@ -1349,7 +1375,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     @Override
     public int hashCode() {
-        return Objects.hash(aggregations, explain, fetchSourceContext, docValueFields, storedFieldNames, from,
+        return Objects.hash(aggregations, explain, fetchSourceContext, fetchMetadata, docValueFields, storedFieldNames, from,
                 highlightBuilder, indexBoost, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields,
                 size, sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version, profile);
     }
@@ -1366,6 +1392,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         return Objects.equals(aggregations, other.aggregations)
                 && Objects.equals(explain, other.explain)
                 && Objects.equals(fetchSourceContext, other.fetchSourceContext)
+                && Objects.equals(fetchMetadata, other.fetchMetadata)
                 && Objects.equals(docValueFields, other.docValueFields)
                 && Objects.equals(storedFieldNames, other.storedFieldNames)
                 && Objects.equals(from, other.from)

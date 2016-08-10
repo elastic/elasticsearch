@@ -91,7 +91,7 @@ Returns this:
       "content_type": "application/rtf",
       "language": "ro",
       "content": "Lorem ipsum dolor sit amet",
-      "content_length": "28"
+      "content_length": 28
     }
   }
 }

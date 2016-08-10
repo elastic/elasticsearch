@@ -50,7 +50,7 @@ The following snippet calculates the sum of all the total monthly `sales` bucket
         },
         "stats_monthly_sales": {
             "stats_bucket": {
-                "buckets_paths": "sales_per_month>sales" <1>
+                "buckets_path": "sales_per_month>sales" <1>
             }
         }
     }

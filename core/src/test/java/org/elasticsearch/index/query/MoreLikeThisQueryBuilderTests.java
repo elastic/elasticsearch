@@ -45,9 +45,11 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
@@ -195,6 +197,12 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             queryBuilder.failOnUnsupportedField(randomBoolean());
         }
         return queryBuilder;
+    }
+
+    @Override
+    protected Set<String> getObjectsHoldingArbitraryContent() {
+        //doc contains arbitrary content, anything can be added to it and no exception will be thrown
+        return Collections.singleton(MoreLikeThisQueryBuilder.Item.Field.DOC.getPreferredName());
     }
 
     @Override

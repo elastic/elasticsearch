@@ -52,10 +52,13 @@ The node must be stopped before removing the plugin.
 | `properties`           | no        | all              | Properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language`
 |======
 
+For example, this:
+
 [source,js]
 --------------------------------------------------
+PUT _ingest/pipeline/attachment
 {
-  "description" : "...",
+  "description" : "Extract attachment information",
   "processors" : [
     {
       "attachment" : {
@@ -64,7 +67,36 @@ The node must be stopped before removing the plugin.
     }
   ]
 }
+PUT my_index/my_type/my_id?pipeline=attachment
+{
+  "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0="
+}
+GET my_index/my_type/my_id
 --------------------------------------------------
+// CONSOLE
+
+Returns this:
+
+[source,js]
+--------------------------------------------------
+{
+  "found": true,
+  "_index": "my_index",
+  "_type": "my_type",
+  "_id": "my_id",
+  "_version": 1,
+  "_source": {
+    "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
+    "attachment": {
+      "content_type": "application/rtf",
+      "language": "ro",
+      "content": "Lorem ipsum dolor sit amet",
+      "content_length": 28
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
 
 NOTE: Extracting contents from binary data is a resource intensive operation and
       consumes a lot of resources. It is highly recommended to run pipelines

@@ -64,8 +64,9 @@ Here is an example that uses the default city database and adds the geographical
 
 [source,js]
 --------------------------------------------------
+PUT _ingest/pipeline/geoip
 {
-  "description" : "...",
+  "description" : "Add geoip info",
   "processors" : [
     {
       "geoip" : {
@@ -74,22 +75,82 @@ Here is an example that uses the default city database and adds the geographical
     }
   ]
 }
+PUT my_index/my_type/my_id?pipeline=geoip
+{
+  "ip": "8.8.8.8"
+}
+GET my_index/my_type/my_id
 --------------------------------------------------
+// CONSOLE
 
-Here is an example that uses the default country database and adds the geographical information to the `geo` field based on the `ip` field`:
+Which returns:
 
 [source,js]
 --------------------------------------------------
 {
-  "description" : "...",
+  "found": true,
+  "_index": "my_index",
+  "_type": "my_type",
+  "_id": "my_id",
+  "_version": 1,
+  "_source": {
+    "ip": "8.8.8.8",
+    "geoip": {
+      "continent_name": "North America",
+      "country_iso_code": "US",
+      "region_name": "California",
+      "city_name": "Mountain View",
+      "location": { "lat": 37.386, "lon": -122.0838 }
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+Here is an example that uses the default country database and adds the
+geographical information to the `geo` field based on the `ip` field`. Note that
+this database is included in the plugin download. So this:
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/geoip
+{
+  "description" : "Add geoip info",
   "processors" : [
     {
       "geoip" : {
         "field" : "ip",
         "target_field" : "geo",
-        "database_file" : "GeoLite2-Country.mmdb"
+        "database_file" : "GeoLite2-Country.mmdb.gz"
       }
     }
   ]
 }
+PUT my_index/my_type/my_id?pipeline=geoip
+{
+  "ip": "8.8.8.8"
+}
+GET my_index/my_type/my_id
 --------------------------------------------------
+// CONSOLE
+
+returns this:
+
+[source,js]
+--------------------------------------------------
+{
+  "found": true,
+  "_index": "my_index",
+  "_type": "my_type",
+  "_id": "my_id",
+  "_version": 1,
+  "_source": {
+    "ip": "8.8.8.8",
+    "geo": {
+      "continent_name": "North America",
+      "country_iso_code": "US",
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE

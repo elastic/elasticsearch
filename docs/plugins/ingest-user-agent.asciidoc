@@ -51,8 +51,9 @@ Here is an example that adds the user agent details to the `user_agent` field ba
 
 [source,js]
 --------------------------------------------------
+PUT _ingest/pipeline/user_agent
 {
-  "description" : "...",
+  "description" : "Add user agent information",
   "processors" : [
     {
       "user_agent" : {
@@ -61,7 +62,41 @@ Here is an example that adds the user agent details to the `user_agent` field ba
     }
   ]
 }
+PUT my_index/my_type/my_id?pipeline=user_agent
+{
+  "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36"
+}
+GET my_index/my_type/my_id
 --------------------------------------------------
+// CONSOLE
+
+Which returns
+
+[source,js]
+--------------------------------------------------
+{
+  "found": true,
+  "_index": "my_index",
+  "_type": "my_type",
+  "_id": "my_id",
+  "_version": 1,
+  "_source": {
+    "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/51.0.2704.103 Safari/537.36",
+    "user_agent": {
+      "name": "Chrome",
+      "major": "51",
+      "minor": "0",
+      "patch": "2704",
+      "os_name": "Mac OS X",
+      "os": "Mac OS X 10.10.5",
+      "os_major": "10",
+      "os_minor": "10",
+      "device": "Other"
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
 
 ===== Using a custom regex file
 To use a custom regex file for parsing the user agents, that file has to be put into the `config/ingest-user-agent` directory and

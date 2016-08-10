@@ -5,6 +5,41 @@ Also see <<breaking-changes-5.0>>.
 
 IMPORTANT: This is an alpha release and is intended for _testing purposes only_. Indices created in this version will *not be compatible with Elasticsearch 5.0.0 GA*. Upgrading 5.0.0-alpha5 to any other version is not supported.
 
+[IMPORTANT]
+.Known networking bug in 5.0.0-alpha5
+======================================================
+
+There is a major bug in the new Netty4 implementation in this release which
+affects any REST requests greater than 1024 bytes in size, and which will
+generate an exception similar to the following:
+
+[source,txt]
+----
+[WARN ][http.netty4] [wtOV9Vb] caught exception while handling client http traffic, closing connection [id: 0x1320b717, L:/0:0:0:0:0:0:0:1:9200 - R:/0:0:0:0:0:0:0:1:54732]
+java.lang.UnsupportedOperationException: unsupported message type: DefaultFullHttpResponse (expected: ByteBuf, FileRegion)
+----
+
+This is due to incorrect handling of the `Expect` HTTP header, and it can be
+worked around in one of three ways:
+
+* Use a client which does not add `Expect` headers (including the official clients).
+
+* Pass a blank `Except` header, e.g.
++
+[source,sh]
+----
+curl -H 'Expect:' ...
+----
+
+* Use Netty3 for the HTTP layer by passing the following setting at startup:
++
+[source,sh]
+----
+./bin/elasticsearch -Ehttp.type=netty3
+----
+
+======================================================
+
 [[breaking-5.0.0-alpha5]]
 [float]
 === Breaking changes

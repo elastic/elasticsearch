@@ -48,7 +48,7 @@ public final class TermSuggester extends Suggester<TermSuggestionContext> {
     @Override
     public TermSuggestion innerExecute(String name, TermSuggestionContext suggestion, IndexSearcher searcher, CharsRefBuilder spare)
             throws IOException {
-        DirectSpellChecker directSpellChecker = suggestion.getDirectSpellCheckerSettings().getDirectSpellChecker();
+        DirectSpellChecker directSpellChecker = suggestion.getDirectSpellCheckerSettings().createDirectSpellChecker();
         final IndexReader indexReader = searcher.getIndexReader();
         TermSuggestion response = new TermSuggestion(
                 name, suggestion.getSize(), suggestion.getDirectSpellCheckerSettings().sort()

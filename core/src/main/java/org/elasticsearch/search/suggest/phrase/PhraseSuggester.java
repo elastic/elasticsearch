@@ -83,7 +83,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         final List<CandidateGenerator> gens = new ArrayList<>(generators.size());
         for (int i = 0; i < numGenerators; i++) {
             PhraseSuggestionContext.DirectCandidateGenerator generator = generators.get(i);
-            DirectSpellChecker directSpellChecker = generator.getDirectSpellChecker();
+            DirectSpellChecker directSpellChecker = generator.createDirectSpellChecker();
             Terms terms = MultiFields.getTerms(indexReader, generator.field());
             if (terms !=  null) {
                 gens.add(new DirectCandidateGenerator(directSpellChecker, generator.field(), generator.suggestMode(),

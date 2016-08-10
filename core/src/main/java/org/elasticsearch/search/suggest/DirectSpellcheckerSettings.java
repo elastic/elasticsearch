@@ -137,7 +137,7 @@ public class DirectSpellcheckerSettings  {
         this.minDocFreq = minDocFreq;
     }
 
-    public DirectSpellChecker getDirectSpellChecker() {
+    public DirectSpellChecker createDirectSpellChecker() {
 
         DirectSpellChecker directSpellChecker = new DirectSpellChecker();
         directSpellChecker.setAccuracy(accuracy());

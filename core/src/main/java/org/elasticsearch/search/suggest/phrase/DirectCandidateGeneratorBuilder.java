@@ -374,7 +374,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         DirectCandidateGeneratorBuilder tempGenerator = new DirectCandidateGeneratorBuilder("_na_");
         // bucket for the field name, needed as constructor arg later
         Set<String> tmpFieldName = new HashSet<>(1);
-        PARSER.parse(parseContext.parser(), new Tuple<Set<String>, DirectCandidateGeneratorBuilder>(tmpFieldName, tempGenerator),
+        PARSER.parse(parseContext.parser(), new Tuple<>(tmpFieldName, tempGenerator),
                 parseContext);
         if (tmpFieldName.size() != 1) {
             throw new IllegalArgumentException("[" + TYPE + "] expects exactly one field parameter, but found " + tmpFieldName);

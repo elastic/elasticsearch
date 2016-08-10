@@ -58,6 +58,21 @@ public class FailedRerouteAllocation extends RoutingAllocation {
         }
     }
 
+    public static class StaleShard {
+        public final ShardId shardId;
+        public final String allocationId;
+
+        public StaleShard(ShardId shardId, String allocationId) {
+            this.shardId = shardId;
+            this.allocationId = allocationId;
+        }
+
+        @Override
+        public String toString() {
+            return "stale shard, shard " + shardId + ", alloc. id [" + allocationId + "]";
+        }
+    }
+
     private final List<FailedShard> failedShards;
 
     public FailedRerouteAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, ClusterState clusterState,

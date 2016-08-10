@@ -121,7 +121,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 continue;
             }
 
-            final Set<String> lastActiveAllocationIds = indexMetaData.activeAllocationIds(shard.id());
+            final Set<String> lastActiveAllocationIds = indexMetaData.inSyncAllocationIds(shard.id());
             final boolean snapshotRestore = shard.restoreSource() != null;
             final boolean recoverOnAnyNode = recoverOnAnyNode(indexMetaData);
 

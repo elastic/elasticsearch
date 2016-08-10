@@ -61,7 +61,7 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             .settings(Settings.builder()
                     .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                     .put(IndexMetaData.SETTING_INDEX_UUID, "uuid"))
-            .putActiveAllocationIds(0, Sets.newHashSet("aid1", "aid2"))
+            .putInSyncAllocationIds(0, Sets.newHashSet("aid1", "aid2"))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();

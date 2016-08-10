@@ -255,7 +255,7 @@ public final class ShardRouting implements Writeable, ToXContent {
             return false;
         }
 
-        if (indexMetaData.activeAllocationIds(id()).isEmpty() && indexMetaData.getCreationVersion().onOrAfter(Version.V_5_0_0_alpha1)) {
+        if (indexMetaData.inSyncAllocationIds(id()).isEmpty() && indexMetaData.getCreationVersion().onOrAfter(Version.V_5_0_0_alpha1)) {
             // when no shards with this id have ever been active for this index
             return false;
         }

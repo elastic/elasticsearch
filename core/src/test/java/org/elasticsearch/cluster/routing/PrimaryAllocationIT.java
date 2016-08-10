@@ -37,6 +37,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
@@ -153,7 +154,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         client().admin().cluster().prepareReroute().add(new AllocateStalePrimaryAllocationCommand("test", 0, dataNodeWithNoShardCopy, true)).get();
 
         logger.info("--> wait until shard is failed and becomes unassigned again");
-        assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned()));
+        assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned()));
         assertThat(client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").getShards().get(0).primaryShard().unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
     }
 
@@ -190,6 +191,11 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
 
         }
         assertHitCount(client().prepareSearch(idxName).setSize(0).setQuery(matchAllQuery()).get(), useStaleReplica ? 1L : 0L);
+
+        // allocation id of old primary was cleaned from the in-sync set
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        assertEquals(Collections.singleton(state.routingTable().index(idxName).shard(0).primary.allocationId().getId()),
+            state.metaData().index(idxName).inSyncAllocationIds(0));
     }
 
     public void testForcePrimaryShardIfAllocationDecidersSayNoAfterIndexCreation() throws ExecutionException, InterruptedException {
@@ -202,6 +208,59 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
 
         client().admin().cluster().prepareReroute().add(new AllocateEmptyPrimaryAllocationCommand("test", 0, node, true)).get();
         ensureGreen("test");
+    }
+
+    public void testDoNotRemoveAllocationIdOnNodeLeave() throws Exception {
+        internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        internalCluster().startDataOnlyNode(Settings.EMPTY);
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
+            .put("index.number_of_shards", 1).put("index.number_of_replicas", 1).put("index.unassigned.node_left.delayed_timeout", "0ms")).get());
+        String replicaNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
+        ensureGreen("test");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
+        ensureYellow("test");
+        assertEquals(2, client().admin().cluster().prepareState().get().getState().metaData().index("test").inSyncAllocationIds(0).size());
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+            @Override
+            public boolean clearData(String nodeName) {
+                return true;
+            }
+        });
+        logger.info("--> wait until shard is failed and becomes unassigned again");
+        assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned()));
+        assertEquals(2, client().admin().cluster().prepareState().get().getState().metaData().index("test").inSyncAllocationIds(0).size());
+
+        logger.info("--> starting node that reuses data folder with the up-to-date shard");
+        internalCluster().startDataOnlyNode(Settings.EMPTY);
+        ensureGreen("test");
+    }
+
+    public void testRemoveAllocationIdOnWriteAfterNodeLeave() throws Exception {
+        internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        internalCluster().startDataOnlyNode(Settings.EMPTY);
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
+            .put("index.number_of_shards", 1).put("index.number_of_replicas", 1).put("index.unassigned.node_left.delayed_timeout", "0ms")).get());
+        String replicaNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
+        ensureGreen("test");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
+        ensureYellow("test");
+        assertEquals(2, client().admin().cluster().prepareState().get().getState().metaData().index("test").inSyncAllocationIds(0).size());
+        logger.info("--> indexing...");
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject().field("field", "value1").endObject()).get();
+        assertEquals(1, client().admin().cluster().prepareState().get().getState().metaData().index("test").inSyncAllocationIds(0).size());
+        internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
+            @Override
+            public boolean clearData(String nodeName) {
+                return true;
+            }
+        });
+        logger.info("--> wait until shard is failed and becomes unassigned again");
+        assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned()));
+        assertEquals(1, client().admin().cluster().prepareState().get().getState().metaData().index("test").inSyncAllocationIds(0).size());
+
+        logger.info("--> starting node that reuses data folder with the up-to-date shard");
+        internalCluster().startDataOnlyNode(Settings.EMPTY);
+        assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get().getState().getRoutingTable().index("test").allPrimaryShardsUnassigned()));
     }
 
     public void testNotWaitForQuorumCopies() throws Exception {

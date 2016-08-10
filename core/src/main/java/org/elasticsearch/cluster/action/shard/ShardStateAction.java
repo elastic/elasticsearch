@@ -126,30 +126,36 @@ public class ShardStateAction extends AbstractComponent {
         return ExceptionsHelper.unwrap(exp, MASTER_CHANNEL_EXCEPTIONS) != null;
     }
 
+    public void remoteShardFailed(final ShardRouting shardRouting, long primaryTerm, final String message, @Nullable final Exception failure, Listener listener) {
+        shardFailed(shardRouting.shardId(), shardRouting.allocationId().getId(), primaryTerm, message, failure, listener);
+    }
+
     /**
-     * Send a shard failed request to the master node to update the cluster state with the failure of a shard on another node.
+     * Send a shard failed request to the master node to update the cluster state with the failure of a shard on another node. If the shard
+     * does not exist anymore, remove its allocation id from the in-sync set.
      *
-     * @param shardRouting       the shard to fail
+     * @param shardId            shard id of the shard to fail
+     * @param allocationId       allocation id of the shard to fail
      * @param primaryTerm        the primary term associated with the primary shard that is failing the shard.
      * @param message            the reason for the failure
      * @param failure            the underlying cause of the failure
      * @param listener           callback upon completion of the request
      */
-    public void remoteShardFailed(final ShardRouting shardRouting, long primaryTerm, final String message, @Nullable final Exception failure, Listener listener) {
+    public void remoteShardFailed(final ShardId shardId, String allocationId, long primaryTerm, final String message, @Nullable final Exception failure, Listener listener) {
         assert primaryTerm > 0L : "primary term should be strictly positive";
-        shardFailed(shardRouting, primaryTerm, message, failure, listener);
+        shardFailed(shardId, allocationId, primaryTerm, message, failure, listener);
     }
 
     /**
      * Send a shard failed request to the master node to update the cluster state when a shard on the local node failed.
      */
     public void localShardFailed(final ShardRouting shardRouting, final String message, @Nullable final Exception failure, Listener listener) {
-        shardFailed(shardRouting, 0L, message, failure, listener);
+        shardFailed(shardRouting.shardId(), shardRouting.allocationId().getId(), 0L, message, failure, listener);
     }
 
-    private void shardFailed(final ShardRouting shardRouting, long primaryTerm, final String message, @Nullable final Exception failure, Listener listener) {
+    private void shardFailed(final ShardId shardId, String allocationId, long primaryTerm, final String message, @Nullable final Exception failure, Listener listener) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
-        ShardEntry shardEntry = new ShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(), primaryTerm, message, failure);
+        ShardEntry shardEntry = new ShardEntry(shardId, allocationId, primaryTerm, message, failure);
         sendShardAction(SHARD_FAILED_ACTION_NAME, observer, shardEntry, listener);
     }
 
@@ -248,7 +254,7 @@ public class ShardStateAction extends AbstractComponent {
             BatchResult.Builder<ShardEntry> batchResultBuilder = BatchResult.builder();
             List<ShardEntry> tasksToBeApplied = new ArrayList<>();
             List<FailedRerouteAllocation.FailedShard> shardRoutingsToBeApplied = new ArrayList<>();
-            Set<ShardRouting> seenShardRoutings = new HashSet<>(); // to prevent duplicates
+            List<FailedRerouteAllocation.StaleShard> staleShardsToBeApplied = new ArrayList<>();
 
             for (ShardEntry task : tasks) {
                 IndexMetaData indexMetaData = currentState.metaData().index(task.shardId.getIndex());
@@ -274,28 +280,32 @@ public class ShardStateAction extends AbstractComponent {
 
                     ShardRouting matched = currentState.getRoutingTable().getByAllocationId(task.shardId, task.allocationId);
                     if (matched == null) {
-                        // tasks that correspond to non-existent shards are marked as successful
-                        logger.debug("{} ignoring shard failed task [{}] (shard does not exist anymore)", task.shardId, task);
-                        batchResultBuilder.success(task);
-                    } else {
-                        // remove duplicate actions as allocation service expects a clean list without duplicates
-                        if (seenShardRoutings.contains(matched)) {
-                            logger.trace("{} ignoring shard failed task [{}] (already scheduled to fail {})", task.shardId, task, matched);
+                        Set<String> inSyncAllocationIds = indexMetaData.inSyncAllocationIds(task.shardId.id());
+                        if (task.primaryTerm > 0 && inSyncAllocationIds.contains(task.allocationId)) {
+                            // marking allocation id without shard routing as stale only allowed if primary term is provided
+                            // otherwise we might remove the allocation id of a primary that was failed in an earlier cluster update task
+                            // when no more active shards are available now.
+                            logger.debug("{} marking shard {} as stale (shard failed task: [{}])", task.shardId, task.allocationId, task);
                             tasksToBeApplied.add(task);
+                            staleShardsToBeApplied.add(new FailedRerouteAllocation.StaleShard(task.shardId, task.allocationId));
                         } else {
-                            logger.debug("{} failing shard {} (shard failed task: [{}])", task.shardId, matched, task);
-                            tasksToBeApplied.add(task);
-                            shardRoutingsToBeApplied.add(new FailedRerouteAllocation.FailedShard(matched, task.message, task.failure));
-                            seenShardRoutings.add(matched);
+                            // tasks that correspond to non-existent shards are marked as successful
+                            logger.debug("{} ignoring shard failed task [{}] (shard does not exist anymore)", task.shardId, task);
+                            batchResultBuilder.success(task);
                         }
+                    } else {
+                        // failing shard also marks it as stale
+                        logger.debug("{} failing shard {} (shard failed task: [{}])", task.shardId, matched, task);
+                        tasksToBeApplied.add(task);
+                        shardRoutingsToBeApplied.add(new FailedRerouteAllocation.FailedShard(matched, task.message, task.failure));
                     }
                 }
             }
-            assert tasksToBeApplied.size() >= shardRoutingsToBeApplied.size();
+            assert tasksToBeApplied.size() == shardRoutingsToBeApplied.size() + staleShardsToBeApplied.size();
 
             ClusterState maybeUpdatedState = currentState;
             try {
-                RoutingAllocation.Result result = applyFailedShards(currentState, shardRoutingsToBeApplied);
+                RoutingAllocation.Result result = applyFailedShards(currentState, shardRoutingsToBeApplied, staleShardsToBeApplied);
                 if (result.changed()) {
                     maybeUpdatedState = ClusterState.builder(currentState).routingResult(result).build();
                 }
@@ -311,8 +321,9 @@ public class ShardStateAction extends AbstractComponent {
         }
 
         // visible for testing
-        RoutingAllocation.Result applyFailedShards(ClusterState currentState, List<FailedRerouteAllocation.FailedShard> failedShards) {
-            return allocationService.applyFailedShards(currentState, failedShards);
+        RoutingAllocation.Result applyFailedShards(ClusterState currentState, List<FailedRerouteAllocation.FailedShard> failedShards,
+                                                   List<FailedRerouteAllocation.StaleShard> staleShards) {
+            return allocationService.applyFailedShards(currentState, failedShards, staleShards);
         }
 
         @Override

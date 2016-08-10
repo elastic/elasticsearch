@@ -481,6 +481,12 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
                               Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public void markShardCopyAsStale(ShardId shardId, String allocationId, long primaryTerm, Runnable onSuccess,
+                                         Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+            throw new UnsupportedOperationException();
+        }
     }
 
 

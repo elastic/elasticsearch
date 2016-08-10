@@ -39,8 +39,7 @@ import static org.jboss.netty.handler.codec.http.HttpResponseStatus.OK;
 public class CorsHandlerTests extends ESTestCase {
 
     @Test
-    public void testMultiValueResponseHeaders() {
-        // test with only one value
+    public void testSingleValueResponseHeaders() {
         CorsConfig corsConfig = new CorsConfigBuilder()
                                     .allowedRequestHeaders("content-type")
                                     .allowedRequestMethods(HttpMethod.GET)
@@ -51,14 +50,16 @@ public class CorsHandlerTests extends ESTestCase {
         corsHandler.setAllowHeaders(response);
         assertEquals("content-type", response.headers().get(ACCESS_CONTROL_ALLOW_HEADERS));
         assertEquals("GET", response.headers().get(ACCESS_CONTROL_ALLOW_METHODS));
+    }
 
-        // test with multiple values
-        corsConfig = new CorsConfigBuilder()
-                         .allowedRequestHeaders("content-type,x-requested-with,accept")
-                         .allowedRequestMethods(HttpMethod.GET, HttpMethod.POST)
-                         .build();
-        corsHandler = new CorsHandler(corsConfig);
-        response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, OK);
+    @Test
+    public void testMultiValueResponseHeaders() {
+        CorsConfig corsConfig = new CorsConfigBuilder()
+                                    .allowedRequestHeaders("content-type,x-requested-with,accept")
+                                    .allowedRequestMethods(HttpMethod.GET, HttpMethod.POST)
+                                    .build();
+        CorsHandler corsHandler = new CorsHandler(corsConfig);
+        HttpResponse response = new DefaultHttpResponse(HttpVersion.HTTP_1_1, OK);
         corsHandler.setAllowMethods(response);
         corsHandler.setAllowHeaders(response);
         Set<String> responseHeadersSet = Strings.commaDelimitedListToSet(response.headers().get(ACCESS_CONTROL_ALLOW_HEADERS));

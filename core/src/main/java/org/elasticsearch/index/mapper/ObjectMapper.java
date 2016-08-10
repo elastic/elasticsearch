@@ -146,6 +146,10 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(context);
+                Mapper existing = mappers.get(mapper.simpleName());
+                if (existing != null) {
+                    mapper = existing.merge(mapper, false);
+                }
                 mappers.put(mapper.simpleName(), mapper);
             }
             context.path().remove();
@@ -241,9 +245,6 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
-                if (fieldName.contains(".")) {
-                    throw new MapperParsingException("Field name [" + fieldName + "] cannot contain '.'");
-                }
                 // Should accept empty arrays, as a work around for when the
                 // user can't provide an empty Map. (PHP for example)
                 boolean isEmptyList = entry.getValue() instanceof List && ((List<?>) entry.getValue()).isEmpty();
@@ -274,7 +275,15 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
                     if (typeParser == null) {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
-                    objBuilder.add(typeParser.parse(fieldName, propNode, parserContext));
+                    String[] fieldNameParts = fieldName.split("\\.");
+                    String realFieldName = fieldNameParts[fieldNameParts.length - 1];
+                    Mapper.Builder<?,?> fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
+                    for (int i = fieldNameParts.length - 2; i >= 0; --i) {
+                        ObjectMapper.Builder<?, ?> intermediate = new ObjectMapper.Builder<>(fieldNameParts[i]);
+                        intermediate.add(fieldBuilder);
+                        fieldBuilder = intermediate;
+                    }
+                    objBuilder.add(fieldBuilder);
                     propNode.remove("type");
                     DocumentMapperParser.checkNoRemainingFields(fieldName, propNode, parserContext.indexVersionCreated());
                     iterator.remove();

@@ -130,6 +130,7 @@ public final class SuggestUtils {
                 numTokens++;
             }
             consumer.end();
+            success = true;
         } finally {
             if (success) {
                 stream.close();

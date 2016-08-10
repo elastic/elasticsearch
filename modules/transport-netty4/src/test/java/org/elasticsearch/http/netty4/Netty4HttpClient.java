@@ -128,7 +128,7 @@ class Netty4HttpClient implements Closeable {
 
     private synchronized Collection<FullHttpResponse> sendRequests(
         final SocketAddress remoteAddress,
-        final Collection<?> requests) throws InterruptedException {
+        final Collection<HttpRequest> requests) throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(requests.size());
         final Collection<FullHttpResponse> content = Collections.synchronizedList(new ArrayList<>(requests.size()));
 
@@ -139,7 +139,7 @@ class Netty4HttpClient implements Closeable {
             channelFuture = clientBootstrap.connect(remoteAddress);
             channelFuture.sync();
 
-            for (Object request : requests) {
+            for (HttpRequest request : requests) {
                 channelFuture.channel().writeAndFlush(request);
             }
             latch.await(10, TimeUnit.SECONDS);

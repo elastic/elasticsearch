@@ -179,23 +179,23 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<
          */
         index.source((Map<String, Object>) resultCtx.remove(SourceFieldMapper.NAME));
 
-        Object newValue = ctx.remove(IndexFieldMapper.NAME);
+        Object newValue = resultCtx.remove(IndexFieldMapper.NAME);
         if (false == doc.index().equals(newValue)) {
             scriptChangedIndex(index, newValue);
         }
-        newValue = ctx.remove(TypeFieldMapper.NAME);
+        newValue = resultCtx.remove(TypeFieldMapper.NAME);
         if (false == doc.type().equals(newValue)) {
             scriptChangedType(index, newValue);
         }
-        newValue = ctx.remove(IdFieldMapper.NAME);
+        newValue = resultCtx.remove(IdFieldMapper.NAME);
         if (false == doc.id().equals(newValue)) {
             scriptChangedId(index, newValue);
         }
-        newValue = ctx.remove(VersionFieldMapper.NAME);
+        newValue = resultCtx.remove(VersionFieldMapper.NAME);
         if (false == Objects.equals(oldVersion, newValue)) {
             scriptChangedVersion(index, newValue);
         }
-        newValue = ctx.remove(ParentFieldMapper.NAME);
+        newValue = resultCtx.remove(ParentFieldMapper.NAME);
         if (false == Objects.equals(oldParent, newValue)) {
             scriptChangedParent(index, newValue);
         }
@@ -203,22 +203,22 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<
          * Its important that routing comes after parent in case you want to
          * change them both.
          */
-        newValue = ctx.remove(RoutingFieldMapper.NAME);
+        newValue = resultCtx.remove(RoutingFieldMapper.NAME);
         if (false == Objects.equals(oldRouting, newValue)) {
             scriptChangedRouting(index, newValue);
         }
-        newValue = ctx.remove(TimestampFieldMapper.NAME);
+        newValue = resultCtx.remove(TimestampFieldMapper.NAME);
         if (false == Objects.equals(oldTimestamp, newValue)) {
             scriptChangedTimestamp(index, newValue);
         }
-        newValue = ctx.remove(TTLFieldMapper.NAME);
+        newValue = resultCtx.remove(TTLFieldMapper.NAME);
         if (false == Objects.equals(oldTTL, newValue)) {
             scriptChangedTTL(index, newValue);
         }
-        if (false == ctx.isEmpty()) {
+        if (false == resultCtx.isEmpty()) {
             StringBuilder msg = new StringBuilder("Invalid fields added to ctx [");
             boolean first = true;
-            for (String key : ctx.keySet()) {
+            for (String key : resultCtx.keySet()) {
                 if (first) {
                     first = false;
                 } else {

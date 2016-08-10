@@ -62,7 +62,13 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         assertThat(((Number) o).intValue(), equalTo(3));
     }
 
-    @Test
+    public void testNullVars() {
+        CompiledScript script = new CompiledScript(ScriptService.ScriptType.INLINE, "testSimpleEquation", "js",
+                se.compile("1 + 2", Collections.<String, String>emptyMap()));
+        Object o = se.executable(script, null).run();
+        assertThat(((Number) o).intValue(), equalTo(3));
+    }
+
     public void testMapAccess() {
         Map<String, Object> vars = new HashMap<String, Object>();
 

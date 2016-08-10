@@ -19,6 +19,13 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
+import org.apache.lucene.search.spell.DirectSpellChecker;
+import org.apache.lucene.search.spell.JaroWinklerDistance;
+import org.apache.lucene.search.spell.LevensteinDistance;
+import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
+import org.apache.lucene.search.spell.NGramDistance;
+import org.apache.lucene.search.spell.StringDistance;
+import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.ParseField;
@@ -31,11 +38,11 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.suggest.SortBy;
-import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.CandidateGenerator;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -401,13 +408,13 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         }
         transferIfNotNull(this.accuracy, generator::accuracy);
         if (this.suggestMode != null) {
-            generator.suggestMode(SuggestUtils.resolveSuggestMode(this.suggestMode));
+            generator.suggestMode(resolveSuggestMode(this.suggestMode));
         }
         if (this.sort != null) {
             generator.sort(SortBy.resolve(this.sort));
         }
         if (this.stringDistance != null) {
-            generator.stringDistance(SuggestUtils.resolveDistance(this.stringDistance));
+            generator.stringDistance(resolveDistance(this.stringDistance));
         }
         transferIfNotNull(this.maxEdits, generator::maxEdits);
         if (generator.maxEdits() < 1 || generator.maxEdits() > LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE) {
@@ -421,11 +428,42 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         return generator;
     }
 
-     private static <T> void transferIfNotNull(T value, Consumer<T> consumer) {
-         if (value != null) {
-             consumer.accept(value);
-         }
-     }
+    private static SuggestMode resolveSuggestMode(String suggestMode) {
+        suggestMode = suggestMode.toLowerCase(Locale.US);
+        if ("missing".equals(suggestMode)) {
+            return SuggestMode.SUGGEST_WHEN_NOT_IN_INDEX;
+        } else if ("popular".equals(suggestMode)) {
+            return SuggestMode.SUGGEST_MORE_POPULAR;
+        } else if ("always".equals(suggestMode)) {
+            return SuggestMode.SUGGEST_ALWAYS;
+        } else {
+            throw new IllegalArgumentException("Illegal suggest mode " + suggestMode);
+        }
+    }
+
+    private static StringDistance resolveDistance(String distanceVal) {
+        distanceVal = distanceVal.toLowerCase(Locale.US);
+        if ("internal".equals(distanceVal)) {
+            return DirectSpellChecker.INTERNAL_LEVENSHTEIN;
+        } else if ("damerau_levenshtein".equals(distanceVal) || "damerauLevenshtein".equals(distanceVal)) {
+            return new LuceneLevenshteinDistance();
+        } else if ("levenstein".equals(distanceVal)) {
+            return new LevensteinDistance();
+            //TODO Jaro and Winkler are 2 people - so apply same naming logic as damerau_levenshtein
+        } else if ("jarowinkler".equals(distanceVal)) {
+            return new JaroWinklerDistance();
+        } else if ("ngram".equals(distanceVal)) {
+            return new NGramDistance();
+        } else {
+            throw new IllegalArgumentException("Illegal distance option " + distanceVal);
+        }
+    }
+
+    private static <T> void transferIfNotNull(T value, Consumer<T> consumer) {
+        if (value != null) {
+            consumer.accept(value);
+        }
+    }
 
     @Override
     public String toString() {

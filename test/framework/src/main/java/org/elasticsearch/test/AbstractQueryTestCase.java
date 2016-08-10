@@ -313,7 +313,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     /**
      * Test that adding an additional object within each object of the otherwise correct query always triggers some kind of
-     * parse exception. Some specific objects do not cause any exception as they can hold arbitray content; they can be
+     * parse exception. Some specific objects do not cause any exception as they can hold arbitrary content; they can be
      * declared by overriding {@link #getObjectsHoldingArbitraryContent()}
      */
     public final void testUnknownObjectException() throws IOException {
@@ -324,10 +324,48 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
     }
 
+    /**
+     * Traverses the json tree of the valid query provided as argument and mutates it by adding one object within each object
+     * encountered. Every mutation is a separate iteration, which will be followed by its corresponding assertions to verify that
+     * a parse exception is thrown when parsing the modified query. Some specific objects do not cause any exception as they can
+     * hold arbitrary content; they can be declared by overriding {@link #getObjectsHoldingArbitraryContent()}, and for those we
+     * will verify that no exception gets thrown instead.
+     *
+     * For instance given the following valid term query:
+     * {
+     *     "term" : {
+     *         "field" : {
+     *             "value" : "foo"
+     *         }
+     *     }
+     * }
+     *
+     * The following two mutations will be generated, and an exception is expected when trying to parse them:
+     * {
+     *     "term" : {
+     *         "newField" : {
+     *             "field" : {
+     *                 "value" : "foo"
+     *             }
+     *         }
+     *     }
+     * }
+     *
+     * {
+     *     "term" : {
+     *         "field" : {
+     *             "newField" : {
+     *                 "value" : "foo"
+     *             }
+     *         }
+     *     }
+     * }
+     */
     private void unknownObjectExceptionTest(String validQuery) throws IOException {
         //TODO building json by concatenating strings makes the code unmaintainable, we should rewrite this test
         assertThat(validQuery, containsString("{"));
         int level = 0;
+        //track whether we are within quotes as we may have randomly generated strings containing curly brackets
         boolean withinQuotes = false;
         boolean expectedException = true;
         int objectHoldingArbitraryContentLevel = 0;
@@ -345,31 +383,36 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     expectedException = true;
                 }
             } else if (withinQuotes == false && validQuery.charAt(insertionPosition) == '{') {
+                //keep track of which level we are within the json so that we can properly close the additional object
                 level++;
+                //if we don't expect an exception, it means that we are within an object that can contain arbitrary content.
+                //in that case we ignore the whole object including its children, no need to even check where we are.
                 if (expectedException) {
-                    int start = -1;
-                    int end = -1;
+                    int startCurrentObjectName = -1;
+                    int endCurrentObjectName = -1;
+                    //look backwards for the current object name, to find out whether we expect an exception following its mutation
                     for (int i = insertionPosition; i >= 0; i--) {
                         if (validQuery.charAt(i) == '}') {
                             break;
                         } else if (validQuery.charAt(i) == '"') {
-                            if (end == -1) {
-                                end = i;
-                            } else if (start == -1) {
-                                start = i + 1;
+                            if (endCurrentObjectName == -1) {
+                                endCurrentObjectName = i;
+                            } else if (startCurrentObjectName == -1) {
+                                startCurrentObjectName = i + 1;
                             } else {
                                 break;
                             }
                         }
                     }
-                    if (start >= 0  && end > 0) {
-                        String objectName = validQuery.substring(start, end);
-                        expectedException = getObjectsHoldingArbitraryContent().contains(objectName) == false;
+                    if (startCurrentObjectName >= 0  && endCurrentObjectName > 0) {
+                        String currentObjectName = validQuery.substring(startCurrentObjectName, endCurrentObjectName);
+                        expectedException = getObjectsHoldingArbitraryContent().contains(currentObjectName) == false;
                     }
                 }
                 if (expectedException == false) {
                     objectHoldingArbitraryContentLevel++;
                 }
+                //inject the start of the new object
                 String testQuery = validQuery.substring(0, insertionPosition) + "{ \"newField\" : ";
                 String secondPart = validQuery.substring(insertionPosition);
                 int currentLevel = level;
@@ -382,6 +425,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     } else if (quotes == false && secondPart.charAt(i) == '}') {
                         currentLevel--;
                         if (currentLevel == level) {
+                            //close the additional object in the right place
                             testQuery += secondPart.substring(0, i - 1) + "}" + secondPart.substring(i);
                             break;
                         }

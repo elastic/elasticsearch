@@ -21,6 +21,15 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionAtN.Rating;
+import org.elasticsearch.index.rankeval.QuerySpec;
+import org.elasticsearch.index.rankeval.RankEvalAction;
+import org.elasticsearch.index.rankeval.RankEvalPlugin;
+import org.elasticsearch.index.rankeval.RankEvalRequest;
+import org.elasticsearch.index.rankeval.RankEvalRequestBuilder;
+import org.elasticsearch.index.rankeval.RankEvalResponse;
+import org.elasticsearch.index.rankeval.RankEvalSpec;
+import org.elasticsearch.index.rankeval.RatedDocument;
+import org.elasticsearch.index.rankeval.RatedDocumentKey;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -89,9 +98,9 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
         RankEvalResponse response = client().execute(RankEvalAction.INSTANCE, builder.request()).actionGet();
         assertEquals(specId, response.getSpecId());
         assertEquals(1.0, response.getQualityLevel(), Double.MIN_VALUE);
-        Set<Entry<String, Collection<String>>> entrySet = response.getUnknownDocs().entrySet();
+        Set<Entry<String, Collection<RatedDocumentKey>>> entrySet = response.getUnknownDocs().entrySet();
         assertEquals(2, entrySet.size());
-        for (Entry<String, Collection<String>> entry : entrySet) {
+        for (Entry<String, Collection<RatedDocumentKey>> entry : entrySet) {
             if (entry.getKey() == "amsterdam_query") {
                 assertEquals(2, entry.getValue().size());
             }
@@ -104,7 +113,7 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
     private static List<RatedDocument> createRelevant(String... docs) {
         List<RatedDocument> relevant = new ArrayList<>();
         for (String doc : docs) {
-            relevant.add(new RatedDocument(doc, Rating.RELEVANT.ordinal()));
+            relevant.add(new RatedDocument(new RatedDocumentKey("test", "testtype", doc), Rating.RELEVANT.ordinal()));
         }
         return relevant;
     }

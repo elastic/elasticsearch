@@ -126,16 +126,16 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
 
     @Override
     public EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs) {
-        Map<String, RatedDocument> ratedDocsById = new HashMap<>();
+        Map<RatedDocumentKey, RatedDocument> ratedDocsByKey = new HashMap<>();
         for (RatedDocument doc : ratedDocs) {
-            ratedDocsById.put(doc.getDocID(), doc);
+            ratedDocsByKey.put(doc.getKey(), doc);
         }
 
-        Collection<String> unknownDocIds = new ArrayList<>();
+        Collection<RatedDocumentKey> unknownDocIds = new ArrayList<>();
         List<Integer> ratings = new ArrayList<>();
         for (int i = 0; (i < position && i < hits.length); i++) {
-            String id = hits[i].getId();
-            RatedDocument ratedDoc = ratedDocsById.get(id);
+            RatedDocumentKey id = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].getId());
+            RatedDocument ratedDoc = ratedDocsByKey.get(id);
             if (ratedDoc != null) {
                 ratings.add(ratedDoc.getRating());
             } else {

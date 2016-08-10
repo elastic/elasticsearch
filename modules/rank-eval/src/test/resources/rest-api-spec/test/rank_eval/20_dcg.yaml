@@ -52,7 +52,13 @@
             {
                 "id": "dcg_query",
                 "request": { "query": { "match_all" : {}}, "sort" : [ "bar" ] },
-                "ratings": [{ "doc1": 3}, {"doc2": 2}, {"doc3": 3}, {"doc4": 0}, {"doc5": 1}, {"doc6": 2}]
+                "ratings": [
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc1"}, "rating": 3},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc2"}, "rating": 2},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc3"}, "rating": 3},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc4"}, "rating": 0},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc5"}, "rating": 1},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc6"}, "rating": 2}]
             }
           ],
           "metric" : { "dcg_at_n": { "size": 6}}
@@ -71,7 +77,13 @@
             {
                 "id": "dcg_query_reverse",
                 "request": { "query": { "match_all" : {}}, "sort" : [ {"bar" : "desc" }] },
-                "ratings": [{ "doc1": 3}, {"doc2": 2}, {"doc3": 3}, {"doc4": 0}, {"doc5": 1}, {"doc6": 2}]
+                "ratings": [
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc1"}, "rating": 3},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc2"}, "rating": 2},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc3"}, "rating": 3},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc4"}, "rating": 0},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc5"}, "rating": 1},
+                    {"key": {"index": "foo", "type": "bar", "doc_id": "doc6"}, "rating": 2}]
             }, 
           ],
           "metric" : { "dcg_at_n": { "size": 6}}
@@ -90,12 +102,24 @@
           {
               "id": "dcg_query",
               "request": { "query": { "match_all" : {}}, "sort" : [ "bar" ] },
-              "ratings": [{ "doc1": 3}, {"doc2": 2}, {"doc3": 3}, {"doc4": 0}, {"doc5": 1}, {"doc6": 2}]
+              "ratings": [
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc1"}, "rating": 3},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc2"}, "rating": 2},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc3"}, "rating": 3},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc4"}, "rating": 0},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc5"}, "rating": 1},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc6"}, "rating": 2}]
           },
           {
               "id": "dcg_query_reverse",
               "request": { "query": { "match_all" : {}}, "sort" : [ {"bar" : "desc" }] },
-              "ratings": [{ "doc1": 3}, {"doc2": 2}, {"doc3": 3}, {"doc4": 0}, {"doc5": 1}, {"doc6": 2}]
+              "ratings": [
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc1"}, "rating": 3},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc2"}, "rating": 2},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc3"}, "rating": 3},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc4"}, "rating": 0},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc5"}, "rating": 1},
+                {"key": {"index": "foo", "type": "bar", "doc_id": "doc6"}, "rating": 2}]
           }, 
         ],
         "metric" : { "dcg_at_n": { "size": 6}}

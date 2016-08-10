@@ -83,7 +83,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         RankedListQualityMetric metric = qualityTask.getEvaluator();
 
         double qualitySum = 0;
-        Map<String, Collection<String>> unknownDocs = new HashMap<>();
+        Map<String, Collection<RatedDocumentKey>> unknownDocs = new HashMap<>();
         Collection<QuerySpec> specifications = qualityTask.getSpecifications();
         Vector<EvalQueryQuality> partialResults = new Vector<>(specifications.size());
         for (QuerySpec spec : specifications) {

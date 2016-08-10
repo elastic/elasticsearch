@@ -23,7 +23,8 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.test.ESTestCase;
 
@@ -52,10 +53,11 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
     public void testDCGAtSix() throws IOException, InterruptedException, ExecutionException {
         List<RatedDocument> rated = new ArrayList<>();
         int[] relevanceRatings = new int[] { 3, 2, 3, 0, 1, 2 };
-        SearchHit[] hits = new InternalSearchHit[6];
+        InternalSearchHit[] hits = new InternalSearchHit[6];
         for (int i = 0; i < 6; i++) {
-            rated.add(new RatedDocument(Integer.toString(i), relevanceRatings[i]));
+            rated.add(new RatedDocument(new RatedDocumentKey("index", "type", Integer.toString(i)), relevanceRatings[i]));
             hits[i] = new InternalSearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
+            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0)));
         }
         DiscountedCumulativeGainAt dcg = new DiscountedCumulativeGainAt(6);
         assertEquals(13.84826362927298, dcg.evaluate(hits, rated).getQualityLevel(), 0.00001);
@@ -95,12 +97,13 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
     public void testDCGAtSixMissingRatings() throws IOException, InterruptedException, ExecutionException {
         List<RatedDocument> rated = new ArrayList<>();
         int[] relevanceRatings = new int[] { 3, 2, 3};
-        SearchHit[] hits = new InternalSearchHit[6];
+        InternalSearchHit[] hits = new InternalSearchHit[6];
         for (int i = 0; i < 6; i++) {
             if (i < relevanceRatings.length) {
-                rated.add(new RatedDocument(Integer.toString(i), relevanceRatings[i]));
+                rated.add(new RatedDocument(new RatedDocumentKey("index", "type", Integer.toString(i)), relevanceRatings[i]));
             }
             hits[i] = new InternalSearchHit(i, Integer.toString(i), new Text("type"), Collections.emptyMap());
+            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0)));
         }
         DiscountedCumulativeGainAt dcg = new DiscountedCumulativeGainAt(6);
         EvalQueryQuality result = dcg.evaluate(hits, rated);

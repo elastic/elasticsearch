@@ -19,36 +19,68 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A document ID and its rating for the query QA use case.
  * */
-public class RatedDocument implements Writeable {
+public class RatedDocument extends ToXContentToBytes implements Writeable {
 
-    // TODO augment with index name and type name
-    private final String docId;
-    private final int rating;
+    public static final ParseField RATING_FIELD = new ParseField("rating");
+    public static final ParseField KEY_FIELD = new ParseField("key");
 
-    public RatedDocument(String docId, int rating) {
-        this.docId = docId;
+    private static final ConstructingObjectParser<RatedDocument, RankEvalContext> PARSER = new ConstructingObjectParser<>("rated_document", 
+            a -> new RatedDocument((RatedDocumentKey) a[0], (Integer) a[1])); 
+            
+    static {
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
+            try {
+                return RatedDocumentKey.fromXContent(p, c);
+            } catch (IOException ex) {
+                throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
+            }
+        } , KEY_FIELD);
+        PARSER.declareInt(ConstructingObjectParser.constructorArg(), RATING_FIELD);
+    }
+
+    private RatedDocumentKey key;
+    private int rating;
+
+    void setRatedDocumentKey(RatedDocumentKey key) {
+        this.key = key;
+    }
+
+    void setKey(RatedDocumentKey key) {
+        this.key = key;
+    }
+
+    void setRating(int rating) {
+        this.rating = rating;
+    }
+
+    public RatedDocument(RatedDocumentKey key, int rating) {
+        this.key = key;
         this.rating = rating;
     }
 
     public RatedDocument(StreamInput in) throws IOException {
-        this.docId = in.readString();
+        this.key = new RatedDocumentKey(in);
         this.rating = in.readVInt();
     }
 
-    public String getDocID() {
-        return docId;
+    public RatedDocumentKey getKey() {
+        return this.key;
     }
 
     public int getRating() {
@@ -57,31 +89,38 @@ public class RatedDocument implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(docId);
+        this.key.writeTo(out);
         out.writeVInt(rating);
     }
 
-    public static RatedDocument fromXContent(XContentParser parser) throws IOException {
-        String id = null;
-        int rating = Integer.MIN_VALUE;
-        Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (parser.currentToken().equals(Token.FIELD_NAME)) {
-                if (id != null) {
-                    throw new ParsingException(parser.getTokenLocation(), "only one document id allowed, found [{}] but already got [{}]",
-                            parser.currentName(), id);
-                }
-                id = parser.currentName();
-            } else if (parser.currentToken().equals(Token.VALUE_NUMBER)) {
-                rating = parser.intValue();
-            } else {
-                throw new ParsingException(parser.getTokenLocation(), "unexpected token [{}] while parsing rated document",
-                        token);
-            }
+    public static RatedDocument fromXContent(XContentParser parser, RankEvalContext context) throws IOException {
+        return PARSER.apply(parser, context);
+    }
+    
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(KEY_FIELD.getPreferredName(), key);
+        builder.field(RATING_FIELD.getPreferredName(), rating);
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
+    public final boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
         }
-        if (id ==  null) {
-            throw new ParsingException(parser.getTokenLocation(), "didn't find document id");
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
         }
-        return new RatedDocument(id, rating);
+        RatedDocument other = (RatedDocument) obj;
+        return Objects.equals(key, other.key) &&
+                Objects.equals(rating, other.rating);
+    }
+    
+    @Override
+    public final int hashCode() {
+        return Objects.hash(getClass(), key, rating);
     }
 }

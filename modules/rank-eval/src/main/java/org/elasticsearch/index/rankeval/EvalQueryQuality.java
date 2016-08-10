@@ -29,14 +29,14 @@ import java.util.Collection;
 public class EvalQueryQuality {
     private double qualityLevel;
 
-    private Collection<String> unknownDocs;
+    private Collection<RatedDocumentKey> unknownDocs;
 
-    public EvalQueryQuality (double qualityLevel, Collection<String> unknownDocs) {
+    public EvalQueryQuality (double qualityLevel, Collection<RatedDocumentKey> unknownDocs) {
        this.qualityLevel = qualityLevel;
        this.unknownDocs = unknownDocs;
     }
 
-    public Collection<String> getUnknownDocs() {
+    public Collection<RatedDocumentKey> getUnknownDocs() {
         return unknownDocs;
     }
 

@@ -46,12 +46,15 @@
             {
                 "id": "amsterdam_query",
                 "request": { "query": { "match" : {"text" : "amsterdam" }}},
-                "ratings": [{ "doc1": 0}, {"doc2": 1}, {"doc3": 1}]
+                "ratings": [
+                    {"key": { "index": "foo", "type": "bar", "doc_id": "doc1"}, "rating": 0},
+                    {"key": { "index": "foo", "type": "bar", "doc_id": "doc2"}, "rating": 1},
+                    {"key": { "index": "foo", "type": "bar", "doc_id": "doc3"}, "rating": 1}]
             },
             {
                 "id" : "berlin_query",
                 "request": { "query": { "match" : { "text" : "berlin" } }, "size" : 10 },
-                "ratings": [{"doc1": 1}]
+                "ratings": [{"key": {"index": "foo", "type": "bar", "doc_id": "doc1"}, "rating": 1}]
             }
           ],
           "metric" : { "precisionatn": { "size": 10}}
@@ -59,8 +62,8 @@
 
   - match: {rank_eval.spec_id: "cities_qa_queries"}
   - match: {rank_eval.quality_level: 1}
-  - match: {rank_eval.unknown_docs.0.amsterdam_query:  [ "doc4"]}
-  - match: {rank_eval.unknown_docs.1.berlin_query:  [ "doc4"]}
+  - match: {rank_eval.unknown_docs.0.amsterdam_query:  [ {"index": "foo", "type": "bar", "doc_id": "doc4"}]}
+  - match: {rank_eval.unknown_docs.1.berlin_query:  [ {"index": "foo", "type": "bar", "doc_id": "doc4"}]}
 ---
 "Reciprocal Rank":
 
@@ -111,13 +114,13 @@
                 "id": "amsterdam_query",
                 "request": { "query": { "match" : {"text" : "amsterdam" }}},
                 # doc4 should be returned in third position, so reciprocal rank is 1/3
-                "ratings": [{ "doc4": 1}]
+                "ratings": [{"key": {"index": "foo", "type": "bar", "doc_id": "doc4"}, "rating": 1}]
             },
             {
                 "id" : "berlin_query",
                 "request": { "query": { "match" : { "text" : "berlin" } }, "size" : 10 },
                 # doc1 should be returned in first position, doc3 in second, so reciprocal rank is 1/2 
-                "ratings": [{"doc4": 1}]
+                "ratings": [{"key": {"index": "foo", "type": "bar", "doc_id": "doc4"}, "rating": 1}]
             }
           ],
           "metric" : { "reciprocal_rank": {} }
@@ -136,13 +139,13 @@
               "id": "amsterdam_query",
               "request": { "query": { "match" : {"text" : "amsterdam" }}},
               # doc4 should be returned in third position, so reciprocal rank is 1/3
-              "ratings": [{ "doc4": 1}]
+              "ratings": [{"key": {"index": "foo", "type": "bar", "doc_id": "doc4"}, "rating": 1}]
           },
           {
               "id" : "berlin_query",
               "request": { "query": { "match" : { "text" : "berlin" } }, "size" : 10 },
               # doc1 should be returned in first position, doc3 in second, so reciprocal rank is 1/2 
-              "ratings": [{"doc4": 1}]
+              "ratings": [{"key": {"index": "foo", "type": "bar", "doc_id": "doc4"}, "rating": 1}]
           }
         ],
         "metric" : { 

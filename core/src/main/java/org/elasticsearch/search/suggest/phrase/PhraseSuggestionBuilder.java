@@ -43,7 +43,6 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
@@ -596,7 +595,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         // now we should have field name, check and copy fields over to the suggestion builder we return
         if (fieldname == null) {
             throw new ElasticsearchParseException(
-                "the required field option [" + SuggestUtils.Fields.FIELD.getPreferredName() + "] is missing");
+                "the required field option [" + FIELDNAME_FIELD.getPreferredName() + "] is missing");
         }
         return new PhraseSuggestionBuilder(fieldname, tmpSuggestion);
     }

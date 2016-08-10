@@ -20,6 +20,9 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Term;
@@ -34,8 +37,6 @@ import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.io.FastCharArrayReader;
-import org.elasticsearch.search.suggest.SuggestUtils;
-import org.elasticsearch.search.suggest.SuggestUtils.TokenConsumer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -145,7 +146,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
             return term;
         }
         final BytesRefBuilder result = byteSpare;
-        analyze(preFilter, term, field, new SuggestUtils.TokenConsumer() {
+        analyze(preFilter, term, field, new TokenConsumer() {
 
             @Override
             public void nextToken() throws IOException {
@@ -161,7 +162,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
             candidates.add(candidate);
         } else {
             final BytesRefBuilder result = byteSpare;
-            analyze(postFilter, candidate.term, field, new SuggestUtils.TokenConsumer() {
+            analyze(postFilter, candidate.term, field, new TokenConsumer() {
                 @Override
                 public void nextToken() throws IOException {
                     this.fillBytesRef(result);
@@ -192,6 +193,27 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         }
         return 0;
 
+    }
+
+    public abstract static class TokenConsumer {
+        protected CharTermAttribute charTermAttr;
+        protected PositionIncrementAttribute posIncAttr;
+        protected OffsetAttribute offsetAttr;
+
+        public void reset(TokenStream stream) {
+            charTermAttr = stream.addAttribute(CharTermAttribute.class);
+            posIncAttr = stream.addAttribute(PositionIncrementAttribute.class);
+            offsetAttr = stream.addAttribute(OffsetAttribute.class);
+        }
+
+        protected BytesRef fillBytesRef(BytesRefBuilder spare) {
+            spare.copyChars(charTermAttr);
+            return spare.get();
+        }
+
+        public abstract void nextToken() throws IOException;
+
+        public void end() {}
     }
 
     public static class CandidateSet {
@@ -288,7 +310,8 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         return new Candidate(term, frequency, channelScore, score(frequency, channelScore, dictSize), userInput);
     }
 
-    public static int analyze(Analyzer analyzer, BytesRef toAnalyze, String field, TokenConsumer consumer, CharsRefBuilder spare) throws IOException {
+    public static int analyze(Analyzer analyzer, BytesRef toAnalyze, String field, TokenConsumer consumer, CharsRefBuilder spare)
+            throws IOException {
         spare.copyUTF8Bytes(toAnalyze);
         CharsRef charsRef = spare.get();
         try (TokenStream ts = analyzer.tokenStream(

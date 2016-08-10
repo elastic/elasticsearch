@@ -28,7 +28,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.io.FastCharArrayReader;
-import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSet;
 
@@ -63,7 +62,7 @@ public final class NoisyChannelSpellChecker {
             float maxErrors, int numCorrections, WordScorer wordScorer, float confidence, int gramSize) throws IOException {
 
         final List<CandidateSet> candidateSetsList = new ArrayList<>();
-        DirectCandidateGenerator.analyze(stream, new SuggestUtils.TokenConsumer() {
+        DirectCandidateGenerator.analyze(stream, new DirectCandidateGenerator.TokenConsumer() {
             CandidateSet currentSet = null;
             private TypeAttribute typeAttribute;
             private final BytesRefBuilder termsRef = new BytesRefBuilder();

@@ -51,21 +51,21 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
 
     private static final String TYPE = "direct_generator";
 
-    static final ParseField DIRECT_GENERATOR_FIELD = new ParseField(TYPE);
-    static final ParseField FIELDNAME_FIELD = new ParseField("field");
-    static final ParseField PREFILTER_FIELD = new ParseField("pre_filter");
-    static final ParseField POSTFILTER_FIELD = new ParseField("post_filter");
-    static final ParseField SUGGESTMODE_FIELD = new ParseField("suggest_mode");
-    static final ParseField MIN_DOC_FREQ_FIELD = new ParseField("min_doc_freq");
-    static final ParseField ACCURACY_FIELD = new ParseField("accuracy");
-    static final ParseField SIZE_FIELD = new ParseField("size");
-    static final ParseField SORT_FIELD = new ParseField("sort");
-    static final ParseField STRING_DISTANCE_FIELD = new ParseField("string_distance");
-    static final ParseField MAX_EDITS_FIELD = new ParseField("max_edits");
-    static final ParseField MAX_INSPECTIONS_FIELD = new ParseField("max_inspections");
-    static final ParseField MAX_TERM_FREQ_FIELD = new ParseField("max_term_freq");
-    static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
-    static final ParseField MIN_WORD_LENGTH_FIELD = new ParseField("min_word_length");
+    public static final ParseField DIRECT_GENERATOR_FIELD = new ParseField(TYPE);
+    public static final ParseField FIELDNAME_FIELD = new ParseField("field");
+    public static final ParseField PREFILTER_FIELD = new ParseField("pre_filter");
+    public static final ParseField POSTFILTER_FIELD = new ParseField("post_filter");
+    public static final ParseField SUGGESTMODE_FIELD = new ParseField("suggest_mode");
+    public static final ParseField MIN_DOC_FREQ_FIELD = new ParseField("min_doc_freq");
+    public static final ParseField ACCURACY_FIELD = new ParseField("accuracy");
+    public static final ParseField SIZE_FIELD = new ParseField("size");
+    public static final ParseField SORT_FIELD = new ParseField("sort");
+    public static final ParseField STRING_DISTANCE_FIELD = new ParseField("string_distance");
+    public static final ParseField MAX_EDITS_FIELD = new ParseField("max_edits");
+    public static final ParseField MAX_INSPECTIONS_FIELD = new ParseField("max_inspections");
+    public static final ParseField MAX_TERM_FREQ_FIELD = new ParseField("max_term_freq");
+    public static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
+    public static final ParseField MIN_WORD_LENGTH_FIELD = new ParseField("min_word_length");
 
     private final String field;
     private String preFilter;

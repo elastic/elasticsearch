@@ -43,9 +43,11 @@ public abstract class RankedListQualityMetric implements NamedWriteable {
      * wrt. to a set of document Ids labeled as relevant for this search.
      *
      * @param hits the result hits as returned by some search
+     * @param ratedDocs a list of documents including their annotated ratings
+     * @param keyPath path to use to match hits to rated documents
      * @return some metric representing the quality of the result hit list wrt. to relevant doc ids.
      * */
-    public abstract EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs);
+    public abstract EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs, String keyPath);
 
     public static RankedListQualityMetric fromXContent(XContentParser parser, ParseFieldMatcherSupplier context) throws IOException {
         RankedListQualityMetric rc;

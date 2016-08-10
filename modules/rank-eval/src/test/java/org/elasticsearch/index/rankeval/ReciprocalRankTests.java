@@ -63,13 +63,13 @@ public class ReciprocalRankTests extends ESTestCase {
         }
 
         int rankAtFirstRelevant = relevantAt + 1;
-        EvalQueryQuality evaluation = reciprocalRank.evaluate(hits, ratedDocs);
+        EvalQueryQuality evaluation = reciprocalRank.evaluate(hits, ratedDocs, "_id");
         if (rankAtFirstRelevant <= maxRank) {
             assertEquals(1.0 / rankAtFirstRelevant, evaluation.getQualityLevel(), Double.MIN_VALUE);
 
             // check that if we lower maxRank by one, we don't find any result and get 0.0 quality level
             reciprocalRank = new ReciprocalRank(rankAtFirstRelevant - 1);
-            evaluation = reciprocalRank.evaluate(hits, ratedDocs);
+            evaluation = reciprocalRank.evaluate(hits, ratedDocs, "_id");
             assertEquals(0.0, evaluation.getQualityLevel(), Double.MIN_VALUE);
 
         } else {
@@ -99,7 +99,7 @@ public class ReciprocalRankTests extends ESTestCase {
             }
         }
 
-        EvalQueryQuality evaluation = reciprocalRank.evaluate(hits, ratedDocs);
+        EvalQueryQuality evaluation = reciprocalRank.evaluate(hits, ratedDocs, "_id");
         assertEquals(1.0 / (relevantAt + 1), evaluation.getQualityLevel(), Double.MIN_VALUE);
     }
 
@@ -120,7 +120,7 @@ public class ReciprocalRankTests extends ESTestCase {
             hits[i].shard(new SearchShardTarget("testnode", new Index("test", "uuid"), 0));
         }
         List<RatedDocument> ratedDocs = new ArrayList<>();
-        EvalQueryQuality evaluation = reciprocalRank.evaluate(hits, ratedDocs);
+        EvalQueryQuality evaluation = reciprocalRank.evaluate(hits, ratedDocs, "_id");
         assertEquals(0.0, evaluation.getQualityLevel(), Double.MIN_VALUE);
     }
 }

@@ -44,6 +44,8 @@ public class QuerySpec implements Writeable {
     private SearchSourceBuilder testRequest;
     private List<String> indices = new ArrayList<>();
     private List<String> types = new ArrayList<>();
+    /** Path to field that should be used to match hits with provided rated documents.*/
+    private String keyPath;
     /** Collection of rated queries for this query QA specification.*/
     private List<RatedDocument> ratedDocs = new ArrayList<>();
 
@@ -53,11 +55,12 @@ public class QuerySpec implements Writeable {
     }
 
     public QuerySpec(String specId, SearchSourceBuilder testRequest, List<String> indices, List<String> types,
-            List<RatedDocument> ratedDocs) {
+            String keyPath, List<RatedDocument> ratedDocs) {
         this.specId = specId;
         this.testRequest = testRequest;
         this.indices = indices;
         this.types = types;
+        this.keyPath = keyPath;
         this.ratedDocs = ratedDocs;
     }
 
@@ -74,6 +77,7 @@ public class QuerySpec implements Writeable {
         for (int i = 0; i < typesSize; i++) {
             this.types.add(in.readString());
         }
+        keyPath = in.readString();
         int intentSize = in.readInt();
         ratedDocs = new ArrayList<>(intentSize);
         for (int i = 0; i < intentSize; i++) {
@@ -94,6 +98,7 @@ public class QuerySpec implements Writeable {
             out.writeString(type);
         }
         out.writeInt(ratedDocs.size());
+        out.writeString(keyPath);
         for (RatedDocument ratedDoc : ratedDocs) {
             ratedDoc.writeTo(out);
         }
@@ -132,6 +137,16 @@ public class QuerySpec implements Writeable {
     public void setSpecId(String specId) {
         this.specId = specId;
     }
+    
+    /** Sets the path to the field that should be used to match hits to rated documents. */
+    public void setKeyPath(String keyPath) {
+        this.keyPath = keyPath;
+    }
+
+    /** Returns the path to the field that should be used to match hits to rated documents. */
+    public String getKeyPath() {
+        return this.keyPath;
+    }
 
     /** Returns a list of rated documents to evaluate. */
     public List<RatedDocument> getRatedDocs() {
@@ -145,6 +160,7 @@ public class QuerySpec implements Writeable {
 
     private static final ParseField ID_FIELD = new ParseField("id");
     private static final ParseField REQUEST_FIELD = new ParseField("request");
+    private static final ParseField KEY_PATH_FIELD = new ParseField("key_path");
     private static final ParseField RATINGS_FIELD = new ParseField("ratings");
     private static final ObjectParser<QuerySpec, RankEvalContext> PARSER = new ObjectParser<>("requests", QuerySpec::new);
 
@@ -157,6 +173,7 @@ public class QuerySpec implements Writeable {
                 throw new ParsingException(p.getTokenLocation(), "error parsing request", ex);
             }
         } , REQUEST_FIELD);
+        PARSER.declareString(QuerySpec::setKeyPath, KEY_PATH_FIELD);
         PARSER.declareObjectArray(QuerySpec::setRatedDocs, (p, c) -> {
             try {
                 return RatedDocument.fromXContent(p, c);
@@ -183,10 +200,11 @@ public class QuerySpec implements Writeable {
      *           },
      *           "size": 10
      *   },
+     *   "key_path": "_id",
      *   "ratings": [
-     *                  {"key": {"index": "index_name", "type": "type_name", "doc_id": "1"}, "rating": 1 },
-     *                  {"key": {"index": "index_name", "type": "type_name", "doc_id": "2"}, "rating": 0 },
-     *                  {"key": {"index": "index_name", "type": "type_name", "doc_id": "3"}, "rating": 1 } ]
+     *                  {"key": {"index": "index_name", "type": "type_name", "key_value": "1"}, "rating": 1 },
+     *                  {"key": {"index": "index_name", "type": "type_name", "key_value": "2"}, "rating": 0 },
+     *                  {"key": {"index": "index_name", "type": "type_name", "key_value": "3"}, "rating": 1 } ]
      *  }
      */
     public static QuerySpec fromXContent(XContentParser parser, RankEvalContext context) throws IOException {

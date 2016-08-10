@@ -32,19 +32,17 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
-    public static final ParseField ID_PATH_FIELD = new ParseField("id_path");
-    public static final ParseField ID_VALUE_FIELD = new ParseField("id_value");
+    public static final ParseField KEY_VALUE_FIELD = new ParseField("key_value");
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField INDEX_FIELD = new ParseField("index");
 
     private static final ConstructingObjectParser<RatedDocumentKey, RankEvalContext> PARSER = new ConstructingObjectParser<>("ratings",
-            a -> new RatedDocumentKey((String) a[0], (String) a[1], (String) a[2], (String) a[3]));
+            a -> new RatedDocumentKey((String) a[0], (String) a[1], (String) a[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_PATH_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_VALUE_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), KEY_VALUE_FIELD);
     }
 
     @Override
@@ -52,30 +50,26 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
         builder.startObject();
         builder.field(INDEX_FIELD.getPreferredName(), index);
         builder.field(TYPE_FIELD.getPreferredName(), type);
-        builder.field(ID_PATH_FIELD.getPreferredName(), idPath);
-        builder.field(ID_VALUE_FIELD.getPreferredName(), idValue);
+        builder.field(KEY_VALUE_FIELD.getPreferredName(), keyValue);
         builder.endObject();
         return builder;
     }
 
     // TODO instead of docId use path to id and id itself
-    private String idPath;
-    private String idValue;
+    private String keyValue;
     private String type;
     private String index;
 
-    public RatedDocumentKey(String index, String type, String idPath, String idValue) {
+    public RatedDocumentKey(String index, String type, String idValue) {
         this.index = index;
         this.type = type;
-        this.idPath = idPath;
-        this.idValue = idValue;
+        this.keyValue = idValue;
     }
 
     public RatedDocumentKey(StreamInput in) throws IOException {
         this.index = in.readString();
         this.type = in.readString();
-        this.idPath = in.readString();
-        this.idValue = in.readString();
+        this.keyValue = in.readString();
     }
 
     public String getIndex() {
@@ -86,20 +80,15 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
         return type;
     }
 
-    public String getIdPath() {
-        return idPath;
-    }
-
     public String getIdValue() {
-        return idValue;
+        return keyValue;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
         out.writeString(type);
-        out.writeString(idPath);
-        out.writeString(idValue);
+        out.writeString(keyValue);
     }
     
     public static RatedDocumentKey fromXContent(XContentParser parser, RankEvalContext context) throws IOException {
@@ -117,12 +106,11 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
         RatedDocumentKey other = (RatedDocumentKey) obj;
         return Objects.equals(index, other.index) &&
                 Objects.equals(type, other.type) &&
-                Objects.equals(idPath, other.idPath) &&
-                Objects.equals(idValue, other.idValue);
+                Objects.equals(keyValue, other.keyValue);
     }
     
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), index, type, idPath, idValue);
+        return Objects.hash(getClass(), index, type, keyValue);
     }
 }

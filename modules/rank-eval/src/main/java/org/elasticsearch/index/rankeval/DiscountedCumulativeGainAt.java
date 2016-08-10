@@ -125,7 +125,7 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
     }
 
     @Override
-    public EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs) {
+    public EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs, String keyPath) {
         Map<RatedDocumentKey, RatedDocument> ratedDocsByKey = new HashMap<>();
         for (RatedDocument doc : ratedDocs) {
             ratedDocsByKey.put(doc.getKey(), doc);
@@ -134,7 +134,9 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
         Collection<RatedDocumentKey> unknownDocIds = new ArrayList<>();
         List<Integer> ratings = new ArrayList<>();
         for (int i = 0; (i < position && i < hits.length); i++) {
-            RatedDocumentKey id = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].getId());
+            // NORELEASE I'm pretty sure this needs better error handling e.g. when not pointing to a field holding something
+            // that can be cast to a string hits[i].field(keyPath).value()
+            RatedDocumentKey id = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].field(keyPath).value());
             RatedDocument ratedDoc = ratedDocsByKey.get(id);
             if (ratedDoc != null) {
                 ratings.add(ratedDoc.getRating());

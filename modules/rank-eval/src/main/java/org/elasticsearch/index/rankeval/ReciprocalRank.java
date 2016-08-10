@@ -94,7 +94,7 @@ public class ReciprocalRank extends RankedListQualityMetric {
      * @return reciprocal Rank for above {@link SearchResult} list.
      **/
     @Override
-    public EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs) {
+    public EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs, String keyPath) {
         Set<RatedDocumentKey> relevantDocIds = new HashSet<>();
         Set<RatedDocumentKey> irrelevantDocIds = new HashSet<>();
         for (RatedDocument doc : ratedDocs) {
@@ -109,7 +109,9 @@ public class ReciprocalRank extends RankedListQualityMetric {
         int firstRelevant = -1;
         boolean found = false;
         for (int i = 0; i < hits.length; i++) {
-            RatedDocumentKey id = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].getId());
+            // NORELEASE I'm pretty sure this needs better error handling e.g. when not pointing to a field holding something
+            // that can be cast to a string hits[i].field(keyPath).value()
+            RatedDocumentKey id = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].field(keyPath).getValue());
             if (relevantDocIds.contains(id)) {
                 if (found == false && i < maxAcceptableRank) {
                     firstRelevant = i + 1; // add one because rank is not

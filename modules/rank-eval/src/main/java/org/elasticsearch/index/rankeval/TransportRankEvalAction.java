@@ -82,7 +82,6 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         RankEvalSpec qualityTask = request.getRankEvalSpec();
         RankedListQualityMetric metric = qualityTask.getEvaluator();
 
-        double qualitySum = 0;
         Map<String, Collection<RatedDocumentKey>> unknownDocs = new HashMap<>();
         Collection<QuerySpec> specifications = qualityTask.getSpecifications();
         Vector<EvalQueryQuality> partialResults = new Vector<>(specifications.size());
@@ -100,7 +99,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             ActionFuture<SearchResponse> searchResponse = transportSearchAction.execute(templatedRequest);
             SearchHits hits = searchResponse.actionGet().getHits();
 
-            EvalQueryQuality queryQuality = metric.evaluate(hits.getHits(), spec.getRatedDocs());
+            EvalQueryQuality queryQuality = metric.evaluate(hits.getHits(), spec.getRatedDocs(), spec.getKeyPath());
             partialResults.addElement(queryQuality);
             unknownDocs.put(spec.getSpecId(), queryQuality.getUnknownDocs());
         }

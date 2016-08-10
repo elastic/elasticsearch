@@ -84,11 +84,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
                 },
                 "size": 10
         },
+        "key_path": "_id",
         "ratings": [
-            {"key": {"index": "index_name", "type": "type_name", "doc_id": "1"}, "rating": 1},
-            {"key": {"index": "index_name", "type": "type_name", "doc_id": "2"}, "rating": 0},
-            {"key": {"index": "index_name", "type": "type_name", "doc_id": "3"}, "rating": 1},
-            {"key": {"index": "index_name", "type": "type_name", "doc_id": "4"}, "rating": 1}
+            {"key": {"index": "index_name", "type": "type_name", "key_value": "1"}, "rating": 1},
+            {"key": {"index": "index_name", "type": "type_name", "key_value": "2"}, "rating": 0},
+            {"key": {"index": "index_name", "type": "type_name", "key_value": "3"}, "rating": 1},
+            {"key": {"index": "index_name", "type": "type_name", "key_value": "4"}, "rating": 1}
         ]}, 
         {"id": "berlin_query",
          "request": {
@@ -102,10 +103,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
                 },
                 "size": 10
         },
+        "key_path": "_id",
         "ratings": [
-            {"key": {"index": "index_name", "type": "type_name", "doc_id": "1"}, "rating": 0},
-            {"key": {"index": "index_name", "type": "type_name", "doc_id": "5"}, "rating": 1},
-            {"key": {"index": "index_name", "type": "type_name", "doc_id": "6"}, "rating": 1}
+            {"key": {"index": "index_name", "type": "type_name", "key_value": "1"}, "rating": 0},
+            {"key": {"index": "index_name", "type": "type_name", "key_value": "5"}, "rating": 1},
+            {"key": {"index": "index_name", "type": "type_name", "key_value": "6"}, "rating": 1}
         ]}],
     "metric": {"precisionAtN": {"size": 10}}}
 

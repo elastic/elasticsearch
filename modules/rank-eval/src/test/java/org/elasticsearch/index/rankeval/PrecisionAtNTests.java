@@ -46,7 +46,7 @@ public class PrecisionAtNTests extends ESTestCase {
         InternalSearchHit[] hits = new InternalSearchHit[1];
         hits[0] = new InternalSearchHit(0, "0", new Text("testtype"), Collections.emptyMap());
         hits[0].shard(new SearchShardTarget("testnode", new Index("test", "uuid"), 0));
-        assertEquals(1, (new PrecisionAtN(5)).evaluate(hits, rated).getQualityLevel(), 0.00001);
+        assertEquals(1, (new PrecisionAtN(5)).evaluate(hits, rated, "_id").getQualityLevel(), 0.00001);
     }
 
     public void testPrecisionAtFiveIgnoreOneResult() throws IOException, InterruptedException, ExecutionException {
@@ -61,7 +61,7 @@ public class PrecisionAtNTests extends ESTestCase {
             hits[i] = new InternalSearchHit(i, i+"", new Text("testtype"), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new Index("test", "uuid"), 0));
         }
-        assertEquals((double) 4 / 5, (new PrecisionAtN(5)).evaluate(hits, rated).getQualityLevel(), 0.00001);
+        assertEquals((double) 4 / 5, (new PrecisionAtN(5)).evaluate(hits, rated, "_id").getQualityLevel(), 0.00001);
     }
 
     public void testPrecisionAtFiveCorrectIndex() throws IOException, InterruptedException, ExecutionException {
@@ -76,7 +76,7 @@ public class PrecisionAtNTests extends ESTestCase {
             hits[i] = new InternalSearchHit(i, i+"", new Text("testtype"), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new Index("test", "uuid"), 0));
         }
-        assertEquals((double) 2 / 3, (new PrecisionAtN(5)).evaluate(hits, rated).getQualityLevel(), 0.00001);
+        assertEquals((double) 2 / 3, (new PrecisionAtN(5)).evaluate(hits, rated, "_id").getQualityLevel(), 0.00001);
     }
 
     public void testPrecisionAtFiveCorrectType() throws IOException, InterruptedException, ExecutionException {
@@ -91,7 +91,7 @@ public class PrecisionAtNTests extends ESTestCase {
             hits[i] = new InternalSearchHit(i, i+"", new Text("testtype"), Collections.emptyMap());
             hits[i].shard(new SearchShardTarget("testnode", new Index("test", "uuid"), 0));
         }
-        assertEquals((double) 2 / 3, (new PrecisionAtN(5)).evaluate(hits, rated).getQualityLevel(), 0.00001);
+        assertEquals((double) 2 / 3, (new PrecisionAtN(5)).evaluate(hits, rated, "_id").getQualityLevel(), 0.00001);
     }
 
     public void testParseFromXContent() throws IOException {

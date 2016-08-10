@@ -97,7 +97,7 @@ public class PrecisionAtN extends RankedListQualityMetric {
      * @return precision at n for above {@link SearchResult} list.
      **/
     @Override
-    public EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs) {
+    public EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs, String keyPath) {
 
         Collection<RatedDocumentKey> relevantDocIds = new ArrayList<>();
         Collection<RatedDocumentKey> irrelevantDocIds = new ArrayList<>();
@@ -113,7 +113,9 @@ public class PrecisionAtN extends RankedListQualityMetric {
         int bad = 0;
         Collection<RatedDocumentKey> unknownDocIds = new ArrayList<>();
         for (int i = 0; (i < n && i < hits.length); i++) {
-            RatedDocumentKey hitKey = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].getId());
+            // NORELEASE I'm pretty sure this needs better error handling e.g. when not pointing to a field holding something
+            // that can be cast to a string hits[i].field(keyPath).value()
+            RatedDocumentKey hitKey = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].field(keyPath).value());
             if (relevantDocIds.contains(hitKey)) {
                 good++;
             } else if (irrelevantDocIds.contains(hitKey)) {

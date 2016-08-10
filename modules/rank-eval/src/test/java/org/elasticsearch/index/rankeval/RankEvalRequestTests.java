@@ -84,8 +84,8 @@ public class RankEvalRequestTests  extends ESIntegTestCase {
         List<QuerySpec> specifications = new ArrayList<>();
         SearchSourceBuilder testQuery = new SearchSourceBuilder();
         testQuery.query(new MatchAllQueryBuilder());
-        specifications.add(new QuerySpec("amsterdam_query",  testQuery, indices, types, createRelevant("2", "3", "4", "5")));
-        specifications.add(new QuerySpec("berlin_query",  testQuery, indices, types, createRelevant("1")));
+        specifications.add(new QuerySpec("amsterdam_query",  testQuery, indices, types, "_id", createRelevant("2", "3", "4", "5")));
+        specifications.add(new QuerySpec("berlin_query",  testQuery, indices, types, "_id", createRelevant("1")));
 
         RankEvalSpec task = new RankEvalSpec(specId, specifications, new PrecisionAtN(10));
 

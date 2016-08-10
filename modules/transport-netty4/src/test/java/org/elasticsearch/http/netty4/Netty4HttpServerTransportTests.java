@@ -55,8 +55,8 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HE
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -89,18 +89,30 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         final Set<String> methods = new HashSet<>(Arrays.asList("get", "options", "post"));
         final Set<String> headers = new HashSet<>(Arrays.asList("Content-Type", "Content-Length"));
         final Settings settings = Settings.builder()
-            .put(SETTING_CORS_ENABLED.getKey(), true)
-            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "*")
-            .put(SETTING_CORS_ALLOW_METHODS.getKey(), Strings.collectionToCommaDelimitedString(methods))
-            .put(SETTING_CORS_ALLOW_HEADERS.getKey(), Strings.collectionToCommaDelimitedString(headers))
-            .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
-            .build();
-        final Netty4HttpServerTransport transport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool);
-        final Netty4CorsConfig corsConfig = transport.getCorsConfig();
-        assertThat(corsConfig.isAnyOriginSupported(), equalTo(true));
-        assertThat(corsConfig.allowedRequestHeaders(), equalTo(headers));
-        assertThat(corsConfig.allowedRequestMethods().stream().map(HttpMethod::name).collect(Collectors.toSet()), equalTo(methods));
-        transport.close();
+                                      .put(SETTING_CORS_ENABLED.getKey(), true)
+                                      .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "*")
+                                      .put(SETTING_CORS_ALLOW_METHODS.getKey(), Strings.collectionToCommaDelimitedString(methods))
+                                      .put(SETTING_CORS_ALLOW_HEADERS.getKey(), Strings.collectionToCommaDelimitedString(headers))
+                                      .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
+                                      .build();
+        final Netty4CorsConfig corsConfig = Netty4HttpServerTransport.buildCorsConfig(settings);
+        assertTrue(corsConfig.isAnyOriginSupported());
+        assertEquals(headers, corsConfig.allowedRequestHeaders());
+        assertEquals(methods, corsConfig.allowedRequestMethods().stream().map(HttpMethod::name).collect(Collectors.toSet()));
+    }
+
+    public void testCorsConfigWithDefaults() {
+        final Set<String> methods = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_METHODS.getDefault(Settings.EMPTY));
+        final Set<String> headers = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_HEADERS.getDefault(Settings.EMPTY));
+        final long maxAge = SETTING_CORS_MAX_AGE.getDefault(Settings.EMPTY);
+        final Settings settings = Settings.builder().put(SETTING_CORS_ENABLED.getKey(), true).build();
+        final Netty4CorsConfig corsConfig = Netty4HttpServerTransport.buildCorsConfig(settings);
+        assertFalse(corsConfig.isAnyOriginSupported());
+        assertEquals(Collections.emptySet(), corsConfig.origins().get());
+        assertEquals(headers, corsConfig.allowedRequestHeaders());
+        assertEquals(methods, corsConfig.allowedRequestMethods().stream().map(HttpMethod::name).collect(Collectors.toSet()));
+        assertEquals(maxAge, corsConfig.maxAge());
+        assertFalse(corsConfig.isCredentialsAllowed());
     }
 
     /**

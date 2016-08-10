@@ -183,7 +183,10 @@ public class QuerySpec implements Writeable {
      *           },
      *           "size": 10
      *   },
-     *   "ratings": [{ "1": 1 }, { "2": 0 }, { "3": 1 } ]
+     *   "ratings": [
+     *                  {"key": {"index": "index_name", "type": "type_name", "doc_id": "1"}, "rating": 1 },
+     *                  {"key": {"index": "index_name", "type": "type_name", "doc_id": "2"}, "rating": 0 },
+     *                  {"key": {"index": "index_name", "type": "type_name", "doc_id": "3"}, "rating": 1 } ]
      *  }
      */
     public static QuerySpec fromXContent(XContentParser parser, RankEvalContext context) throws IOException {

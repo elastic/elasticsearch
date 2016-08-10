@@ -32,17 +32,19 @@ import java.io.IOException;
 import java.util.Objects;
 
 public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
-    public static final ParseField DOC_ID_FIELD = new ParseField("doc_id");
+    public static final ParseField ID_PATH_FIELD = new ParseField("id_path");
+    public static final ParseField ID_VALUE_FIELD = new ParseField("id_value");
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField INDEX_FIELD = new ParseField("index");
 
     private static final ConstructingObjectParser<RatedDocumentKey, RankEvalContext> PARSER = new ConstructingObjectParser<>("ratings",
-            a -> new RatedDocumentKey((String) a[0], (String) a[1], (String) a[2]));
+            a -> new RatedDocumentKey((String) a[0], (String) a[1], (String) a[2], (String) a[3]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), DOC_ID_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_PATH_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_VALUE_FIELD);
     }
 
     @Override
@@ -50,38 +52,30 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
         builder.startObject();
         builder.field(INDEX_FIELD.getPreferredName(), index);
         builder.field(TYPE_FIELD.getPreferredName(), type);
-        builder.field(DOC_ID_FIELD.getPreferredName(), docId);
+        builder.field(ID_PATH_FIELD.getPreferredName(), idPath);
+        builder.field(ID_VALUE_FIELD.getPreferredName(), idValue);
         builder.endObject();
         return builder;
     }
 
     // TODO instead of docId use path to id and id itself
-    private String docId;
+    private String idPath;
+    private String idValue;
     private String type;
     private String index;
 
-    void setIndex(String index) {
-        this.index = index;
-    }
-
-    void setType(String type) {
-        this.type = type;
-    }
-    
-    void setDocId(String docId) {
-        this.docId = docId;
-    }
-
-    public RatedDocumentKey(String index, String type, String docId) {
+    public RatedDocumentKey(String index, String type, String idPath, String idValue) {
         this.index = index;
         this.type = type;
-        this.docId = docId;
+        this.idPath = idPath;
+        this.idValue = idValue;
     }
 
     public RatedDocumentKey(StreamInput in) throws IOException {
         this.index = in.readString();
         this.type = in.readString();
-        this.docId = in.readString();
+        this.idPath = in.readString();
+        this.idValue = in.readString();
     }
 
     public String getIndex() {
@@ -92,15 +86,20 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
         return type;
     }
 
-    public String getDocID() {
-        return docId;
+    public String getIdPath() {
+        return idPath;
+    }
+
+    public String getIdValue() {
+        return idValue;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
         out.writeString(type);
-        out.writeString(docId);
+        out.writeString(idPath);
+        out.writeString(idValue);
     }
     
     public static RatedDocumentKey fromXContent(XContentParser parser, RankEvalContext context) throws IOException {
@@ -118,11 +117,12 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
         RatedDocumentKey other = (RatedDocumentKey) obj;
         return Objects.equals(index, other.index) &&
                 Objects.equals(type, other.type) &&
-                Objects.equals(docId, other.docId);
+                Objects.equals(idPath, other.idPath) &&
+                Objects.equals(idValue, other.idValue);
     }
     
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), index, type, docId);
+        return Objects.hash(getClass(), index, type, idPath, idValue);
     }
 }

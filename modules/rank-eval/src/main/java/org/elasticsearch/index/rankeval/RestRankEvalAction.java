@@ -58,7 +58,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
     "requests": [{
         "id": "human_readable_id",
         "request": { ... request to check ... },
-        "ratings": { ... mapping from doc id to rating value ... }
+        "ratings": { ... mapping from document key to rating value ... }
      }],
     "metric": {
         "... metric_name... ": {
@@ -71,8 +71,8 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  *
  *
    {"spec_id": "huge_weight_on_location",
-    "requests": [{
-        "id": "amsterdam_query",
+    "requests": [
+       {"id": "amsterdam_query",
         "request": {
                 "query": {
                     "bool": {
@@ -83,18 +83,15 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
                             {"term": {"ip_location": {"value": "ams","boost": 10}}}]}
                 },
                 "size": 10
-            }
         },
-        "ratings": {
-            "1": 1,
-            "2": 0,
-            "3": 1,
-            "4": 1
-        }
-        }
-    }, {
-        "id": "berlin_query",
-        "request": {
+        "ratings": [
+            {"key": {"index": "index_name", "type": "type_name", "doc_id": "1"}, "rating": 1},
+            {"key": {"index": "index_name", "type": "type_name", "doc_id": "2"}, "rating": 0},
+            {"key": {"index": "index_name", "type": "type_name", "doc_id": "3"}, "rating": 1},
+            {"key": {"index": "index_name", "type": "type_name", "doc_id": "4"}, "rating": 1}
+        ]}, 
+        {"id": "berlin_query",
+         "request": {
                 "query": {
                     "bool": {
                         "must": [
@@ -104,20 +101,13 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
                             {"term": {"ip_location": {"value": "ber","boost": 10}}}]}
                 },
                 "size": 10
-            }
         },
-        "ratings": {
-            "1": 0,
-            "5": 1,
-            "6": 1
-        }
-    }],
-    "metric": {
-        "precisionAtN": {
-            "size": 10
-            }
-    }
-  }
+        "ratings": [
+            {"key": {"index": "index_name", "type": "type_name", "doc_id": "1"}, "rating": 0},
+            {"key": {"index": "index_name", "type": "type_name", "doc_id": "5"}, "rating": 1},
+            {"key": {"index": "index_name", "type": "type_name", "doc_id": "6"}, "rating": 1}
+        ]}],
+    "metric": {"precisionAtN": {"size": 10}}}
 
  *
  * Output format:

@@ -862,8 +862,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         final int numHashes = hashes.size();
         for(int i=0; i<numHashes; ++i) {
             String hash = "dr5regy6rc6y".substring(0, numHashes-i);
-            Object expected = version.before(Version.V_5_0_0_alpha1) ? hash : new BytesRef(hash);
-            assertEquals(expected, hashes.get(i));
+            assertEquals(hash, hashes.get(i));
         }
     }
 

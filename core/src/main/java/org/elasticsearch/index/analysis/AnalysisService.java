@@ -25,7 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.core.TextFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 
 import java.io.Closeable;
 import java.util.Arrays;

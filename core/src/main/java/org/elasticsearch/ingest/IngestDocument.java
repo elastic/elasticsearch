@@ -20,14 +20,14 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.mapper.internal.IdFieldMapper;
-import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.mapper.ParentFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TTLFieldMapper;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;

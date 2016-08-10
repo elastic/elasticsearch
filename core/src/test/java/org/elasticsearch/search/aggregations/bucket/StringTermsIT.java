@@ -25,7 +25,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;

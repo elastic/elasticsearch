@@ -29,6 +29,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
@@ -51,6 +52,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static io.netty.handler.codec.http.HttpHeaderNames.HOST;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
@@ -99,6 +101,12 @@ class Netty4HttpClient implements Closeable {
         return processRequestsWithBody(HttpMethod.POST, remoteAddress, urisAndBodies);
     }
 
+    public final FullHttpResponse post(SocketAddress remoteAddress, FullHttpRequest httpRequest) throws InterruptedException {
+        Collection<FullHttpResponse> responses = sendRequests(remoteAddress, Collections.singleton(httpRequest));
+        assert responses.size() == 1 : "expected 1 and only 1 http response";
+        return responses.iterator().next();
+    }
+
     @SafeVarargs // Safe not because it doesn't do anything with the type parameters but because it won't leak them into other methods.
     public final Collection<FullHttpResponse> put(SocketAddress remoteAddress, Tuple<String, CharSequence>... urisAndBodies)
         throws InterruptedException {
@@ -134,7 +142,7 @@ class Netty4HttpClient implements Closeable {
             for (HttpRequest request : requests) {
                 channelFuture.channel().writeAndFlush(request);
             }
-            latch.await();
+            latch.await(10, TimeUnit.SECONDS);
 
         } finally {
             if (channelFuture != null) {

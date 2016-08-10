@@ -24,7 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.core.TextFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.junit.Before;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;

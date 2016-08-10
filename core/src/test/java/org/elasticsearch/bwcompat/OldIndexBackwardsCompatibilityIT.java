@@ -45,7 +45,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.index.mapper.string.StringFieldMapperPositionIncrementGapTests;
+import org.elasticsearch.index.mapper.StringFieldMapperPositionIncrementGapTests;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;

@@ -19,19 +19,31 @@
 
 package org.elasticsearch.http.netty4;
 
+import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpUtil;
+import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -43,7 +55,9 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HE
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.elasticsearch.rest.RestStatus.OK;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Tests for the {@link Netty4HttpServerTransport} class.
@@ -89,4 +103,29 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
         transport.close();
     }
 
+    /**
+     * Test that {@link Netty4HttpServerTransport} supports the "Expect: 100-continue" HTTP header
+     */
+    public void testExpectContinueHeader() throws Exception {
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool)) {
+            transport.httpServerAdapter((request, channel, context) ->
+                    channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done"))));
+            transport.start();
+            InetSocketTransportAddress remoteAddress = (InetSocketTransportAddress) randomFrom(transport.boundAddress().boundAddresses());
+
+            try (Netty4HttpClient client = new Netty4HttpClient()) {
+                FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
+                HttpUtil.set100ContinueExpected(request, true);
+                HttpUtil.setContentLength(request, 10);
+
+                FullHttpResponse response = client.post(remoteAddress.address(), request);
+                assertThat(response.status(), is(HttpResponseStatus.CONTINUE));
+
+                request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", Unpooled.EMPTY_BUFFER);
+                response = client.post(remoteAddress.address(), request);
+                assertThat(response.status(), is(HttpResponseStatus.OK));
+                assertThat(new String(ByteBufUtil.getBytes(response.content()), StandardCharsets.UTF_8), is("done"));
+            }
+        }
+    }
 }

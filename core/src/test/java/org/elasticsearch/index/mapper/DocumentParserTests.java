@@ -19,20 +19,24 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 // TODO: make this a real unit test
@@ -876,5 +880,292 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
         BytesReference bytes2 = XContentFactory.jsonBuilder().startObject().field("foo._ttl", 0).endObject().bytes();
         mapper.parse("test", "type", "1", bytes2); // parses without error
+    }
+
+    public void testSimpleMapper() throws Exception {
+        IndexService indexService = createIndex("test");
+        DocumentMapper docMapper = new DocumentMapper.Builder(
+                new RootObjectMapper.Builder("person")
+                        .add(new ObjectMapper.Builder("name").add(new TextFieldMapper.Builder("first").store(true).index(false))),
+            indexService.mapperService()).build(indexService.mapperService());
+
+        BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
+        Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
+
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().name()), equalTo("shay"));
+        doc = docMapper.parse("test", "person", "1", json).rootDoc();
+    }
+
+    public void testParseToJsonAndParse() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/simple/test-mapping.json");
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper docMapper = parser.parse("person", new CompressedXContent(mapping));
+        String builtMapping = docMapper.mappingSource().string();
+        // reparse it
+        DocumentMapper builtDocMapper = parser.parse("person", new CompressedXContent(builtMapping));
+        BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
+        Document doc = builtDocMapper.parse("test", "person", "1", json).rootDoc();
+        assertThat(doc.get(docMapper.uidMapper().fieldType().name()), equalTo(Uid.createUid("person", "1")));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().name()), equalTo("shay"));
+    }
+
+    public void testSimpleParser() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/simple/test-mapping.json");
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
+
+        assertThat((String) docMapper.meta().get("param1"), equalTo("value1"));
+
+        BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
+        Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
+        assertThat(doc.get(docMapper.uidMapper().fieldType().name()), equalTo(Uid.createUid("person", "1")));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().name()), equalTo("shay"));
+    }
+
+    public void testSimpleParserNoTypeNoId() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/simple/test-mapping.json");
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse("person", new CompressedXContent(mapping));
+        BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1-notype-noid.json"));
+        Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
+        assertThat(doc.get(docMapper.uidMapper().fieldType().name()), equalTo(Uid.createUid("person", "1")));
+        assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().name()), equalTo("shay"));
+    }
+
+    public void testAttributes() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/simple/test-mapping.json");
+        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper docMapper = parser.parse("person", new CompressedXContent(mapping));
+
+        assertThat((String) docMapper.meta().get("param1"), equalTo("value1"));
+
+        String builtMapping = docMapper.mappingSource().string();
+        DocumentMapper builtDocMapper = parser.parse("person", new CompressedXContent(builtMapping));
+        assertThat((String) builtDocMapper.meta().get("param1"), equalTo("value1"));
+    }
+
+    public void testNoDocumentSent() throws Exception {
+        IndexService indexService = createIndex("test");
+        DocumentMapper docMapper = new DocumentMapper.Builder(
+                new RootObjectMapper.Builder("person")
+                        .add(new ObjectMapper.Builder("name").add(new TextFieldMapper.Builder("first").store(true).index(false))),
+            indexService.mapperService()).build(indexService.mapperService());
+
+        BytesReference json = new BytesArray("".getBytes(StandardCharsets.UTF_8));
+        try {
+            docMapper.parse("test", "person", "1", json).rootDoc();
+            fail("this point is never reached");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), equalTo("failed to parse, document is empty"));
+        }
+    }
+
+    public void testHazardousFieldNames() throws Exception {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("foo.bar").field("type", "text").endObject()
+            .endObject().endObject().endObject().string();
+        try {
+            mapperParser.parse("type", new CompressedXContent(mapping));
+            fail("Mapping parse should have failed");
+        } catch (MapperParsingException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("cannot contain '.'"));
+        }
+    }
+
+    public void testNoLevel() throws Exception {
+        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
+
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("test1", "value1")
+                .field("test2", "value2")
+                .startObject("inner").field("inner_field", "inner_value").endObject()
+                .endObject()
+                .bytes());
+
+        assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("test2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("inner.inner_field"), equalTo("inner_value"));
+    }
+
+    public void testTypeLevel() throws Exception {
+        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
+
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject().startObject("type")
+                .field("test1", "value1")
+                .field("test2", "value2")
+                .startObject("inner").field("inner_field", "inner_value").endObject()
+                .endObject().endObject()
+                .bytes());
+
+        assertThat(doc.rootDoc().get("type.test1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("type.test2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("type.inner.inner_field"), equalTo("inner_value"));
+    }
+
+    public void testNoLevelWithFieldTypeAsValue() throws Exception {
+        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
+
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("type", "value_type")
+                .field("test1", "value1")
+                .field("test2", "value2")
+                .startObject("inner").field("inner_field", "inner_value").endObject()
+                .endObject()
+                .bytes());
+
+        assertThat(doc.rootDoc().get("type"), equalTo("value_type"));
+        assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("test2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("inner.inner_field"), equalTo("inner_value"));
+    }
+
+    public void testTypeLevelWithFieldTypeAsValue() throws Exception {
+        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
+
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject().startObject("type")
+                .field("type", "value_type")
+                .field("test1", "value1")
+                .field("test2", "value2")
+                .startObject("inner").field("inner_field", "inner_value").endObject()
+                .endObject().endObject()
+                .bytes());
+
+        assertThat(doc.rootDoc().get("type.type"), equalTo("value_type"));
+        assertThat(doc.rootDoc().get("type.test1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("type.test2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("type.inner.inner_field"), equalTo("inner_value"));
+    }
+
+    public void testNoLevelWithFieldTypeAsObject() throws Exception {
+        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
+
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("type").field("type_field", "type_value").endObject()
+                .field("test1", "value1")
+                .field("test2", "value2")
+                .startObject("inner").field("inner_field", "inner_value").endObject()
+                .endObject()
+                .bytes());
+
+        // in this case, we analyze the type object as the actual document, and ignore the other same level fields
+        assertThat(doc.rootDoc().get("type.type_field"), equalTo("type_value"));
+        assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("test2"), equalTo("value2"));
+    }
+
+    public void testTypeLevelWithFieldTypeAsObject() throws Exception {
+        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
+
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject().startObject("type")
+                .startObject("type").field("type_field", "type_value").endObject()
+                .field("test1", "value1")
+                .field("test2", "value2")
+                .startObject("inner").field("inner_field", "inner_value").endObject()
+                .endObject().endObject()
+                .bytes());
+
+        assertThat(doc.rootDoc().get("type.type.type_field"), equalTo("type_value"));
+        assertThat(doc.rootDoc().get("type.test1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("type.test2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("type.inner.inner_field"), equalTo("inner_value"));
+    }
+
+    public void testNoLevelWithFieldTypeAsValueNotFirst() throws Exception {
+        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
+
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject().startObject("type")
+                .field("test1", "value1")
+                .field("test2", "value2")
+                .field("type", "value_type")
+                .startObject("inner").field("inner_field", "inner_value").endObject()
+                .endObject().endObject()
+                .bytes());
+
+        assertThat(doc.rootDoc().get("type.type"), equalTo("value_type"));
+        assertThat(doc.rootDoc().get("type.test1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("type.test2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("type.inner.inner_field"), equalTo("inner_value"));
+    }
+
+    public void testTypeLevelWithFieldTypeAsValueNotFirst() throws Exception {
+        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
+
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject().startObject("type")
+                .field("test1", "value1")
+                .field("type", "value_type")
+                .field("test2", "value2")
+                .startObject("inner").field("inner_field", "inner_value").endObject()
+                .endObject().endObject()
+                .bytes());
+
+        assertThat(doc.rootDoc().get("type.type"), equalTo("value_type"));
+        assertThat(doc.rootDoc().get("type.test1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("type.test2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("type.inner.inner_field"), equalTo("inner_value"));
+    }
+
+    public void testNoLevelWithFieldTypeAsObjectNotFirst() throws Exception {
+        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
+
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("test1", "value1")
+                .startObject("type").field("type_field", "type_value").endObject()
+                .field("test2", "value2")
+                .startObject("inner").field("inner_field", "inner_value").endObject()
+                .endObject()
+                .bytes());
+
+        // when the type is not the first one, we don't confuse it...
+        assertThat(doc.rootDoc().get("type.type_field"), equalTo("type_value"));
+        assertThat(doc.rootDoc().get("test1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("test2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("inner.inner_field"), equalTo("inner_value"));
+    }
+
+    public void testTypeLevelWithFieldTypeAsObjectNotFirst() throws Exception {
+        String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
+
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject().startObject("type")
+                .field("test1", "value1")
+                .startObject("type").field("type_field", "type_value").endObject()
+                .field("test2", "value2")
+                .startObject("inner").field("inner_field", "inner_value").endObject()
+                .endObject().endObject()
+                .bytes());
+
+        assertThat(doc.rootDoc().get("type.type.type_field"), equalTo("type_value"));
+        assertThat(doc.rootDoc().get("type.test1"), equalTo("value1"));
+        assertThat(doc.rootDoc().get("type.test2"), equalTo("value2"));
+        assertThat(doc.rootDoc().get("type.inner.inner_field"), equalTo("inner_value"));
     }
 }

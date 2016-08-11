@@ -60,6 +60,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -105,7 +106,7 @@ public class TasksIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class, TestTaskPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class, TestTaskPlugin.class);
     }
 
     @Override

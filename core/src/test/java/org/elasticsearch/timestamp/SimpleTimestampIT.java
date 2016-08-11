@@ -32,6 +32,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Locale;
 
@@ -52,7 +53,7 @@ public class SimpleTimestampIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class);
     }
 
     public void testSimpleTimestamp() throws Exception {

@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -42,7 +43,7 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(CustomHighlighterPlugin.class);
+        return Arrays.asList(CustomHighlighterPlugin.class);
     }
 
     @Before

@@ -75,7 +75,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(DummySettingPlugin.class);
+        return Arrays.asList(DummySettingPlugin.class);
     }
 
     public static class DummySettingPlugin extends Plugin {

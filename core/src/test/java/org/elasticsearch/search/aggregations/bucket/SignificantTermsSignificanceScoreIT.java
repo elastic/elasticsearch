@@ -88,12 +88,12 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(CustomSignificanceHeuristicPlugin.class);
+        return Arrays.asList(CustomSignificanceHeuristicPlugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return pluginList(CustomSignificanceHeuristicPlugin.class);
+        return Arrays.asList(CustomSignificanceHeuristicPlugin.class);
     }
 
     public String randomExecutionHint() {

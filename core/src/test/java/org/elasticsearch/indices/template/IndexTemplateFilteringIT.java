@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import java.util.Arrays;
 import java.util.Collection;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -41,7 +42,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class IndexTemplateFilteringIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(TestPlugin.class);
+        return Arrays.asList(TestPlugin.class);
     }
 
     public void testTemplateFiltering() throws Exception {

@@ -32,6 +32,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -48,7 +49,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         // Use the mock internal cluster info service, which has fake-able disk usages
-        return pluginList(MockInternalClusterInfoService.TestPlugin.class);
+        return Arrays.asList(MockInternalClusterInfoService.TestPlugin.class);
     }
 
     public void testRerouteOccursOnDiskPassingHighWatermark() throws Exception {

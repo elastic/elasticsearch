@@ -68,6 +68,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -90,7 +91,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class);
     }
 
     List<String> indexes;

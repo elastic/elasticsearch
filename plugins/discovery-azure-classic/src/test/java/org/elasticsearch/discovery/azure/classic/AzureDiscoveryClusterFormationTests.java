@@ -84,7 +84,7 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(AzureDiscoveryPlugin.class, TestPlugin.class);
+        return Arrays.asList(AzureDiscoveryPlugin.class, TestPlugin.class);
     }
 
     private static Path keyStoreFile;

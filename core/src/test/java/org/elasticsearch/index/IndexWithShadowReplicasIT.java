@@ -65,6 +65,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -104,7 +105,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class);
     }
 
     public void testCannotCreateWithBadPath() throws Exception {

@@ -54,6 +54,7 @@ import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
@@ -123,7 +124,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(TestPlugin.class,
+        return Arrays.asList(TestPlugin.class,
                 MockTransportService.TestPlugin.class);
     }
 

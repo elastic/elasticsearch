@@ -38,6 +38,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -57,7 +58,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         // disruption tests need MockTransportService
-        return pluginList(MockTransportService.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class);
     }
 
     private void createStaleReplicaScenario() throws Exception {

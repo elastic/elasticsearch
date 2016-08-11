@@ -27,12 +27,13 @@ import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 
 public class NetworkDisruptionIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class);
     }
 
     public void testNetworkPartitionWithNodeShutdown() throws IOException {

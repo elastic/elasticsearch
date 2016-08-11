@@ -28,6 +28,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.Arrays;
 import java.util.Collection;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -36,7 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(ExternalMapperPlugin.class);
+        return Arrays.asList(ExternalMapperPlugin.class);
     }
 
     public void testHighlightingOnCustomString() throws Exception {

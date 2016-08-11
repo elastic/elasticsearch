@@ -38,6 +38,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -49,7 +50,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class); // uses index.merge.enabled
+        return Arrays.asList(InternalSettingsPlugin.class); // uses index.merge.enabled
     }
 
     private final Settings indexSettings = Settings.builder()

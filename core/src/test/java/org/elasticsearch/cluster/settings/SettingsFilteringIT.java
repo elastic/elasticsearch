@@ -44,7 +44,7 @@ public class SettingsFilteringIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(SettingsFilteringPlugin.class);
+        return Arrays.asList(SettingsFilteringPlugin.class);
     }
 
     public static class SettingsFilteringPlugin extends Plugin {

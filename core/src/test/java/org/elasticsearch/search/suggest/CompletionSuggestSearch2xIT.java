@@ -86,7 +86,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class);
     }
 
     public void testSimple() throws Exception {

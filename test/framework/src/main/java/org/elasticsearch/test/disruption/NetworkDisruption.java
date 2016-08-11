@@ -34,6 +34,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import static org.junit.Assert.assertFalse;
 
@@ -87,20 +88,9 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
 
     @Override
     public synchronized void removeFromNode(String node1, InternalTestCluster cluster) {
-        if (disruptedLinks.nodes().contains(node1)) {
-            for (String node2 : cluster.getNodeNames()) {
-                if (disruptedLinks.nodes().contains(node2)) {
-                    if (node1.equals(node2) == false) {
-                        if (disruptedLinks.disrupt(node1, node2)) {
-                            networkLinkDisruptionType.removeDisruption(transport(node1), transport(node2));
-                        }
-                        if (disruptedLinks.disrupt(node2, node1)) {
-                            networkLinkDisruptionType.removeDisruption(transport(node2), transport(node1));
-                        }
-                    }
-                }
-            }
-        }
+        logger.info("stop disrupting node (disruption type: {}, disrupted links: {})", networkLinkDisruptionType, disruptedLinks);
+        applyToNodes(new String[]{ node1 }, cluster.getNodeNames(), networkLinkDisruptionType::removeDisruption);
+        applyToNodes(cluster.getNodeNames(), new String[]{ node1 }, networkLinkDisruptionType::removeDisruption);
     }
 
     @Override
@@ -111,19 +101,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
     @Override
     public synchronized void startDisrupting() {
         logger.info("start disrupting (disruption type: {}, disrupted links: {})", networkLinkDisruptionType, disruptedLinks);
-        for (String node1 : cluster.getNodeNames()) {
-            if (disruptedLinks.nodes().contains(node1)) {
-                for (String node2 : cluster.getNodeNames()) {
-                    if (disruptedLinks.nodes().contains(node2)) {
-                        if (node1.equals(node2) == false) {
-                            if (disruptedLinks.disrupt(node1, node2)) {
-                                networkLinkDisruptionType.applyDisruption(transport(node1), transport(node2));
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        applyToNodes(cluster.getNodeNames(), cluster.getNodeNames(), networkLinkDisruptionType::applyDisruption);
         activeDisruption = true;
     }
 
@@ -133,20 +111,27 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
             return;
         }
         logger.info("stop disrupting (disruption scheme: {}, disrupted links: {})", networkLinkDisruptionType, disruptedLinks);
-        for (String node1 : cluster.getNodeNames()) {
+        applyToNodes(cluster.getNodeNames(), cluster.getNodeNames(), networkLinkDisruptionType::removeDisruption);
+        activeDisruption = false;
+    }
+
+    /**
+     * Applies action to all disrupted links between two sets of nodes.
+     */
+    private void applyToNodes(String[] nodes1, String[] nodes2, BiConsumer<MockTransportService, MockTransportService> consumer) {
+        for (String node1 : nodes1) {
             if (disruptedLinks.nodes().contains(node1)) {
-                for (String node2 : cluster.getNodeNames()) {
+                for (String node2 : nodes2) {
                     if (disruptedLinks.nodes().contains(node2)) {
                         if (node1.equals(node2) == false) {
                             if (disruptedLinks.disrupt(node1, node2)) {
-                                networkLinkDisruptionType.removeDisruption(transport(node1), transport(node2));
+                                consumer.accept(transport(node1), transport(node2));
                             }
                         }
                     }
                 }
             }
         }
-        activeDisruption = false;
     }
 
     @Override

@@ -958,20 +958,6 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testHazardousFieldNames() throws Exception {
-        IndexService indexService = createIndex("test");
-        DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-            .startObject("foo.bar").field("type", "text").endObject()
-            .endObject().endObject().endObject().string();
-        try {
-            mapperParser.parse("type", new CompressedXContent(mapping));
-            fail("Mapping parse should have failed");
-        } catch (MapperParsingException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("cannot contain '.'"));
-        }
-    }
-
     public void testNoLevel() throws Exception {
         String defaultMapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 

@@ -26,6 +26,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
@@ -60,6 +61,9 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
 
     public static final String CONTENT_TYPE = "object";
     public static final String NESTED_CONTENT_TYPE = "nested";
+
+    private static final boolean DOTS_IN_FIELD_ALLOWED = Booleans.parseBooleanExact(
+        System.getProperty("mapper.allow_dots_in_name", "false"));
 
     public static class Defaults {
         public static final boolean ENABLED = true;
@@ -269,7 +273,7 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
-                if (fieldName.contains(".")) {
+                if (fieldName.contains(".") && DOTS_IN_FIELD_ALLOWED == false) {
                     throw new MapperParsingException("Field name [" + fieldName + "] cannot contain '.'");
                 }
                 // Should accept empty arrays, as a work around for when the

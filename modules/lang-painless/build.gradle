@@ -46,3 +46,9 @@ dependencies {
 
 ant.references['regenerate.classpath'] = new Path(ant.project, configurations.regenerate.asPath)
 ant.importBuild 'ant.xml'
+
+integTest {
+  cluster {
+    setting 'script.max_compilations_per_minute', '1000'
+  }
+}

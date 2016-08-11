@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest.phrase;
 
 
+import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -31,7 +32,10 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.analysis.CustomAnalyzer;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -39,7 +43,6 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
@@ -65,7 +68,6 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     protected static final ParseField RWE_LIKELIHOOD_FIELD = new ParseField("real_word_error_likelihood");
     protected static final ParseField SEPARATOR_FIELD = new ParseField("separator");
     protected static final ParseField CONFIDENCE_FIELD = new ParseField("confidence");
-    protected static final ParseField GENERATORS_FIELD = new ParseField("shard_size");
     protected static final ParseField GRAMSIZE_FIELD = new ParseField("gram_size");
     protected static final ParseField SMOOTHING_MODEL_FIELD = new ParseField("smoothing");
     protected static final ParseField FORCE_UNIGRAM_FIELD = new ParseField("force_unigrams");
@@ -593,7 +595,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         // now we should have field name, check and copy fields over to the suggestion builder we return
         if (fieldname == null) {
             throw new ElasticsearchParseException(
-                "the required field option [" + SuggestUtils.Fields.FIELD.getPreferredName() + "] is missing");
+                "the required field option [" + FIELDNAME_FIELD.getPreferredName() + "] is missing");
         }
         return new PhraseSuggestionBuilder(fieldname, tmpSuggestion);
     }
@@ -641,8 +643,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         }
 
         if (this.gramSize == null || suggestionContext.generators().isEmpty()) {
-            final ShingleTokenFilterFactory.Factory shingleFilterFactory = SuggestUtils
-                    .getShingleFilterFactory(suggestionContext.getAnalyzer());
+            final ShingleTokenFilterFactory.Factory shingleFilterFactory = getShingleFilterFactory(suggestionContext.getAnalyzer());
             if (this.gramSize == null) {
                 // try to detect the shingle size
                 if (shingleFilterFactory != null) {
@@ -668,6 +669,24 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
             }
         }
         return suggestionContext;
+    }
+
+    private static ShingleTokenFilterFactory.Factory getShingleFilterFactory(Analyzer analyzer) {
+        if (analyzer instanceof NamedAnalyzer) {
+            analyzer = ((NamedAnalyzer)analyzer).analyzer();
+        }
+        if (analyzer instanceof CustomAnalyzer) {
+            final CustomAnalyzer a = (CustomAnalyzer) analyzer;
+            final TokenFilterFactory[] tokenFilters = a.tokenFilters();
+            for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
+                if (tokenFilterFactory instanceof ShingleTokenFilterFactory) {
+                    return ((ShingleTokenFilterFactory)tokenFilterFactory).getInnerFactory();
+                } else if (tokenFilterFactory instanceof ShingleTokenFilterFactory.Factory) {
+                    return (ShingleTokenFilterFactory.Factory) tokenFilterFactory;
+                }
+            }
+        }
+        return null;
     }
 
     private static void ensureNoSmoothing(PhraseSuggestionBuilder suggestion) {

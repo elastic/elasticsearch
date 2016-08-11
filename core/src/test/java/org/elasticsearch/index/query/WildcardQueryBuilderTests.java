@@ -113,5 +113,15 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
                 "}";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[wildcard] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
+
+        String shortJson =
+                "{\n" +
+                "    \"wildcard\": {\n" +
+                "      \"user1\": \"ki*y\",\n" +
+                "      \"user2\": \"ki*y\"\n" +
+                "    }\n" +
+                "}";
+        e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
+        assertEquals("[wildcard] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
     }
 }

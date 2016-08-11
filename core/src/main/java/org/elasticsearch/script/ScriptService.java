@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -85,6 +87,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         Setting.boolSetting("script.auto_reload_enabled", true, Property.NodeScope);
     public static final Setting<Integer> SCRIPT_MAX_SIZE_IN_BYTES =
         Setting.intSetting("script.max_size_in_bytes", 65535, Property.NodeScope);
+    public static final Setting<Integer> SCRIPT_MAX_COMPILATIONS_PER_MINUTE =
+        Setting.intSetting("script.max_compilations_per_minute", 15, 0, Property.Dynamic, Property.NodeScope);
 
     private final String defaultLang;
 
@@ -103,6 +107,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     private final ScriptMetrics scriptMetrics = new ScriptMetrics();
 
     private ClusterState clusterState;
+
+    private int totalCompilesPerMinute;
+    private long lastInlineCompileTime;
+    private double scriptsPerMinCounter;
+    private double compilesAllowedPerNano;
 
     public ScriptService(Settings settings, Environment env,
                          ResourceWatcherService resourceWatcherService, ScriptEngineRegistry scriptEngineRegistry,
@@ -162,6 +171,13 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             // automatic reload is disable just load scripts once
             fileWatcher.init();
         }
+
+        this.lastInlineCompileTime = System.nanoTime();
+        this.setMaxCompilationsPerMinute(SCRIPT_MAX_COMPILATIONS_PER_MINUTE.get(settings));
+    }
+
+    void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
+        clusterSettings.addSettingsUpdateConsumer(SCRIPT_MAX_COMPILATIONS_PER_MINUTE, this::setMaxCompilationsPerMinute);
     }
 
     @Override
@@ -185,7 +201,12 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return scriptEngineService;
     }
 
-
+    void setMaxCompilationsPerMinute(Integer newMaxPerMinute) {
+        this.totalCompilesPerMinute = newMaxPerMinute;
+        // Reset the counter to allow new compilations
+        this.scriptsPerMinCounter = totalCompilesPerMinute;
+        this.compilesAllowedPerNano = ((double) totalCompilesPerMinute) / TimeValue.timeValueMinutes(1).nanos();
+    }
 
     /**
      * Checks if a script can be executed and compiles it if needed, or returns the previously compiled and cached script.
@@ -219,6 +240,38 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         }
 
         return compileInternal(script, params);
+    }
+
+    /**
+     * Check whether there have been too many compilations within the last minute, throwing a circuit breaking exception if so.
+     * This is a variant of the token bucket algorithm: https://en.wikipedia.org/wiki/Token_bucket
+     *
+     * It can be thought of as a bucket with water, every time the bucket is checked, water is added proportional to the amount of time that
+     * elapsed since the last time it was checked. If there is enough water, some is removed and the request is allowed. If there is not
+     * enough water the request is denied. Just like a normal bucket, if water is added that overflows the bucket, the extra water/capacity
+     * is discarded - there can never be more water in the bucket than the size of the bucket.
+     */
+    void checkCompilationLimit() {
+        long now = System.nanoTime();
+        long timePassed = now - lastInlineCompileTime;
+        lastInlineCompileTime = now;
+
+        scriptsPerMinCounter += ((double) timePassed) * compilesAllowedPerNano;
+
+        // It's been over the time limit anyway, readjust the bucket to be level
+        if (scriptsPerMinCounter > totalCompilesPerMinute) {
+            scriptsPerMinCounter = totalCompilesPerMinute;
+        }
+
+        // If there is enough tokens in the bucket, allow the request and decrease the tokens by 1
+        if (scriptsPerMinCounter >= 1) {
+            scriptsPerMinCounter -= 1.0;
+        } else {
+            // Otherwise reject the request
+            throw new CircuitBreakingException("[script] Too many dynamic script compilations within one minute, max: [" +
+                            totalCompilesPerMinute + "/min]; please use on-disk, indexed, or scripts with parameters instead; " +
+                            "this limit can be changed by the [" + SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey() + "] setting");
+        }
     }
 
     /**
@@ -268,28 +321,44 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         CacheKey cacheKey = new CacheKey(scriptEngineService, type == ScriptType.INLINE ? null : name, code, params);
         CompiledScript compiledScript = cache.get(cacheKey);
 
-        if (compiledScript == null) {
-            //Either an un-cached inline script or indexed script
-            //If the script type is inline the name will be the same as the code for identification in exceptions
-            try {
-                // but give the script engine the chance to be better, give it separate name + source code
-                // for the inline case, then its anonymous: null.
-                String actualName = (type == ScriptType.INLINE) ? null : name;
-                compiledScript = new CompiledScript(type, name, lang, scriptEngineService.compile(actualName, code, params));
-            } catch (ScriptException good) {
-                // TODO: remove this try-catch completely, when all script engines have good exceptions!
-                throw good; // its already good
-            } catch (Exception exception) {
-                throw new GeneralScriptException("Failed to compile " + type + " script [" + name + "] using lang [" + lang + "]", exception);
-            }
-
-            //Since the cache key is the script content itself we don't need to
-            //invalidate/check the cache if an indexed script changes.
-            scriptMetrics.onCompilation();
-            cache.put(cacheKey, compiledScript);
+        if (compiledScript != null) {
+            return compiledScript;
         }
 
-        return compiledScript;
+        // Synchronize so we don't compile scripts many times during multiple shards all compiling a script
+        synchronized (this) {
+            // Retrieve it again in case it has been put by a different thread
+            compiledScript = cache.get(cacheKey);
+
+            if (compiledScript == null) {
+                try {
+                    // Either an un-cached inline script or indexed script
+                    // If the script type is inline the name will be the same as the code for identification in exceptions
+
+                    // but give the script engine the chance to be better, give it separate name + source code
+                    // for the inline case, then its anonymous: null.
+                    String actualName = (type == ScriptType.INLINE) ? null : name;
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("compiling script, type: [{}], lang: [{}], params: [{}]", type, lang, params);
+                    }
+                    // Check whether too many compilations have happened
+                    checkCompilationLimit();
+                    compiledScript = new CompiledScript(type, name, lang, scriptEngineService.compile(actualName, code, params));
+                } catch (ScriptException good) {
+                    // TODO: remove this try-catch completely, when all script engines have good exceptions!
+                    throw good; // its already good
+                } catch (Exception exception) {
+                    throw new GeneralScriptException("Failed to compile " + type + " script [" + name + "] using lang [" + lang + "]", exception);
+                }
+
+                // Since the cache key is the script content itself we don't need to
+                // invalidate/check the cache if an indexed script changes.
+                scriptMetrics.onCompilation();
+                cache.put(cacheKey, compiledScript);
+            }
+
+            return compiledScript;
+        }
     }
 
     private String validateScriptLanguage(String scriptLang) {

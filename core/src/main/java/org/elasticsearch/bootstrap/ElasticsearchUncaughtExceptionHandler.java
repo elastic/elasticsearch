@@ -25,6 +25,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOError;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -85,10 +87,16 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
     }
 
     // visible for testing
-    @SuppressForbidden(reason = "halt")
     void halt(int status) {
-        // we halt to prevent shutdown hooks from running
-        Runtime.getRuntime().halt(status);
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @SuppressForbidden(reason = "halt")
+            @Override
+            public Void run() {
+                // we halt to prevent shutdown hooks from running
+                Runtime.getRuntime().halt(status);
+                return null;
+            }
+        });
     }
 
 }

@@ -1054,7 +1054,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * node but already deleted on the source node. Search request should still work.
      */
     public void testSearchWithRelocationAndSlowClusterStateProcessing() throws Exception {
-        configureUnicastCluster(3, null, 1);
+        // don't use DEFAULT settings (which can cause node disconnects on a slow CI machine)
+        configureUnicastCluster(Settings.EMPTY, 3, null, 1);
         InternalTestCluster.Async<String> masterNodeFuture = internalCluster().startMasterOnlyNodeAsync();
         InternalTestCluster.Async<String> node_1Future = internalCluster().startDataOnlyNodeAsync();
 

@@ -396,8 +396,7 @@ Please note, that some settings such as `index.number_of_shards` cannot be chang
 The information stored in a snapshot is not tied to a particular cluster or a cluster name. Therefore it's possible to
 restore a snapshot made from one cluster into another cluster. All that is required is registering the repository
 containing the snapshot in the new cluster and starting the restore process. The new cluster doesn't have to have the
-same size or topology.  However, the version of the new cluster should be the same or newer than the cluster that was
-used to create the snapshot.
+same size or topology.  However, the version of the new cluster should be the same or newer (only 1 major version newer) than the cluster that was used to create the snapshot.  For example, you can restore a 1.x snapshot to a 2.x cluster, but not a 1.x snapshot to a 5.x cluster.
 
 If the new cluster has a smaller size additional considerations should be made. First of all it's necessary to make sure
 that new cluster have enough capacity to store all indices in the snapshot. It's possible to change indices settings

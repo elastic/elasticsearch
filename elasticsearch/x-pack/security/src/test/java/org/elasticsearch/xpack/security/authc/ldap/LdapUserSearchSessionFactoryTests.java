@@ -25,8 +25,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
-import org.elasticsearch.xpack.security.ssl.ClientSSLService;
-import org.elasticsearch.xpack.security.ssl.SSLConfiguration.Global;
+import org.elasticsearch.xpack.security.ssl.SSLService;
 import org.elasticsearch.xpack.security.support.NoOpLogger;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
@@ -46,7 +45,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
 
-    private ClientSSLService clientSSLService;
+    private SSLService sslService;
     private Settings globalSettings;
 
     @Before
@@ -58,13 +57,12 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
-        Settings settings = Settings.builder()
+        globalSettings = Settings.builder()
+                .put("path.home", createTempDir())
                 .put("xpack.security.ssl.keystore.path", keystore)
                 .put("xpack.security.ssl.keystore.password", "changeit")
                 .build();
-        clientSSLService = new ClientSSLService(settings, env, new Global(settings), null);
-
-        globalSettings = Settings.builder().put("path.home", createTempDir()).build();
+        sslService = new SSLService(globalSettings, env);
     }
 
     public void testSupportsUnauthenticatedSessions() throws Exception {
@@ -359,7 +357,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("user_search.pool.enabled", randomBoolean())
                 .build();
         RealmConfig config = new RealmConfig("ad-as-ldap-test", settings, globalSettings);
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, clientSSLService);
+        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService);
 
         String user = "Bruce Banner";
         try {
@@ -401,7 +399,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                 .put("bind_password", OpenLdapTests.PASSWORD)
                 .put("user_search.pool.enabled", randomBoolean())
                 .build(), globalSettings);
-        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, clientSSLService);
+        LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, sslService);
 
         String[] users = new String[] { "cap", "hawkeye", "hulk", "ironman", "thor" };
         try {

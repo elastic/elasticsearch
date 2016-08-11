@@ -5,24 +5,23 @@
  */
 package org.elasticsearch.xpack.monitoring.agent.collector.cluster;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.agent.collector.AbstractCollector;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.security.InternalClient;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * Collector for cluster state.
@@ -36,10 +35,9 @@ public class ClusterStateCollector extends AbstractCollector {
 
     private final Client client;
 
-    @Inject
     public ClusterStateCollector(Settings settings, ClusterService clusterService,
-                                 MonitoringSettings monitoringSettings, MonitoringLicensee licensee, InternalClient client) {
-        super(settings, NAME, clusterService, monitoringSettings, licensee);
+                                 MonitoringSettings monitoringSettings, XPackLicenseState licenseState, InternalClient client) {
+        super(settings, NAME, clusterService, monitoringSettings, licenseState);
         this.client = client;
     }
 

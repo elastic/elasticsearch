@@ -33,7 +33,7 @@ public class NodeStatsTests extends MonitoringIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(MonitoringSettings.INTERVAL.getKey(), "-1")
                 .put(MonitoringSettings.COLLECTORS.getKey(), NodeStatsCollector.NAME)
-                .put("xpack.monitoring.collection.exporters.default_local.type", LocalExporter.TYPE)
+                .put("xpack.monitoring.exporters.default_local.type", LocalExporter.TYPE)
                 .build();
     }
 

@@ -15,8 +15,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.xpack.security.ssl.ClientSSLService;
-import org.elasticsearch.xpack.security.ssl.ServerSSLService;
+import org.elasticsearch.xpack.security.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,7 +34,6 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.List;
 
-import static org.elasticsearch.xpack.security.Security.featureEnabledSetting;
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.Security.settingPrefix;
 import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isCloseDuringHandshakeException;
@@ -47,47 +45,63 @@ public class SecurityNetty3Transport extends Netty3Transport {
     public static final boolean SSL_DEFAULT = false;
 
     public static final Setting<Boolean> DEPRECATED_HOSTNAME_VERIFICATION_SETTING =
-            Setting.boolSetting(setting("ssl.hostname_verification"), true, Property.NodeScope, Property.Filtered, Property.Deprecated);
+            Setting.boolSetting(
+                    setting("ssl.hostname_verification"),
+                    true,
+                    new Property[]{Property.NodeScope, Property.Filtered, Property.Deprecated, Property.Shared});
+
     public static final Setting<Boolean> HOSTNAME_VERIFICATION_SETTING =
-            Setting.boolSetting(featureEnabledSetting("ssl.hostname_verification"), DEPRECATED_HOSTNAME_VERIFICATION_SETTING,
-                    Property.NodeScope, Property.Filtered);
+            Setting.boolSetting(setting("ssl.hostname_verification.enabled"), DEPRECATED_HOSTNAME_VERIFICATION_SETTING,
+                    Property.NodeScope, Property.Filtered, Property.Shared);
+
     public static final Setting<Boolean> HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING =
-            Setting.boolSetting(setting("ssl.hostname_verification.resolve_name"), true, Property.NodeScope, Property.Filtered);
+            Setting.boolSetting(
+                    setting("ssl.hostname_verification.resolve_name"),
+                    true,
+                    new Property[]{Property.NodeScope, Property.Filtered, Property.Shared});
 
     public static final Setting<Boolean> DEPRECATED_SSL_SETTING =
             Setting.boolSetting(setting("transport.ssl"), SSL_DEFAULT,
-                    Property.Filtered, Property.NodeScope, Property.Deprecated);
+                    Property.Filtered, Property.NodeScope, Property.Deprecated, Property.Shared);
+
     public static final Setting<Boolean> SSL_SETTING =
-            Setting.boolSetting(setting("transport.ssl.enabled"), DEPRECATED_SSL_SETTING, Property.Filtered, Property.NodeScope);
+            Setting.boolSetting(
+                    setting("transport.ssl.enabled"),
+                    DEPRECATED_SSL_SETTING,
+                    new Property[]{Property.Filtered, Property.NodeScope, Property.Shared});
 
     public static final Setting<SSLClientAuth> CLIENT_AUTH_SETTING =
-            new Setting<>(setting("transport.ssl.client.auth"), CLIENT_AUTH_DEFAULT,
-                    SSLClientAuth::parse, Property.NodeScope, Property.Filtered);
+            new Setting<>(
+                    setting("transport.ssl.client.auth"),
+                    CLIENT_AUTH_DEFAULT,
+                    SSLClientAuth::parse,
+                    new Property[]{Property.NodeScope, Property.Filtered, Property.Shared});
 
     public static final Setting<Boolean> DEPRECATED_PROFILE_SSL_SETTING =
-            Setting.boolSetting(setting("ssl"), SSL_SETTING, Property.Filtered, Property.NodeScope, Property.Deprecated);
+            Setting.boolSetting(setting("ssl"), SSL_SETTING, Property.Filtered, Property.NodeScope, Property.Deprecated, Property.Shared);
+
     public static final Setting<Boolean> PROFILE_SSL_SETTING =
-            Setting.boolSetting(setting("ssl.enabled"), SSL_DEFAULT, Property.Filtered, Property.NodeScope);
+            Setting.boolSetting(setting("ssl.enabled"), SSL_DEFAULT, Property.Filtered, Property.NodeScope, Property.Shared);
 
     public static final Setting<SSLClientAuth> PROFILE_CLIENT_AUTH_SETTING =
-            new Setting<>(setting("ssl.client.auth"), CLIENT_AUTH_SETTING, SSLClientAuth::parse,
-                    Property.NodeScope, Property.Filtered);
+            new Setting<>(
+                    setting("ssl.client.auth"),
+                    CLIENT_AUTH_SETTING,
+                    SSLClientAuth::parse,
+                    new Property[]{Property.NodeScope, Property.Filtered, Property.Shared});
 
-    private final ServerSSLService serverSslService;
-    private final ClientSSLService clientSSLService;
+    private final SSLService sslService;
     @Nullable private final IPFilter authenticator;
     private final boolean ssl;
 
     @Inject
     public SecurityNetty3Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
-                                   @Nullable IPFilter authenticator, @Nullable ServerSSLService serverSSLService,
-                                   ClientSSLService clientSSLService, NamedWriteableRegistry namedWriteableRegistry,
+                                   @Nullable IPFilter authenticator, SSLService sslService, NamedWriteableRegistry namedWriteableRegistry,
                                    CircuitBreakerService circuitBreakerService) {
         super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
         this.authenticator = authenticator;
         this.ssl = SSL_SETTING.get(settings);
-        this.serverSslService = serverSSLService;
-        this.clientSSLService = clientSSLService;
+        this.sslService = sslService;
     }
 
     @Override
@@ -143,28 +157,27 @@ public class SecurityNetty3Transport extends Netty3Transport {
 
     private class SslServerChannelPipelineFactory extends ServerChannelPipelineFactory {
 
-        private final Settings profileSettings;
+        private final boolean sslEnabled;
+        private final Settings securityProfileSettings;
+        private final SSLClientAuth sslClientAuth;
 
         public SslServerChannelPipelineFactory(Netty3Transport nettyTransport, String name, Settings settings, Settings profileSettings) {
             super(nettyTransport, name, settings);
-            this.profileSettings = profileSettings;
+            this.sslEnabled = profileSsl(profileSettings, settings);
+            this.securityProfileSettings = profileSettings.getByPrefix(settingPrefix());
+            this.sslClientAuth = PROFILE_CLIENT_AUTH_SETTING.get(profileSettings, settings);
+            if (sslEnabled && sslService.isConfigurationValidForServerUsage(securityProfileSettings) == false) {
+                throw new IllegalArgumentException("a key must be provided to run as a server");
+            }
         }
 
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
-            final boolean profileSsl = profileSsl(profileSettings, settings);
-            final SSLClientAuth clientAuth = PROFILE_CLIENT_AUTH_SETTING.get(profileSettings, settings);
-            if (profileSsl) {
-                SSLEngine serverEngine;
-                Settings securityProfileSettings = profileSettings.getByPrefix(settingPrefix());
-                if (securityProfileSettings.names().isEmpty() == false) {
-                    serverEngine = serverSslService.createSSLEngine(securityProfileSettings);
-                } else {
-                    serverEngine = serverSslService.createSSLEngine();
-                }
+            if (sslEnabled) {
+                SSLEngine serverEngine = sslService.createSSLEngine(securityProfileSettings);
                 serverEngine.setUseClientMode(false);
-                clientAuth.configure(serverEngine);
+                sslClientAuth.configure(serverEngine);
 
                 pipeline.addFirst("ssl", new SslHandler(serverEngine));
             }
@@ -201,7 +214,7 @@ public class SecurityNetty3Transport extends Netty3Transport {
                 SSLEngine sslEngine;
                 if (HOSTNAME_VERIFICATION_SETTING.get(settings)) {
                     InetSocketAddress inetSocketAddress = (InetSocketAddress) e.getValue();
-                    sslEngine = clientSSLService.createSSLEngine(Settings.EMPTY, getHostname(inetSocketAddress),
+                    sslEngine = sslService.createSSLEngine(Settings.EMPTY, getHostname(inetSocketAddress),
                             inetSocketAddress.getPort());
 
                     // By default, a SSLEngine will not perform hostname verification. In order to perform hostname verification
@@ -211,12 +224,12 @@ public class SecurityNetty3Transport extends Netty3Transport {
                     parameters.setEndpointIdentificationAlgorithm("HTTPS");
                     sslEngine.setSSLParameters(parameters);
                 } else {
-                    sslEngine = clientSSLService.createSSLEngine();
+                    sslEngine = sslService.createSSLEngine(Settings.EMPTY);
                 }
 
                 sslEngine.setUseClientMode(true);
                 ctx.getPipeline().replace(this, "ssl", new SslHandler(sslEngine));
-                ctx.getPipeline().addAfter("ssl", "handshake", new HandshakeWaitingHandler(logger));
+                ctx.getPipeline().addAfter("ssl", "handshake", new Netty3HandshakeWaitingHandler(logger));
 
                 ctx.sendDownstream(e);
             }

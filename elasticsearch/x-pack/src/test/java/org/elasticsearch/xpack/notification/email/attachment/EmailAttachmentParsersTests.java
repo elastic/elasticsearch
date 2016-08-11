@@ -28,6 +28,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
@@ -99,7 +100,9 @@ public class EmailAttachmentParsersTests extends ESTestCase {
         attachments.add(httpRequestAttachment);
         EmailAttachments emailAttachments = new EmailAttachments(attachments);
         XContentBuilder builder = jsonBuilder();
+        builder.startObject();
         emailAttachments.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
         logger.info("JSON is: {}", builder.string());
         assertThat(builder.string(), containsString("my-name.json"));
         assertThat(builder.string(), containsString("json"));
@@ -122,11 +125,22 @@ public class EmailAttachmentParsersTests extends ESTestCase {
 
         EmailAttachments emailAttachments = new EmailAttachments(attachments);
         XContentBuilder builder = jsonBuilder();
+        builder.startObject();
         emailAttachments.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
         logger.info("JSON is: " + builder.string());
 
         XContentParser xContentParser = JsonXContent.jsonXContent.createParser(builder.bytes());
         try {
+            XContentParser.Token token = xContentParser.currentToken();
+            assertNull(token);
+
+            token = xContentParser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
+
+            token = xContentParser.nextToken();
+            assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
+
             parser.parse(xContentParser);
             fail("Expected parser to fail but did not happen");
         } catch (ElasticsearchParseException e) {

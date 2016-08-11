@@ -22,6 +22,7 @@ import java.util.function.Function;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -72,6 +73,7 @@ import org.elasticsearch.threadpool.ThreadPool.Cancellable;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.security.SecurityTemplateService.securityIndexMappingAndTemplateUpToDate;
 
 /**
  * ESNativeRolesStore is a {@code RolesStore} that, instead of reading from a
@@ -133,14 +135,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
             logger.debug("native roles store waiting until gateway has recovered from disk");
             return false;
         }
-
-        if (clusterState.metaData().templates().get(SecurityTemplateService.SECURITY_TEMPLATE_NAME) == null) {
-            logger.debug("native roles template [{}] does not exist, so service cannot start",
-                    SecurityTemplateService.SECURITY_TEMPLATE_NAME);
-            return false;
-        }
-        // Okay to start...
-        return true;
+        return securityIndexMappingAndTemplateUpToDate(clusterState, logger);
     }
 
     public void start() {
@@ -273,7 +268,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
             client.delete(request, new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse deleteResponse) {
-                    clearRoleCache(deleteRoleRequest.name(), listener, deleteResponse.isFound());
+                    clearRoleCache(deleteRoleRequest.name(), listener, deleteResponse.getResult() == DocWriteResponse.Result.DELETED);
                 }
 
                 @Override
@@ -303,11 +298,12 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
                     .execute(new ActionListener<IndexResponse>() {
                         @Override
                         public void onResponse(IndexResponse indexResponse) {
-                            if (indexResponse.isCreated()) {
-                                listener.onResponse(indexResponse.isCreated());
+                            boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
+                            if (created) {
+                                listener.onResponse(true);
                                 return;
                             }
-                            clearRoleCache(role.getName(), listener, indexResponse.isCreated());
+                            clearRoleCache(role.getName(), listener, created);
                         }
 
                         @Override

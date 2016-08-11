@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.integration;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.fieldstats.FieldStats;
@@ -16,6 +18,8 @@ import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
@@ -23,12 +27,15 @@ import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.SecurityIntegTestCase;
 
 import java.util.Locale;
+import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -186,13 +193,36 @@ public class KibanaUserRoleIntegTests extends SecurityIntegTestCase {
                 .setSource("foo", "bar")
                 .setRefreshPolicy(IMMEDIATE)
                 .get();
-        assertThat(response.isCreated(), is(true));
+        assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
 
         DeleteResponse deleteResponse = client()
                 .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
                 .prepareDelete(index, "dashboard", response.getId())
                 .get();
-        assertThat(deleteResponse.isFound(), is(true));
+        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
+    }
+
+    public void testGetMappings() throws Exception {
+        final String index = "logstash-20-12-2015";
+        final String type = "event";
+        final String field = "foo";
+        indexRandom(true, client().prepareIndex().setIndex(index).setType(type).setSource(field, "bar"));
+
+        GetMappingsResponse response = client()
+                .filterWithHeader(singletonMap("Authorization", UsernamePasswordToken.basicAuthHeaderValue("kibana_user", USERS_PASSWD)))
+                .admin()
+                .indices()
+                .prepareGetMappings("logstash-*")
+                .get();
+        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappingsMap = response.getMappings();
+        assertNotNull(mappingsMap);
+        assertNotNull(mappingsMap.get(index));
+        assertNotNull(mappingsMap.get(index).get(type));
+        MappingMetaData mappingMetaData = mappingsMap.get(index).get(type);
+        assertThat(mappingMetaData.getSourceAsMap(), hasKey("properties"));
+        assertThat(mappingMetaData.getSourceAsMap().get("properties"), instanceOf(Map.class));
+        Map<String, Object> propertiesMap = (Map<String, Object>) mappingMetaData.getSourceAsMap().get("properties");
+        assertThat(propertiesMap, hasKey(field));
     }
 
     // TODO: When we have an XPackIntegTestCase, this should test that we can send MonitoringBulkActions

@@ -5,45 +5,42 @@
  */
 package org.elasticsearch.xpack.security;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackFeatureSet;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
-import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-import org.elasticsearch.xpack.security.authz.store.RolesStore;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
+import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
+import org.junit.After;
 import org.junit.Before;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Matchers.anyObject;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class SecurityFeatureSetTests extends ESTestCase {
 
     private Settings settings;
-    private SecurityLicenseState licenseState;
+    private XPackLicenseState licenseState;
     private Realms realms;
-    private NamedWriteableRegistry namedWriteableRegistry;
     private IPFilter ipFilter;
     private CompositeRolesStore rolesStore;
     private AuditTrailService auditTrail;
@@ -52,25 +49,24 @@ public class SecurityFeatureSetTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         settings = Settings.builder().put("path.home", createTempDir()).build();
-        licenseState = mock(SecurityLicenseState.class);
+        licenseState = mock(XPackLicenseState.class);
         realms = mock(Realms.class);
-        namedWriteableRegistry = mock(NamedWriteableRegistry.class);
         ipFilter = mock(IPFilter.class);
         rolesStore = mock(CompositeRolesStore.class);
         auditTrail = mock(AuditTrailService.class);
         cryptoService = mock(CryptoService.class);
     }
 
-    public void testWritableRegistration() throws Exception {
-        new SecurityFeatureSet(settings, licenseState, realms, namedWriteableRegistry, rolesStore, ipFilter, auditTrail, cryptoService);
-        verify(namedWriteableRegistry).register(eq(SecurityFeatureSet.Usage.class), eq("xpack.usage.security"), anyObject());
+    @After
+    public void resetAnonymous() {
+        AnonymousUser.initialize(Settings.EMPTY);
     }
 
     public void testAvailable() throws Exception {
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, namedWriteableRegistry, rolesStore,
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, rolesStore,
                 ipFilter, auditTrail, cryptoService);
         boolean available = randomBoolean();
-        when(licenseState.authenticationAndAuthorizationEnabled()).thenReturn(available);
+        when(licenseState.isAuthAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 
@@ -80,13 +76,13 @@ public class SecurityFeatureSetTests extends ESTestCase {
                 .put(this.settings)
                 .put("xpack.security.enabled", enabled)
                 .build();
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, namedWriteableRegistry, rolesStore,
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, rolesStore,
                 ipFilter, auditTrail, cryptoService);
         assertThat(featureSet.enabled(), is(enabled));
     }
 
     public void testEnabledDefault() throws Exception {
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, namedWriteableRegistry, rolesStore,
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms, rolesStore,
                         ipFilter, auditTrail, cryptoService);
         assertThat(featureSet.enabled(), is(true));
     }
@@ -96,17 +92,17 @@ public class SecurityFeatureSetTests extends ESTestCase {
 
         when(cryptoService.isEncryptionEnabled()).thenReturn(enabled);
 
-        assertThat(SecurityFeatureSet.systemKeyUsage(cryptoService), is(enabled));
+        assertThat(SecurityFeatureSet.systemKeyUsage(cryptoService), hasEntry("enabled", enabled));
     }
 
     public void testSystemKeyUsageNotEnabledIfNull() {
-        assertThat(SecurityFeatureSet.systemKeyUsage(null), is(false));
+        assertThat(SecurityFeatureSet.systemKeyUsage(null), hasEntry("enabled", false));
     }
 
     public void testUsage() throws Exception {
 
         boolean authcAuthzAvailable = randomBoolean();
-        when(licenseState.authenticationAndAuthorizationEnabled()).thenReturn(authcAuthzAvailable);
+        when(licenseState.isAuthAllowed()).thenReturn(authcAuthzAvailable);
 
         Settings.Builder settings = Settings.builder().put(this.settings);
 
@@ -143,25 +139,26 @@ public class SecurityFeatureSetTests extends ESTestCase {
         final boolean useSystemKey = randomBoolean();
         when(cryptoService.isEncryptionEnabled()).thenReturn(useSystemKey);
 
-        List<Realm> realmsList= new ArrayList<>();
-
+        Map<String, Object> realmsUsageStats = new HashMap<>();
         for (int i = 0; i < 5; i++) {
-            Realm realm = mock(Realm.class);
-            when(realm.type()).thenReturn("type" + i);
-            realmsList.add(realm);
             Map<String, Object> realmUsage = new HashMap<>();
-            realmUsage.put("key1", "value" + i);
-            realmUsage.put("key2", i);
-            realmUsage.put("key3", i % 2 == 0);
-            when(realm.usageStats()).thenReturn(realmUsage);
+            realmsUsageStats.put("type" + i, realmUsage);
+            realmUsage.put("key1", Arrays.asList("value" + i));
+            realmUsage.put("key2", Arrays.asList(i));
+            realmUsage.put("key3", Arrays.asList(i % 2 == 0));
         }
-        when(realms.iterator()).thenReturn(authcAuthzAvailable ? realmsList.iterator() : Collections.<Realm>emptyIterator());
+        when(realms.usageStats()).thenReturn(realmsUsageStats);
 
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState, realms, namedWriteableRegistry, rolesStore,
+        final boolean anonymousEnabled = randomBoolean();
+        if (anonymousEnabled) {
+            AnonymousUser.initialize(Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "foo").build());
+        }
+
+        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState, realms, rolesStore,
                 ipFilter, auditTrail, cryptoService);
         XPackFeatureSet.Usage usage = featureSet.usage();
         assertThat(usage, is(notNullValue()));
-        assertThat(usage.name(), is(Security.NAME));
+        assertThat(usage.name(), is(XPackPlugin.SECURITY));
         assertThat(usage.enabled(), is(enabled));
         assertThat(usage.available(), is(authcAuthzAvailable));
         XContentSource source = new XContentSource(usage);
@@ -169,12 +166,12 @@ public class SecurityFeatureSetTests extends ESTestCase {
         if (enabled) {
             if (authcAuthzAvailable) {
                 for (int i = 0; i < 5; i++) {
-                    assertThat(source.getValue("enabled_realms." + i + ".key1"), is("value" + i));
-                    assertThat(source.getValue("enabled_realms." + i + ".key2"), is(i));
-                    assertThat(source.getValue("enabled_realms." + i + ".key3"), is(i % 2 == 0));
+                    assertThat(source.getValue("realms.type" + i + ".key1"), contains("value" + i));
+                    assertThat(source.getValue("realms.type" + i + ".key2"), contains(i));
+                    assertThat(source.getValue("realms.type" + i + ".key3"), contains(i % 2 == 0));
                 }
             } else {
-                assertThat(source.getValue("enabled_realms"), is(notNullValue()));
+                assertThat(source.getValue("realms"), is(notNullValue()));
             }
 
             // check SSL
@@ -197,9 +194,17 @@ public class SecurityFeatureSetTests extends ESTestCase {
             }
 
             // system key
-            assertThat(source.getValue("system_key"), is(useSystemKey));
+            assertThat(source.getValue("system_key.enabled"), is(useSystemKey));
+
+            // anonymous
+            assertThat(source.getValue("anonymous.enabled"), is(anonymousEnabled));
         } else {
-            assertThat(source.getValue("enabled_realms"), is(nullValue()));
+            assertThat(source.getValue("realms"), is(nullValue()));
+            assertThat(source.getValue("ssl"), is(nullValue()));
+            assertThat(source.getValue("audit"), is(nullValue()));
+            assertThat(source.getValue("anonymous"), is(nullValue()));
+            assertThat(source.getValue("ipfilter"), is(nullValue()));
+            assertThat(source.getValue("roles"), is(nullValue()));
         }
     }
 }

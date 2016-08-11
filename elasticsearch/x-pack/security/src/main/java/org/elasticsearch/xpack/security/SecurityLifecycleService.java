@@ -46,12 +46,13 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         this.indexAuditTrail = indexAuditTrail;
         this.nativeUserStore = nativeUserStore;
         this.nativeRolesStore = nativeRolesStore;
-        // TODO: define a common interface for these and delegate from one place. nativeUserStore store is it's on cluster
+        // TODO: define a common interface for these and delegate from one place. nativeUserStore store is it's on
+        // cluster
         // state listener , but is also activated from this clusterChanged method
         clusterService.add(this);
         clusterService.add(nativeUserStore);
         clusterService.add(nativeRolesStore);
-        clusterService.add(new SecurityTemplateService(settings, clusterService, client, threadPool));
+        clusterService.add(new SecurityTemplateService(settings, clusterService, client));
         clusterService.addLifecycleListener(new LifecycleListener() {
 
             @Override

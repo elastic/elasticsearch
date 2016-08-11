@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.ssl.ClientSSLService;
+import org.elasticsearch.xpack.security.ssl.SSLService;
 
 import java.text.MessageFormat;
 import java.util.Locale;
@@ -33,7 +33,7 @@ public class LdapSessionFactory extends SessionFactory {
     private final String[] userDnTemplates;
     private final GroupsResolver groupResolver;
 
-    public LdapSessionFactory(RealmConfig config, ClientSSLService sslService) {
+    public LdapSessionFactory(RealmConfig config, SSLService sslService) {
         super(config, sslService);
         Settings settings = config.settings();
         userDnTemplates = settings.getAsArray(USER_DN_TEMPLATES_SETTING);

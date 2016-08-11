@@ -52,6 +52,8 @@ teardown:
 
 ---
 "Test changing users password":
+  - skip:
+      features: catch_unauthorized
 # validate that the user actually works
   - do:
       headers:
@@ -70,7 +72,7 @@ teardown:
 
 # attempt to login with invalid credentials
   - do:
-      catch: request
+      catch: unauthorized
       headers:
         Authorization: "Basic am9lOnMza3JpdA=="
       cluster.health: {}
@@ -84,6 +86,8 @@ teardown:
 
 ---
 "Test user changing their own password":
+  - skip:
+      features: catch_unauthorized
 # test that the role actually works
   - do:
       headers:
@@ -103,7 +107,7 @@ teardown:
 
 # attempt to login with invalid credentials
   - do:
-      catch: request
+      catch: unauthorized
       headers:
         Authorization: "Basic dW5wcml2aWxlZ2VkX3VzZXI6czNrcml0"
       cluster.health: {}

@@ -5,26 +5,34 @@
  */
 package org.elasticsearch.xpack.watcher.transform;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -41,25 +49,64 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
-/**
- */
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> types = super.pluginTypes();
+        types.add(CustomScriptPlugin.class);
+        return types;
+    }
+
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        Path configDir = createTempDir();
-        Path scripts = configDir.resolve("scripts");
+        Path config = createTempDir().resolve("config");
+        Path scripts = config.resolve("scripts");
+
         try {
             Files.createDirectories(scripts);
-            try (InputStream stream = TransformIntegrationTests.class.getResourceAsStream("/config/scripts/my-script.groovy");
-                 OutputStream output = Files.newOutputStream(scripts.resolve("my-script.groovy"))) {
-                Streams.copy(stream, output);
-            }
+
+            // When using the MockScriptPlugin we can map File scripts to inline scripts:
+            // the name of the file script is used in test method while the source of the file script
+            // must match a predefined script from CustomScriptPlugin.pluginScripts() method
+            Files.write(scripts.resolve("my-script.groovy"), "return [key3 : ctx.payload.key1 + ctx.payload.key2]".getBytes("UTF-8"));
         } catch (IOException ex) {
-            throw new RuntimeException(ex);
+            throw new RuntimeException("Failed to create scripts", ex);
         }
-        //Set path so ScriptService will pick up the test scripts
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put("path.conf", configDir.toString()).build();
+
+        // Set the config path so that the ScriptService will pick up the test scripts
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(Environment.PATH_CONF_SETTING.getKey(), config)
+                .put("script.stored", "true")
+                .put("script.inline", "true")
+                .build();
+    }
+
+    public static class CustomScriptPlugin extends MockScriptPlugin {
+
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+
+            scripts.put("return [key3 : ctx.payload.key1 + ctx.payload.key2]", vars -> {
+                int key1 = (int) XContentMapValues.extractValue("ctx.payload.key1", vars);
+                int key2 = (int) XContentMapValues.extractValue("ctx.payload.key2", vars);
+                return singletonMap("key3", key1 + key2);
+            });
+
+            scripts.put("return [key4 : ctx.payload.key3 + 10]", vars -> {
+                int key3 = (int) XContentMapValues.extractValue("ctx.payload.key3", vars);
+                return singletonMap("key4", key3 + 10);
+            });
+
+            return scripts;
+        }
+
+        @Override
+        public String pluginScriptLang() {
+            return WatcherScript.DEFAULT_LANG;
+        }
     }
 
     public void testScriptTransform() throws Exception {
@@ -69,12 +116,12 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
             script = WatcherScript.inline("return [key3 : ctx.payload.key1 + ctx.payload.key2]").lang("groovy").build();
         } else if (randomBoolean()) {
             logger.info("testing script transform with an indexed script");
-            client().admin().cluster().preparePutStoredScript()
-                    .setId("id")
+            assertAcked(client().admin().cluster().preparePutStoredScript()
+                    .setId("my-script")
                     .setScriptLang("groovy")
                     .setSource(new BytesArray("{\"script\" : \"return [key3 : ctx.payload.key1 + ctx.payload.key2]\"}"))
-                    .get();
-            script = WatcherScript.indexed("_id").lang("groovy").build();
+                    .get());
+            script = WatcherScript.indexed("my-script").lang("groovy").build();
         } else {
             logger.info("testing script transform with a file script");
             script = WatcherScript.file("my-script").lang("groovy").build();

@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.ldap.support.AbstractLdapRealm;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
-import org.elasticsearch.xpack.security.ssl.ClientSSLService;
+import org.elasticsearch.xpack.security.ssl.SSLService;
 
 /**
  *
@@ -19,8 +19,8 @@ public class ActiveDirectoryRealm extends AbstractLdapRealm {
 
     public static final String TYPE = "active_directory";
 
-    public ActiveDirectoryRealm(RealmConfig config, ResourceWatcherService watcherService, ClientSSLService clientSSLService) {
-        this(config, new ActiveDirectorySessionFactory(config, clientSSLService),
+    public ActiveDirectoryRealm(RealmConfig config, ResourceWatcherService watcherService, SSLService sslService) {
+        this(config, new ActiveDirectorySessionFactory(config, sslService),
              new DnRoleMapper(TYPE, config, watcherService, null));
     }
 

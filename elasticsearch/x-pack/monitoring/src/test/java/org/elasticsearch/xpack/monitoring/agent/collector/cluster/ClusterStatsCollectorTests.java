@@ -11,9 +11,9 @@ import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.plugin.core.LicenseService;
+import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.agent.collector.AbstractCollector;
 import org.elasticsearch.xpack.monitoring.agent.collector.AbstractCollectorTestCase;
@@ -75,52 +75,6 @@ public class ClusterStatsCollectorTests extends AbstractCollectorTestCase {
                 equalTo(internalCluster().getNodeNames().length));
     }
 
-    public void testClusterStatsCollectorWithLicensing() {
-        try {
-            String[] nodes = internalCluster().getNodeNames();
-            for (String node : nodes) {
-                logger.debug("--> creating a new instance of the collector");
-                ClusterStatsCollector collector = newClusterStatsCollector(node);
-                assertNotNull(collector);
-
-                logger.debug("--> enabling license and checks that the collector can collect data if node is master");
-                enableLicense();
-                if (node.equals(internalCluster().getMasterName())) {
-                    assertCanCollect(collector, ClusterInfoMonitoringDoc.class, ClusterStatsMonitoringDoc.class);
-                } else {
-                    assertCannotCollect(collector);
-                }
-
-                logger.debug("--> starting graceful period and checks that the collector can still collect data if node is master");
-                beginGracefulPeriod();
-                if (node.equals(internalCluster().getMasterName())) {
-                    assertCanCollect(collector, ClusterInfoMonitoringDoc.class, ClusterStatsMonitoringDoc.class);
-                } else {
-                    assertCannotCollect(collector);
-                }
-
-                logger.debug("--> ending graceful period and checks that the collector can still collect data (if node is master)");
-                endGracefulPeriod();
-                if (node.equals(internalCluster().getMasterName())) {
-                    assertCanCollect(collector, ClusterInfoMonitoringDoc.class);
-                } else {
-                    assertCannotCollect(collector);
-                }
-
-                logger.debug("--> disabling license and checks that the collector can still collect data (if node is master)");
-                disableLicense();
-                if (node.equals(internalCluster().getMasterName())) {
-                    assertCanCollect(collector, ClusterInfoMonitoringDoc.class);
-                } else {
-                    assertCannotCollect(collector);
-                }
-            }
-        } finally {
-            // Ensure license is enabled before finishing the test
-            enableLicense();
-        }
-    }
-
     private ClusterStatsCollector newClusterStatsCollector() {
         // This collector runs on master node only
         return newClusterStatsCollector(internalCluster().getMasterName());
@@ -131,7 +85,7 @@ public class ClusterStatsCollectorTests extends AbstractCollectorTestCase {
         return new ClusterStatsCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
                 internalCluster().getInstance(MonitoringSettings.class, nodeId),
-                internalCluster().getInstance(MonitoringLicensee.class, nodeId),
+                internalCluster().getInstance(XPackLicenseState.class, nodeId),
                 securedClient(nodeId),
                 internalCluster().getInstance(LicenseService.class, nodeId));
     }

@@ -260,8 +260,14 @@ public class RoleDescriptor implements ToXContent {
                     XContentBuilder builder = JsonXContent.contentBuilder();
                     XContentHelper.copyCurrentStructure(builder.generator(), parser);
                     query = builder.string();
-                } else {
-                    query = parser.textOrNull();
+                } else if (token == XContentParser.Token.VALUE_STRING){
+                    final String text = parser.text();
+                    if (text.isEmpty() == false) {
+                        query = text;
+                    }
+                } else if (token != XContentParser.Token.VALUE_NULL) {
+                    throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected field [{}] " +
+                            "value to be null, a string, or an object, but found [{}] instead", roleName, currentFieldName, token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.PRIVILEGES)) {
                 privileges = readStringArray(roleName, parser, true);

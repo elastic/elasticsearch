@@ -5,6 +5,12 @@
  */
 package org.elasticsearch.xpack.monitoring.agent.collector.indices;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -12,21 +18,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.xpack.monitoring.MonitoringLicensee;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.agent.collector.AbstractCollector;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.security.InternalClient;
-import org.elasticsearch.xpack.security.Security;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * Collector for indices statistics.
@@ -40,10 +39,9 @@ public class IndexStatsCollector extends AbstractCollector {
 
     private final Client client;
 
-    @Inject
     public IndexStatsCollector(Settings settings, ClusterService clusterService,
-                               MonitoringSettings monitoringSettings, MonitoringLicensee licensee, InternalClient client) {
-        super(settings, NAME, clusterService, monitoringSettings, licensee);
+                               MonitoringSettings monitoringSettings, XPackLicenseState licenseState, InternalClient client) {
+        super(settings, NAME, clusterService, monitoringSettings, licenseState);
         this.client = client;
     }
 
@@ -85,7 +83,8 @@ public class IndexStatsCollector extends AbstractCollector {
                 results.add(indexStatsDoc);
             }
         } catch (IndexNotFoundException e) {
-            if (Security.enabled(settings) && IndexNameExpressionResolver.isAllIndices(Arrays.asList(monitoringSettings.indices()))) {
+            if (XPackSettings.SECURITY_ENABLED.get(settings)
+                && IndexNameExpressionResolver.isAllIndices(Arrays.asList(monitoringSettings.indices()))) {
                 logger.debug("collector [{}] - unable to collect data for missing index [{}]", name(), e.getIndex());
             } else {
                 throw e;

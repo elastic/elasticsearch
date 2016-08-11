@@ -12,12 +12,12 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -55,7 +55,10 @@ import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -69,6 +72,17 @@ public class HttpExporter extends Exporter {
     public static final String CONNECTION_KEEP_ALIVE_SETTING = "connection.keep_alive";
     public static final String AUTH_USERNAME_SETTING = "auth.username";
     public static final String AUTH_PASSWORD_SETTING = "auth.password";
+
+    /**
+     * A parent setting to header key/value pairs, whose names are user defined.
+     */
+    public static final String HEADERS = "headers";
+    /**
+     * Blacklist of headers that the user is not allowed to set.
+     * <p>
+     * Headers are blacklisted if they have the opportunity to break things and we won't be guaranteed to overwrite them.
+     */
+    public static final Set<String> BLACKLISTED_HEADERS = Collections.unmodifiableSet(Sets.newHashSet("Content-Length", "Content-Type"));
 
     // es level timeout used when checking and writing templates (used to speed up tests)
     public static final String TEMPLATE_CHECK_TIMEOUT_SETTING = "index.template.master_timeout";
@@ -103,6 +117,11 @@ public class HttpExporter extends Exporter {
 
     @Nullable
     final TimeValue templateCheckTimeout;
+    /**
+     * Headers supplied by the user to send (likely to a proxy for routing).
+     */
+    @Nullable
+    private final Map<String, String[]> headers;
 
     volatile boolean checkedAndUploadedIndexTemplate = false;
     volatile boolean supportedClusterVersion = false;
@@ -111,21 +130,16 @@ public class HttpExporter extends Exporter {
     final ConnectionKeepAliveWorker keepAliveWorker;
     Thread keepAliveThread;
 
-    public HttpExporter(Exporter.Config config, Environment env) {
+    public HttpExporter(Config config, Environment env) {
+        super(config);
 
-        super(TYPE, config);
         this.env = env;
-
-        hosts = config.settings().getAsArray(HOST_SETTING, Strings.EMPTY_ARRAY);
-        if (hosts.length == 0) {
-            throw new SettingsException("missing required setting [" + settingFQN(HOST_SETTING) + "]");
-        }
-        validateHosts(hosts);
-
-        auth = resolveAuth(config.settings());
-
-        connectionTimeout = config.settings().getAsTime(CONNECTION_TIMEOUT_SETTING, TimeValue.timeValueMillis(6000));
-        connectionReadTimeout = config.settings().getAsTime(CONNECTION_READ_TIMEOUT_SETTING,
+        this.hosts = resolveHosts(config.settings());
+        this.auth = resolveAuth(config.settings());
+        // allow the user to configure headers
+        this.headers = configureHeaders(config.settings());
+        this.connectionTimeout = config.settings().getAsTime(CONNECTION_TIMEOUT_SETTING, TimeValue.timeValueMillis(6000));
+        this.connectionReadTimeout = config.settings().getAsTime(CONNECTION_READ_TIMEOUT_SETTING,
                 TimeValue.timeValueMillis(connectionTimeout.millis() * 10));
 
         // HORRIBLE!!! We can't use settings.getAsTime(..) !!!
@@ -150,6 +164,53 @@ public class HttpExporter extends Exporter {
 
         logger.debug("initialized with hosts [{}], index prefix [{}]",
                 Strings.arrayToCommaDelimitedString(hosts), MonitoringIndexNameResolver.PREFIX);
+    }
+
+    private String[] resolveHosts(Settings settings) {
+        final String[] hosts = settings.getAsArray(HOST_SETTING);
+
+        if (hosts.length == 0) {
+            throw new SettingsException("missing required setting [" + settingFQN(HOST_SETTING) + "]");
+        }
+
+        for (String host : hosts) {
+            try {
+                HttpExporterUtils.parseHostWithPath(host, "");
+            } catch (URISyntaxException | MalformedURLException e) {
+                throw new SettingsException("[" + settingFQN(HOST_SETTING) + "] invalid host: [" + host + "]", e);
+            }
+        }
+
+        return hosts;
+    }
+
+    private Map<String, String[]> configureHeaders(Settings settings) {
+        final Settings headerSettings = settings.getAsSettings(HEADERS);
+        final Set<String> names = headerSettings.names();
+
+        // Most users won't define headers
+        if (names.isEmpty()) {
+            return null;
+        }
+
+        final Map<String, String[]> headers = new HashMap<>();
+
+        // record and validate each header as best we can
+        for (final String name : names) {
+            if (BLACKLISTED_HEADERS.contains(name)) {
+                throw new SettingsException("[" + name + "] cannot be overwritten via [" + settingFQN("headers") + "]");
+            }
+
+            final String[] values = headerSettings.getAsArray(name);
+
+            if (values.length == 0) {
+                throw new SettingsException("headers must have values, missing for setting [" + settingFQN("headers." + name) + "]");
+            }
+
+            headers.put(name, values);
+        }
+
+        return Collections.unmodifiableMap(headers);
     }
 
     ResolversRegistry getResolvers() {
@@ -334,7 +395,17 @@ public class HttpExporter extends Exporter {
     private HttpURLConnection openConnection(String host, String method, String path, @Nullable String contentType) {
         try {
             final URL url = HttpExporterUtils.parseHostWithPath(host, path);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+
+            // Custom Headers must be set before we manually apply headers, so that our headers beat custom ones
+            if (headers != null) {
+                // Headers can technically be duplicated, although it's not expected to be used frequently
+                for (final Map.Entry<String, String[]> header : headers.entrySet()) {
+                    for (final String value : header.getValue()) {
+                        conn.addRequestProperty(header.getKey(), value);
+                    }
+                }
+            }
 
             if (conn instanceof HttpsURLConnection && sslSocketFactory != null) {
                 final HttpsURLConnection httpsConn = (HttpsURLConnection) conn;
@@ -529,17 +600,6 @@ public class HttpExporter extends Exporter {
             keepAliveThread = new Thread(keepAliveWorker, "monitoring-exporter[" + config.name() + "][keep_alive]");
             keepAliveThread.setDaemon(true);
             keepAliveThread.start();
-        }
-    }
-
-    private static void validateHosts(String[] hosts) {
-        for (String host : hosts) {
-            try {
-                HttpExporterUtils.parseHostWithPath(host, "");
-            } catch (URISyntaxException | MalformedURLException e) {
-                throw new SettingsException("[xpack.monitoring.collection.exporters] invalid host: [" + host + "]." +
-                        " error: [" + e.getMessage() + "]");
-            }
         }
     }
 
@@ -752,22 +812,6 @@ public class HttpExporter extends Exporter {
                     connection = null;
                 }
             }
-        }
-    }
-
-    public static class Factory extends Exporter.Factory<HttpExporter> {
-
-        private final Environment env;
-
-        @Inject
-        public Factory(Environment env) {
-            super(TYPE, false);
-            this.env = env;
-        }
-
-        @Override
-        public HttpExporter create(Config config) {
-            return new HttpExporter(config, env);
         }
     }
 }

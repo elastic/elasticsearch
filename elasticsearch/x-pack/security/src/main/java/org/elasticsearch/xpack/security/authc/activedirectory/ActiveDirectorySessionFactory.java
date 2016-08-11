@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.ssl.ClientSSLService;
+import org.elasticsearch.xpack.security.ssl.SSLService;
 
 import java.util.concurrent.ExecutionException;
 
@@ -54,7 +54,7 @@ public class ActiveDirectorySessionFactory extends SessionFactory {
     private final DownLevelADAuthenticator downLevelADAuthenticator;
     private final UpnADAuthenticator upnADAuthenticator;
 
-    public ActiveDirectorySessionFactory(RealmConfig config, ClientSSLService sslService) {
+    public ActiveDirectorySessionFactory(RealmConfig config, SSLService sslService) {
         super(config, sslService);
         Settings settings = config.settings();
         domainName = settings.get(AD_DOMAIN_NAME_SETTING);

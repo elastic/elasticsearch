@@ -19,6 +19,7 @@ import org.elasticsearch.common.network.InetAddressHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -104,13 +105,14 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
         }
 
         Settings settings = Settings.builder()
-                .put("keystore.path", keystorePath)
-                .put("keystore.password", "changeme")
-                .put("truststore.path", nodeStorePath)
-                .put("truststore.password", "testnode")
+                .put("path.home", createTempDir())
+                .put("xpack.security.ssl.keystore.path", keystorePath)
+                .put("xpack.security.ssl.keystore.password", "changeme")
+                .put("xpack.security.ssl.truststore.path", nodeStorePath)
+                .put("xpack.security.ssl.truststore.password", "testnode")
                 .build();
         String node = randomFrom(internalCluster().getNodeNames());
-        ServerSSLService sslService = internalCluster().getInstance(ServerSSLService.class, node);
+        SSLService sslService = new SSLService(settings, new Environment(settings));
         SSLSocketFactory sslSocketFactory = sslService.sslSocketFactory(settings);
         InetSocketTransportAddress address = (InetSocketTransportAddress) internalCluster()
                 .getInstance(Transport.class, node).boundAddress().publishAddress();
@@ -119,6 +121,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             socket.startHandshake();
             fail("handshake should not have been successful!");
         } catch (SSLHandshakeException | SocketException expected) {
+            logger.trace("expected exception", expected);
         }
 
         KeyStore nodeStore = KeyStore.getInstance("jks");
@@ -139,6 +142,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         assertBusy(() -> {
             try (SSLSocket socket = (SSLSocket) sslSocketFactory.createSocket(address.getAddress(), address.getPort())) {
+                logger.info("opened socket for reloading [{}]", socket);
                 socket.addHandshakeCompletedListener(event -> {
                     try {
                         assertThat(event.getPeerPrincipal().getName(), containsString("Test Node"));

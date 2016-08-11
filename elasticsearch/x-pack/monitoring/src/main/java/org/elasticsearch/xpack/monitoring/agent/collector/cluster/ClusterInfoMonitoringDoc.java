@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.monitoring.agent.collector.cluster;
 
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
-import org.elasticsearch.license.core.License;
+import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
 
 public class ClusterInfoMonitoringDoc extends MonitoringDoc {

@@ -34,8 +34,8 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.xpack.security.SecurityLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -78,8 +78,8 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
 
             }
         });
-        SecurityLicenseState licenseState = mock(SecurityLicenseState.class);
-        when(licenseState.documentAndFieldLevelSecurityEnabled()).thenReturn(true);
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+        when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         SecurityIndexSearcherWrapper wrapper = new SecurityIndexSearcherWrapper(indexSettings, queryShardContext, mapperService,
                 bitsetFilterCache, threadContext, licenseState, scriptService) {
 

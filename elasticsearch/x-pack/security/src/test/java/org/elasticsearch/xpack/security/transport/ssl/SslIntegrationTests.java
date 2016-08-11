@@ -23,8 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.xpack.security.ssl.ClientSSLService;
-import org.elasticsearch.xpack.security.ssl.SSLConfiguration.Global;
+import org.elasticsearch.xpack.security.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
@@ -99,12 +98,14 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
         Settings settings = Settings.builder()
                 .put(getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient"))
                 .build();
-        ClientSSLService service = new ClientSSLService(settings, null, new Global(settings), null);
+        SSLService service = new SSLService(settings, null);
 
         CredentialsProvider provider = new BasicCredentialsProvider();
         provider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(nodeClientUsername(),
                 new String(nodeClientPassword().internalChars())));
-        try (CloseableHttpClient client = HttpClients.custom().setSSLContext(service.sslContext())
+        try (CloseableHttpClient client = HttpClients.custom()
+                .setSSLSocketFactory(new SSLConnectionSocketFactory(service.sslSocketFactory(Settings.EMPTY),
+                        SSLConnectionSocketFactory.getDefaultHostnameVerifier()))
                 .setDefaultCredentialsProvider(provider).build();
             CloseableHttpResponse response = client.execute(new HttpGet(getNodeUrl()))) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));

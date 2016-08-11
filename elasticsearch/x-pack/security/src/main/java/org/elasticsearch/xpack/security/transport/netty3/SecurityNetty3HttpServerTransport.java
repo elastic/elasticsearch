@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.netty3.Netty3HttpServerTransport;
-import org.elasticsearch.xpack.security.ssl.ServerSSLService;
+import org.elasticsearch.xpack.security.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -47,13 +47,13 @@ public class SecurityNetty3HttpServerTransport extends Netty3HttpServerTransport
             new Setting<>(setting("http.ssl.client.auth"), CLIENT_AUTH_DEFAULT, SSLClientAuth::parse, Property.NodeScope);
 
     private final IPFilter ipFilter;
-    private final ServerSSLService sslService;
+    private final SSLService sslService;
     private final boolean ssl;
     private final Settings sslSettings;
 
     @Inject
     public SecurityNetty3HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, IPFilter ipFilter,
-                                             ServerSSLService sslService, ThreadPool threadPool) {
+                                             SSLService sslService, ThreadPool threadPool) {
         super(settings, networkService, bigArrays, threadPool);
         this.ipFilter = ipFilter;
         this.ssl = SSL_SETTING.get(settings);
@@ -109,6 +109,9 @@ public class SecurityNetty3HttpServerTransport extends Netty3HttpServerTransport
         public HttpSslChannelPipelineFactory(Netty3HttpServerTransport transport) {
             super(transport, detailedErrorsEnabled, threadPool.getThreadContext());
             clientAuth = CLIENT_AUTH_SETTING.get(settings);
+            if (ssl && sslService.isConfigurationValidForServerUsage(sslSettings) == false) {
+                throw new IllegalArgumentException("a key must be provided to run as a server");
+            }
         }
 
         @Override

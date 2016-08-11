@@ -5,30 +5,31 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.get;
 
+import java.io.IOException;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.license.plugin.core.LicenseUtils;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.watcher.WatcherService;
-import org.elasticsearch.xpack.watcher.WatcherLicensee;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStore;
-
-import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
@@ -43,9 +44,9 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
     public TransportGetWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver, WatcherService watcherService,
-                                   WatcherLicensee watcherLicensee) {
-        super(settings, GetWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                watcherLicensee, GetWatchRequest::new);
+                                   XPackLicenseState licenseState) {
+        super(settings, GetWatchAction.NAME, transportService, clusterService, threadPool, actionFilters,
+            indexNameExpressionResolver, licenseState, GetWatchRequest::new);
         this.watcherService = watcherService;
     }
 
@@ -62,8 +63,8 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
     @Override
     protected void masterOperation(GetWatchRequest request, ClusterState state, ActionListener<GetWatchResponse> listener) throws
             ElasticsearchException {
-        if (!watcherLicensee.isGetWatchAllowed()) {
-            listener.onFailure(LicenseUtils.newComplianceException(WatcherLicensee.ID));
+        if (licenseState.isWatcherAllowed() == false) {
+            listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.WATCHER));
             return;
         }
 

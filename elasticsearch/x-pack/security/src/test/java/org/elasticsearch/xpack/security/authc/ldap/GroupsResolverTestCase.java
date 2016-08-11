@@ -11,9 +11,8 @@ import com.unboundid.ldap.sdk.LDAPURL;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
-import org.elasticsearch.xpack.security.ssl.ClientSSLService;
-import org.elasticsearch.xpack.security.ssl.SSLConfiguration.Global;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.security.ssl.SSLService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -37,10 +36,14 @@ public abstract class GroupsResolverTestCase extends ESTestCase {
         if (useGlobalSSL) {
             builder.put("xpack.security.ssl.keystore.path", keystore)
                     .put("xpack.security.ssl.keystore.password", "changeit");
+        } else {
+            // fake a realm so ssl will get loaded
+            builder.put("xpack.security.authc.realms.foo.ssl.keystore.path", keystore);
+            builder.put("xpack.security.authc.realms.foo.ssl.keystore.password", "changeit");
         }
         Settings settings = builder.build();
         Environment env = new Environment(settings);
-        ClientSSLService clientSSLService = new ClientSSLService(settings, env, new Global(settings), null);
+        SSLService sslService = new SSLService(settings, env);
 
         LDAPURL ldapurl = new LDAPURL(ldapUrl());
         LDAPConnectionOptions options = new LDAPConnectionOptions();
@@ -57,7 +60,7 @@ public abstract class GroupsResolverTestCase extends ESTestCase {
                     .put("keystore.password", "changeit").build();
         }
 
-        ldapConnection = new LDAPConnection(clientSSLService.sslSocketFactory(connectionSettings), options, ldapurl.getHost(),
+        ldapConnection = new LDAPConnection(sslService.sslSocketFactory(connectionSettings), options, ldapurl.getHost(),
                 ldapurl.getPort(), bindDN(), bindPassword());
     }
 

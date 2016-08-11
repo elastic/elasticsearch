@@ -10,10 +10,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.env.Environment;
 
 import javax.net.ssl.X509ExtendedTrustManager;
-import java.io.InputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.KeyStore;
 import java.util.Collections;
 import java.util.List;
 
@@ -23,25 +20,20 @@ class StoreTrustConfig extends TrustConfig {
     final String trustStorePassword;
     final String trustStoreAlgorithm;
 
-    StoreTrustConfig(boolean includeSystem, boolean reloadEnabled, String trustStorePath, String trustStorePassword,
-                     String trustStoreAlgorithm) {
-        super(includeSystem, reloadEnabled);
+    StoreTrustConfig(boolean includeSystem, String trustStorePath, String trustStorePassword, String trustStoreAlgorithm) {
+        super(includeSystem);
         this.trustStorePath = trustStorePath;
         this.trustStorePassword = trustStorePassword;
         this.trustStoreAlgorithm = trustStoreAlgorithm;
     }
 
     @Override
-    X509ExtendedTrustManager[] nonSystemTrustManagers(@Nullable Environment environment) {
+    X509ExtendedTrustManager nonSystemTrustManager(@Nullable Environment environment) {
         if (trustStorePath == null) {
             return null;
         }
-        try (InputStream in = Files.newInputStream(CertUtils.resolvePath(trustStorePath, environment))) {
-            // TODO remove reliance on JKS since we can PKCS12 stores...
-            KeyStore trustStore = KeyStore.getInstance("jks");
-            assert trustStorePassword != null;
-            trustStore.load(in, trustStorePassword.toCharArray());
-            return CertUtils.trustManagers(trustStore, trustStoreAlgorithm);
+        try {
+            return CertUtils.trustManagers(trustStorePath, trustStorePassword, trustStoreAlgorithm, environment);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }

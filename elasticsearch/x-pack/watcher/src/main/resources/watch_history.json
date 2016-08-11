@@ -12,7 +12,7 @@
       "dynamic_templates": [
         {
           "disabled_payload_fields": {
-            "path_match": "result\\.(input|(transform(\\..+)*)|(actions\\.transform(\\..+)*))\\.payload",
+            "path_match": "result\\.(input(\\..+)*|(transform(\\..+)*)|(actions\\.transform(\\..+)*))\\.payload",
             "match_pattern": "regex",
             "mapping": {
               "type": "object",
@@ -22,7 +22,7 @@
         },
         {
           "disabled_search_request_body_fields": {
-            "path_match": "result\\.(input(\\..+)|(transform(\\..+)*)|(actions\\.transform(\\..+)*))\\.search\\.request\\.(body|template)",
+            "path_match": "result\\.(input(\\..+)*|(transform(\\..+)*)|(actions\\.transform(\\..+)*))\\.search\\.request\\.(body|template)",
             "match_pattern": "regex",
             "mapping": {
               "type": "object",

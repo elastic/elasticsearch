@@ -5,18 +5,20 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
+
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackFeatureSet;
-
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 
 /**
  *
@@ -24,21 +26,19 @@ import java.util.Map;
 public class WatcherFeatureSet implements XPackFeatureSet {
 
     private final boolean enabled;
-    private final WatcherLicensee licensee;
+    private final XPackLicenseState licenseState;
     private final WatcherService watcherService;
 
     @Inject
-    public WatcherFeatureSet(Settings settings, @Nullable WatcherLicensee licensee, NamedWriteableRegistry namedWriteableRegistry,
-                             @Nullable WatcherService watcherService) {
+    public WatcherFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState, @Nullable WatcherService watcherService) {
         this.watcherService = watcherService;
-        this.enabled = Watcher.enabled(settings);
-        this.licensee = licensee;
-        namedWriteableRegistry.register(Usage.class, Usage.writeableName(Watcher.NAME), Usage::new);
+        this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
+        this.licenseState = licenseState;
     }
 
     @Override
     public String name() {
-        return Watcher.NAME;
+        return XPackPlugin.WATCHER;
     }
 
     @Override
@@ -48,7 +48,7 @@ public class WatcherFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licensee != null && licensee.isAvailable();
+        return licenseState != null && licenseState.isWatcherAllowed();
     }
 
     @Override
@@ -61,7 +61,7 @@ public class WatcherFeatureSet implements XPackFeatureSet {
         return new Usage(available(), enabled(), watcherService != null ? watcherService.usageStats() : Collections.emptyMap());
     }
 
-    static class Usage extends XPackFeatureSet.Usage {
+    public static class Usage extends XPackFeatureSet.Usage {
 
         private final Map<String, Object> stats;
 
@@ -71,7 +71,7 @@ public class WatcherFeatureSet implements XPackFeatureSet {
         }
 
         public Usage(boolean available, boolean enabled, Map<String, Object> stats) {
-            super(Watcher.NAME, available, enabled);
+            super(XPackPlugin.WATCHER, available, enabled);
             this.stats = stats;
         }
 

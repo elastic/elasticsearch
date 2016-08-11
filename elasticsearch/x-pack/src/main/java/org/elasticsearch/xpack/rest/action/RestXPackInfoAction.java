@@ -18,7 +18,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.action.XPackInfoRequest;
-import org.elasticsearch.xpack.action.XPackInfoResponse;
+import org.elasticsearch.license.XPackInfoResponse;
 import org.elasticsearch.xpack.rest.XPackRestHandler;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;

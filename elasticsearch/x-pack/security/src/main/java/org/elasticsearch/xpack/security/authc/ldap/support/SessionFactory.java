@@ -16,7 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.ssl.ClientSSLService;
+import org.elasticsearch.xpack.security.ssl.SSLService;
 
 import javax.net.SocketFactory;
 import java.util.regex.Pattern;
@@ -50,12 +50,12 @@ public abstract class SessionFactory {
     protected final ESLogger logger;
     protected final RealmConfig config;
     protected final TimeValue timeout;
-    protected final ClientSSLService sslService;
+    protected final SSLService sslService;
 
     protected final ServerSet serverSet;
     protected final boolean sslUsed;
 
-    protected SessionFactory(RealmConfig config, ClientSSLService sslService) {
+    protected SessionFactory(RealmConfig config, SSLService sslService) {
         this.config = config;
         this.logger = config.logger(getClass());
         TimeValue searchTimeout = config.settings().getAsTime(TIMEOUT_LDAP_SETTING, TIMEOUT_DEFAULT);
@@ -142,7 +142,7 @@ public abstract class SessionFactory {
         return null;
     }
 
-    protected ServerSet serverSet(Settings settings, ClientSSLService clientSSLService, LDAPServers ldapServers) {
+    protected ServerSet serverSet(Settings settings, SSLService clientSSLService, LDAPServers ldapServers) {
         SocketFactory socketFactory = null;
         if (ldapServers.ssl()) {
             socketFactory = clientSSLService.sslSocketFactory(settings.getByPrefix("ssl."));

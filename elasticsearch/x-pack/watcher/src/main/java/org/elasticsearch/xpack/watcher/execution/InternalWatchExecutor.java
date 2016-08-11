@@ -5,17 +5,17 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.watcher.Watcher;
-
 import java.util.concurrent.BlockingQueue;
 import java.util.stream.Stream;
 
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.XPackPlugin;
+
 public class InternalWatchExecutor implements WatchExecutor {
 
-    public static final String THREAD_POOL_NAME = Watcher.NAME;
+    public static final String THREAD_POOL_NAME = XPackPlugin.WATCHER;
 
     private final ThreadPool threadPool;
 

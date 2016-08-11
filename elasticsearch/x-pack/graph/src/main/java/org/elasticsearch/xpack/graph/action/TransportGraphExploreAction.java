@@ -23,7 +23,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.license.plugin.core.LicenseUtils;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.DiversifiedAggregationBuilder;
@@ -37,7 +38,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.graph.GraphLicensee;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.graph.Graph;
 import org.elasticsearch.xpack.graph.action.Connection.ConnectionId;
 import org.elasticsearch.xpack.graph.action.GraphExploreRequest.TermBoost;
 import org.elasticsearch.xpack.graph.action.Vertex.VertexId;
@@ -58,7 +60,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class TransportGraphExploreAction extends HandledTransportAction<GraphExploreRequest, GraphExploreResponse> {
 
     private final TransportSearchAction searchAction;
-    protected final GraphLicensee licensee;
+    protected final XPackLicenseState licenseState;
 
     static class VertexPriorityQueue extends PriorityQueue<Vertex> {
 
@@ -76,19 +78,19 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
     @Inject
     public TransportGraphExploreAction(Settings settings, ThreadPool threadPool, TransportSearchAction transportSearchAction,
             TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-            GraphLicensee licensee) {
+            XPackLicenseState licenseState) {
         super(settings, GraphExploreAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, 
                 GraphExploreRequest::new);
         this.searchAction = transportSearchAction;
-        this.licensee = licensee;
+        this.licenseState = licenseState;
     }
 
     @Override
     protected void doExecute(GraphExploreRequest request, ActionListener<GraphExploreResponse> listener) {
-        if (licensee.isAvailable()) {
+        if (licenseState.isGraphAllowed()) {
             new AsyncGraphAction(request, listener).start();
         } else {
-            listener.onFailure(LicenseUtils.newComplianceException(GraphLicensee.ID));
+            listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.GRAPH));
         }  
     }
 

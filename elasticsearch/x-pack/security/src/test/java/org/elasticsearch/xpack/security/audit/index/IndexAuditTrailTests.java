@@ -47,7 +47,7 @@ import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.transport.TransportInfo;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.Message;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
@@ -140,7 +140,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()
                         .put(super.nodeSettings(nodeOrdinal))
-                        .put(Security.enabledSetting(), useSecurity);
+                        .put(XPackSettings.SECURITY_ENABLED.getKey(), useSecurity);
                 if (useSecurity == false && builder.get(NetworkModule.TRANSPORT_TYPE_KEY) == null) {
                     builder.put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME);
                 }
@@ -163,7 +163,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         InetSocketTransportAddress inet = (InetSocketTransportAddress) info.address().publishAddress();
 
         Settings.Builder builder = Settings.builder()
-                .put(Security.enabledSetting(), useSecurity)
+                .put(XPackSettings.SECURITY_ENABLED.getKey(), useSecurity)
                 .put(remoteSettings(NetworkAddress.format(inet.address().getAddress()), inet.address().getPort(), cluster2Name))
                 .put("xpack.security.audit.index.client.xpack.security.user", SecuritySettingsSource.DEFAULT_USER_NAME + ":" +
                         SecuritySettingsSource.DEFAULT_PASSWORD);

@@ -96,6 +96,7 @@ public class RoleDescriptorTests extends ESTestCase {
         assertEquals(1, rd.getIndicesPrivileges().length);
         assertArrayEquals(new String[] { "idx1", "idx2" }, rd.getIndicesPrivileges()[0].getIndices());
         assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
+        assertNull(rd.getIndicesPrivileges()[0].getQuery());
 
         q = "{\"cluster\":[\"a\", \"b\"], \"metadata\":{\"foo\":\"bar\"}}";
         rd = RoleDescriptor.parse("test", new BytesArray(q));
@@ -125,5 +126,17 @@ public class RoleDescriptorTests extends ESTestCase {
         StreamInput streamInput = ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes()));
         final RoleDescriptor serialized = RoleDescriptor.readFrom(streamInput);
         assertEquals(descriptor, serialized);
+    }
+
+    public void testParseEmptyQuery() throws Exception {
+        String json = "{\"cluster\":[\"a\", \"b\"], \"run_as\": [\"m\", \"n\"], \"indices\": [{\"names\": [\"idx1\",\"idx2\"], " +
+                "\"privileges\": [\"p1\", \"p2\"], \"query\": \"\"}]}";
+        RoleDescriptor rd = RoleDescriptor.parse("test", new BytesArray(json));
+        assertEquals("test", rd.getName());
+        assertArrayEquals(new String[] { "a", "b" }, rd.getClusterPrivileges());
+        assertEquals(1, rd.getIndicesPrivileges().length);
+        assertArrayEquals(new String[] { "idx1", "idx2" }, rd.getIndicesPrivileges()[0].getIndices());
+        assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
+        assertNull(rd.getIndicesPrivileges()[0].getQuery());
     }
 }

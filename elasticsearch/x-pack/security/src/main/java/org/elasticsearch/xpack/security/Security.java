@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.logging.ESLogger;
@@ -40,12 +39,14 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.security.action.SecurityActionModule;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
@@ -89,10 +90,10 @@ import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.security.authz.AuthorizationService;
-import org.elasticsearch.xpack.security.authz.accesscontrol.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
+import org.elasticsearch.xpack.security.authz.accesscontrol.SetSecurityUserProcessor;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
@@ -109,9 +110,8 @@ import org.elasticsearch.xpack.security.rest.action.user.RestChangePasswordActio
 import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
-import org.elasticsearch.xpack.security.ssl.ClientSSLService;
-import org.elasticsearch.xpack.security.ssl.SSLConfiguration;
-import org.elasticsearch.xpack.security.ssl.ServerSSLService;
+import org.elasticsearch.xpack.security.ssl.SSLConfigurationReloader;
+import org.elasticsearch.xpack.security.ssl.SSLService;
 import org.elasticsearch.xpack.security.support.OptionalSettings;
 import org.elasticsearch.xpack.security.transport.SecurityClientTransportService;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportService;
@@ -119,6 +119,8 @@ import org.elasticsearch.xpack.security.transport.SecurityTransportModule;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
+import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
+import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -133,12 +135,10 @@ public class Security implements ActionPlugin, IngestPlugin {
 
     private static final ESLogger logger = Loggers.getLogger(XPackPlugin.class);
 
-    public static final String NAME = "security";
-    public static final String DLS_FLS_FEATURE = "security.dls_fls";
+    public static final String NAME3 = XPackPlugin.SECURITY + "3";
+    public static final String NAME4 = XPackPlugin.SECURITY + "4";
     public static final Setting<Optional<String>> USER_SETTING = OptionalSettings.createString(setting("user"), Property.NodeScope);
 
-    public static final Setting<Boolean> AUDIT_ENABLED_SETTING =
-        Setting.boolSetting(featureEnabledSetting("audit"), false, Property.NodeScope);
     public static final Setting<List<String>> AUDIT_OUTPUTS_SETTING =
         Setting.listSetting(setting("audit.outputs"),
             s -> s.getAsMap().containsKey(setting("audit.outputs")) ?
@@ -149,33 +149,25 @@ public class Security implements ActionPlugin, IngestPlugin {
     private final Environment env;
     private final boolean enabled;
     private final boolean transportClientMode;
-    private final SecurityLicenseState securityLicenseState;
+    private final XPackLicenseState licenseState;
     private final CryptoService cryptoService;
 
-    public Security(Settings settings, Environment env) throws IOException {
+    public Security(Settings settings, Environment env, XPackLicenseState licenseState) throws IOException {
         this.settings = settings;
         this.env = env;
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
-        this.enabled = XPackPlugin.featureEnabled(settings, NAME, true);
+        this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         if (enabled && transportClientMode == false) {
             validateAutoCreateIndex(settings);
             cryptoService = new CryptoService(settings, env);
         } else {
             cryptoService = null;
         }
-        securityLicenseState = new SecurityLicenseState();
+        this.licenseState = licenseState;
     }
 
     public CryptoService getCryptoService() {
         return cryptoService;
-    }
-
-    public SecurityLicenseState getSecurityLicenseState() {
-        return securityLicenseState;
-    }
-
-    public boolean isEnabled() {
-        return enabled;
     }
 
     public Collection<Module> nodeModules() {
@@ -188,9 +180,7 @@ public class Security implements ActionPlugin, IngestPlugin {
             modules.add(new SecurityTransportModule(settings));
             modules.add(b -> {
                 // for transport client we still must inject these ssl classes with guice
-                b.bind(ServerSSLService.class).toProvider(Providers.<ServerSSLService>of(null));
-                b.bind(ClientSSLService.class).toInstance(
-                    new ClientSSLService(settings, null, new SSLConfiguration.Global(settings), null));
+                b.bind(SSLService.class).toInstance(new SSLService(settings, null));
             });
 
             return modules;
@@ -203,7 +193,7 @@ public class Security implements ActionPlugin, IngestPlugin {
                 b.bind(Realms.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
                 b.bind(CompositeRolesStore.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
                 b.bind(AuditTrailService.class)
-                    .toInstance(new AuditTrailService(settings, Collections.emptyList(), securityLicenseState));
+                    .toInstance(new AuditTrailService(settings, Collections.emptyList(), licenseState));
             });
             modules.add(new SecurityTransportModule(settings));
             return modules;
@@ -214,7 +204,7 @@ public class Security implements ActionPlugin, IngestPlugin {
         // everything should have been loaded
         modules.add(b -> {
             b.bind(CryptoService.class).toInstance(cryptoService);
-            if (auditingEnabled(settings)) {
+            if (XPackSettings.AUDIT_ENABLED.get(settings)) {
                 b.bind(AuditTrail.class).to(AuditTrailService.class); // interface used by some actions...
             }
         });
@@ -235,11 +225,10 @@ public class Security implements ActionPlugin, IngestPlugin {
         final SecurityContext securityContext = new SecurityContext(settings, threadPool, cryptoService);
         components.add(securityContext);
 
-        final SSLConfiguration.Global globalSslConfig = new SSLConfiguration.Global(settings);
-        final ClientSSLService clientSSLService = new ClientSSLService(settings, env, globalSslConfig, resourceWatcherService);
-        final ServerSSLService serverSSLService = new ServerSSLService(settings, env, globalSslConfig, resourceWatcherService);
-        components.add(clientSSLService);
-        components.add(serverSSLService);
+        final SSLService sslService = new SSLService(settings, env);
+        // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
+        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService);
+        components.add(sslService);
 
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, threadPool);
@@ -248,8 +237,8 @@ public class Security implements ActionPlugin, IngestPlugin {
         realmFactories.put(FileRealm.TYPE, config -> new FileRealm(config, resourceWatcherService));
         realmFactories.put(NativeRealm.TYPE, config -> new NativeRealm(config, nativeUsersStore));
         realmFactories.put(ActiveDirectoryRealm.TYPE,
-            config -> new ActiveDirectoryRealm(config, resourceWatcherService, clientSSLService));
-        realmFactories.put(LdapRealm.TYPE, config -> new LdapRealm(config, resourceWatcherService, clientSSLService));
+            config -> new ActiveDirectoryRealm(config, resourceWatcherService, sslService));
+        realmFactories.put(LdapRealm.TYPE, config -> new LdapRealm(config, resourceWatcherService, sslService));
         realmFactories.put(PkiRealm.TYPE, config -> new PkiRealm(config, resourceWatcherService));
         for (XPackExtension extension : extensions) {
             Map<String, Realm.Factory> newRealms = extension.getRealms();
@@ -259,18 +248,18 @@ public class Security implements ActionPlugin, IngestPlugin {
                 }
             }
         }
-        final Realms realms = new Realms(settings, env, realmFactories, securityLicenseState, reservedRealm);
+        final Realms realms = new Realms(settings, env, realmFactories, licenseState, reservedRealm);
         components.add(nativeUsersStore);
         components.add(realms);
 
         // audit trails construction
         IndexAuditTrail indexAuditTrail = null;
         Set<AuditTrail> auditTrails = new LinkedHashSet<>();
-        if (AUDIT_ENABLED_SETTING.get(settings)) {
+        if (XPackSettings.AUDIT_ENABLED.get(settings)) {
             List<String> outputs = AUDIT_OUTPUTS_SETTING.get(settings);
             if (outputs.isEmpty()) {
                 throw new IllegalArgumentException("Audit logging is enabled but there are zero output types in "
-                    + AUDIT_ENABLED_SETTING.getKey());
+                    + XPackSettings.AUDIT_ENABLED.getKey());
             }
 
             for (String output : outputs) {
@@ -288,7 +277,7 @@ public class Security implements ActionPlugin, IngestPlugin {
             }
         }
         final AuditTrailService auditTrailService =
-            new AuditTrailService(settings, auditTrails.stream().collect(Collectors.toList()), securityLicenseState);
+            new AuditTrailService(settings, auditTrails.stream().collect(Collectors.toList()), licenseState);
         components.add(auditTrailService);
 
         AuthenticationFailureHandler failureHandler = null;
@@ -339,13 +328,38 @@ public class Security implements ActionPlugin, IngestPlugin {
         return additionalSettings(settings);
     }
 
-    // pkg private for testing
+    // visible for tests
     static Settings additionalSettings(Settings settings) {
-        Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME);
-        settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, Security.NAME);
-        settingsBuilder.put(NetworkModule.HTTP_TYPE_SETTING.getKey(), Security.NAME);
-        SecurityNetty3HttpServerTransport.overrideSettings(settingsBuilder, settings);
+        final Settings.Builder settingsBuilder = Settings.builder();
+
+        if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
+            final String transportType = NetworkModule.TRANSPORT_TYPE_SETTING.get(settings);
+            if (NAME3.equals(transportType) == false && NAME4.equals(transportType) == false) {
+                throw new IllegalArgumentException("transport type setting [" + NetworkModule.TRANSPORT_TYPE_KEY + "] must be one of [" +
+                        NAME3 + "," + NAME4 + "]");
+            }
+        } else {
+            // default to security4
+            settingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, NAME4);
+        }
+
+        if (NetworkModule.HTTP_TYPE_SETTING.exists(settings)) {
+            final String httpType = NetworkModule.HTTP_TYPE_SETTING.get(settings);
+            if (httpType.equals(NAME3)) {
+                SecurityNetty3HttpServerTransport.overrideSettings(settingsBuilder, settings);
+            } else if (httpType.equals(NAME4)) {
+                SecurityNetty4HttpServerTransport.overrideSettings(settingsBuilder, settings);
+            } else {
+                throw new IllegalArgumentException("http type setting [" + NetworkModule.HTTP_TYPE_KEY + "] must be one of [" +
+                        NAME3 + "," + NAME4 + "]");
+            }
+        } else {
+            // default to security4
+            settingsBuilder.put(NetworkModule.HTTP_TYPE_KEY, NAME4);
+            SecurityNetty4HttpServerTransport.overrideSettings(settingsBuilder, settings);
+        }
+
+        settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, XPackPlugin.SECURITY);
         addUserSettings(settings, settingsBuilder);
         addTribeSettings(settings, settingsBuilder);
         return settingsBuilder.build();
@@ -354,11 +368,10 @@ public class Security implements ActionPlugin, IngestPlugin {
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settingsList = new ArrayList<>();
         // always register for both client and node modes
-        XPackPlugin.addFeatureEnabledSettings(settingsList, NAME, true);
         settingsList.add(USER_SETTING);
 
         // SSL settings
-        SSLConfiguration.Global.addSettings(settingsList);
+        SSLService.addSettings(settingsList);
 
         // transport settings
         SecurityNetty3Transport.addSettings(settingsList);
@@ -368,13 +381,11 @@ public class Security implements ActionPlugin, IngestPlugin {
         }
 
         // The following just apply in node mode
-        XPackPlugin.addFeatureEnabledSettings(settingsList, DLS_FLS_FEATURE, true);
 
         // IP Filter settings
         IPFilter.addSettings(settingsList);
 
         // audit settings
-        settingsList.add(AUDIT_ENABLED_SETTING);
         settingsList.add(AUDIT_OUTPUTS_SETTING);
         LoggingAuditTrail.registerSettings(settingsList);
         IndexAuditTrail.registerSettings(settingsList);
@@ -425,12 +436,13 @@ public class Security implements ActionPlugin, IngestPlugin {
             return;
         }
 
-        assert securityLicenseState != null;
-        if (flsDlsEnabled(settings)) {
-            module.setSearcherWrapper((indexService) -> new SecurityIndexSearcherWrapper(indexService.getIndexSettings(),
-                    indexService.newQueryShardContext(), indexService.mapperService(),
-                    indexService.cache().bitsetFilterCache(), indexService.getIndexServices().getThreadPool().getThreadContext(),
-                    securityLicenseState, indexService.getIndexServices().getScriptService()));
+        assert licenseState != null;
+        if (XPackSettings.DLS_FLS_ENABLED.get(settings)) {
+            module.setSearcherWrapper(indexService ->
+                new SecurityIndexSearcherWrapper(indexService.getIndexSettings(), indexService.newQueryShardContext(),
+                    indexService.mapperService(), indexService.cache().bitsetFilterCache(),
+                    indexService.getIndexServices().getThreadPool().getThreadContext(), licenseState,
+                    indexService.getIndexServices().getScriptService()));
         }
         if (transportClientMode == false) {
             /*  We need to forcefully overwrite the query cache implementation to use security's opt out query cache implementation.
@@ -496,16 +508,19 @@ public class Security implements ActionPlugin, IngestPlugin {
 
         if (transportClientMode) {
             if (enabled) {
-                module.registerTransport(Security.NAME, SecurityNetty3Transport.class);
-                module.registerTransportService(Security.NAME, SecurityClientTransportService.class);
+                module.registerTransport(Security.NAME3, SecurityNetty3Transport.class);
+                module.registerTransport(Security.NAME4, SecurityNetty4Transport.class);
+                module.registerTransportService(XPackPlugin.SECURITY, SecurityClientTransportService.class);
             }
             return;
         }
 
         if (enabled) {
-            module.registerTransport(Security.NAME, SecurityNetty3Transport.class);
-            module.registerTransportService(Security.NAME, SecurityServerTransportService.class);
-            module.registerHttpTransport(Security.NAME, SecurityNetty3HttpServerTransport.class);
+            module.registerTransport(Security.NAME3, SecurityNetty3Transport.class);
+            module.registerTransport(Security.NAME4, SecurityNetty4Transport.class);
+            module.registerTransportService(XPackPlugin.SECURITY, SecurityServerTransportService.class);
+            module.registerHttpTransport(Security.NAME3, SecurityNetty3HttpServerTransport.class);
+            module.registerHttpTransport(Security.NAME4, SecurityNetty4HttpServerTransport.class);
         }
     }
 
@@ -561,9 +576,9 @@ public class Security implements ActionPlugin, IngestPlugin {
                 }
             }
 
-            final String tribeEnabledSetting = tribePrefix + XPackPlugin.featureEnabledSetting(NAME);
+            final String tribeEnabledSetting = tribePrefix + XPackSettings.SECURITY_ENABLED.getKey();
             if (settings.get(tribeEnabledSetting) != null) {
-                boolean enabled = enabled(tribeSettings.getValue());
+                boolean enabled = XPackSettings.SECURITY_ENABLED.get(tribeSettings.getValue());
                 if (!enabled) {
                     throw new IllegalStateException("tribe setting [" + tribeEnabledSetting + "] must be set to true but the value is ["
                             + settings.get(tribeEnabledSetting) + "]");
@@ -583,20 +598,8 @@ public class Security implements ActionPlugin, IngestPlugin {
         }
     }
 
-    public static boolean enabled(Settings settings) {
-        return XPackPlugin.featureEnabled(settings, NAME, true);
-    }
-
-    public static boolean flsDlsEnabled(Settings settings) {
-        return XPackPlugin.featureEnabled(settings, DLS_FLS_FEATURE, true);
-    }
-
-    public static String enabledSetting() {
-        return XPackPlugin.featureEnabledSetting(NAME);
-    }
-
     public static String settingPrefix() {
-        return XPackPlugin.featureSettingPrefix(NAME) + ".";
+        return XPackPlugin.featureSettingPrefix(XPackPlugin.SECURITY) + ".";
     }
 
     public static String setting(String setting) {
@@ -604,17 +607,8 @@ public class Security implements ActionPlugin, IngestPlugin {
         return settingPrefix() + setting;
     }
 
-    public static String featureEnabledSetting(String feature) {
-        assert feature != null && feature.startsWith(".") == false;
-        return XPackPlugin.featureEnabledSetting("security." + feature);
-    }
-
-    public static boolean auditingEnabled(Settings settings) {
-        return AUDIT_ENABLED_SETTING.get(settings);
-    }
-
-    public static boolean indexAuditLoggingEnabled(Settings settings) {
-        if (auditingEnabled(settings)) {
+    static boolean indexAuditLoggingEnabled(Settings settings) {
+        if (XPackSettings.AUDIT_ENABLED.get(settings)) {
             List<String> outputs = AUDIT_OUTPUTS_SETTING.get(settings);
             for (String output : outputs) {
                 if (output.equals(IndexAuditTrail.NAME)) {

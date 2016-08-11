@@ -6,7 +6,8 @@
 package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
-import org.elasticsearch.test.rest.RestTestCandidate;
+
+import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 
 import java.io.IOException;
 
@@ -14,7 +15,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public class GraphWithSecurityInsufficientRoleIT extends GraphWithSecurityIT {
 
-    public GraphWithSecurityInsufficientRoleIT(@Name("yaml") RestTestCandidate testCandidate) {
+    public GraphWithSecurityInsufficientRoleIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }
 

@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class CompletionSuggestionTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/19896")
     public void testToReduce() throws Exception {
         List<Suggest.Suggestion<CompletionSuggestion.Entry>> shardSuggestions = new ArrayList<>();
         int nShards = randomIntBetween(1, 10);

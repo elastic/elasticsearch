@@ -20,7 +20,7 @@ where `size=0`, so it will not cache `hits`,
 but it will cache `hits.total`,  <<search-aggregations,aggregations>>, and
 <<search-suggesters,suggestions>>.
 
-Queries that use `now` (see <<date-math>>) cannot be cached.
+Most queries that use `now` (see <<date-math>>) cannot be cached.
 ===================================
 
 [float]
@@ -46,9 +46,9 @@ curl -XPOST 'localhost:9200/kimchy,elasticsearch/_cache/clear?request_cache=true
 ------------------------
 
 [float]
-==== Enabling caching by default
+==== Enabling and disabling caching
 
-The cache is not enabled by default, but can be enabled when creating a new
+The cache is enabled by default, but can be disabled when creating a new
 index as follows:
 
 [source,js]
@@ -56,7 +56,7 @@ index as follows:
 curl -XPUT localhost:9200/my_index -d'
 {
   "settings": {
-    "index.requests.cache.enable": true
+    "index.requests.cache.enable": false
   }
 }
 '
@@ -73,7 +73,7 @@ curl -XPUT localhost:9200/my_index/_settings -d'
 -----------------------------
 
 [float]
-==== Enabling caching per request
+==== Enabling and disabling caching per request
 
 The `request_cache` query-string parameter can be used to enable or disable
 caching on a *per-request* basis.  If set, it overrides the index-level setting:

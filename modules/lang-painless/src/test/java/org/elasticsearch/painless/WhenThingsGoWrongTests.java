@@ -19,6 +19,9 @@
 
 package org.elasticsearch.painless;
 
+import org.apache.lucene.util.Constants;
+import org.elasticsearch.script.ScriptException;
+
 import java.lang.invoke.WrongMethodTypeException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -216,6 +219,19 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     public void testBadBoxingCast() {
         expectScriptThrows(ClassCastException.class, () -> {
             exec("BitSet bs = new BitSet(); bs.and(2);");
+        });
+    }
+
+    public void testOutOfMemoryError() {
+        assumeTrue("test only happens to work for sure on oracle jre", Constants.JAVA_VENDOR.startsWith("Oracle"));
+        expectScriptThrows(OutOfMemoryError.class, () -> {
+            exec("int[] x = new int[Integer.MAX_VALUE - 1];");
+        });
+    }
+
+    public void testStackOverflowError() {
+        expectScriptThrows(StackOverflowError.class, () -> {
+            exec("void recurse(int x, int y) {recurse(x, y)} recurse(1, 2);");
         });
     }
 }

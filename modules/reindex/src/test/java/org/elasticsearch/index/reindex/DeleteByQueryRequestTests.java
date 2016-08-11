@@ -25,8 +25,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 
-public class UpdateByQueryRequestTests extends ESTestCase {
-    public void testUpdateByQueryRequestImplementsIndicesRequestReplaceable() {
+public class DeleteByQueryRequestTests extends ESTestCase {
+    public void testDeleteteByQueryRequestImplementsIndicesRequestReplaceable() {
         int numIndices = between(1, 100);
         String[] indices = new String[numIndices];
         for (int i = 0; i < numIndices; i++) {
@@ -37,7 +37,7 @@ public class UpdateByQueryRequestTests extends ESTestCase {
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
         searchRequest.indicesOptions(indicesOptions);
 
-        UpdateByQueryRequest request = new UpdateByQueryRequest(searchRequest);
+        DeleteByQueryRequest request = new DeleteByQueryRequest(searchRequest);
         for (int i = 0; i < numIndices; i++) {
             assertEquals(indices[i], request.indices()[i]);
         }

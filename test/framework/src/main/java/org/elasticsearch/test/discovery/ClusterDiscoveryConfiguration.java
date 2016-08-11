@@ -26,6 +26,7 @@ import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.transport.TransportSettings;
@@ -108,7 +109,7 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
 
         @Override
         public Settings nodeSettings(int nodeOrdinal) {
-            Settings.Builder builder = Settings.builder();
+            Settings.Builder builder = Settings.builder().put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), numOfNodes);
 
             String[] unicastHosts = new String[unicastHostOrdinals.length];
             if (nodeOrdinal >= unicastHostPorts.length) {

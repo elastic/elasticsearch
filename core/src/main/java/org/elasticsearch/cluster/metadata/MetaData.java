@@ -460,6 +460,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         return null;
     }
 
+    /** Returns true iff existing index has the same {@link IndexMetaData} instance */
+    public boolean hasIndexMetaData(final IndexMetaData indexMetaData) {
+        return indices.get(indexMetaData.getIndex().getName()) == indexMetaData;
+    }
+
     /**
      * Returns the {@link IndexMetaData} for this index.
      * @throws IndexNotFoundException if no metadata for this index is found

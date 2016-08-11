@@ -25,6 +25,7 @@ import java.util.List;
 
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
@@ -42,6 +43,9 @@ import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+
+import java.util.Map;
+import java.util.function.UnaryOperator;
 
 /**
  * An extension point allowing to plug in custom functionality.
@@ -123,6 +127,18 @@ public abstract class Plugin {
      * Returns a list of additional settings filter for this plugin
      */
     public List<String> getSettingsFilter() { return Collections.emptyList(); }
+
+    /**
+     * Provides a function to modify global custom meta data on startup.
+     * <p>
+     * Plugins should return the input custom map via {@link UnaryOperator#identity()} if no upgrade is required.
+     * @return Never {@code null}. The same or upgraded {@code MetaData.Custom} map.
+     * @throws IllegalStateException if the node should not start because at least one {@code MetaData.Custom}
+     *         is unsupported
+     */
+    public UnaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataUpgrader() {
+        return UnaryOperator.identity();
+    }
 
     /**
      * Old-style guice index level extension point.

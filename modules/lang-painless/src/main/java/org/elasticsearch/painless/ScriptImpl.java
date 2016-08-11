@@ -119,8 +119,9 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
     public Object run() {
         try {
             return executable.execute(variables, scorer, doc, aggregationValue);
-        } catch (PainlessError | BootstrapMethodError | IllegalAccessError | Exception t) {
-            throw convertToScriptException(t);
+        // Note that it is safe to catch any of the following errors since Painless is stateless.
+        } catch (PainlessError | BootstrapMethodError | OutOfMemoryError | StackOverflowError | Exception e) {
+            throw convertToScriptException(e);
         }
     }
 

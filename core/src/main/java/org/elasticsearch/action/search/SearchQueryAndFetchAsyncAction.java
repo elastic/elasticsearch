@@ -60,14 +60,11 @@ class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetc
         threadPool.executor(ThreadPool.Names.SEARCH).execute(new ActionRunnable<SearchResponse>(listener) {
             @Override
             public void doRun() throws IOException {
-                boolean useScroll = request.scroll() != null;
-                sortedShardList = searchPhaseController.sortDocs(useScroll, firstResults);
-                final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults,
+                final boolean isScrollRequest = request.scroll() != null;
+                sortedShardDocs = searchPhaseController.sortDocs(isScrollRequest, firstResults);
+                final InternalSearchResponse internalResponse = searchPhaseController.merge(isScrollRequest, sortedShardDocs, firstResults,
                     firstResults);
-                String scrollId = null;
-                if (request.scroll() != null) {
-                    scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults);
-                }
+                String scrollId = isScrollRequest ? TransportSearchHelper.buildScrollId(request.searchType(), firstResults) : null;
                 listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successfulOps.get(),
                     buildTookInMillis(), buildShardFailures()));
             }

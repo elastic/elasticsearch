@@ -233,7 +233,7 @@ setup:
   - match:  { result.0.options.0.text: "baz" }
 
 ---
-"Suggestions with payload fields should work":
+"Suggestions with source should work":
 
   - do:
       index:
@@ -269,14 +269,17 @@ setup:
             text: "b"
             completion:
               field: suggest_6
-              payload: [ title, count ]
 
   - length: { result: 1  }
   - length: { result.0.options: 2  }
   - match:  { result.0.options.0.text: "baz" }
-  - match:  { result.0.options.0.payload.title: ["title_baz"] }
-  - match:  { result.0.options.0.payload.count: [3] }
+  - match:  { result.0.options.0._index: "test" }
+  - match:  { result.0.options.0._type: "test" }
+  - match:  { result.0.options.0._source.title: "title_baz" }
+  - match:  { result.0.options.0._source.count: 3 }
   - match:  { result.0.options.1.text: "bar" }
-  - match:  { result.0.options.1.payload.title: ["title_bar"] }
-  - match:  { result.0.options.1.payload.count: [4] }
+  - match:  { result.0.options.1._index: "test" }
+  - match:  { result.0.options.1._type: "test" }
+  - match:  { result.0.options.1._source.title: "title_bar" }
+  - match:  { result.0.options.1._source.count: 4 }
 

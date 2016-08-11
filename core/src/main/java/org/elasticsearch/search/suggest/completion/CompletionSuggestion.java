@@ -18,11 +18,16 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.suggest.Lookup;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.internal.InternalSearchHit;
+import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.internal.InternalSearchHits.StreamContext.ShardTargetType;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -34,6 +39,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
 
 /**
  * Suggestion response for {@link CompletionSuggester} results
@@ -60,6 +67,25 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
 
     public CompletionSuggestion(String name, int size) {
         super(name, size);
+    }
+
+    /**
+     * @return the result options for the suggestion
+     */
+    public List<Entry.Option> getOptions() {
+        if (entries.isEmpty() == false) {
+            assert entries.size() == 1 : "CompletionSuggestion must have only one entry";
+            return entries.get(0).getOptions();
+        } else {
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * @return whether there is any hits for the suggestion
+     */
+    public boolean hasScoreDocs() {
+        return getOptions().size() > 0;
     }
 
     private static final class OptionPriorityQueue extends org.apache.lucene.util.PriorityQueue<Entry.Option> {
@@ -90,30 +116,54 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
         }
     }
 
-    @Override
-    public Suggest.Suggestion<Entry> reduce(List<Suggest.Suggestion<Entry>> toReduce) {
-        if (toReduce.size() == 1) {
-            return toReduce.get(0);
+    /**
+     * Reduces suggestions to a single suggestion containing at most
+     * top {@link CompletionSuggestion#getSize()} options across <code>toReduce</code>
+     */
+    public static CompletionSuggestion reduceTo(List<Suggest.Suggestion<Entry>> toReduce) {
+        if (toReduce.isEmpty()) {
+            return null;
         } else {
-            // combine suggestion entries from participating shards on the coordinating node
-            // the global top <code>size</code> entries are collected from the shard results
-            // using a priority queue
-            OptionPriorityQueue priorityQueue = new OptionPriorityQueue(size, sortComparator());
-            for (Suggest.Suggestion<Entry> entries : toReduce) {
-                assert entries.getEntries().size() == 1 : "CompletionSuggestion must have only one entry";
-                for (Entry.Option option : entries.getEntries().get(0)) {
-                    if (option == priorityQueue.insertWithOverflow(option)) {
-                        // if the current option has overflown from pq,
-                        // we can assume all of the successive options
-                        // from this shard result will be overflown as well
-                        break;
+            final CompletionSuggestion leader = (CompletionSuggestion) toReduce.get(0);
+            final Entry leaderEntry = leader.getEntries().get(0);
+            final String name = leader.getName();
+            if (toReduce.size() == 1) {
+                return leader;
+            } else {
+                // combine suggestion entries from participating shards on the coordinating node
+                // the global top <code>size</code> entries are collected from the shard results
+                // using a priority queue
+                OptionPriorityQueue priorityQueue = new OptionPriorityQueue(leader.getSize(), COMPARATOR);
+                for (Suggest.Suggestion<Entry> suggestion : toReduce) {
+                    assert suggestion.getName().equals(name) : "name should be identical across all suggestions";
+                    for (Entry.Option option : ((CompletionSuggestion) suggestion).getOptions()) {
+                        if (option == priorityQueue.insertWithOverflow(option)) {
+                            // if the current option has overflown from pq,
+                            // we can assume all of the successive options
+                            // from this shard result will be overflown as well
+                            break;
+                        }
                     }
                 }
+                final CompletionSuggestion suggestion = new CompletionSuggestion(leader.getName(), leader.getSize());
+                final Entry entry = new Entry(leaderEntry.getText(), leaderEntry.getOffset(), leaderEntry.getLength());
+                Collections.addAll(entry.getOptions(), priorityQueue.get());
+                suggestion.addTerm(entry);
+                return suggestion;
             }
-            Entry options = this.entries.get(0);
-            options.getOptions().clear();
-            Collections.addAll(options.getOptions(), priorityQueue.get());
-            return this;
+        }
+    }
+
+    @Override
+    public Suggest.Suggestion<Entry> reduce(List<Suggest.Suggestion<Entry>> toReduce) {
+        return reduceTo(toReduce);
+    }
+
+    public void setShardIndex(int shardIndex) {
+        if (entries.isEmpty() == false) {
+            for (Entry.Option option : getOptions()) {
+                option.setShardIndex(shardIndex);
+            }
         }
     }
 
@@ -144,11 +194,12 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
 
         public static class Option extends Suggest.Suggestion.Entry.Option {
             private Map<String, Set<CharSequence>> contexts;
-            private Map<String, List<Object>> payload;
+            private ScoreDoc doc;
+            private InternalSearchHit hit;
 
-            public Option(Text text, float score, Map<String, Set<CharSequence>> contexts, Map<String, List<Object>> payload) {
+            public Option(int docID, Text text, float score, Map<String, Set<CharSequence>> contexts) {
                 super(text, score);
-                this.payload = payload;
+                this.doc = new ScoreDoc(docID, score);
                 this.contexts = contexts;
             }
 
@@ -163,32 +214,33 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 throw new UnsupportedOperationException();
             }
 
-            public Map<String, List<Object>> getPayload() {
-                return payload;
-            }
-
             public Map<String, Set<CharSequence>> getContexts() {
                 return contexts;
             }
 
-            @Override
-            public void setScore(float score) {
-                super.setScore(score);
+            public ScoreDoc getDoc() {
+                return doc;
+            }
+
+            public InternalSearchHit getHit() {
+                return hit;
+            }
+
+            public void setShardIndex(int shardIndex) {
+                this.doc.shardIndex = shardIndex;
+            }
+
+            public void setHit(InternalSearchHit hit) {
+                this.hit = hit;
             }
 
             @Override
             protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-                super.innerToXContent(builder, params);
-                if (payload.size() > 0) {
-                    builder.startObject("payload");
-                    for (Map.Entry<String, List<Object>> entry : payload.entrySet()) {
-                        builder.startArray(entry.getKey());
-                        for (Object payload : entry.getValue()) {
-                            builder.value(payload);
-                        }
-                        builder.endArray();
-                    }
-                    builder.endObject();
+                builder.field("text", getText());
+                if (hit != null) {
+                    hit.toInnerXContent(builder, params);
+                } else {
+                    builder.field("score", getScore());
                 }
                 if (contexts.size() > 0) {
                     builder.startObject("contexts");
@@ -207,16 +259,10 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             @Override
             public void readFrom(StreamInput in) throws IOException {
                 super.readFrom(in);
-                int payloadSize = in.readInt();
-                this.payload = new LinkedHashMap<>(payloadSize);
-                for (int i = 0; i < payloadSize; i++) {
-                    String payloadName = in.readString();
-                    int nValues = in.readVInt();
-                    List<Object> values = new ArrayList<>(nValues);
-                    for (int j = 0; j < nValues; j++) {
-                        values.add(in.readGenericValue());
-                    }
-                    this.payload.put(payloadName, values);
+                this.doc = Lucene.readScoreDoc(in);
+                if (in.readBoolean()) {
+                    this.hit = InternalSearchHit.readSearchHit(in,
+                        InternalSearchHits.streamContext().streamShardTarget(ShardTargetType.STREAM));
                 }
                 int contextSize = in.readInt();
                 this.contexts = new LinkedHashMap<>(contextSize);
@@ -234,14 +280,12 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 super.writeTo(out);
-                out.writeInt(payload.size());
-                for (Map.Entry<String, List<Object>> entry : payload.entrySet()) {
-                    out.writeString(entry.getKey());
-                    List<Object> values = entry.getValue();
-                    out.writeVInt(values.size());
-                    for (Object value : values) {
-                        out.writeGenericValue(value);
-                    }
+                Lucene.writeScoreDoc(out, doc);
+                if (hit != null) {
+                    out.writeBoolean(true);
+                    hit.writeTo(out, InternalSearchHits.streamContext().streamShardTarget(ShardTargetType.STREAM));
+                } else {
+                    out.writeBoolean(false);
                 }
                 out.writeInt(contexts.size());
                 for (Map.Entry<String, Set<CharSequence>> entry : contexts.entrySet()) {
@@ -260,14 +304,6 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 stringBuilder.append(getText());
                 stringBuilder.append(" score:");
                 stringBuilder.append(getScore());
-                stringBuilder.append(" payload:[");
-                for (Map.Entry<String, List<Object>> entry : payload.entrySet()) {
-                    stringBuilder.append(" ");
-                    stringBuilder.append(entry.getKey());
-                    stringBuilder.append(":");
-                    stringBuilder.append(entry.getValue());
-                }
-                stringBuilder.append("]");
                 stringBuilder.append(" context:[");
                 for (Map.Entry<String, Set<CharSequence>> entry: contexts.entrySet()) {
                     stringBuilder.append(" ");

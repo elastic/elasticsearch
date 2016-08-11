@@ -177,6 +177,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put("node.name", nodeName())
             .put("script.inline", "true")
             .put("script.stored", "true")
+            .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 1000)
             .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
             .put("discovery.type", "local")

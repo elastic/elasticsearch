@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
@@ -991,6 +992,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
+                if (restoreInProgress != null) {
+                    // don't allow snapshot deletions while a restore is taking place,
+                    // otherwise we could end up deleting a snapshot that is being restored
+                    // and the files the restore depends on would all be gone
+                    if (restoreInProgress.entries().isEmpty() == false) {
+                        throw new ConcurrentSnapshotExecutionException(snapshot, "cannot delete snapshot during a restore");
+                    }
+                }
                 SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
                 if (snapshots == null) {
                     // No snapshots running - we can continue

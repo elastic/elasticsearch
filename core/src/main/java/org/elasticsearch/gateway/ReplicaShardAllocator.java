@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
@@ -63,7 +64,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
         boolean changed = false;
         MetaData metaData = allocation.metaData();
         RoutingNodes routingNodes = allocation.routingNodes();
-        List<Tuple<ShardRouting, UnassignedInfo>> recoveriesToCancel = new ArrayList<>();
+        List<Runnable> shardCancellationActions = new ArrayList<>();
         for (RoutingNode routingNode : routingNodes) {
             for (ShardRouting shard : routingNode) {
                 if (shard.primary() == true) {
@@ -120,14 +121,14 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                             "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node ["+ nodeWithHighestMatch + "]",
                             null, 0, allocation.getCurrentNanoTime(), System.currentTimeMillis(), false, UnassignedInfo.AllocationStatus.NO_ATTEMPT);
                         // don't cancel shard in the loop as it will cause a ConcurrentModificationException
-                        recoveriesToCancel.add(new Tuple<>(shard, unassignedInfo));
+                        shardCancellationActions.add(() -> routingNodes.failShard(logger, shard, unassignedInfo, indexMetaData));
                         changed = true;
                     }
                 }
             }
         }
-        for (Tuple<ShardRouting, UnassignedInfo> cancellation : recoveriesToCancel) {
-            routingNodes.moveToUnassigned(cancellation.v1(), cancellation.v2());
+        for (Runnable action : shardCancellationActions) {
+            action.run();
         }
         return changed;
     }

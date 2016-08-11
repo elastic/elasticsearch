@@ -40,7 +40,7 @@ public class EvilJNANativesTests extends ESTestCase {
                 for (String line : lines) {
                     if (line != null && line.startsWith("Max processes")) {
                         final String[] fields = line.split("\\s+");
-                        final long limit = Long.parseLong(fields[2]);
+                        final long limit = "unlimited".equals(fields[2]) ? JNACLibrary.RLIM_INFINITY : Long.parseLong(fields[2]);
                         assertThat(JNANatives.MAX_NUMBER_OF_THREADS, equalTo(limit));
                         return;
                     }

@@ -35,7 +35,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapperLegacy;
+import org.elasticsearch.index.mapper.GeoPointFieldMapperLegacy;
 
 import java.io.IOException;
 

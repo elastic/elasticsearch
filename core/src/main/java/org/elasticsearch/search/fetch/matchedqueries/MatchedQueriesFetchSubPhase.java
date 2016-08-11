@@ -43,7 +43,9 @@ public final class MatchedQueriesFetchSubPhase implements FetchSubPhase {
 
     @Override
     public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
-        if (hits.length == 0) {
+        if (hits.length == 0 ||
+            // in case the request has only suggest, parsed query is null
+            context.parsedQuery() == null) {
             return;
         }
         hits = hits.clone(); // don't modify the incoming hits

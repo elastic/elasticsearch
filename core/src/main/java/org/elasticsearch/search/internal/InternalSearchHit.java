@@ -415,8 +415,8 @@ public class InternalSearchHit implements SearchHit {
         static final String INNER_HITS = "inner_hits";
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    // public because we render hit as part of completion suggestion option
+    public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
         List<SearchHitField> metaFields = new ArrayList<>();
         List<SearchHitField> otherFields = new ArrayList<>();
         if (fields != null && !fields.isEmpty()) {
@@ -432,7 +432,6 @@ public class InternalSearchHit implements SearchHit {
             }
         }
 
-        builder.startObject();
         // For inner_hit hits shard is null and that is ok, because the parent search hit has all this information.
         // Even if this was included in the inner_hit hits this would be the same, so better leave it out.
         if (explanation() != null && shard != null) {
@@ -516,7 +515,6 @@ public class InternalSearchHit implements SearchHit {
             }
             builder.endObject();
         }
-        builder.endObject();
         return builder;
     }
 
@@ -533,6 +531,15 @@ public class InternalSearchHit implements SearchHit {
             builder.endArray();
         }
         builder.endObject();
+
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        toInnerXContent(builder, params);
+        builder.endObject();
+        return builder;
     }
 
     public static InternalSearchHit readSearchHit(StreamInput in, InternalSearchHits.StreamContext context) throws IOException {

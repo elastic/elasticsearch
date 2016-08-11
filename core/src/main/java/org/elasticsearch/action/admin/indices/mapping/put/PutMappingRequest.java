@@ -177,7 +177,17 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         return source(buildFromSimplifiedDef(type, source));
     }
 
+    /**
+     * @param type the mapping type
+     * @param source consisting of field/properties pairs (e.g. "field1",
+     *            "type=string,store=true"). If the number of arguments is not
+     *            divisible by two an {@link IllegalArgumentException} is thrown
+     * @return the mappings definition
+     */
     public static XContentBuilder buildFromSimplifiedDef(String type, Object... source) {
+        if (source.length % 2 != 0) {
+            throw new IllegalArgumentException("mapping source must be pairs of fieldnames and properties definition.");
+        }
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();

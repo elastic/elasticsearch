@@ -27,8 +27,8 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
-import java.util.Vector;
 
 /**
  * Classes implementing this interface provide a means to compute the quality of a result list
@@ -76,7 +76,7 @@ public abstract class RankedListQualityMetric implements NamedWriteable {
         return rc;
     }
 
-    double combine(Vector<EvalQueryQuality> partialResults) {
+    double combine(Collection<EvalQueryQuality> partialResults) {
         return partialResults.stream().mapToDouble(EvalQueryQuality::getQualityLevel).sum() / partialResults.size();
     }
 }

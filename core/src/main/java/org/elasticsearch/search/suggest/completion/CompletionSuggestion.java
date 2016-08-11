@@ -127,30 +127,26 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
             final CompletionSuggestion leader = (CompletionSuggestion) toReduce.get(0);
             final Entry leaderEntry = leader.getEntries().get(0);
             final String name = leader.getName();
-            if (toReduce.size() == 1) {
-                return leader;
-            } else {
-                // combine suggestion entries from participating shards on the coordinating node
-                // the global top <code>size</code> entries are collected from the shard results
-                // using a priority queue
-                OptionPriorityQueue priorityQueue = new OptionPriorityQueue(leader.getSize(), COMPARATOR);
-                for (Suggest.Suggestion<Entry> suggestion : toReduce) {
-                    assert suggestion.getName().equals(name) : "name should be identical across all suggestions";
-                    for (Entry.Option option : ((CompletionSuggestion) suggestion).getOptions()) {
-                        if (option == priorityQueue.insertWithOverflow(option)) {
-                            // if the current option has overflown from pq,
-                            // we can assume all of the successive options
-                            // from this shard result will be overflown as well
-                            break;
-                        }
+            // combine suggestion entries from participating shards on the coordinating node
+            // the global top <code>size</code> entries are collected from the shard results
+            // using a priority queue
+            OptionPriorityQueue priorityQueue = new OptionPriorityQueue(leader.getSize(), COMPARATOR);
+            for (Suggest.Suggestion<Entry> suggestion : toReduce) {
+                assert suggestion.getName().equals(name) : "name should be identical across all suggestions";
+                for (Entry.Option option : ((CompletionSuggestion) suggestion).getOptions()) {
+                    if (option == priorityQueue.insertWithOverflow(option)) {
+                        // if the current option has overflown from pq,
+                        // we can assume all of the successive options
+                        // from this shard result will be overflown as well
+                        break;
                     }
                 }
-                final CompletionSuggestion suggestion = new CompletionSuggestion(leader.getName(), leader.getSize());
-                final Entry entry = new Entry(leaderEntry.getText(), leaderEntry.getOffset(), leaderEntry.getLength());
-                Collections.addAll(entry.getOptions(), priorityQueue.get());
-                suggestion.addTerm(entry);
-                return suggestion;
             }
+            final CompletionSuggestion suggestion = new CompletionSuggestion(leader.getName(), leader.getSize());
+            final Entry entry = new Entry(leaderEntry.getText(), leaderEntry.getOffset(), leaderEntry.getLength());
+            Collections.addAll(entry.getOptions(), priorityQueue.get());
+            suggestion.addTerm(entry);
+            return suggestion;
         }
     }
 

@@ -23,7 +23,7 @@ The structure looks like this:
 }
 --------------------------------------------------
 
-If `_inner_hits` is defined on a query that supports it then each search hit will contain an `inner_hits` json object with the following structure:
+If `inner_hits` is defined on a query that supports it then each search hit will contain an `inner_hits` json object with the following structure:
 
 [source,js]
 --------------------------------------------------

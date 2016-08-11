@@ -26,8 +26,11 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * For each qa specification identified by its id this response returns the respective
@@ -80,16 +83,33 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
         super.writeTo(out);
         out.writeString(specId);
         out.writeDouble(qualityLevel);
-        out.writeGenericValue(getUnknownDocs());
+        out.writeVInt(unknownDocs.size());
+        for (String queryId : unknownDocs.keySet()) {
+            out.writeString(queryId);
+            Collection<RatedDocumentKey> collection = unknownDocs.get(queryId);
+            out.writeVInt(collection.size());
+            for (RatedDocumentKey key : collection) {
+                key.writeTo(out);
+            }
+        }
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         this.specId = in.readString();
         this.qualityLevel = in.readDouble();
-        this.unknownDocs = (Map<String, Collection<RatedDocumentKey>>) in.readGenericValue();
+        int unknownDocumentSets = in.readVInt();
+        this.unknownDocs = new HashMap<>(unknownDocumentSets);
+        for (int i = 0; i < unknownDocumentSets; i++) {
+            String queryId = in.readString();
+            int numberUnknownDocs = in.readVInt();
+            Collection<RatedDocumentKey> collection = new ArrayList<>(numberUnknownDocs);
+            for (int d = 0; d < numberUnknownDocs; d++) {
+                collection.add(new RatedDocumentKey(in));
+            }
+            this.unknownDocs.put(queryId, collection);
+        }
     }
 
     @Override
@@ -106,5 +126,24 @@ public class RankEvalResponse extends ActionResponse implements ToXContent {
         builder.endArray();
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public final boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        RankEvalResponse other = (RankEvalResponse) obj;
+        return Objects.equals(specId, other.specId) &&
+                Objects.equals(qualityLevel, other.qualityLevel) &&
+                Objects.equals(unknownDocs, other.unknownDocs);
+    }
+
+    @Override
+    public final int hashCode() {
+        return Objects.hash(getClass(), specId, qualityLevel, unknownDocs);
     }
 }

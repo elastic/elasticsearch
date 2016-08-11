@@ -34,7 +34,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -64,7 +63,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     protected void doExecute(RankEvalRequest request, ActionListener<RankEvalResponse> listener) {
         RankEvalSpec qualityTask = request.getRankEvalSpec();
 
-        Map<String, Collection<RatedDocumentKey>> unknownDocs = new HashMap<>();
+        Map<String, Collection<RatedDocumentKey>> unknownDocs = new ConcurrentHashMap<>();
         Collection<QuerySpec> specifications = qualityTask.getSpecifications();
         AtomicInteger responseCounter = new AtomicInteger(specifications.size());
         Map<String, EvalQueryQuality> partialResults = new ConcurrentHashMap<>(specifications.size());

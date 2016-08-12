@@ -128,10 +128,8 @@ public class TribeIT extends ESIntegTestCase {
         tribe1Defaults.putArray("tribe.t1." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), getUnicastHosts(internalCluster().client()));
         tribe1Defaults.putArray("tribe.t2." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), getUnicastHosts(cluster2.client()));
 
-        int maxLocalStorageNodes = internalCluster().size() + 2;
         Settings merged = Settings.builder()
                 .put(internalCluster().getDefaultSettings())
-                .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), maxLocalStorageNodes)
                 .put("tribe.t1.cluster.name", internalCluster().getClusterName())
                 .put("tribe.t2.cluster.name", cluster2.getClusterName())
                 .put("tribe.t1.transport.type", "local")

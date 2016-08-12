@@ -1631,25 +1631,20 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder()
-            .put(
-                NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
-                (getSupportsDedicatedMasters() ? InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES : 0) +
-                    getMaxNumDataNodes() +
-                    ((getNumClientNodes() == InternalTestCluster.DEFAULT_NUM_CLIENT_NODES) ?
-                    InternalTestCluster.DEFAULT_MAX_NUM_CLIENT_NODES : getNumClientNodes()))
-            // Default the watermarks to absurdly low to prevent the tests
-            // from failing on nodes without enough disk space
-            .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
-            .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b")
-            .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 1000)
-            .put("script.stored", "true")
-            .put("script.inline", "true")
-            // by default we never cache below 10k docs in a segment,
-            // bypass this limit so that caching gets some testing in
-            // integration tests that usually create few documents
-            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), nodeOrdinal % 2 == 0)
-            // wait short time for other active shards before actually deleting, default 30s not needed in tests
-            .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(1, TimeUnit.SECONDS));
+                .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), Integer.MAX_VALUE)
+                // Default the watermarks to absurdly low to prevent the tests
+                // from failing on nodes without enough disk space
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b")
+                .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 1000)
+                .put("script.stored", "true")
+                .put("script.inline", "true")
+                // by default we never cache below 10k docs in a segment,
+                // bypass this limit so that caching gets some testing in
+                // integration tests that usually create few documents
+                .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), nodeOrdinal % 2 == 0)
+                // wait short time for other active shards before actually deleting, default 30s not needed in tests
+                .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT.getKey(), new TimeValue(1, TimeUnit.SECONDS));
         return builder.build();
     }
 

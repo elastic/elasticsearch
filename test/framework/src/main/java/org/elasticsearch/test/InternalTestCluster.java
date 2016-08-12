@@ -300,9 +300,7 @@ public final class InternalTestCluster extends TestCluster {
                 builder.put(Environment.PATH_DATA_SETTING.getKey(), dataPath.toString());
             }
         }
-        builder.put(
-            NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
-            Math.max(1, numSharedDedicatedMasterNodes + maxNumDataNodes + numSharedCoordOnlyNodes));
+        builder.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), Integer.MAX_VALUE);
         builder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), baseDir.resolve("custom"));
         builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));

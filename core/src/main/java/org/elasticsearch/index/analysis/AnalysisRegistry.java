@@ -73,6 +73,12 @@ public final class AnalysisRegistry implements Closeable {
         this.analyzers = unmodifiableMap(analyzers);
     }
 
+    /**
+     * Returns a {@link Settings} by groupName from {@link IndexSettings} or a default {@link Settings}
+     * @param indexSettings an index settings
+     * @param groupName tokenizer/token filter/char filter name
+     * @return {@link Settings}
+     */
     public static Settings getSettingsFromIndexSettings(IndexSettings indexSettings, String groupName) {
         Settings settings = indexSettings.getSettings().getAsSettings(groupName);
         if (settings.isEmpty()) {
@@ -154,7 +160,14 @@ public final class AnalysisRegistry implements Closeable {
         return new AnalysisService(indexSettings, analyzierFactories, tokenizerFactories, charFilterFactories, tokenFilterFactories);
     }
 
-
+    /**
+     * Returns a registered {@link TokenizerFactory} provider by {@link IndexSettings}
+     *  or a registered {@link TokenizerFactory} provider by predefined name
+     *  or <code>null</code> if the tokenizer was not registered
+     * @param tokenizer global or defined tokenizer name
+     * @param indexSettings an index settings
+     * @return {@link TokenizerFactory} provider or <code>null</code>
+     */
     public AnalysisProvider<TokenizerFactory> getTokenizerProvider(String tokenizer, IndexSettings indexSettings) {
         final Map<String, Settings> tokenizerSettings = indexSettings.getSettings().getGroups("index.analysis.tokenizer");
         if (tokenizerSettings.containsKey(tokenizer)) {
@@ -165,6 +178,14 @@ public final class AnalysisRegistry implements Closeable {
         }
     }
 
+    /**
+     * Returns a registered {@link TokenFilterFactory} provider by {@link IndexSettings}
+     *  or a registered {@link TokenFilterFactory} provider by predefined name
+     *  or <code>null</code> if the tokenFilter was not registered
+     * @param tokenFilter global or defined tokenFilter name
+     * @param indexSettings an index settings
+     * @return {@link TokenFilterFactory} provider or <code>null</code>
+     */
     public AnalysisProvider<TokenFilterFactory> getTokenFilterProvider(String tokenFilter, IndexSettings indexSettings) {
         final Map<String, Settings> tokenFilterSettings = indexSettings.getSettings().getGroups("index.analysis.filter");
         if (tokenFilterSettings.containsKey(tokenFilter)) {
@@ -185,6 +206,14 @@ public final class AnalysisRegistry implements Closeable {
         }
     }
 
+    /**
+     * Returns a registered {@link CharFilterFactory} provider by {@link IndexSettings}
+     *  or a registered {@link CharFilterFactory} provider by predefined name
+     *  or <code>null</code> if the charFilter was not registered
+     * @param charFilter global or defined charFilter name
+     * @param indexSettings an index settings
+     * @return {@link CharFilterFactory} provider or <code>null</code>
+     */
     public AnalysisProvider<CharFilterFactory> getCharFilterProvider(String charFilter, IndexSettings indexSettings) {
         final Map<String, Settings> tokenFilterSettings = indexSettings.getSettings().getGroups("index.analysis.char_filter");
         if (tokenFilterSettings.containsKey(charFilter)) {

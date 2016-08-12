@@ -72,6 +72,8 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
     }
 
     private static boolean isFatalCause(Throwable cause) {
+        // We wrap AlreadyClosedException in AssertionError when we re-throw to ensure catch clauses don't suppress it, but we should not
+        // halt the JVM for that case:
         return cause instanceof Error && isWrappedAlreadyClosedException(cause) == false;
     }
 

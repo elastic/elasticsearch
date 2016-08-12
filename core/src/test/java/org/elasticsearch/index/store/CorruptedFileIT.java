@@ -86,6 +86,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -126,7 +127,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class, MockFSIndexStore.TestPlugin.class,
+        return Arrays.asList(MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class, MockFSIndexStore.TestPlugin.class,
             InternalSettingsPlugin.class);  // uses index.version.created
     }
 

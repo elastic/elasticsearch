@@ -28,6 +28,7 @@ import org.elasticsearch.transport.Netty3Plugin;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.junit.BeforeClass;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -68,12 +69,12 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTcpTransportPlugin.class, Netty3Plugin.class, Netty4Plugin.class);
+        return Arrays.asList(MockTcpTransportPlugin.class, Netty3Plugin.class, Netty4Plugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return pluginList(MockTcpTransportPlugin.class, Netty3Plugin.class, Netty4Plugin.class);
+        return Arrays.asList(MockTcpTransportPlugin.class, Netty3Plugin.class, Netty4Plugin.class);
     }
 
     @Override

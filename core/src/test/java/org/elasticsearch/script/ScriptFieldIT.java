@@ -43,7 +43,7 @@ public class ScriptFieldIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(CustomScriptPlugin.class);
+        return Arrays.asList(CustomScriptPlugin.class);
     }
 
     static int[] intArray = { Integer.MAX_VALUE, Integer.MIN_VALUE, 3 };

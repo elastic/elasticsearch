@@ -23,6 +23,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
+import java.util.Arrays;
 import java.util.Collection;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
@@ -32,7 +33,7 @@ public abstract class ReindexTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(ReindexPlugin.class);
+        return Arrays.asList(ReindexPlugin.class);
     }
 
     protected ReindexRequestBuilder reindex() {

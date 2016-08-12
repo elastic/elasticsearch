@@ -91,7 +91,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class);
     }
 
     @Override

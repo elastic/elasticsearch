@@ -51,6 +51,7 @@ import org.elasticsearch.test.store.MockFSIndexStore;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -75,7 +76,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockFSIndexStore.TestPlugin.class);
+        return Arrays.asList(MockFSIndexStore.TestPlugin.class);
     }
 
     public void testOneNodeRecoverFromGateway() throws Exception {

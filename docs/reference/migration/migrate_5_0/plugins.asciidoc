@@ -147,6 +147,11 @@ Plugins that register custom search time behavior (`Query`, `Suggester`,
 `ScoreFunction`, `FetchSubPhase`, `Highlighter`, etc) should implement
 `SearchPlugin` and remove their `onModule(SearchModule)` implementation.
 
+==== Testing Custom Plugins
+
+`ESIntegTestCase#pluginList` has been removed. Use `Arrays.asList` instead. It
+isn't needed now that all plugins require Java 1.8.
+
 ==== Mapper-Size plugin
 
 The metadata field `_size` is not accessible in aggregations, scripts and when

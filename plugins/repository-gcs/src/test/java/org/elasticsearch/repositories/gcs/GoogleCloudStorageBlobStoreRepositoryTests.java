@@ -30,6 +30,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.junit.BeforeClass;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -45,7 +46,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockGoogleCloudStoragePlugin.class);
+        return Arrays.asList(MockGoogleCloudStoragePlugin.class);
     }
 
     @Override

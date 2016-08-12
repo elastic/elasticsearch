@@ -771,7 +771,7 @@ on a date or timestamp field in a document by using the <<date-math-index-names,
 The processor sets the `_index` meta field with a date math index name expression based on the provided index name
 prefix, a date or timestamp field in the documents being processed and the provided date rounding.
 
-First this processor fetches the date or timestamp from a field in the document being processed. Optionally
+First, this processor fetches the date or timestamp from a field in the document being processed. Optionally,
 date formatting can be configured on how the field's value should be parsed into a date. Then this date,
 the provided index name prefix and the provided date rounding get formatted into a date math index name expression.
 Also here optionally date formatting can be specified on how the date should be formatted into a date math index name
@@ -782,32 +782,115 @@ date in the `date1` field:
 
 [source,js]
 --------------------------------------------------
-PUT _ingest/pipeline/1
+PUT _ingest/pipeline/monthlyindex
 {
+  "description": "monthly date-time index naming",
   "processors" : [
     {
       "date_index_name" : {
         "field" : "date1",
         "index_name_prefix" : "myindex-",
-        "date_rounding" : "m"
+        "date_rounding" : "M"
       }
     }
   ]
 }
 --------------------------------------------------
+// CONSOLE
+
 
 Using that pipeline for an index request:
 
 [source,js]
 --------------------------------------------------
-PUT /myindex/type/1?pipeline=1
+PUT /myindex/type/1?pipeline=monthlyindex
 {
   "date1" : "2016-04-25T12:02:01.789Z"
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
-The above request will not index this document into the `myindex` index, but into the `myindex-2016-04-01` index.
-This is because the date is being rounded by month.
+[source,js]
+--------------------------------------------------
+{
+  "_index" : "myindex-2016-04-01",
+  "_type" : "type",
+  "_id" : "1",
+  "_version" : 1,
+  "result" : "created",
+  "_shards" : {
+    "total" : 2,
+    "successful" : 1,
+    "failed" : 0
+  },
+  "created" : true
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+
+The above request will not index this document into the `myindex` index, but into the `myindex-2016-04-01` index because
+it was rounded by month. This is because the date-index-name-processor overrides the `_index` property of the document.
+
+To see the date-math value of the index supplied in the actual index request which resulted in the above document being
+indexed into `myindex-2016-04-01` we can inspect the effects of the processor using a simulate request.
+
+
+[source,js]
+--------------------------------------------------
+POST _ingest/pipeline/_simulate
+{
+  "pipeline" :
+  {
+    "description": "monthly date-time index naming",
+    "processors" : [
+      {
+        "date_index_name" : {
+          "field" : "date1",
+          "index_name_prefix" : "myindex-",
+          "date_rounding" : "M"
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_source": {
+        "date1": "2016-04-25T12:02:01.789Z"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+and the result:
+
+[source,js]
+--------------------------------------------------
+{
+  "docs" : [
+    {
+      "doc" : {
+        "_id" : "_id",
+        "_index" : "<myindex-{2016-04-25||/M{yyyy-MM-dd|UTC}}>",
+        "_type" : "_type",
+        "_source" : {
+          "date1" : "2016-04-25T12:02:01.789Z"
+        },
+        "_ingest" : {
+          "timestamp" : "2016-08-11T12:00:01.222Z"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2016-08-11T12:00:01.222Z/$body.docs.0.doc._ingest.timestamp/]
+
+The above example shows that `_index` was set to `<myindex-{2016-04-25||/M{yyyy-MM-dd|UTC}}>`. Elasticsearch
+understands this to mean `2016-04-01` as is explained in the <<date-math-index-names, date math index name documentation>>
 
 [[date-index-name-options]]
 .Date index name options

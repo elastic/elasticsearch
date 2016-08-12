@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class GeoDistanceIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class);
     }
 
     public void testSimpleDistance() throws Exception {

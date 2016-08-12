@@ -78,7 +78,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(GceDiscoveryPlugin.class, TestPlugin.class);
+        return Arrays.asList(GceDiscoveryPlugin.class, TestPlugin.class);
     }
 
     @Override

@@ -65,6 +65,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -96,7 +97,7 @@ public class GeoFilterIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class); // uses index.version.created
+        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
     }
 
     private static boolean intersectSupport;

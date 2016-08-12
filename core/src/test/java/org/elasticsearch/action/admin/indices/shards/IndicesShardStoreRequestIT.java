@@ -41,6 +41,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -64,7 +65,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList( MockFSIndexStore.TestPlugin.class);
+        return Arrays.asList( MockFSIndexStore.TestPlugin.class);
     }
 
     public void testEmpty() {

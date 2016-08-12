@@ -61,6 +61,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -95,7 +96,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class, MockFSIndexStore.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class, MockFSIndexStore.TestPlugin.class);
     }
 
     private void assertRecoveryStateWithoutStage(RecoveryState state, int shardId, Type type,

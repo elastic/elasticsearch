@@ -172,14 +172,16 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
+    public ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
         Context ctx = Context.enter();
         try {
             Scriptable scope = ctx.newObject(globalScope);
             scope.setPrototype(globalScope);
             scope.setParentScope(null);
-            for (Map.Entry<String, Object> entry : vars.entrySet()) {
-                ScriptableObject.putProperty(scope, entry.getKey(), entry.getValue());
+            if (vars != null) {
+                for (Map.Entry<String, Object> entry : vars.entrySet()) {
+                    ScriptableObject.putProperty(scope, entry.getKey(), entry.getValue());
+                }
             }
 
             return new JavaScriptExecutableScript((Script) compiledScript.compiled(), scope);

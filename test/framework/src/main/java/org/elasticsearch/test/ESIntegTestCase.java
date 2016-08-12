@@ -1660,13 +1660,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return Collections.emptyList();
     }
 
-    /** Helper method to create list of plugins without specifying generic types. */
-    @SafeVarargs
-    @SuppressWarnings("varargs") // due to type erasure, the varargs type is non-reifiable, which causes this warning
-    protected final Collection<Class<? extends Plugin>> pluginList(Class<? extends Plugin>... plugins) {
-        return Arrays.asList(plugins);
-    }
-
     /**
      * This method is used to obtain additional settings for clients created by the internal cluster.
      * These settings will be applied on the client in addition to some randomized settings defined in

@@ -38,6 +38,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 
@@ -48,7 +49,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockFSIndexStore.TestPlugin.class);
+        return Arrays.asList(MockFSIndexStore.TestPlugin.class);
     }
 
     public void testRandomDirectoryIOExceptions() throws IOException, InterruptedException, ExecutionException {

@@ -37,6 +37,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -64,7 +65,7 @@ public class SimpleSortIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(CustomScriptPlugin.class, InternalSettingsPlugin.class);
+        return Arrays.asList(CustomScriptPlugin.class, InternalSettingsPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {

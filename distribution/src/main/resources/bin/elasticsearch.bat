@@ -62,7 +62,7 @@ SET HOSTNAME=%COMPUTERNAME%
 
 if "%ES_JVM_OPTIONS%" == "" (
 rem '0' is the batch file, '~dp' appends the drive and path
-set ES_JVM_OPTIONS="%~dp0\..\config\jvm.options"
+set ES_JVM_OPTIONS=%~dp0\..\config\jvm.options
 )
 
 @setlocal

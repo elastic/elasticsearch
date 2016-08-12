@@ -149,7 +149,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InterceptingTransportService.TestPlugin.class, CustomScriptPlugin.class);
+        return Arrays.asList(InterceptingTransportService.TestPlugin.class, CustomScriptPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {

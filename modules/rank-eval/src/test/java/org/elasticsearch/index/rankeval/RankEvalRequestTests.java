@@ -23,15 +23,6 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.rankeval.PrecisionAtN.Rating;
-import org.elasticsearch.index.rankeval.QuerySpec;
-import org.elasticsearch.index.rankeval.RankEvalAction;
-import org.elasticsearch.index.rankeval.RankEvalPlugin;
-import org.elasticsearch.index.rankeval.RankEvalRequest;
-import org.elasticsearch.index.rankeval.RankEvalRequestBuilder;
-import org.elasticsearch.index.rankeval.RankEvalResponse;
-import org.elasticsearch.index.rankeval.RankEvalSpec;
-import org.elasticsearch.index.rankeval.RatedDocument;
-import org.elasticsearch.index.rankeval.RatedDocumentKey;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -48,12 +39,12 @@ import java.util.Set;
 public class RankEvalRequestTests  extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return pluginList(RankEvalPlugin.class);
+        return Arrays.asList(RankEvalPlugin.class);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(RankEvalPlugin.class);
+        return Arrays.asList(RankEvalPlugin.class);
     }
 
     @Before

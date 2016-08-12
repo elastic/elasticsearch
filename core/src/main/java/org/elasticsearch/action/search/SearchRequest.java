@@ -36,8 +36,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-import static org.elasticsearch.search.Scroll.readScroll;
-
 /**
  * A request to execute search against one or more indices (or all). Best created using
  * {@link org.elasticsearch.client.Requests#searchRequest(String...)}.
@@ -287,9 +285,7 @@ public final class SearchRequest extends ActionRequest<SearchRequest> implements
         }
         routing = in.readOptionalString();
         preference = in.readOptionalString();
-        if (in.readBoolean()) {
-            scroll = readScroll(in);
-        }
+        scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
@@ -306,7 +302,7 @@ public final class SearchRequest extends ActionRequest<SearchRequest> implements
         }
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-        out.writeOptionalStreamable(scroll);
+        out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);

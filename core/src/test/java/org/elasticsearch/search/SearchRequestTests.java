@@ -46,7 +46,6 @@ public class SearchRequestTests extends ESTestCase {
 
     @BeforeClass
     public static void beforeClass() {
-
         IndicesModule indicesModule = new IndicesModule(emptyList()) {
             @Override
             protected void configure() {
@@ -66,7 +65,7 @@ public class SearchRequestTests extends ESTestCase {
     }
 
     public void testSerialization() throws Exception {
-        SearchRequest searchRequest = new SearchRequest();
+        SearchRequest searchRequest = createSearchRequest();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             searchRequest.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
@@ -136,7 +135,6 @@ public class SearchRequestTests extends ESTestCase {
         assertEquals("equals is not symmetric", thirdSearchRequest, firstSearchRequest);
 
         boolean changed = false;
-
         if (randomBoolean()) {
             secondSearchRequest.indices(generateRandomStringArray(10, 10, false, false));
             if (Arrays.equals(secondSearchRequest.indices(), firstSearchRequest.indices()) == false) {

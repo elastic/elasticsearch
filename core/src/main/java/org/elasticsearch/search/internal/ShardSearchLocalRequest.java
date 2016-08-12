@@ -35,8 +35,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.search.Scroll.readScroll;
-
 /**
  * Shard level search request that gets created and consumed on the local node.
  * Used by warmers and by api that need to create a search context within their execution.
@@ -168,12 +166,8 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         shardId = ShardId.readShardId(in);
         searchType = SearchType.fromId(in.readByte());
         numberOfShards = in.readVInt();
-        if (in.readBoolean()) {
-            scroll = readScroll(in);
-        }
-        if (in.readBoolean()) {
-            source = new SearchSourceBuilder(in);
-        }
+        scroll = in.readOptionalWriteable(Scroll::new);
+        source = in.readOptionalWriteable(SearchSourceBuilder::new);
         types = in.readStringArray();
         filteringAliases = in.readStringArray();
         nowInMillis = in.readVLong();
@@ -186,19 +180,8 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         if (!asKey) {
             out.writeVInt(numberOfShards);
         }
-        if (scroll == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            scroll.writeTo(out);
-        }
-        if (source == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            source.writeTo(out);
-
-        }
+        out.writeOptionalWriteable(scroll);
+        out.writeOptionalWriteable(source);
         out.writeStringArray(types);
         out.writeStringArrayNullable(filteringAliases);
         if (!asKey) {

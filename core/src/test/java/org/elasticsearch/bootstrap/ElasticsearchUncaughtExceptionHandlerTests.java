@@ -20,7 +20,6 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -140,7 +139,6 @@ public class ElasticsearchUncaughtExceptionHandlerTests extends ESTestCase {
         assertFatal(new IOError(new IOException()));
         assertNonFatal(new RuntimeException());
         assertNonFatal(new UncheckedIOException(new IOException()));
-        assertNonFatal(new AssertionError(new AlreadyClosedException("closed")));
     }
 
     private void assertFatal(Throwable cause) {

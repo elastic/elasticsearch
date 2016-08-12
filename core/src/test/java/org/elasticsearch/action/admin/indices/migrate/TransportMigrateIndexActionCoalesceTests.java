@@ -21,13 +21,11 @@ package org.elasticsearch.action.admin.indices.migrate;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.migrate.MigrateIndexAction;
-import org.elasticsearch.action.admin.indices.migrate.MigrateIndexRequest;
-import org.elasticsearch.action.admin.indices.migrate.MigrateIndexResponse;
-import org.elasticsearch.action.admin.indices.migrate.MigrateIndexTask;
-import org.elasticsearch.action.admin.indices.migrate.TransportMigrateIndexAction;
+import org.elasticsearch.action.admin.indices.migrate.TransportMigrateIndexAction.ObservingOperation;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -43,7 +41,6 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
@@ -80,35 +77,35 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
 
         MockAction action = new MockAction() {
             @Override
-            void startMigration(MigrateIndexTask task) {
-                task.getListener().onResponse(response);
+            void shortCircuitMigration(ActingOperation operation) {
+                operation.listener.onResponse(response);
             }
         };
         action.masterOperation(request("test"), listener);
         assertSame(response, expectSuccess(listener));
         // The task shouldn't be available because it is no longer running
-        assertNull(action.getRunningTask("test"));
+        action.withRunningOperation("test", op -> assertNull(op));
 
         // Just for completeness sake, we'll test failure anyway. It shouldn't be different, but it is simple enough to check.
         Exception exception = new Exception();
         action = new MockAction() {
             @Override
-            void startMigration(MigrateIndexTask task) {
-                task.getListener().onFailure(exception);
+            void shortCircuitMigration(ActingOperation operation) {
+                operation.listener.onFailure(exception);
             }
         };
         action.masterOperation(request("test"), listener);
         assertSame(exception, expectFailure(listener));
         // The task shouldn't be available because it is no longer running
-        assertNull(action.getRunningTask("test"));
+        action.withRunningOperation("test", op -> assertNull(op));
     }
 
     /**
      * Tests that concurrent migration requests to different indexes never block one another.
      *
-     * We do this by launching a bunch of concurrent requests, all to different indexes and blocking about half of them until on startup. We
-     * start them all at about the same time and assert that only the unblocked ones finish. Then we unblock the remainder and assert that
-     * they all finished.
+     * We do this by launching a bunch of concurrent requests, all to different indexes and blocking about half of them on startup. We start
+     * them all at about the same time and assert that only the unblocked ones finish. Then we unblock the remainder and assert that they
+     * all finished.
      */
     public void testManyRequestsToDifferentIndexesDoNotBlockEachOther() throws Exception {
         int requests = between(5, 30);
@@ -125,8 +122,8 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
         }
         MockAction action = new MockAction() {
             @Override
-            void startMigration(MigrateIndexTask task) {
-                int requestNumber = Integer.parseInt(task.getRequest().getCreateIndexRequest().index());
+            void shortCircuitMigration(ActingOperation operation) {
+                int requestNumber = Integer.parseInt(operation.request.getCreateIndexRequest().index());
                 if (block[requestNumber]) {
                     try {
                         blockLatch.await();
@@ -135,9 +132,9 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
                     }
                 }
                 if (succeed[requestNumber]) {
-                    task.getListener().onResponse(response);
+                    operation.listener.onResponse(response);
                 } else {
-                    task.getListener().onFailure(exception);
+                    operation.listener.onFailure(exception);
                 }
             }
         };
@@ -149,18 +146,17 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
         }
 
         for (int i = 0; i < requests; i++) {
+            String destinationIndex = Integer.toString(i);
             if (block[i]) {
-                String destinationIndex = Integer.toString(i);
                 assertBusy(() -> {
                     // We're sure that that task is still running so we can assert that it is sane
-                    MigrateIndexTask task = action.getRunningTask(destinationIndex);
-                    assertNotNull(task);
-                    assertThat(task.getDuplicates(), empty());
+                    action.withRunningOperation(destinationIndex, op -> {
+                        assertNotNull(op);
+                        assertThat(op.observers, empty());
+                    });
                 });
-                /*
-                 * Verify that we haven't yet got a response to this listener. We can't verify that we *won't* get one until we've unblocked
-                 * the latch, but with this we can be sort of, mostly, sure that we didn't. Which is good enough for this test.
-                 */
+                /* Verify that we haven't yet got a response to this listener. We can't verify that we *won't* get one until we've unblocked
+                 * the latch, but with this we can be sort of, mostly, sure that we didn't. Which is good enough for this test. */
                 verify(listeners.get(i), never()).onResponse(any());
                 verify(listeners.get(i), never()).onFailure(any());
             } else {
@@ -170,7 +166,7 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
                     assertSame(exception, expectFailure(listeners.get(i)));
                 }
                 // The task shouldn't be available because it is no longer running
-                assertNull(action.getRunningTask("test"));
+                action.withRunningOperation(destinationIndex, op -> assertNull(op));
             }
         }
         blockLatch.countDown();
@@ -181,7 +177,8 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
                 assertSame(exception, expectFailure(listeners.get(i)));
             }
             // The task shouldn't be available because it is no longer running
-            assertNull(action.getRunningTask("test"));
+            String destinationIndex = Integer.toString(i);
+            action.withRunningOperation(destinationIndex, op -> assertNull(op));
         }
     }
 
@@ -196,7 +193,7 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
         CountDownLatch blockLatch = new CountDownLatch(1);
         MockAction action = new MockAction() {
             @Override
-            void startMigration(MigrateIndexTask task) {
+            void shortCircuitMigration(ActingOperation operation) {
                 try {
                     assertFalse("Tried to start the migration twice! Coalesce failure!", blockingMainTask.getAndSet(true));
                     blockLatch.await();
@@ -204,9 +201,9 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
                     throw new RuntimeException(e);
                 }
                 if (shouldSucceed) {
-                    task.getListener().onResponse(response);
+                    operation.listener.onResponse(response);
                 } else {
-                    task.getListener().onFailure(exception);
+                    operation.listener.onFailure(exception);
                 }
             }
         };
@@ -216,35 +213,20 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
             threadPool.generic().execute(() -> action.masterOperation(request("test"), listener));
         }
 
-        /*
-         * Wait until one task clearly "wins" and starts to collect duplicates, failing the test if we get multiple tasks collecting
-         * duplicates.
-         */
-        MigrateIndexTask mainTask = null;
-        long timeout = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
-        do {
-            MigrateIndexTask task = action.getRunningTask("test");
-            if (task != null && false == task.getDuplicates().isEmpty()) {
-                if (mainTask != null) {
-                    fail("Found two 'main' tasks");
-                }
-                mainTask = task;
+        // All observers should register in a few milliseconds.
+        assertBusy(() -> action.withRunningOperation("test", op -> {
+            assertNotNull(op);
+            assertEquals(requests - 1, op.observers.size());
+        }));
+        // Now that all observers are registered we can assert that they all point to the main operation
+        action.withRunningOperation("test", op -> {
+            for (ObservingOperation observer : op.observers) {
+                assertSame(op, observer.waitingFor);
             }
-            if (System.nanoTime() - timeout > 0) {
-                fail("Didn't find a 'main' task after 10 seconds. This is the task we found [" + task + "]");
-            }
-        } while (mainTask == null);
-        // Wait for all of the duplicates to register.
-        MigrateIndexTask finalMainTask = mainTask;
-        assertBusy(() -> assertEquals(requests - 1, finalMainTask.getDuplicates().size()));
-        for (MigrateIndexTask dupe : mainTask.getDuplicates()) {
-            assertSame(mainTask, dupe.getWaitingFor());
-        }
+        });
         for (int i = 0; i < requests; i++) {
-            /*
-             * Verify that we haven't yet got a response to this listener. We can't verify that we *won't* get one until we've unblocked the
-             * latch, but with this we can be sort of, mostly, sure that we didn't. Which is good enough for this test.
-             */
+            /* Verify that we haven't yet got a response to this listener. We can't verify that we *won't* get one until we've unblocked the
+             * latch, but with this we can be sort of, mostly, sure that we didn't. Which is good enough for this test. */
             verify(listeners.get(i), never()).onResponse(any());
             verify(listeners.get(i), never()).onFailure(any());
         }
@@ -255,9 +237,9 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
             } else {
                 assertSame(exception, expectFailure(listeners.get(i)));
             }
-            // The task shouldn't be available because it is no longer running
-            assertNull(action.getRunningTask("test"));
         }
+        // The task should finish.
+        assertBusy(() -> action.withRunningOperation("test", op -> assertNull(op)));
     }
 
     private MigrateIndexRequest request(String destIndex) {
@@ -283,7 +265,7 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
         return onFailureCaptor.getValue();
     }
 
-    private class MockAction extends TransportMigrateIndexAction {
+    private abstract class MockAction extends TransportMigrateIndexAction {
         public MockAction() {
             super(Settings.EMPTY, mock(TransportService.class), null, TransportMigrateIndexActionCoalesceTests.this.threadPool,
                     new ActionFilters(emptySet()), new IndexNameExpressionResolver(Settings.EMPTY), null, null);
@@ -293,8 +275,11 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
          * Testing wrapper around the real
          * {@link TransportMigrateIndexAction#masterOperation(Task, MigrateIndexRequest, ClusterState, ActionListener)}.
          */
-        public void masterOperation(MigrateIndexRequest request, ActionListener<MigrateIndexResponse> listener) {
-            masterOperation(request.createTask(0, "test", MigrateIndexAction.NAME, null), request, null, listener);
+        public MigrateIndexTask masterOperation(MigrateIndexRequest request, ActionListener<MigrateIndexResponse> listener) {
+            MigrateIndexTask task = request.createTask(0, "test", MigrateIndexAction.NAME, null);
+            ClusterState emptyState = ClusterState.builder(ClusterName.DEFAULT).build();
+            masterOperation(task, request, emptyState, listener);
+            return task; // NOCOMMIT add assertions about what is stored in the task
         }
 
         @Override
@@ -303,9 +288,25 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
         }
 
         @Override
-        void startMigration(MigrateIndexTask task) {
-            throw new RuntimeException("Tests should override this to short circuit. "
-                    + "We aren't interested in testing the entire migration implementation, just the coalescing part.");
+        Client client(Task task) {
+            // Not needed and lets us skip setting up a bunch of mocks
+            return null;
         }
+
+        Operation buildOperation(Task task, MigrateIndexRequest request, ActionListener<MigrateIndexResponse> listener) {
+            Operation operation = super.buildOperation(task, request, listener);
+            if (operation instanceof ActingOperation) {
+                final ActingOperation acting = (ActingOperation) operation;
+                operation = new Operation() {
+                    @Override
+                    void start() {
+                        shortCircuitMigration(acting);
+                    }
+                };
+            }
+            return operation;
+        }
+
+        abstract void shortCircuitMigration(ActingOperation operation);
     }
 }

@@ -23,13 +23,9 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
@@ -94,8 +90,8 @@ public class MigrateIndexRequest extends AcknowledgedRequest<MigrateIndexRequest
     }
 
     @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-        return new MigrateIndexTask(id, type, action, getDescription(), getParentTask(), this);
+    public MigrateIndexTask createTask(long id, String type, String action, TaskId parentTaskId) {
+        return new MigrateIndexTask(id, type, action, getDescription(), getParentTask());
     }
 
     /**

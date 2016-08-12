@@ -25,11 +25,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -58,7 +55,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
@@ -80,7 +79,7 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
     /**
      * The running migrate actions on this node. All access to the map are synchronized on it.
      */
-    private final Map<String, MigrateIndexTask> runningTasks = new HashMap<>();
+    private final Map<String, ActingOperation> runningOperations = new HashMap<>();
     /**
      * Shared instance of the client that doesn't assign any parent task information.
      */
@@ -116,12 +115,9 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
                 indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request.indices()));
     }
 
-    /**
-     * Get the running task to migrate to {@code destinationIndex} if there is one, null if there isn't one.
-     */
-    MigrateIndexTask getRunningTask(String destinationIndex) {
-        synchronized (runningTasks) {
-            return runningTasks.get(destinationIndex);
+    void withRunningOperation(String destinationIndex, Consumer<ActingOperation> consumer) {
+        synchronized (runningOperations) {
+            consumer.accept(runningOperations.get(destinationIndex));
         }
     }
 
@@ -132,117 +128,17 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
     }
 
     @Override
-    protected final void masterOperation(Task t, MigrateIndexRequest request, ClusterState state,
+    protected final void masterOperation(Task task, MigrateIndexRequest request, ClusterState state,
             ActionListener<MigrateIndexResponse> listener) {
         if (false == preflightChecks(request.getCreateIndexRequest(), state.metaData())) {
             // Hurray! No work to do!
             listener.onResponse(new MigrateIndexResponse(true, true));
             return;
         }
-        MigrateIndexTask task = (MigrateIndexTask) t;
-        TaskId thisTaskId = new TaskId(clusterService.localNode().getEphemeralId(), task.getId());
-        ParentTaskAssigningClient client = new ParentTaskAssigningClient(sharedClient, thisTaskId);
-        task.setListener(listener);
-        Operation operation = new Operation(client, request, listener);
-        coalesceConcurrentRequestsToCreateSameIndex(task);
-    }
 
-    private class Operation {
-        private final Client client;
-        private final MigrateIndexRequest request;
-        private final ActionListener<MigrateIndexResponse> listener;
-
-        public Operation(Client client, MigrateIndexRequest request, ActionListener<MigrateIndexResponse> listener) {
-            this.client = client;
-            this.request = request;
-            this.listener = listener;
-        }
-
-        void startMigration() { // NOCOMMIT javadoc for this including which thread pool it is called on
-            /* We can't just use the CreateIndexRequest the user provided because it contains aliases and we need to handle them specially.
-             * So instead we create a copy and load it up. */
-            CreateIndexRequest template = request.getCreateIndexRequest();
-            CreateIndexRequest createIndex = new CreateIndexRequest(template.index(), template.settings());
-            for (Map.Entry<String, String> mapping : template.mappings().entrySet()) {
-                createIndex.mapping(mapping.getKey(), mapping.getValue());
-            }
-            createIndex.cause("migration");
-            createIndex.timeout(request.timeout());
-            createIndex.updateAllTypes(template.updateAllTypes());
-            createIndex.waitForActiveShards(template.waitForActiveShards());
-            // NOCOMMIT set the status
-            client.admin().indices().create(createIndex, listener(response -> {
-                if (response.isAcknowledged() == false) {
-                    throw new ElasticsearchException("Timed out waiting to create [" + template.index() + "]");
-                }
-                if (response.isShardsAcked() == false) {
-                    throw new ElasticsearchException("Timed out waiting for shards for [" + template.index() + "] to come online");
-                }
-                createdIndex();
-            }));
-        }
-
-        /**
-         * Called on the {@linkPlain ThreadPool.Names.LISTENER} thread pool when the index has been successfully created.
-         */
-        void createdIndex() {
-            documentMigrater.migrateDocuments(request.getSourceIndex(), request.getCreateIndexRequest().index(), request.getScript(),
-                    request.timeout(), client, listener(v -> {
-                        migratedDocuments();
-                    }));
-        }
-
-        /**
-         * Called on the {@linkPlain ThreadPool.Names.LISTENER} thread pool when the documents have been successfully migrated.
-         */
-        void migratedDocuments() {
-            // TODO we could certainly do better here, removing the alias and the index all in one step. But that is more complicated....
-            AliasOrIndex source = clusterService.state().metaData().getAliasAndIndexLookup().get(request.getSourceIndex());
-            IndicesAliasesRequest aliases = new IndicesAliasesRequest();
-            for (Alias alias: request.getCreateIndexRequest().aliases()) {
-                AliasAction aliasAction = new AliasAction(AliasAction.Type.ADD, request.getCreateIndexRequest().index(),
-                        alias.name());
-                aliasAction.filter(alias.filter());
-                aliasAction.searchRouting(alias.searchRouting());
-                aliasAction.indexRouting(alias.indexRouting());
-                aliases.addAliasAction(aliasAction);
-            }
-            // Strip all the aliases from the source indexes while we add aliases to the new index.
-            for (IndexMetaData indexMetaData : source.getIndices()) {
-                for (ObjectCursor<String> alias : indexMetaData.getAliases().keys()) {
-                    aliases.addAliasAction(new AliasAction(AliasAction.Type.ADD, indexMetaData.getIndex().getName(), alias.value));
-                }
-            }
-            aliases.timeout(request.timeout());
-            client.admin().indices().aliases(aliases, listener(response -> {
-                if (false == response.isAcknowledged()) {
-                    throw new ElasticsearchException("Timed out waiting to remove aliases");
-                }
-                removedIndex();
-            }));
-        }
-
-        /**
-         * Called on the {@linkPlain ThreadPool.Names.LISTENER} thread pool when the aliases have been successfully added to the new index.
-         */
-        void removedIndex() {
-            DeleteIndexRequest delete = new DeleteIndexRequest(request.getSourceIndex());
-            delete.timeout(request.timeout());
-            client.admin().indices().delete(delete, listener(response -> {
-                if (false == response.isAcknowledged()) {
-                    throw new ElasticsearchException("Timed out deleting [" + request.getSourceIndex() + "]");
-                }
-                listener.onResponse(new MigrateIndexResponse(true, false));
-            }));
-        }
-
-        /**
-         * Convert a consumer of successfully responses to and {@linkplain ActionListener} by delegating failures to the overall listener
-         * for this action. This causes any failures to be sent back to the user as catastrophic failures.
-         */
-        private <T> ActionListener<T> listener(Consumer<T> onResponse) {
-            return ActionListener.wrap(onResponse, listener::onFailure);
-        }
+        Operation operation = buildOperation(task, request, listener);
+        ((MigrateIndexTask) task).setOperation(operation);
+        operation.start();
     }
 
     /**
@@ -252,6 +148,7 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
     boolean preflightChecks(CreateIndexRequest createIndex, MetaData clusterMetaData) {
         AliasOrIndex index = clusterMetaData.getAliasAndIndexLookup().get(createIndex.index());
         if (index == null) {
+            // Destination index doesn't exist, got to create it.
             return true;
         }            
         if (index.isAlias()) {
@@ -310,58 +207,222 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
         return false;
     }
 
-    void coalesceConcurrentRequestsToCreateSameIndex(MigrateIndexTask task) {
-        synchronized (runningTasks) {
-            MigrateIndexTask currentlyRunning = runningTasks.get(task.getRequest().getCreateIndexRequest().index());
+    /**
+     * Build the Operation for this request, either a {@link ActingOperation} is this is the first request on this index or an
+     * {@link ObservingOperation} if there is already an {@linkplain ActingOperation} for this index.
+     */
+    Operation buildOperation(Task task, MigrateIndexRequest request, ActionListener<MigrateIndexResponse> listener) {
+        synchronized (runningOperations) {
+            ActingOperation currentlyRunning = runningOperations.get(request.getCreateIndexRequest().index());
             if (currentlyRunning != null) {
-                currentlyRunning.addDuplicate(task);
-                /* 
-                 * Return early here because we've done all we need to do to handle this request - we'll get the response when
-                 * currentlyRunning finishes.
-                 */
-                return;
+                // There is a request currently running for this index. We have to "follow" it.
+                // NOCOMMIT make sure that the requests are the same....
+                ObservingOperation newOperation = new ObservingOperation(currentlyRunning, listener);
+                currentlyRunning.observers.add(newOperation);
+                return newOperation;
             }
-            // Add our task to the map so another migration for the same index can wait for this one to complete.
-            runningTasks.put(task.getRequest().getCreateIndexRequest().index(), task);
-            // Wrap the listener in one that'll fire all 
-            ActionListener<MigrateIndexResponse> originalListener = task.getListener();
-            task.setListener(new ActionListener<MigrateIndexResponse>() {
+            // This Operation is the first concurrent attempt at this request.
+            ActingOperation newOperation = new ActingOperation(client(task), request, listener);
+            // Add our operation to the map so another migration for the same index can wait for this one to complete.
+            runningOperations.put(request.getCreateIndexRequest().index(), newOperation);
+            return newOperation;
+        }
+    }
+
+    /**
+     * Build the {@link Client} to use for this operation.
+     */
+    Client client(Task task) {
+        TaskId thisTaskId = new TaskId(clusterService.localNode().getEphemeralId(), task.getId());
+        return new ParentTaskAssigningClient(sharedClient, thisTaskId);
+    }
+
+    abstract class Operation {
+        abstract void start();
+    }
+
+    class ObservingOperation extends Operation {
+        /**
+         * The operation that is actually running the request. We'll be notified when it completes.
+         */
+        final ActingOperation waitingFor;
+        /**
+         * The listener for responses of this operation. 
+         */
+        private final ActionListener<MigrateIndexResponse> listener;
+
+        public ObservingOperation(ActingOperation waitingFor, ActionListener<MigrateIndexResponse> listener) {
+            this.listener = listener;
+            this.waitingFor = waitingFor;
+        }
+
+        @Override
+        void start() {
+            // Nothing to do. We just wait until waitingFor finishes and it'll call us.
+        }
+    }
+
+    class ActingOperation extends Operation {
+        /**
+         * List of all observers waiting for this operation to complete. All accesses are synchronized on
+         * {@link TransportMigrateIndexAction#runningOperations}.
+         */
+        final List<ObservingOperation> observers = new ArrayList<>();
+        /**
+         * The client to use when performing this operation.
+         */
+        private final Client client;
+        /**
+         * The request to perform this operation.
+         */
+        final MigrateIndexRequest request;
+        /**
+         * The listener for responses of this operation. Fires the listeners of all {@link #observers}.
+         */
+        final ActionListener<MigrateIndexResponse> listener;
+
+        /**
+         * Build the operation, coalescing it into any currently running operation against the same index.
+         */
+        public ActingOperation(Client client, MigrateIndexRequest request, ActionListener<MigrateIndexResponse> listenerForThisRequest) {
+            this.client = client;
+            this.request = request;
+            this.listener = new ActionListener<MigrateIndexResponse>() {
                 @Override
                 public void onResponse(MigrateIndexResponse response) {
-                    sendResponse(task, originalListener, l -> l.onResponse(response));
+                    sendResponse(listenerForThisRequest, l -> l.onResponse(response));
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    sendResponse(task, originalListener, l -> l.onFailure(e));
+                    sendResponse(listenerForThisRequest, l -> l.onFailure(e));
                 }
-            });
+            };
         }
-        // Start the actual migration outside of the synchronized block - we don't need the lock again until we send the response.
-        startMigration(task);
-    }
 
-    void sendResponse(MigrateIndexTask task, ActionListener<MigrateIndexResponse> originalListener,
-            Consumer<ActionListener<MigrateIndexResponse>> send) {
-        synchronized (runningTasks) {
-            try {
-                Executor executor = threadPool.executor(ThreadPool.Names.LISTENER); 
-                executor.execute(() -> send.accept(originalListener));
-                for (MigrateIndexTask duplicate : task.getDuplicates()) {
-                    executor.execute(new AbstractRunnable() {
-                        @Override
-                        protected void doRun() throws Exception {
-                            send.accept(duplicate.getListener());
-                        }
-
-                        public void onFailure(Exception e) {
-                            duplicate.getListener().onFailure(e);
-                        }
-                    });
+        /**
+         * Called on the {@linkplain ThreadPool.Names.GENERIC} thread pool if this is the first migration for this index.
+         */
+        @Override
+        void start() {
+            /* We can't just use the CreateIndexRequest the user provided because it contains aliases and we need to handle them specially.
+             * So instead we create a copy and load it up. */
+            CreateIndexRequest template = request.getCreateIndexRequest();
+            CreateIndexRequest createIndex = new CreateIndexRequest(template.index(), template.settings());
+            for (Map.Entry<String, String> mapping : template.mappings().entrySet()) {
+                createIndex.mapping(mapping.getKey(), mapping.getValue());
+            }
+            createIndex.cause("migration");
+            createIndex.timeout(request.timeout());
+            createIndex.updateAllTypes(template.updateAllTypes());
+            createIndex.waitForActiveShards(template.waitForActiveShards());
+            // NOCOMMIT set the status
+            client.admin().indices().create(createIndex, listener(response -> {
+                if (response.isAcknowledged() == false) {
+                    throw new ElasticsearchException("Timed out waiting to create [" + template.index() + "]");
                 }
-            } finally {
-                MigrateIndexTask removed = runningTasks.remove(task.getRequest().getCreateIndexRequest().index());
-                assert removed == task;
+                if (response.isShardsAcked() == false) {
+                    throw new ElasticsearchException("Timed out waiting for shards for [" + template.index() + "] to come online");
+                }
+                createdIndex();
+            }));
+        }
+
+        /**
+         * Called on the {@linkplain ThreadPool.Names.LISTENER} thread pool when the index has been successfully created.
+         */
+        void createdIndex() {
+            documentMigrater.migrateDocuments(request.getSourceIndex(), request.getCreateIndexRequest().index(), request.getScript(),
+                    request.timeout(), client, listener(v -> {
+                        migratedDocuments();
+                    }));
+        }
+
+        /**
+         * Called on the {@linkplain ThreadPool.Names.LISTENER} thread pool when the documents have been successfully migrated.
+         */
+        void migratedDocuments() {
+            // NOCOMMIT remove the alias and the source index in the same atomic cluster state operation
+            AliasOrIndex source = clusterService.state().metaData().getAliasAndIndexLookup().get(request.getSourceIndex());
+            IndicesAliasesRequest aliases = new IndicesAliasesRequest();
+            for (Alias alias: request.getCreateIndexRequest().aliases()) {
+                AliasAction aliasAction = new AliasAction(AliasAction.Type.ADD, request.getCreateIndexRequest().index(),
+                        alias.name());
+                aliasAction.filter(alias.filter());
+                aliasAction.searchRouting(alias.searchRouting());
+                aliasAction.indexRouting(alias.indexRouting());
+                aliases.addAliasAction(aliasAction);
+            }
+            // Strip all the aliases from the source indexes while we add aliases to the new index.
+            for (IndexMetaData indexMetaData : source.getIndices()) {
+                for (ObjectCursor<String> alias : indexMetaData.getAliases().keys()) {
+                    aliases.addAliasAction(new AliasAction(AliasAction.Type.ADD, indexMetaData.getIndex().getName(), alias.value));
+                }
+            }
+            aliases.timeout(request.timeout());
+            client.admin().indices().aliases(aliases, listener(response -> {
+                if (false == response.isAcknowledged()) {
+                    throw new ElasticsearchException("Timed out waiting to remove aliases");
+                }
+                removedIndex();
+            }));
+        }
+
+        /**
+         * Called on the {@linkplain ThreadPool.Names.LISTENER} thread pool when the aliases have been successfully added to the new index.
+         */
+        void removedIndex() {
+            DeleteIndexRequest delete = new DeleteIndexRequest(request.getSourceIndex());
+            delete.timeout(request.timeout());
+            client.admin().indices().delete(delete, listener(response -> {
+                if (false == response.isAcknowledged()) {
+                    throw new ElasticsearchException("Timed out deleting [" + request.getSourceIndex() + "]");
+                }
+                listener.onResponse(new MigrateIndexResponse(true, false));
+            }));
+        }
+
+        /**
+         * Convert a consumer of successfully responses to and {@linkplain ActionListener} by delegating failures to the overall listener
+         * for this action. This causes any failures to be sent back to the user as catastrophic failures.
+         */
+        private <T> ActionListener<T> listener(Consumer<T> onResponse) {
+            return ActionListener.wrap(onResponse, listener::onFailure);
+        }
+
+        /**
+         * Send a response to this operation's listener and the listeners for all waiting duplicates.
+         */
+        private void sendResponse(ActionListener<MigrateIndexResponse> listenerForThisRequest,
+                Consumer<ActionListener<MigrateIndexResponse>> send) {
+            class SendResponse extends AbstractRunnable {
+                private final ActionListener<MigrateIndexResponse> listener;
+
+                SendResponse(ActionListener<MigrateIndexResponse> listener) {
+                    this.listener = listener;
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    send.accept(listener);
+                }
+
+                public void onFailure(Exception e) {
+                    // NOCOMMIT figure out what to do here. We've failed to send to a listener. Maybe just warn? 
+                    throw new UnsupportedOperationException();
+                }
+            }
+            synchronized (runningOperations) {
+                try {
+                    Executor executor = threadPool.executor(ThreadPool.Names.LISTENER);
+                    executor.execute(new SendResponse(listenerForThisRequest));
+                    for (ObservingOperation observer : observers) {
+                        executor.execute(new SendResponse(observer.listener));
+                    }
+                } finally {
+                    Operation removed = runningOperations.remove(request.getCreateIndexRequest().index());
+                    assert removed == this;
+                }
             }
         }
     }

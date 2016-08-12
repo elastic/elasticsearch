@@ -19,76 +19,29 @@
 
 package org.elasticsearch.action.admin.indices.migrate;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.migrate.TransportMigrateIndexAction.DocumentMigrater;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.admin.indices.migrate.TransportMigrateIndexAction.Operation;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
-import java.util.ArrayList;
-import java.util.List;
-
-import static java.util.Collections.emptyList;
-
 public class MigrateIndexTask extends Task {
-    private final MigrateIndexRequest request;
-    private ActionListener<MigrateIndexResponse> listener;
-    private List<MigrateIndexTask> duplicates;
-    private MigrateIndexTask waitingFor;
+    private volatile Operation operation;
 
-    public MigrateIndexTask(long id, String type, String action, String description, TaskId parentTask, MigrateIndexRequest request) {
+    public MigrateIndexTask(long id, String type, String action, String description, TaskId parentTask) {
         super(id, type, action, description, parentTask);
-        this.request = request;
-    }
-
-    // NOCOMMIT be much more careful about reading and writing these and threads
-    /**
-     * The request that this task is trying to fulfill.
-     */
-    public MigrateIndexRequest getRequest() {
-        return request;
     }
 
     /**
-     * The listener that is waiting on this task to complete.
+     * Set the operation that is performing this task. It is set once when the task starts and remains constant for the lifetime of the
+     * task.
      */
-    public synchronized ActionListener<MigrateIndexResponse> getListener() {
-        return listener;
-    }    
-
-    /**
-     * Set the listener that is waiting on this task to complete.
-     */
-    public synchronized void setListener(ActionListener<MigrateIndexResponse> listener) {
-        this.listener = listener;
+    public void setOperation(Operation operation) {
+        this.operation = operation;
     }
 
     /**
-     * Setup a duplicate of this task that will wait for this task to complete.
+     * The operation that is performing this task. It'll be null before the task is properly started. 
      */
-    public synchronized void addDuplicate(MigrateIndexTask duplicate) {
-        if (duplicates == null) {
-            duplicates = new ArrayList<>();
-        }
-        duplicates.add(duplicate);
-        synchronized (duplicate) {
-            duplicate.waitingFor = this;
-        }
-    }
-
-    /**
-     * Tasks that are attempting to duplicate the effort of this task. Instead of duplicating the effort they instead block while this task
-     * is running. While this method is synchronized so it'll return a consistent copy of the duplicates list, all modification to the list
-     * is done by first synchronizing on TransportMigrateIndexAction#runningTasks and then synchronizing on this object.
-     */
-    public synchronized List<MigrateIndexTask> getDuplicates() {
-        return duplicates == null ? emptyList() : new ArrayList<>(duplicates);
-    }
-
-    /**
-     * The task that this is waiting for.
-     */
-    public synchronized MigrateIndexTask getWaitingFor() {
-       return waitingFor; 
+    Operation getOperation() {
+        return operation;
     }
 }

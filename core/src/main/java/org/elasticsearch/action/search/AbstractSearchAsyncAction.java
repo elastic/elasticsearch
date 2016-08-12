@@ -322,11 +322,8 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         // we only release search context that we did not fetch from if we are not scrolling
         if (request.scroll() == null) {
             for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults.asList()) {
-                QuerySearchResult queryResult = entry.value.queryResult().queryResult();
-                final TopDocs topDocs = queryResult.topDocs();
-                final Suggest suggest = queryResult.suggest();
-                if (((topDocs != null && topDocs.scoreDocs.length > 0) // the shard had matches
-                    ||suggest != null && suggest.hasScoreDocs()) // or had suggest docs
+                QuerySearchResult queryResult = entry.value.queryResult();
+                if (queryResult.hasHits()
                     && docIdsToLoad.get(entry.index) == null) { // but none of them made it to the global top docs
                     try {
                         DiscoveryNode node = nodes.get(entry.value.queryResult().shardTarget().nodeId());

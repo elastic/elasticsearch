@@ -353,7 +353,7 @@ if __name__ == "__main__":
   s3cmd_sync_official_repo_cmd = 's3cmd sync s3://packages.elasticsearch.org/elasticsearch/%s s3://%s' % (package_repo_version, s3_bucket_sync_to)
 
   debs3_prefix = 'elasticsearch/staging/%s-%s/repos/%s/debian' % (release_version, shortHash, package_repo_version)
-  debs3_upload_cmd = 'deb-s3 upload --preserve-versions %s/distribution/deb/elasticsearch/%s/elasticsearch-%s.deb -b %s --prefix %s --sign %s --arch amd64' % (localRepoElasticsearch, release_version, release_version, bucket, debs3_prefix, gpg_key)
+  debs3_upload_cmd = 'deb-s3 upload --preserve-versions %s/distribution/deb/elasticsearch/%s/elasticsearch-%s.deb -b %s --prefix %s --sign %s --arch amd64 --gpg-options="--digest-algo SHA512"' % (localRepoElasticsearch, release_version, release_version, bucket, debs3_prefix, gpg_key)
   debs3_list_cmd = 'deb-s3 list -b %s --prefix %s' % (bucket, debs3_prefix)
   debs3_verify_cmd = 'deb-s3 verify -b %s --prefix %s' % (bucket, debs3_prefix)
   rpms3_prefix = 'elasticsearch/staging/%s-%s/repos/%s/centos' % (release_version, shortHash, package_repo_version)

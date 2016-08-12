@@ -129,16 +129,13 @@ public class GatewayAllocator extends AbstractComponent {
         }
     }
 
-    public boolean allocateUnassigned(final RoutingAllocation allocation) {
-        boolean changed = false;
-
+    public void allocateUnassigned(final RoutingAllocation allocation) {
         RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
         unassigned.sort(PriorityComparator.getAllocationComparator(allocation)); // sort for priority ordering
 
-        changed |= primaryShardAllocator.allocateUnassigned(allocation);
-        changed |= replicaShardAllocator.processExistingRecoveries(allocation);
-        changed |= replicaShardAllocator.allocateUnassigned(allocation);
-        return changed;
+        primaryShardAllocator.allocateUnassigned(allocation);
+        replicaShardAllocator.processExistingRecoveries(allocation);
+        replicaShardAllocator.allocateUnassigned(allocation);
     }
 
     class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {

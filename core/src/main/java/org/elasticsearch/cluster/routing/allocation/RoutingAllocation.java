@@ -59,13 +59,21 @@ public class RoutingAllocation {
         private final RoutingExplanations explanations;
 
         /**
-         * Creates a new {@link RoutingAllocation.Result}
-         * @param changed a flag to determine whether the actual {@link RoutingTable} has been changed
+         * Creates a new {@link RoutingAllocation.Result} where no change to the routing table was made.
+         * @param clusterState the unchanged {@link ClusterState}
+         */
+        public static Result unchanged(ClusterState clusterState) {
+            return new Result(false, clusterState.routingTable(), clusterState.metaData(), new RoutingExplanations());
+        }
+
+        /**
+         * Creates a new {@link RoutingAllocation.Result} where changes were made to the routing table.
          * @param routingTable the {@link RoutingTable} this Result references
          * @param metaData the {@link MetaData} this Result references
+         * @param explanations Explanation for the reroute actions
          */
-        public Result(boolean changed, RoutingTable routingTable, MetaData metaData) {
-            this(changed, routingTable, metaData, new RoutingExplanations());
+        public static Result changed(RoutingTable routingTable, MetaData metaData, RoutingExplanations explanations) {
+            return new Result(true, routingTable, metaData, explanations);
         }
 
         /**
@@ -75,7 +83,7 @@ public class RoutingAllocation {
          * @param metaData the {@link MetaData} this Result references
          * @param explanations Explanation for the reroute actions
          */
-        public Result(boolean changed, RoutingTable routingTable, MetaData metaData, RoutingExplanations explanations) {
+        private Result(boolean changed, RoutingTable routingTable, MetaData metaData, RoutingExplanations explanations) {
             this.changed = changed;
             this.routingTable = routingTable;
             this.metaData = metaData;
@@ -141,6 +149,8 @@ public class RoutingAllocation {
     private boolean hasPendingAsyncFetch = false;
 
     private final long currentNanoTime;
+
+    private final RoutingChanges routingChanges = new RoutingChanges();
 
 
     /**
@@ -280,6 +290,13 @@ public class RoutingAllocation {
             return emptySet();
         }
         return unmodifiableSet(new HashSet<>(ignore));
+    }
+
+    /**
+     * Returns changes made to the routing nodes
+     */
+    public RoutingChanges changes() {
+        return routingChanges;
     }
 
     /**

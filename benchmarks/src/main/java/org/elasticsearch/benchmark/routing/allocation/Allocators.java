@@ -60,8 +60,8 @@ public final class Allocators {
         }
 
         @Override
-        public boolean allocateUnassigned(RoutingAllocation allocation) {
-            return false;
+        public void allocateUnassigned(RoutingAllocation allocation) {
+            // noop
         }
     }
 

@@ -207,7 +207,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {
             // since both deciders here return a NO decision for allocating a shard,
             // the allocator will see if it can force assign the primary, where the decision will be YES
-            new TestAllocateDecision(Decision.NO), new ForcePrimaryDecider(Decision.NO, Decision.YES)
+            new TestAllocateDecision(Decision.NO), getNoDeciderThatAllowsForceAllocate()
         });
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, false, Version.CURRENT, "allocId1");
         boolean changed = testAllocator.allocateUnassigned(allocation);
@@ -229,7 +229,8 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             // since both deciders here return a NO decision for allocating a shard,
             // the allocator will see if it can force assign the primary, where the decision will be either NO or THROTTLE,
             // so the shard will remain un-initialized
-            new TestAllocateDecision(Decision.NO), new ForcePrimaryDecider(Decision.NO, forceDecisionNo ? Decision.NO : Decision.THROTTLE)
+            new TestAllocateDecision(Decision.NO), forceDecisionNo ? getNoDeciderThatDeniesForceAllocate() :
+                                                                     getNoDeciderThatThrottlesForceAllocate()
         });
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, false, Version.CURRENT, "allocId1");
         boolean changed = testAllocator.allocateUnassigned(allocation);
@@ -251,9 +252,9 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             // since both deciders here return a NO decision for allocating a shard,
             // the allocator will see if it can force assign the primary, and in this case,
             // the TestAllocateDecision's decision for force allocating is to THROTTLE (using
-            // the default behavior) so despite the ForcePrimaryDecider returning YES for
+            // the default behavior) so despite the other decider's decision to return YES for
             // force allocating the shard, we still THROTTLE due to the decision from TestAllocateDecision
-            new TestAllocateDecision(Decision.THROTTLE), new ForcePrimaryDecider(Decision.NO, Decision.YES)
+            new TestAllocateDecision(Decision.THROTTLE), getNoDeciderThatAllowsForceAllocate()
         });
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, false, Version.CURRENT, "allocId1");
         boolean changed = testAllocator.allocateUnassigned(allocation);
@@ -644,6 +645,36 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
                                                 .build();
         ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState);
         assertThat(clusterStateHealth.getStatus().ordinal(), lessThanOrEqualTo(expectedStatus.ordinal()));
+    }
+
+    private AllocationDecider getNoDeciderThatAllowsForceAllocate() {
+        return new TestAllocateDecision(Decision.NO) {
+            @Override
+            public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                assert shardRouting.primary() : "cannot force allocate a non-primary shard " + shardRouting;
+                return Decision.YES;
+            }
+        };
+    }
+
+    private AllocationDecider getNoDeciderThatThrottlesForceAllocate() {
+        return new TestAllocateDecision(Decision.NO) {
+            @Override
+            public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                assert shardRouting.primary() : "cannot force allocate a non-primary shard " + shardRouting;
+                return Decision.THROTTLE;
+            }
+        };
+    }
+
+    private AllocationDecider getNoDeciderThatDeniesForceAllocate() {
+        return new TestAllocateDecision(Decision.NO) {
+            @Override
+            public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                assert shardRouting.primary() : "cannot force allocate a non-primary shard " + shardRouting;
+                return Decision.NO;
+            }
+        };
     }
 
     class TestAllocator extends PrimaryShardAllocator {

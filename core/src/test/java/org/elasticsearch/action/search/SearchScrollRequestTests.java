@@ -21,7 +21,6 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 
@@ -92,7 +91,7 @@ public class SearchScrollRequestTests extends ESTestCase {
             }
         }
         if (randomBoolean()) {
-            secondSearchScrollRequest.scroll(new TimeValue(randomIntBetween(100, 10000)));
+            secondSearchScrollRequest.scroll(randomPositiveTimeValue());
             if (secondSearchScrollRequest.scroll().equals(firstSearchScrollRequest.scroll()) == false) {
                 changed = true;
             }
@@ -109,7 +108,7 @@ public class SearchScrollRequestTests extends ESTestCase {
     
     public static SearchScrollRequest createSearchScrollRequest() {
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest(randomAsciiOfLengthBetween(3, 10));
-        searchScrollRequest.scroll(new TimeValue(randomIntBetween(100, 10000)));
+        searchScrollRequest.scroll(randomPositiveTimeValue());
         return searchScrollRequest;
     }
 

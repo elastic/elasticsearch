@@ -173,7 +173,7 @@ public class SearchRequestTests extends ESTestCase {
             }
         }
         if (randomBoolean()) {
-            secondSearchRequest.scroll(new TimeValue(randomIntBetween(100, 10000)));
+            secondSearchRequest.scroll(randomPositiveTimeValue());
             if (secondSearchRequest.scroll().equals(firstSearchRequest.scroll()) == false) {
                 changed = true;
             }
@@ -221,7 +221,7 @@ public class SearchRequestTests extends ESTestCase {
             searchRequest.routing(randomAsciiOfLengthBetween(3, 10));
         }
         if (randomBoolean()) {
-            searchRequest.scroll(new TimeValue(randomIntBetween(100, 10000)));
+            searchRequest.scroll(randomPositiveTimeValue());
         }
         if (randomBoolean()) {
             searchRequest.searchType(randomFrom(SearchType.values()));

@@ -198,16 +198,16 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     }
 
     /**
-     * Tests that when the nodes with prior allocations of the given shard all return a decision of NO,
+     * Tests that when the nodes with prior copies of the given shard all return a decision of NO, but
      * {@link AllocationDecider#canForceAllocatePrimary(ShardRouting, RoutingNode, RoutingAllocation)}
-     * is taken to account before forcing allocation to one of the NO nodes.
+     * returns a YES decision for at least one of those NO nodes, then we force allocate to one of them
      */
-    public void testForceAllocatePrimaryOnNoDecision() {
+    public void testForceAllocatePrimary() {
         testAllocator.addData(node1, ShardStateMetaData.NO_VERSION, "allocId1", randomBoolean());
-
-        // tests that we force allocate the primary when canForceAllocatePrimary returns YES for all deciders
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {
-            new TestAllocateDecision(Decision.NO), new ForcePrimaryDecider(Decision.YES)
+            // since both deciders here return a NO decision for allocating a shard,
+            // the allocator will see if it can force assign the primary, where the decision will be YES
+            new TestAllocateDecision(Decision.NO), new ForcePrimaryDecider(Decision.NO, Decision.YES)
         });
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, false, Version.CURRENT, "allocId1");
         boolean changed = testAllocator.allocateUnassigned(allocation);
@@ -215,29 +215,50 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         assertTrue(allocation.routingNodes().unassigned().ignored().isEmpty());
         assertEquals(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), 1);
         assertEquals(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(), node1.getId());
+    }
 
-        // tests that we do not force allocate the primary when at least one decider returns NO or THROTTLE for canForceAllocatePrimary
+    /**
+     * Tests that when the nodes with prior copies of the given shard all return a decision of NO, and
+     * {@link AllocationDecider#canForceAllocatePrimary(ShardRouting, RoutingNode, RoutingAllocation)}
+     * returns a NO or THROTTLE decision for a node, then we do not force allocate to that node.
+     */
+    public void testDontAllocateOnNoOrThrottleForceAllocationDecision() {
+        testAllocator.addData(node1, ShardStateMetaData.NO_VERSION, "allocId1", randomBoolean());
         boolean forceDecisionNo = randomBoolean();
-        deciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {
-            new TestAllocateDecision(Decision.NO), new ForcePrimaryDecider(forceDecisionNo ? Decision.NO : Decision.THROTTLE)
+        AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {
+            // since both deciders here return a NO decision for allocating a shard,
+            // the allocator will see if it can force assign the primary, where the decision will be either NO or THROTTLE,
+            // so the shard will remain un-initialized
+            new TestAllocateDecision(Decision.NO), new ForcePrimaryDecider(Decision.NO, forceDecisionNo ? Decision.NO : Decision.THROTTLE)
         });
-        allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, false, Version.CURRENT, "allocId1");
-        changed = testAllocator.allocateUnassigned(allocation);
+        RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, false, Version.CURRENT, "allocId1");
+        boolean changed = testAllocator.allocateUnassigned(allocation);
         assertTrue(changed);
         List<ShardRouting> ignored = allocation.routingNodes().unassigned().ignored();
         assertEquals(ignored.size(), 1);
         assertEquals(ignored.get(0).unassignedInfo().getLastAllocationStatus(),
             forceDecisionNo ? AllocationStatus.DECIDERS_NO : AllocationStatus.DECIDERS_THROTTLED);
         assertTrue(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).isEmpty());
+    }
 
-        // tests that we do not force allocate the primary when at least one decider's decision is to THROTTLE
-        deciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {
-            new TestAllocateDecision(Decision.THROTTLE), new ForcePrimaryDecider(Decision.YES)
+    /**
+     * Tests that when the nodes with prior copies of the given shard return a THROTTLE decision,
+     * then we do not force allocate to that node but instead throttle.
+     */
+    public void testDontForceAllocateOnThrottleDecision() {
+        testAllocator.addData(node1, ShardStateMetaData.NO_VERSION, "allocId1", randomBoolean());
+        AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {
+            // since both deciders here return a NO decision for allocating a shard,
+            // the allocator will see if it can force assign the primary, and in this case,
+            // the TestAllocateDecision's decision for force allocating is to THROTTLE (using
+            // the default behavior) so despite the ForcePrimaryDecider returning YES for
+            // force allocating the shard, we still THROTTLE due to the decision from TestAllocateDecision
+            new TestAllocateDecision(Decision.THROTTLE), new ForcePrimaryDecider(Decision.NO, Decision.YES)
         });
-        allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, false, Version.CURRENT, "allocId1");
-        changed = testAllocator.allocateUnassigned(allocation);
+        RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, false, Version.CURRENT, "allocId1");
+        boolean changed = testAllocator.allocateUnassigned(allocation);
         assertTrue(changed);
-        ignored = allocation.routingNodes().unassigned().ignored();
+        List<ShardRouting> ignored = allocation.routingNodes().unassigned().ignored();
         assertEquals(ignored.size(), 1);
         assertEquals(ignored.get(0).unassignedInfo().getLastAllocationStatus(), AllocationStatus.DECIDERS_THROTTLED);
         assertTrue(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).isEmpty());

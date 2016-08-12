@@ -102,17 +102,11 @@ public abstract class AllocationDecider extends AbstractComponent {
     /**
      * Returns a {@link Decision} whether the given primary shard can be
      * forcibly allocated on the given node. This method should only be called
-     * on nodes for which previous allocations exist for the primary shard.
-     * The default is {@link Decision#YES}.
+     * for unassigned primary shards where the node has a shard copy on disk.
      */
     public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard [" + shardRouting.shardId() + "]";
-        final Decision decision = canAllocate(shardRouting, node, allocation);
-        if (decision == Decision.NO) {
-            // on a NO decision, we can force allocate the primary by default
-            return Decision.YES;
-        } else {
-            return decision;
-        }
+        assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard " + shardRouting;
+        assert shardRouting.unassigned() : "must not call canForceAllocatePrimary on an assigned shard " + shardRouting;
+        return Decision.YES; // by default, a decider will allow force allocation of the primary
     }
 }

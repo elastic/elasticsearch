@@ -197,18 +197,27 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     /**
-     * A decider class that allows controlling the decision on force allocating a primary shard.
+     * A decider class that allows controlling the decision on both allocating (AllocationDecider#canAllocate)
+     * and force allocating (AllocationDecider#canForceAllocatePrimary) a primary shard.
      */
     protected static class ForcePrimaryDecider extends TestAllocateDecision {
         private final Decision forceAllocatePrimary;
 
-        public ForcePrimaryDecider(Decision forceAllocatePrimary) {
-            super(Decision.NO);
+        /**
+         * Constructs a decider that allows to specify decisions to be returned for both allocating a shard
+         * and for force allocating a primary shard.
+         *
+         * @param allocate the decision to return for allocating a shard
+         * @param forceAllocatePrimary the decision to return for force allocating a primary shard
+         */
+        public ForcePrimaryDecider(Decision allocate, Decision forceAllocatePrimary) {
+            super(allocate);
             this.forceAllocatePrimary = forceAllocatePrimary;
         }
 
         @Override
         public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non primary shard " + shardRouting;
             return forceAllocatePrimary;
         }
     }

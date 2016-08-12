@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.admin.indices.migrate.TransportMigrateIndexAction;
+import org.elasticsearch.action.admin.indices.migrate.TransportMigrateIndexAction.DocumentMigrater;
 import org.elasticsearch.action.main.MainAction;
 import org.elasticsearch.action.main.TransportMainAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -36,12 +38,15 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ActionModuleTests extends ESTestCase {
     public void testSetupActionsContainsKnownBuiltin() {
@@ -127,4 +132,35 @@ public class ActionModuleTests extends ESTestCase {
         };
         assertThat(ActionModule.setupRestHandlers(singletonList(registersFakeHandler)), hasItem(FakeHandler.class));
     }
+
+    public void testDefaultDocumentMigrater() {
+        assertThat(ActionModule.pickDocumentMigrater(emptyList()),
+                instanceOf(TransportMigrateIndexAction.EmptyIndexDocumentMigrater.class));
+    }
+
+    public void testPluginCanRegisterDocumentMigrater() {
+        TransportMigrateIndexAction.DocumentMigrater docMigrater = new TransportMigrateIndexAction.EmptyIndexDocumentMigrater();
+        ActionPlugin registersDocumentMigrater = new ActionPlugin() {
+            @Override
+            public DocumentMigrater getDocumentMigrater() {
+                return docMigrater;
+            }
+        };
+        assertSame(docMigrater, ActionModule.pickDocumentMigrater(singletonList(registersDocumentMigrater)));
+    }
+
+    public void testTwoPluginsRegisteringDocumentMigraterFails() {
+        TransportMigrateIndexAction.DocumentMigrater docMigrater = new TransportMigrateIndexAction.EmptyIndexDocumentMigrater();
+        ActionPlugin registersDocumentMigrater = new ActionPlugin() {
+            @Override
+            public DocumentMigrater getDocumentMigrater() {
+                return docMigrater;
+            }
+        };
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ActionModule.pickDocumentMigrater(Arrays.asList(
+                registersDocumentMigrater, registersDocumentMigrater)));
+        assertThat(e.getMessage(), containsString("More than one plugin provided an implemnetation for "
+                    + "[TransportMigrateIndexAction.DocumentMigrater]"));
+    }
+
 }

@@ -107,6 +107,9 @@ import org.elasticsearch.action.admin.indices.mapping.get.TransportGetFieldMappi
 import org.elasticsearch.action.admin.indices.mapping.get.TransportGetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
+import org.elasticsearch.action.admin.indices.migrate.MigrateIndexAction;
+import org.elasticsearch.action.admin.indices.migrate.TransportMigrateIndexAction;
+import org.elasticsearch.action.admin.indices.migrate.TransportMigrateIndexAction.DocumentMigrater;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.admin.indices.open.TransportOpenIndexAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
@@ -327,6 +330,7 @@ public class ActionModule extends AbstractModule {
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
+    private final TransportMigrateIndexAction.DocumentMigrater documentMigrater;
 
     public ActionModule(boolean ingestEnabled, boolean transportClient, Settings settings, IndexNameExpressionResolver resolver,
             ClusterSettings clusterSettings, List<ActionPlugin> actionPlugins) {
@@ -339,6 +343,7 @@ public class ActionModule extends AbstractModule {
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<String> headers = actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()).collect(Collectors.toSet());
         restController = new RestController(settings, headers);
+        documentMigrater = pickDocumentMigrater(actionPlugins);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {
@@ -396,6 +401,7 @@ public class ActionModule extends AbstractModule {
         actions.register(CreateIndexAction.INSTANCE, TransportCreateIndexAction.class);
         actions.register(ShrinkAction.INSTANCE, TransportShrinkAction.class);
         actions.register(RolloverAction.INSTANCE, TransportRolloverAction.class);
+        actions.register(MigrateIndexAction.INSTANCE, TransportMigrateIndexAction.class);
         actions.register(DeleteIndexAction.INSTANCE, TransportDeleteIndexAction.class);
         actions.register(GetIndexAction.INSTANCE, TransportGetIndexAction.class);
         actions.register(OpenIndexAction.INSTANCE, TransportOpenIndexAction.class);
@@ -620,6 +626,29 @@ public class ActionModule extends AbstractModule {
         handlers.add(handler);
     }
 
+    /**
+     * Pick the appropriate {@linkplain DocumentMigrater} from the installed {@link ActionPlugin}s.
+     */
+    static TransportMigrateIndexAction.DocumentMigrater pickDocumentMigrater(List<ActionPlugin> plugins) {
+        List<ActionPlugin> pluginsWithImplementations = new ArrayList<>();
+        TransportMigrateIndexAction.DocumentMigrater impl = null;
+        for (ActionPlugin plugin: plugins) {
+            TransportMigrateIndexAction.DocumentMigrater provided = plugin.getDocumentMigrater();
+            if (provided != null) {
+                impl = provided;
+                pluginsWithImplementations.add(plugin);
+            }
+        }
+        if (pluginsWithImplementations.size() > 1) {
+            throw new IllegalArgumentException("More than one plugin provided an implemnetation for "
+                    + "[TransportMigrateIndexAction.DocumentMigrater]: " + pluginsWithImplementations);
+        }
+        if (impl == null) {
+            impl = new TransportMigrateIndexAction.EmptyIndexDocumentMigrater();
+        }
+        return impl;
+    }
+
     @Override
     protected void configure() {
         Multibinder<ActionFilter> actionFilterMultibinder = Multibinder.newSetBinder(binder(), ActionFilter.class);
@@ -633,6 +662,8 @@ public class ActionModule extends AbstractModule {
             // Supporting classes only used when not a transport client
             bind(AutoCreateIndex.class).toInstance(autoCreateIndex);
             bind(TransportLivenessAction.class).asEagerSingleton();
+
+            bind(TransportMigrateIndexAction.DocumentMigrater.class).toInstance(documentMigrater);
 
             // register GenericAction -> transportAction Map used by NodeClient
             @SuppressWarnings("rawtypes")

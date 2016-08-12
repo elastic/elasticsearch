@@ -22,6 +22,7 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.admin.indices.migrate.TransportMigrateIndexAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
@@ -70,6 +71,16 @@ public interface ActionPlugin {
      */
     default Collection<String> getRestHeaders() {
         return Collections.emptyList();
+    }
+
+    /**
+     * Return non-null to provide an implementation for migrating documents during the {@link TransportMigrateIndexAction}. Note that only
+     * one installed plugin can do this at a time. If two installed plugins attempt to do this then Elasticsearch will refuse to start up.
+     * Note that the reindex <strong>module</strong> provides such an implementation. So if you plan to extend this in a plug you should
+     * remove the reindex module or Elasticsearch will fail to start.
+     */
+    default TransportMigrateIndexAction.DocumentMigrater getDocumentMigrater() {
+        return null;
     }
 
     final class ActionHandler<Request extends ActionRequest<Request>, Response extends ActionResponse> {

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.action.admin.indices.migrate;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.migrate.MigrateIndexAction;
 import org.elasticsearch.action.admin.indices.migrate.MigrateIndexRequest;
 import org.elasticsearch.action.admin.indices.migrate.MigrateIndexResponse;
 import org.elasticsearch.action.admin.indices.migrate.MigrateIndexTask;
+import org.elasticsearch.action.admin.indices.migrate.TransportMigrateIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -285,7 +286,7 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
     private class MockAction extends TransportMigrateIndexAction {
         public MockAction() {
             super(Settings.EMPTY, mock(TransportService.class), null, TransportMigrateIndexActionCoalesceTests.this.threadPool,
-                    new ActionFilters(emptySet()), new IndexNameExpressionResolver(Settings.EMPTY), null);
+                    new ActionFilters(emptySet()), new IndexNameExpressionResolver(Settings.EMPTY), null, null);
         }
 
         /**

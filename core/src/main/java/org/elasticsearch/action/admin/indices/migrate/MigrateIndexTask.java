@@ -20,6 +20,8 @@
 package org.elasticsearch.action.admin.indices.migrate;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.migrate.TransportMigrateIndexAction.DocumentMigrater;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 

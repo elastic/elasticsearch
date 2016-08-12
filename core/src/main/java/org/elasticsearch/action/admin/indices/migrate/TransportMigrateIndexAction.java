@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.action.admin.indices.migrate;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 
@@ -30,16 +30,11 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
-import org.elasticsearch.action.admin.indices.migrate.MigrateIndexAction;
-import org.elasticsearch.action.admin.indices.migrate.MigrateIndexRequest;
-import org.elasticsearch.action.admin.indices.migrate.MigrateIndexResponse;
-import org.elasticsearch.action.admin.indices.migrate.MigrateIndexTask;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -53,9 +48,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -66,19 +64,37 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
+/**
+ * Migrates documents from one index to a newly created index with a different mapping.
+ */
 public class TransportMigrateIndexAction extends TransportMasterNodeAction<MigrateIndexRequest, MigrateIndexResponse> {
+    /**
+     * Migrate documents from the source index to the destination index and refresh the destination index so the documents are visible.
+     * There are two implementations of this in the Elasticsearch code base, a default one in Elasticsearch core that only migrates empty
+     * indexes and a "real" one that uses {@code _reindex} to migrate non-empty indexes.
+     */
+    public interface DocumentMigrater {
+        void migrateDocuments(String sourceIndex, String destinationIndex, Script script, TimeValue timeout, Client client,
+                ActionListener<Void> listener);
+    }
     /**
      * The running migrate actions on this node. All access to the map are synchronized on it.
      */
     private final Map<String, MigrateIndexTask> runningTasks = new HashMap<>();
-    private final Client client;
+    /**
+     * Shared instance of the client that doesn't assign any parent task information.
+     */
+    private final Client sharedClient;
+    private final DocumentMigrater documentMigrater;
 
     @Inject
     public TransportMigrateIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
-            ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Client client) {
+            ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Client client,
+            DocumentMigrater documentMigrater) {
         super(settings, MigrateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 MigrateIndexRequest::new);
-        this.client = client; // NOCOMMIT ParentTaskAssigningClient
+        this.sharedClient = client;
+        this.documentMigrater = documentMigrater;
     }
 
     @Override
@@ -118,12 +134,114 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
     @Override
     protected final void masterOperation(Task t, MigrateIndexRequest request, ClusterState state,
             ActionListener<MigrateIndexResponse> listener) {
+        if (false == preflightChecks(request.getCreateIndexRequest(), state.metaData())) {
+            // Hurray! No work to do!
+            listener.onResponse(new MigrateIndexResponse(true, true));
+            return;
+        }
         MigrateIndexTask task = (MigrateIndexTask) t;
+        TaskId thisTaskId = new TaskId(clusterService.localNode().getEphemeralId(), task.getId());
+        ParentTaskAssigningClient client = new ParentTaskAssigningClient(sharedClient, thisTaskId);
         task.setListener(listener);
-        if (preflightChecks(task.getRequest().getCreateIndexRequest(), state.metaData())) {
-            coalesceConcurrentRequestsToCreateSameIndex(task);
-        } else {
-            finishHim(task, new MigrateIndexResponse(true, true));
+        Operation operation = new Operation(client, request, listener);
+        coalesceConcurrentRequestsToCreateSameIndex(task);
+    }
+
+    private class Operation {
+        private final Client client;
+        private final MigrateIndexRequest request;
+        private final ActionListener<MigrateIndexResponse> listener;
+
+        public Operation(Client client, MigrateIndexRequest request, ActionListener<MigrateIndexResponse> listener) {
+            this.client = client;
+            this.request = request;
+            this.listener = listener;
+        }
+
+        void startMigration() { // NOCOMMIT javadoc for this including which thread pool it is called on
+            /* We can't just use the CreateIndexRequest the user provided because it contains aliases and we need to handle them specially.
+             * So instead we create a copy and load it up. */
+            CreateIndexRequest template = request.getCreateIndexRequest();
+            CreateIndexRequest createIndex = new CreateIndexRequest(template.index(), template.settings());
+            for (Map.Entry<String, String> mapping : template.mappings().entrySet()) {
+                createIndex.mapping(mapping.getKey(), mapping.getValue());
+            }
+            createIndex.cause("migration");
+            createIndex.timeout(request.timeout());
+            createIndex.updateAllTypes(template.updateAllTypes());
+            createIndex.waitForActiveShards(template.waitForActiveShards());
+            // NOCOMMIT set the status
+            client.admin().indices().create(createIndex, listener(response -> {
+                if (response.isAcknowledged() == false) {
+                    throw new ElasticsearchException("Timed out waiting to create [" + template.index() + "]");
+                }
+                if (response.isShardsAcked() == false) {
+                    throw new ElasticsearchException("Timed out waiting for shards for [" + template.index() + "] to come online");
+                }
+                createdIndex();
+            }));
+        }
+
+        /**
+         * Called on the {@linkPlain ThreadPool.Names.LISTENER} thread pool when the index has been successfully created.
+         */
+        void createdIndex() {
+            documentMigrater.migrateDocuments(request.getSourceIndex(), request.getCreateIndexRequest().index(), request.getScript(),
+                    request.timeout(), client, listener(v -> {
+                        migratedDocuments();
+                    }));
+        }
+
+        /**
+         * Called on the {@linkPlain ThreadPool.Names.LISTENER} thread pool when the documents have been successfully migrated.
+         */
+        void migratedDocuments() {
+            // TODO we could certainly do better here, removing the alias and the index all in one step. But that is more complicated....
+            AliasOrIndex source = clusterService.state().metaData().getAliasAndIndexLookup().get(request.getSourceIndex());
+            IndicesAliasesRequest aliases = new IndicesAliasesRequest();
+            for (Alias alias: request.getCreateIndexRequest().aliases()) {
+                AliasAction aliasAction = new AliasAction(AliasAction.Type.ADD, request.getCreateIndexRequest().index(),
+                        alias.name());
+                aliasAction.filter(alias.filter());
+                aliasAction.searchRouting(alias.searchRouting());
+                aliasAction.indexRouting(alias.indexRouting());
+                aliases.addAliasAction(aliasAction);
+            }
+            // Strip all the aliases from the source indexes while we add aliases to the new index.
+            for (IndexMetaData indexMetaData : source.getIndices()) {
+                for (ObjectCursor<String> alias : indexMetaData.getAliases().keys()) {
+                    aliases.addAliasAction(new AliasAction(AliasAction.Type.ADD, indexMetaData.getIndex().getName(), alias.value));
+                }
+            }
+            aliases.timeout(request.timeout());
+            client.admin().indices().aliases(aliases, listener(response -> {
+                if (false == response.isAcknowledged()) {
+                    throw new ElasticsearchException("Timed out waiting to remove aliases");
+                }
+                removedIndex();
+            }));
+        }
+
+        /**
+         * Called on the {@linkPlain ThreadPool.Names.LISTENER} thread pool when the aliases have been successfully added to the new index.
+         */
+        void removedIndex() {
+            DeleteIndexRequest delete = new DeleteIndexRequest(request.getSourceIndex());
+            delete.timeout(request.timeout());
+            client.admin().indices().delete(delete, listener(response -> {
+                if (false == response.isAcknowledged()) {
+                    throw new ElasticsearchException("Timed out deleting [" + request.getSourceIndex() + "]");
+                }
+                listener.onResponse(new MigrateIndexResponse(true, false));
+            }));
+        }
+
+        /**
+         * Convert a consumer of successfully responses to and {@linkplain ActionListener} by delegating failures to the overall listener
+         * for this action. This causes any failures to be sent back to the user as catastrophic failures.
+         */
+        private <T> ActionListener<T> listener(Consumer<T> onResponse) {
+            return ActionListener.wrap(onResponse, listener::onFailure);
         }
     }
 
@@ -248,123 +366,12 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
         }
     }
 
-    void startMigration(MigrateIndexTask task) {
-        /* We can't just use the CreateIndexRequest the user provided because it contains aliases and we need to handle them specially. So
-         * instead we create a copy and load it up. */
-        CreateIndexRequest template = task.getRequest().getCreateIndexRequest();
-        CreateIndexRequest createIndex = new CreateIndexRequest(template.index(), template.settings());
-        for (Map.Entry<String, String> mapping : template.mappings().entrySet()) {
-            createIndex.mapping(mapping.getKey(), mapping.getValue());
+    public static class EmptyIndexDocumentMigrater implements DocumentMigrater {
+        @Override
+        public void migrateDocuments(String sourceIndex, String destinationIndex, Script script, TimeValue timeout, Client client,
+                ActionListener<Void> listener) {
+            // NOCOMMIT impl
+            throw new UnsupportedOperationException();
         }
-        createIndex.cause("migration");
-        createIndex.timeout(task.getRequest().timeout());
-        createIndex.updateAllTypes(template.updateAllTypes());
-        createIndex.waitForActiveShards(template.waitForActiveShards());
-        // NOCOMMIT set the status
-        client.admin().indices().create(createIndex, new ActionListener<CreateIndexResponse>() {
-            @Override
-            public void onResponse(CreateIndexResponse response) {
-                if (response.isAcknowledged() == false) {
-                    throw new ElasticsearchException("Timed out waiting to create [" + template.index() + "]");
-                }
-                if (response.isShardsAcked() == false) {
-                    // NOCOMMIT make double sure these exceptions are passed back
-                    throw new ElasticsearchException("Timed out waiting for shards for [" + template.index() + "] to come online");
-                }
-                createdIndex(task);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                task.getListener().onFailure(e);
-            }
-        });
-    }
-
-    /**
-     * Called on the {@linkPlain ThreadPool.Names.LISTENER} thread pool when the index has been successfully created.
-     */
-    void createdIndex(MigrateIndexTask task) {
-        ReindexRequest reindex = new ReindexRequest(
-                new SearchRequest(task.getRequest().getSourceIndex()),
-                new IndexRequest(task.getRequest().getCreateIndexRequest().index()));
-        reindex.setScript(task.getRequest().getScript());
-        reindex.setTimeout(task.getRequest().timeout());
-        // Refresh so the documents are visible when we switch the aliases
-        reindex.setRefresh(true); 
-        // NOCOMMIT need to link up the status so the migration action's status looks like reindex's status while this is happening
-        // NOCOMMIT should we prevent users from targeting a different index with this? probably
-        client.execute(ReindexAction.INSTANCE, reindex, new ActionListener<BulkIndexByScrollResponse>() {
-            @Override
-            public void onResponse(BulkIndexByScrollResponse response) {
-                if (false == response.getSearchFailures().isEmpty() || false == response.getBulkFailures().isEmpty()) {
-                    throw new ElasticsearchException("Reindex failed " + response.getSearchFailures() + " " + response.getBulkFailures());
-                }
-                migratedDocuments(task);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                task.getListener().onFailure(e);
-            }
-        });
-    }
-
-    void migratedDocuments(MigrateIndexTask task) {
-        // TODO we could certainly do better here, removing the alias and the index all in one step. But that is more complicated....
-        AliasOrIndex source = clusterService.state().metaData().getAliasAndIndexLookup().get(task.getRequest().getSourceIndex());
-        IndicesAliasesRequest aliases = new IndicesAliasesRequest();
-        for (Alias alias: task.getRequest().getCreateIndexRequest().aliases()) {
-            AliasAction aliasAction = new AliasAction(AliasAction.Type.ADD, task.getRequest().getCreateIndexRequest().index(),
-                    alias.name());
-            aliasAction.filter(alias.filter());
-            aliasAction.searchRouting(alias.searchRouting());
-            aliasAction.indexRouting(alias.indexRouting());
-            aliases.addAliasAction(aliasAction);
-        }
-        // Strip all the aliases from the source indexes while we add aliases to the new index.
-        for (IndexMetaData indexMetaData : source.getIndices()) {
-            for (ObjectCursor<String> alias : indexMetaData.getAliases().keys()) {
-                aliases.addAliasAction(new AliasAction(AliasAction.Type.ADD, indexMetaData.getIndex().getName(), alias.value));
-            }
-        }
-        aliases.timeout(task.getRequest().timeout());
-        client.admin().indices().aliases(aliases, new ActionListener<IndicesAliasesResponse>() {
-            @Override
-            public void onResponse(IndicesAliasesResponse response) {
-                if (false == response.isAcknowledged()) {
-                    throw new ElasticsearchException("Timed out waiting to remove aliases");
-                }
-                removedIndex(task);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                task.getListener().onFailure(e);
-            }
-        });
-    }
-
-    void removedIndex(MigrateIndexTask task) {
-        DeleteIndexRequest delete = new DeleteIndexRequest(task.getRequest().getSourceIndex());
-        delete.timeout(task.getRequest().timeout());
-        client.admin().indices().delete(delete, new ActionListener<DeleteIndexResponse>() {
-            @Override
-            public void onResponse(DeleteIndexResponse response) {
-                if (false == response.isAcknowledged()) {
-                    throw new ElasticsearchException("Timed out deleting [" + task.getRequest().getSourceIndex() + "]");
-                }
-                finishHim(task, new MigrateIndexResponse(true, false));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                task.getListener().onFailure(e);
-            }
-        });
-    }
-
-    void finishHim(MigrateIndexTask task, MigrateIndexResponse response) {
-        task.getListener().onResponse(response);
     }
 }

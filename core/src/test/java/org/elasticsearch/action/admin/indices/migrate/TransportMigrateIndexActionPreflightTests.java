@@ -17,9 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
-
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
+package org.elasticsearch.action.admin.indices.migrate;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -52,7 +50,6 @@ import static org.mockito.Mockito.mock;
 /**
  * Tests the "pre-flight" checks that {@link TransportMigrateIndexAction} takes before attempting to coalesce the request.
  */
-@Repeat(iterations=100)
 public class TransportMigrateIndexActionPreflightTests extends ESTestCase {
     private ThreadPool threadPool;
     private TransportMigrateIndexAction action;
@@ -61,7 +58,7 @@ public class TransportMigrateIndexActionPreflightTests extends ESTestCase {
     public void setup() {
         threadPool = new TestThreadPool(getTestName());
         action = new TransportMigrateIndexAction(Settings.EMPTY, mock(TransportService.class), null, threadPool,
-                new ActionFilters(emptySet()), new IndexNameExpressionResolver(Settings.EMPTY), null);
+                new ActionFilters(emptySet()), new IndexNameExpressionResolver(Settings.EMPTY), null, null);
     }
 
     @After

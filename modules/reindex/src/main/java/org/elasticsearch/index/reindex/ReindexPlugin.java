@@ -21,8 +21,9 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.indices.migrate.MigrateIndexAction;
+import org.elasticsearch.action.admin.indices.migrate.TransportMigrateIndexAction.DocumentMigrater;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -42,8 +43,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
         return Arrays.asList(new ActionHandler<>(ReindexAction.INSTANCE, TransportReindexAction.class),
                 new ActionHandler<>(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
                 new ActionHandler<>(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
-                new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class),
-                new ActionHandler<>(MigrateIndexAction.INSTANCE, TransportMigrateIndexAction.class));
+                new ActionHandler<>(RethrottleAction.INSTANCE, TransportRethrottleAction.class));
     }
 
     @Override
@@ -56,6 +56,11 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
     public List<Class<? extends RestHandler>> getRestHandlers() {
         return Arrays.asList(RestReindexAction.class, RestUpdateByQueryAction.class, RestDeleteByQueryAction.class,
                 RestRethrottleAction.class);
+    }
+
+    @Override
+    public DocumentMigrater getDocumentMigrater() {
+        return new ReindexingDocumentMigrater();
     }
 
     @Override

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.tasks;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,6 +37,9 @@ public final class TaskId implements Writeable {
     private final String nodeId;
     private final long id;
 
+    /**
+     * Construct a {@linkplain TaskId} from a node's {@link DiscoveryNode#getEphemeralId()} and the id of the task on the node.
+     */
     public TaskId(String nodeId, long id) {
         if (nodeId.isEmpty()) {
             throw new IllegalArgumentException("0 length nodeIds are reserved for EMPTY_TASK_ID and are otherwise invalid.");

@@ -31,7 +31,7 @@
 #ES_JAVA_OPTS=
 
 # Configure restart on package upgrade (true, every other setting will lead to not restarting)
-#ES_RESTART_ON_UPGRADE=true
+#RESTART_ON_UPGRADE=true
 
 # Path to the GC log file
 #ES_GC_LOG_FILE=${packaging.elasticsearch.log.dir}/gc.log

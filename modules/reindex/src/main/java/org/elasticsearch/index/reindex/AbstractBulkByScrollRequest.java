@@ -94,9 +94,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     private float requestsPerSecond = Float.POSITIVE_INFINITY;
 
     /**
-     * Should this task persist its result?
+     * Should this task store its result?
      */
-    private boolean shouldPersistResult;
+    private boolean shouldStoreResult;
 
     public AbstractBulkByScrollRequest() {
     }
@@ -301,16 +301,16 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     }
 
     /**
-     * Should this task persist its result after it has finished?
+     * Should this task store its result after it has finished?
      */
-    public Self setShouldPersistResult(boolean shouldPersistResult) {
-        this.shouldPersistResult = shouldPersistResult;
+    public Self setShouldStoreResult(boolean shouldStoreResult) {
+        this.shouldStoreResult = shouldStoreResult;
         return self();
     }
 
     @Override
-    public boolean getShouldPersistResult() {
-        return shouldPersistResult;
+    public boolean getShouldStoreResult() {
+        return shouldStoreResult;
     }
 
     @Override

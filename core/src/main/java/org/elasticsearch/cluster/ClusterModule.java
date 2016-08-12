@@ -61,7 +61,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.gateway.GatewayAllocator;
-import org.elasticsearch.tasks.TaskPersistenceService;
+import org.elasticsearch.tasks.TaskResultsService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -160,6 +160,6 @@ public class ClusterModule extends AbstractModule {
         bind(ShardStateAction.class).asEagerSingleton();
         bind(NodeMappingRefreshAction.class).asEagerSingleton();
         bind(MappingUpdatedAction.class).asEagerSingleton();
-        bind(TaskPersistenceService.class).asEagerSingleton();
+        bind(TaskResultsService.class).asEagerSingleton();
     }
 }

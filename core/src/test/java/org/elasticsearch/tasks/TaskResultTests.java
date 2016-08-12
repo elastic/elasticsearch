@@ -38,18 +38,18 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * Round trip tests for {@link PersistedTaskInfo} and those classes that it includes like {@link TaskInfo} and {@link RawTaskStatus}.
+ * Round trip tests for {@link TaskResult} and those classes that it includes like {@link TaskInfo} and {@link RawTaskStatus}.
  */
-public class PersistedTaskInfoTests extends ESTestCase {
+public class TaskResultTests extends ESTestCase {
     public void testBinaryRoundTrip() throws IOException {
         NamedWriteableRegistry registry = new NamedWriteableRegistry(Collections.singletonList(
             new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new)));
-        PersistedTaskInfo result = randomTaskResult();
-        PersistedTaskInfo read;
+        TaskResult result = randomTaskResult();
+        TaskResult read;
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             result.writeTo(out);
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
-                read = new PersistedTaskInfo(in);
+                read = new TaskResult(in);
             }
         } catch (IOException e) {
             throw new IOException("Error processing [" + result + "]", e);
@@ -62,13 +62,13 @@ public class PersistedTaskInfoTests extends ESTestCase {
          * Note that this round trip isn't 100% perfect - status will always be read as RawTaskStatus. Since this test uses RawTaskStatus
          * as the status we randomly generate then we can assert the round trip with .equals.
          */
-        PersistedTaskInfo result = randomTaskResult();
-        PersistedTaskInfo read;
+        TaskResult result = randomTaskResult();
+        TaskResult read;
         try (XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.values()).xContent())) {
             result.toXContent(builder, ToXContent.EMPTY_PARAMS);
             try (XContentBuilder shuffled = shuffleXContent(builder);
                     XContentParser parser = XContentHelper.createParser(shuffled.bytes())) {
-                read = PersistedTaskInfo.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
+                read = TaskResult.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
             }
         } catch (IOException e) {
             throw new IOException("Error processing [" + result + "]", e);
@@ -76,14 +76,14 @@ public class PersistedTaskInfoTests extends ESTestCase {
         assertEquals(result, read);
     }
 
-    private static PersistedTaskInfo randomTaskResult() throws IOException {
+    private static TaskResult randomTaskResult() throws IOException {
         switch (between(0, 2)) {
         case 0:
-            return new PersistedTaskInfo(randomBoolean(), randomTaskInfo());
+            return new TaskResult(randomBoolean(), randomTaskInfo());
         case 1:
-            return new PersistedTaskInfo(randomTaskInfo(), new RuntimeException("error"));
+            return new TaskResult(randomTaskInfo(), new RuntimeException("error"));
         case 2:
-            return new PersistedTaskInfo(randomTaskInfo(), randomTaskResponse());
+            return new TaskResult(randomTaskInfo(), randomTaskResponse());
         default:
             throw new UnsupportedOperationException("Unsupported random TaskResult constructor");
         }

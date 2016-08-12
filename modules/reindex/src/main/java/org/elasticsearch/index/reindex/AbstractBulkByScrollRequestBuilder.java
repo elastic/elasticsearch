@@ -135,10 +135,10 @@ public abstract class AbstractBulkByScrollRequestBuilder<
     }
 
     /**
-     * Should this task persist its result after it has finished?
+     * Should this task store its result after it has finished?
      */
-    public Self setShouldPersistResult(boolean shouldPersistResult) {
-        request.setShouldPersistResult(shouldPersistResult);
+    public Self setShouldStoreResult(boolean shouldStoreResult) {
+        request.setShouldStoreResult(shouldStoreResult);
         return self();
     }
 }

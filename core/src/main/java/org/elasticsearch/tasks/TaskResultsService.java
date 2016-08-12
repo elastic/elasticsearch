@@ -47,9 +47,9 @@ import java.io.IOException;
 import java.io.InputStream;
 
 /**
- * Service that can persist tasks and their results.
+ * Service that can store task results.
  */
-public class TaskPersistenceService extends AbstractComponent {
+public class TaskResultsService extends AbstractComponent {
 
     public static final String TASK_INDEX = ".tasks";
 
@@ -64,7 +64,7 @@ public class TaskPersistenceService extends AbstractComponent {
     private final TransportCreateIndexAction createIndexAction;
 
     @Inject
-    public TaskPersistenceService(Settings settings, Client client, ClusterService clusterService,
+    public TaskResultsService(Settings settings, Client client, ClusterService clusterService,
                               TransportCreateIndexAction createIndexAction) {
         super(settings);
         this.client = client;
@@ -72,7 +72,7 @@ public class TaskPersistenceService extends AbstractComponent {
         this.createIndexAction = createIndexAction;
     }
 
-    public void persist(PersistedTaskInfo taskResult, ActionListener<Void> listener) {
+    public void storeResult(TaskResult taskResult, ActionListener<Void> listener) {
 
         ClusterState state = clusterService.state();
 
@@ -86,7 +86,7 @@ public class TaskPersistenceService extends AbstractComponent {
             createIndexAction.execute(null, createIndexRequest, new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
-                    doPersist(taskResult, listener);
+                    doStoreResult(taskResult, listener);
                 }
 
                 @Override
@@ -94,7 +94,7 @@ public class TaskPersistenceService extends AbstractComponent {
                     if (ExceptionsHelper.unwrapCause(e) instanceof IndexAlreadyExistsException) {
                         // we have the index, do it
                         try {
-                            doPersist(taskResult, listener);
+                            doStoreResult(taskResult, listener);
                         } catch (Exception inner) {
                             inner.addSuppressed(e);
                             listener.onFailure(inner);
@@ -112,7 +112,7 @@ public class TaskPersistenceService extends AbstractComponent {
                     .execute(new ActionListener<PutMappingResponse>() {
                                  @Override
                                  public void onResponse(PutMappingResponse putMappingResponse) {
-                                     doPersist(taskResult, listener);
+                                     doStoreResult(taskResult, listener);
                                  }
 
                                  @Override
@@ -122,13 +122,13 @@ public class TaskPersistenceService extends AbstractComponent {
                              }
                     );
             } else {
-                doPersist(taskResult, listener);
+                doStoreResult(taskResult, listener);
             }
         }
     }
 
 
-    private void doPersist(PersistedTaskInfo taskResult, ActionListener<Void> listener) {
+    private void doStoreResult(TaskResult taskResult, ActionListener<Void> listener) {
         IndexRequestBuilder index = client.prepareIndex(TASK_INDEX, TASK_TYPE, taskResult.getTask().getTaskId().toString());
         try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
             taskResult.toXContent(builder, ToXContent.EMPTY_PARAMS);

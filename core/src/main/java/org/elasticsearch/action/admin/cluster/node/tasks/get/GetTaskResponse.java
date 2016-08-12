@@ -25,7 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.tasks.PersistedTaskInfo;
+import org.elasticsearch.tasks.TaskResult;
 
 import java.io.IOException;
 
@@ -35,19 +35,19 @@ import static java.util.Objects.requireNonNull;
  * Returns the list of tasks currently running on the nodes
  */
 public class GetTaskResponse extends ActionResponse implements ToXContent {
-    private PersistedTaskInfo task;
+    private TaskResult task;
 
     public GetTaskResponse() {
     }
 
-    public GetTaskResponse(PersistedTaskInfo task) {
+    public GetTaskResponse(TaskResult task) {
         this.task = requireNonNull(task, "task is required");
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        task = in.readOptionalWriteable(PersistedTaskInfo::new);
+        task = in.readOptionalWriteable(TaskResult::new);
     }
 
     @Override
@@ -59,7 +59,7 @@ public class GetTaskResponse extends ActionResponse implements ToXContent {
     /**
      * Get the actual result of the fetch.
      */
-    public PersistedTaskInfo getTask() {
+    public TaskResult getTask() {
         return task;
     }
 

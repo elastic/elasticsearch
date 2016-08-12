@@ -35,7 +35,7 @@ import java.security.KeyStore;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.containsString;
@@ -469,14 +469,14 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                                                     BiFunction<X509ExtendedTrustManager, SSLConfiguration, Void> trustManagerPostChecks)
                                                     throws Exception {
 
-        final AtomicInteger counter = new AtomicInteger(0);
+        final CountDownLatch reloadLatch = new CountDownLatch(1);
         final SSLService sslService = new SSLService(settings, env);
         final SSLConfiguration config = sslService.sslConfiguration(Settings.EMPTY);
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService) {
             @Override
             void reloadSSLContext(SSLConfiguration configuration) {
-                counter.incrementAndGet();
                 super.reloadSSLContext(configuration);
+                reloadLatch.countDown();
             }
         };
 
@@ -504,11 +504,11 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             trustManagerPreChecks.apply(trustManager, config);
         }
 
-        assertEquals("nothing should have called get", 0, counter.get());
+        assertEquals("nothing should have called reload", 1, reloadLatch.getCount());
 
         // modify
         modificationFunction.run();
-        assertTrue(awaitBusy(() -> counter.get() > 0));
+        reloadLatch.await();
 
         // check key manager
         if (checkKeys) {

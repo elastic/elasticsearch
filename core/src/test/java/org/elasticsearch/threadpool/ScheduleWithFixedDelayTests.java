@@ -196,6 +196,7 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
     }
 
     public void testBlockingCallOnSchedulerThreadFails() throws Exception {
+        assumeTrue("assertions must be enabled for blocking calls to fail on the scheduler thread", assertionsEnabled());
         final BaseFuture<Object> future = new BaseFuture<Object>() {};
         final TestFuture resultsFuture = new TestFuture();
         final boolean getWithTimeout = randomBoolean();
@@ -219,12 +220,13 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
 
         Cancellable cancellable = threadPool.scheduleWithFixedDelay(runnable, TimeValue.timeValueMillis(10L), Names.SAME);
         Object resultingObject = resultsFuture.get();
+        assertFalse(cancellable.isCancelled());
+        cancellable.cancel();
         assertNotNull(resultingObject);
         assertThat(resultingObject, instanceOf(Throwable.class));
         Throwable t = (Throwable) resultingObject;
         assertThat(t, instanceOf(AssertionError.class));
         assertThat(t.getMessage(), containsString("Blocking"));
-        assertFalse(cancellable.isCancelled());
     }
 
     public void testBlockingCallOnNonSchedulerThreadAllowed() throws Exception {
@@ -260,8 +262,9 @@ public class ScheduleWithFixedDelayTests extends ESTestCase {
         future.futureDone(o);
 
         final Object resultingObject = resultsFuture.get();
-        assertThat(resultingObject, sameInstance(o));
         assertFalse(cancellable.isCancelled());
+        cancellable.cancel();
+        assertThat(resultingObject, sameInstance(o));
     }
 
     public void testOnRejectionCausesCancellation() throws Exception {

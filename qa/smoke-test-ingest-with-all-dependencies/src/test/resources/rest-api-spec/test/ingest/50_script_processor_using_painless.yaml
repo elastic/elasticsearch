@@ -9,9 +9,8 @@
             "processors": [
               {
                 "script" : {
-                  "field" : "bytes_total",
                   "lang" : "painless",
-                  "inline": "return ctx.bytes_in + ctx.bytes_out"
+                  "inline": "ctx.bytes_total = ctx.bytes_in + ctx.bytes_out"
                 }
               }
             ]
@@ -46,7 +45,6 @@
             "processors": [
               {
                 "script" : {
-                  "field" : "bytes_total",
                   "lang" : "painless",
                   "file": "master"
                 }
@@ -80,7 +78,7 @@
         lang: "painless"
         body: >
           {
-            "script" : "return ctx.bytes_in + ctx.bytes_out"
+            "script" : "ctx.bytes_total = ctx.bytes_in + ctx.bytes_out"
           }
   - match: { acknowledged: true }
 
@@ -93,7 +91,6 @@
             "processors": [
               {
                 "script" : {
-                  "field" : "bytes_total",
                   "lang" : "painless",
                   "id" : "sum_bytes"
                 }

@@ -62,7 +62,7 @@ public class Scroll implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        in.readOptionalWriteable(TimeValue::new);
+        keepAlive = in.readOptionalWriteable(TimeValue::new);
     }
 
     @Override

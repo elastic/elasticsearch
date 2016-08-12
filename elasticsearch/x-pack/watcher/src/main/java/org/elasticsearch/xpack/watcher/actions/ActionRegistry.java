@@ -10,6 +10,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.support.clock.Clock;
+import org.elasticsearch.xpack.watcher.condition.ConditionRegistry;
 import org.elasticsearch.xpack.watcher.support.validation.Validation;
 import org.elasticsearch.xpack.watcher.transform.TransformRegistry;
 
@@ -23,14 +24,18 @@ import java.util.Map;
 public class ActionRegistry {
 
     private final Map<String, ActionFactory> parsers;
+    private final ConditionRegistry conditionRegistry;
     private final TransformRegistry transformRegistry;
     private final Clock clock;
     private final XPackLicenseState licenseState;
 
     @Inject
-    public ActionRegistry(Map<String, ActionFactory> parsers, TransformRegistry transformRegistry, Clock clock,
+    public ActionRegistry(Map<String, ActionFactory> parsers,
+                          ConditionRegistry conditionRegistry, TransformRegistry transformRegistry,
+                          Clock clock,
                           XPackLicenseState licenseState) {
         this.parsers = parsers;
+        this.conditionRegistry = conditionRegistry;
         this.transformRegistry = transformRegistry;
         this.clock = clock;
         this.licenseState = licenseState;
@@ -57,8 +62,7 @@ public class ActionRegistry {
                     throw new ElasticsearchParseException("could not parse action [{}] for watch [{}]. {}", id, watchId, error);
                 }
             } else if (token == XContentParser.Token.START_OBJECT && id != null) {
-                ActionWrapper action = ActionWrapper.parse(watchId, id, parser, this, transformRegistry, clock, licenseState);
-                actions.add(action);
+                actions.add(ActionWrapper.parse(watchId, id, parser, this, conditionRegistry, transformRegistry, clock, licenseState));
             }
         }
         return new ExecutableActions(actions);

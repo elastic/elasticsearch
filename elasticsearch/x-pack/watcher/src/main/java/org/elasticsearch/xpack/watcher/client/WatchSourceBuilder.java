@@ -97,12 +97,26 @@ public class WatchSourceBuilder implements ToXContent {
         return addAction(id, null, transform.build(), action.build());
     }
 
+    public WatchSourceBuilder addAction(String id, Condition.Builder condition, Action.Builder action) {
+        return addAction(id, null, condition.build(), null, action.build());
+    }
+
     public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Transform.Builder transform, Action.Builder action) {
         return addAction(id, throttlePeriod, transform.build(), action.build());
     }
 
     public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Transform transform, Action action) {
-        actions.put(id, new TransformedAction(id, action, throttlePeriod, transform));
+        actions.put(id, new TransformedAction(id, action, throttlePeriod, null, transform));
+        return this;
+    }
+
+    public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Condition.Builder condition, Transform.Builder transform,
+                                        Action.Builder action) {
+        return addAction(id, throttlePeriod, condition.build(), transform.build(), action.build());
+    }
+
+    public WatchSourceBuilder addAction(String id, TimeValue throttlePeriod, Condition condition, Transform transform, Action action) {
+        actions.put(id, new TransformedAction(id, action, throttlePeriod, condition, transform));
         return this;
     }
 
@@ -173,11 +187,14 @@ public class WatchSourceBuilder implements ToXContent {
         private final String id;
         private final Action action;
         @Nullable private final TimeValue throttlePeriod;
+        @Nullable private final Condition condition;
         @Nullable private final Transform transform;
 
-        public TransformedAction(String id, Action action, @Nullable TimeValue throttlePeriod, @Nullable Transform transform) {
+        public TransformedAction(String id, Action action, @Nullable TimeValue throttlePeriod,
+                                 @Nullable Condition condition, @Nullable Transform transform) {
             this.id = id;
             this.throttlePeriod = throttlePeriod;
+            this.condition = condition;
             this.transform = transform;
             this.action = action;
         }
@@ -187,6 +204,11 @@ public class WatchSourceBuilder implements ToXContent {
             builder.startObject();
             if (throttlePeriod != null) {
                 builder.field(Throttler.Field.THROTTLE_PERIOD.getPreferredName(), throttlePeriod);
+            }
+            if (condition != null) {
+                builder.startObject(Watch.Field.CONDITION.getPreferredName())
+                        .field(condition.type(), condition, params)
+                        .endObject();
             }
             if (transform != null) {
                 builder.startObject(Transform.Field.TRANSFORM.getPreferredName())

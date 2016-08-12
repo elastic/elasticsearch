@@ -27,6 +27,7 @@ public interface Action extends ToXContent {
             FAILURE,
             PARTIAL_FAILURE,
             THROTTLED,
+            CONDITION_FAILED,
             SIMULATED;
 
             @Override
@@ -51,12 +52,17 @@ public interface Action extends ToXContent {
             return status;
         }
 
-        public static class Failure extends Result {
+        /**
+         * {@code StoppedResult} is a {@link Result} with a {@link #reason()}.
+         * <p>
+         * Any {@code StoppedResult} should provide a reason <em>why</em> it is stopped.
+         */
+        public static class StoppedResult extends Result {
 
             private final String reason;
 
-            public Failure(String type, String reason, Object... args) {
-                super(type, Status.FAILURE);
+            protected StoppedResult(String type, Status status, String reason, Object... args) {
+                super(type, status);
                 this.reason = LoggerMessageFormat.format(reason, args);
             }
 
@@ -68,25 +74,42 @@ public interface Action extends ToXContent {
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 return builder.field(Field.REASON.getPreferredName(), reason);
             }
+
         }
 
-        public static class Throttled extends Result {
+        /**
+         * {@code Failure} is a {@link StoppedResult} with a status of {@link Status#FAILURE} for actiosn that have failed unexpectedly
+         * (e.g., an exception was thrown in a place that wouldn't expect one, like transformation or an HTTP request).
+         */
+        public static class Failure extends StoppedResult {
 
-            private final String reason;
+            public Failure(String type, String reason, Object... args) {
+                super(type, Status.FAILURE, reason, args);
+            }
+
+        }
+
+        /**
+         * {@code Throttled} is a {@link StoppedResult} with a status of {@link Status#THROTTLED} for actions that have been throttled.
+         */
+        public static class Throttled extends StoppedResult {
 
             public Throttled(String type, String reason) {
-                super(type, Status.THROTTLED);
-                this.reason = reason;
+                super(type, Status.THROTTLED, reason);
             }
 
-            public String reason() {
-                return reason;
+        }
+
+        /**
+         * {@code ConditionFailed} is a {@link StoppedResult} with a status of {@link Status#FAILURE} for actions that have been skipped
+         * because the action's condition failed (either expected or unexpected).
+         */
+        public static class ConditionFailed extends StoppedResult {
+
+            public ConditionFailed(String type, String reason, Object... args) {
+                super(type, Status.CONDITION_FAILED, reason, args);
             }
 
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(Field.REASON.getPreferredName(), reason);
-            }
         }
     }
 

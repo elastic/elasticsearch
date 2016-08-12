@@ -79,8 +79,6 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         webServer.shutdown();
     }
 
-
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         if (encryptSensitiveData == null) {
@@ -213,7 +211,10 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
                 .setTriggerEvent(triggerEvent)
                 .get();
         assertThat(executeResponse, notNullValue());
+
         contentSource = executeResponse.getRecordSource();
+
+        assertThat(contentSource.getValue("result.actions.0.status"), is("success"));
 
         value = contentSource.getValue("result.actions.0.webhook.response.status");
         assertThat(value, notNullValue());

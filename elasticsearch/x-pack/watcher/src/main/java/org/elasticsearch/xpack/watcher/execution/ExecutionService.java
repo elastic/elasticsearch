@@ -17,7 +17,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.Watcher;
-import org.elasticsearch.xpack.watcher.WatcherFeatureSet;
 import org.elasticsearch.xpack.common.stats.Counters;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.condition.Condition;
@@ -32,7 +31,6 @@ import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -349,7 +347,7 @@ public class ExecutionService extends AbstractComponent {
         }
     }
 
-    WatchRecord executeInner(WatchExecutionContext ctx) throws IOException {
+    WatchRecord executeInner(WatchExecutionContext ctx) {
         ctx.start();
         Watch watch = ctx.watch();
 

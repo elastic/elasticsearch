@@ -17,6 +17,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.xpack.watcher.actions.throttler.Throttler;
+import org.elasticsearch.xpack.watcher.condition.Condition;
+import org.elasticsearch.xpack.watcher.condition.ConditionRegistry;
+import org.elasticsearch.xpack.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.support.clock.Clock;
@@ -24,6 +27,7 @@ import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.elasticsearch.xpack.watcher.transform.TransformRegistry;
 import org.elasticsearch.xpack.watcher.watch.Payload;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
 
@@ -33,16 +37,23 @@ import java.io.IOException;
 public class ActionWrapper implements ToXContent {
 
     private String id;
-    @Nullable private final ExecutableTransform transform;
+    @Nullable
+    private final ExecutableCondition condition;
+    @Nullable
+    private final ExecutableTransform transform;
     private final ActionThrottler throttler;
     private final ExecutableAction action;
 
     public ActionWrapper(String id, ExecutableAction action) {
-        this(id, null, null, action);
+        this(id, null, null, null, action);
     }
 
-    public ActionWrapper(String id, ActionThrottler throttler, @Nullable ExecutableTransform transform, ExecutableAction action) {
+    public ActionWrapper(String id, ActionThrottler throttler,
+                         @Nullable ExecutableCondition condition,
+                         @Nullable ExecutableTransform transform,
+                         ExecutableAction action) {
         this.id = id;
+        this.condition = condition;
         this.throttler = throttler;
         this.transform = transform;
         this.action = action;
@@ -50,6 +61,10 @@ public class ActionWrapper implements ToXContent {
 
     public String id() {
         return id;
+    }
+
+    public ExecutableCondition condition() {
+        return condition;
     }
 
     public ExecutableTransform transform() {
@@ -64,7 +79,21 @@ public class ActionWrapper implements ToXContent {
         return action;
     }
 
-    public ActionWrapper.Result execute(WatchExecutionContext ctx) throws IOException {
+    /**
+     * Execute the current {@link #action()}.
+     * <p>
+     * This executes in the order of:
+     * <ol>
+     * <li>Throttling</li>
+     * <li>Conditional Check</li>
+     * <li>Transformation</li>
+     * <li>Action</li>
+     * </ol>
+     *
+     * @param ctx The current watch's context
+     * @return Never {@code null}
+     */
+    public ActionWrapper.Result execute(WatchExecutionContext ctx) {
         ActionWrapper.Result result = ctx.actionsResults().get(id);
         if (result != null) {
             return result;
@@ -73,6 +102,20 @@ public class ActionWrapper implements ToXContent {
             Throttler.Result throttleResult = throttler.throttle(id, ctx);
             if (throttleResult.throttle()) {
                 return new ActionWrapper.Result(id, new Action.Result.Throttled(action.type(), throttleResult.reason()));
+            }
+        }
+        Condition.Result conditionResult = null;
+        if (condition != null) {
+            try {
+                conditionResult = condition.execute(ctx);
+                if (conditionResult.met() == false) {
+                    return new ActionWrapper.Result(id, conditionResult, null,
+                                                    new Action.Result.ConditionFailed(action.type(), "condition not met. skipping"));
+                }
+            } catch (RuntimeException e) {
+                action.logger().error("failed to execute action [{}/{}]. failed to execute condition", e, ctx.watch().id(), id);
+                return new ActionWrapper.Result(id, new Action.Result.ConditionFailed(action.type(),
+                                                "condition failed. skipping: {}", e.getMessage()));
             }
         }
         Payload payload = ctx.payload();
@@ -84,18 +127,19 @@ public class ActionWrapper implements ToXContent {
                     action.logger().error("failed to execute action [{}/{}]. failed to transform payload. {}", ctx.watch().id(), id,
                             transformResult.reason());
                     String msg = "Failed to transform payload";
-                    return new ActionWrapper.Result(id, transformResult, new Action.Result.Failure(action.type(), msg));
+                    return new ActionWrapper.Result(id, conditionResult, transformResult, new Action.Result.Failure(action.type(), msg));
                 }
                 payload = transformResult.payload();
             } catch (Exception e) {
                 action.logger().error("failed to execute action [{}/{}]. failed to transform payload.", e, ctx.watch().id(), id);
-                return new ActionWrapper.Result(id, new Action.Result.Failure(action.type(), "Failed to transform payload. error: " +
-                        ExceptionsHelper.detailedMessage(e)));
+                return new ActionWrapper.Result(id, conditionResult, null,
+                                                new Action.Result.Failure(action.type(), "Failed to transform payload. error: {}",
+                                                    ExceptionsHelper.detailedMessage(e)));
             }
         }
         try {
             Action.Result actionResult = action.execute(id, ctx, payload);
-            return new ActionWrapper.Result(id, transformResult, actionResult);
+            return new ActionWrapper.Result(id, conditionResult, transformResult, actionResult);
         } catch (Exception e) {
             action.logger().error("failed to execute action [{}/{}]", e, ctx.watch().id(), id);
             return new ActionWrapper.Result(id, new Action.Result.Failure(action.type(), ExceptionsHelper.detailedMessage(e)));
@@ -110,6 +154,7 @@ public class ActionWrapper implements ToXContent {
         ActionWrapper that = (ActionWrapper) o;
 
         if (!id.equals(that.id)) return false;
+        if (condition != null ? !condition.equals(that.condition) : that.condition != null) return false;
         if (transform != null ? !transform.equals(that.transform) : that.transform != null) return false;
         return action.equals(that.action);
     }
@@ -117,6 +162,7 @@ public class ActionWrapper implements ToXContent {
     @Override
     public int hashCode() {
         int result = id.hashCode();
+        result = 31 * result + (condition != null ? condition.hashCode() : 0);
         result = 31 * result + (transform != null ? transform.hashCode() : 0);
         result = 31 * result + action.hashCode();
         return result;
@@ -129,6 +175,11 @@ public class ActionWrapper implements ToXContent {
         if (throttlePeriod != null) {
             builder.field(Throttler.Field.THROTTLE_PERIOD.getPreferredName(), throttlePeriod);
         }
+        if (condition != null) {
+            builder.startObject(Watch.Field.CONDITION.getPreferredName())
+                    .field(condition.type(), condition, params)
+                    .endObject();
+        }
         if (transform != null) {
             builder.startObject(Transform.Field.TRANSFORM.getPreferredName())
                     .field(transform.type(), transform, params)
@@ -139,11 +190,12 @@ public class ActionWrapper implements ToXContent {
     }
 
     static ActionWrapper parse(String watchId, String actionId, XContentParser parser,
-                               ActionRegistry actionRegistry, TransformRegistry transformRegistry,
+                               ActionRegistry actionRegistry, ConditionRegistry conditionRegistry, TransformRegistry transformRegistry,
                                Clock clock, XPackLicenseState licenseState) throws IOException {
 
         assert parser.currentToken() == XContentParser.Token.START_OBJECT;
 
+        ExecutableCondition condition = null;
         ExecutableTransform transform = null;
         TimeValue throttlePeriod = null;
         ExecutableAction action = null;
@@ -154,7 +206,9 @@ public class ActionWrapper implements ToXContent {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else {
-                if (ParseFieldMatcher.STRICT.match(currentFieldName, Transform.Field.TRANSFORM)) {
+                if (ParseFieldMatcher.STRICT.match(currentFieldName, Watch.Field.CONDITION)) {
+                    condition = conditionRegistry.parseExecutable(watchId, parser);
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Transform.Field.TRANSFORM)) {
                     transform = transformRegistry.parse(watchId, parser);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Throttler.Field.THROTTLE_PERIOD)) {
                     try {
@@ -179,27 +233,35 @@ public class ActionWrapper implements ToXContent {
         }
 
         ActionThrottler throttler = new ActionThrottler(clock, throttlePeriod, licenseState);
-        return new ActionWrapper(actionId, throttler, transform, action);
+        return new ActionWrapper(actionId, throttler, condition, transform, action);
     }
 
     public static class Result implements ToXContent {
 
         private final String id;
-        @Nullable private final Transform.Result transform;
+        @Nullable
+        private final Condition.Result condition;
+        @Nullable
+        private final Transform.Result transform;
         private final Action.Result action;
 
         public Result(String id, Action.Result action) {
-            this(id, null, action);
+            this(id, null, null, action);
         }
 
-        public Result(String id, @Nullable Transform.Result transform, Action.Result action) {
+        public Result(String id, @Nullable Condition.Result condition, @Nullable Transform.Result transform, Action.Result action) {
             this.id = id;
+            this.condition = condition;
             this.transform = transform;
             this.action = action;
         }
 
         public String id() {
             return id;
+        }
+
+        public Condition.Result condition() {
+            return condition;
         }
 
         public Transform.Result transform() {
@@ -218,6 +280,7 @@ public class ActionWrapper implements ToXContent {
             Result result = (Result) o;
 
             if (!id.equals(result.id)) return false;
+            if (condition != null ? !condition.equals(result.condition) : result.condition != null) return false;
             if (transform != null ? !transform.equals(result.transform) : result.transform != null) return false;
             return action.equals(result.action);
         }
@@ -225,6 +288,7 @@ public class ActionWrapper implements ToXContent {
         @Override
         public int hashCode() {
             int result = id.hashCode();
+            result = 31 * result + (condition != null ? condition.hashCode() : 0);
             result = 31 * result + (transform != null ? transform.hashCode() : 0);
             result = 31 * result + action.hashCode();
             return result;
@@ -235,7 +299,10 @@ public class ActionWrapper implements ToXContent {
             builder.startObject();
             builder.field(Field.ID.getPreferredName(), id);
             builder.field(Field.TYPE.getPreferredName(), action.type());
-            builder.field(Field.STATUS.getPreferredName(), action.status, params);
+            builder.field(Field.STATUS.getPreferredName(), action.status(), params);
+            if (condition != null) {
+                builder.field(Watch.Field.CONDITION.getPreferredName(), condition, params);
+            }
             if (transform != null) {
                 builder.field(Transform.Field.TRANSFORM.getPreferredName(), transform, params);
             }

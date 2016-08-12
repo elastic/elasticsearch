@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.execution;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.support.clock.Clock;
@@ -67,7 +68,6 @@ public class ExecutionServiceTests extends ESTestCase {
     private Input.Result inputResult;
 
     private WatchStore watchStore;
-    private TriggeredWatchStore triggeredWatchStore;
     private HistoryStore historyStore;
     private WatchLockService watchLockService;
     private ExecutionService executionService;
@@ -75,6 +75,8 @@ public class ExecutionServiceTests extends ESTestCase {
 
     @Before
     public void init() throws Exception {
+        TriggeredWatchStore triggeredWatchStore;
+
         payload = mock(Payload.class);
         input = mock(ExecutableInput.class);
         inputResult = mock(Input.Result.class);
@@ -87,7 +89,7 @@ public class ExecutionServiceTests extends ESTestCase {
         historyStore = mock(HistoryStore.class);
 
         WatchExecutor executor = mock(WatchExecutor.class);
-        when(executor.queue()).thenReturn(new ArrayBlockingQueue<Runnable>(1));
+        when(executor.queue()).thenReturn(new ArrayBlockingQueue<>(1));
 
         watchLockService = mock(WatchLockService.class);
         clock = new ClockMock();
@@ -95,7 +97,7 @@ public class ExecutionServiceTests extends ESTestCase {
                 watchLockService, clock);
 
         ClusterState clusterState = mock(ClusterState.class);
-        when(triggeredWatchStore.loadTriggeredWatches(clusterState)).thenReturn(new ArrayList<TriggeredWatch>());
+        when(triggeredWatchStore.loadTriggeredWatches(clusterState)).thenReturn(new ArrayList<>());
         executionService.start(clusterState);
     }
 
@@ -127,11 +129,27 @@ public class ExecutionServiceTests extends ESTestCase {
         ActionThrottler throttler = mock(ActionThrottler.class);
         when(throttler.throttle("_action", context)).thenReturn(throttleResult);
 
+        // action level conditional
+        ExecutableCondition actionCondition = null;
+        Condition.Result actionConditionResult = null;
+
+        if (randomBoolean()) {
+            Tuple<ExecutableCondition, Condition.Result> pair = whenCondition(context);
+
+            actionCondition = pair.v1();
+            actionConditionResult = pair.v2();
+        }
+
         // action level transform
-        Transform.Result actionTransformResult = mock(Transform.Result.class);
-        when(actionTransformResult.payload()).thenReturn(payload);
-        ExecutableTransform actionTransform = mock(ExecutableTransform.class);
-        when(actionTransform.execute(context, payload)).thenReturn(actionTransformResult);
+        ExecutableTransform actionTransform = null;
+        Transform.Result actionTransformResult = null;
+
+        if (randomBoolean()) {
+            Tuple<ExecutableTransform, Transform.Result> pair = whenTransform(context);
+
+            actionTransform = pair.v1();
+            actionTransformResult = pair.v2();
+        }
 
         // the action
         Action.Result actionResult = mock(Action.Result.class);
@@ -141,7 +159,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(action.type()).thenReturn("MY_AWESOME_TYPE");
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
-        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionTransform, action);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
         ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
 
         WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(clock.nowUTC())));
@@ -158,6 +176,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ActionWrapper.Result result = watchRecord.result().actionsResults().get("_action");
         assertThat(result, notNullValue());
         assertThat(result.id(), is("_action"));
+        assertThat(result.condition(), sameInstance(actionConditionResult));
         assertThat(result.transform(), sameInstance(actionTransformResult));
         assertThat(result.action(), sameInstance(actionResult));
 
@@ -208,11 +227,10 @@ public class ExecutionServiceTests extends ESTestCase {
         ActionThrottler throttler = mock(ActionThrottler.class);
         when(throttler.throttle("_action", context)).thenReturn(throttleResult);
 
-        // action level transform
-        Transform.Result actionTransformResult = mock(Transform.Result.class);
-        when(actionTransformResult.payload()).thenReturn(payload);
-        ExecutableTransform actionTransform = mock(ExecutableTransform.class);
-        when(actionTransform.execute(context, payload)).thenReturn(actionTransformResult);
+        // action level condition (unused)
+        ExecutableCondition actionCondition = randomBoolean() ? mock(ExecutableCondition.class) : null;
+        // action level transform (unused)
+        ExecutableTransform actionTransform = randomBoolean() ? mock(ExecutableTransform.class) : null;
 
         // the action
         Action.Result actionResult = mock(Action.Result.class);
@@ -221,7 +239,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableAction action = mock(ExecutableAction.class);
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
-        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionTransform, action);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
         ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
 
         WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(clock.nowUTC())));
@@ -276,11 +294,10 @@ public class ExecutionServiceTests extends ESTestCase {
         ActionThrottler throttler = mock(ActionThrottler.class);
         when(throttler.throttle("_action", context)).thenReturn(throttleResult);
 
-        // action level transform
-        Transform.Result actionTransformResult = mock(Transform.Result.class);
-        when(actionTransformResult.payload()).thenReturn(payload);
-        ExecutableTransform actionTransform = mock(ExecutableTransform.class);
-        when(actionTransform.execute(context, payload)).thenReturn(actionTransformResult);
+        // action level condition (unused)
+        ExecutableCondition actionCondition = randomBoolean() ? mock(ExecutableCondition.class) : null;
+        // action level transform (unused)
+        ExecutableTransform actionTransform = randomBoolean() ? mock(ExecutableTransform.class) : null;
 
         // the action
         Action.Result actionResult = mock(Action.Result.class);
@@ -289,7 +306,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableAction action = mock(ExecutableAction.class);
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
-        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionTransform, action);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
         ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
 
         WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(clock.nowUTC())));
@@ -343,11 +360,10 @@ public class ExecutionServiceTests extends ESTestCase {
         ActionThrottler throttler = mock(ActionThrottler.class);
         when(throttler.throttle("_action", context)).thenReturn(throttleResult);
 
-        // action level transform
-        Transform.Result actionTransformResult = mock(Transform.Result.class);
-        when(actionTransformResult.payload()).thenReturn(payload);
-        ExecutableTransform actionTransform = mock(ExecutableTransform.class);
-        when(actionTransform.execute(context, payload)).thenReturn(actionTransformResult);
+        // action level condition (unused)
+        ExecutableCondition actionCondition = randomBoolean() ? mock(ExecutableCondition.class) : null;
+        // action level transform (unused)
+        ExecutableTransform actionTransform = randomBoolean() ? mock(ExecutableTransform.class) : null;
 
         // the action
         Action.Result actionResult = mock(Action.Result.class);
@@ -356,7 +372,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableAction action = mock(ExecutableAction.class);
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
-        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionTransform, action);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
         ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
 
         WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(clock.nowUTC())));
@@ -410,6 +426,17 @@ public class ExecutionServiceTests extends ESTestCase {
         ActionThrottler throttler = mock(ActionThrottler.class);
         when(throttler.throttle("_action", context)).thenReturn(throttleResult);
 
+        // action level condition
+        ExecutableCondition actionCondition = null;
+        Condition.Result actionConditionResult = null;
+
+        if (randomBoolean()) {
+            Tuple<ExecutableCondition, Condition.Result> pair = whenCondition(context);
+
+            actionCondition = pair.v1();
+            actionConditionResult = pair.v2();
+        }
+
         // action level transform
         Transform.Result actionTransformResult = mock(Transform.Result.class);
         when(actionTransformResult.status()).thenReturn(Transform.Result.Status.FAILURE);
@@ -425,7 +452,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(action.logger()).thenReturn(logger);
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
-        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionTransform, action);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
         ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
 
         WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(clock.nowUTC())));
@@ -442,6 +469,7 @@ public class ExecutionServiceTests extends ESTestCase {
         assertThat(watchRecord.result().transformResult(), is(watchTransformResult));
         assertThat(watchRecord.result().actionsResults(), notNullValue());
         assertThat(watchRecord.result().actionsResults().count(), is(1));
+        assertThat(watchRecord.result().actionsResults().get("_action").condition(), is(actionConditionResult));
         assertThat(watchRecord.result().actionsResults().get("_action").transform(), is(actionTransformResult));
         assertThat(watchRecord.result().actionsResults().get("_action").action().status(), is(Action.Result.Status.FAILURE));
 
@@ -476,11 +504,27 @@ public class ExecutionServiceTests extends ESTestCase {
         ActionThrottler throttler = mock(ActionThrottler.class);
         when(throttler.throttle("_action", context)).thenReturn(throttleResult);
 
+        // action level conditional
+        ExecutableCondition actionCondition = null;
+        Condition.Result actionConditionResult = null;
+
+        if (randomBoolean()) {
+            Tuple<ExecutableCondition, Condition.Result> pair = whenCondition(context);
+
+            actionCondition = pair.v1();
+            actionConditionResult = pair.v2();
+        }
+
         // action level transform
-        Transform.Result actionTransformResult = mock(Transform.Result.class);
-        when(actionTransformResult.payload()).thenReturn(payload);
-        ExecutableTransform actionTransform = mock(ExecutableTransform.class);
-        when(actionTransform.execute(context, payload)).thenReturn(actionTransformResult);
+        ExecutableTransform actionTransform = null;
+        Transform.Result actionTransformResult = null;
+
+        if (randomBoolean()) {
+            Tuple<ExecutableTransform, Transform.Result> pair = whenTransform(context);
+
+            actionTransform = pair.v1();
+            actionTransformResult = pair.v2();
+        }
 
         // the action
         Action.Result actionResult = mock(Action.Result.class);
@@ -489,7 +533,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableAction action = mock(ExecutableAction.class);
         when(action.execute("_action", context, payload)).thenReturn(actionResult);
 
-        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionTransform, action);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
         ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
 
         WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(now)));
@@ -506,6 +550,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ActionWrapper.Result result = watchRecord.result().actionsResults().get("_action");
         assertThat(result, notNullValue());
         assertThat(result.id(), is("_action"));
+        assertThat(result.condition(), sameInstance(actionConditionResult));
         assertThat(result.transform(), sameInstance(actionTransformResult));
         assertThat(result.action(), sameInstance(actionResult));
 
@@ -524,17 +569,20 @@ public class ExecutionServiceTests extends ESTestCase {
         ExecutableCondition condition = mock(ExecutableCondition.class);
         when(condition.execute(any(WatchExecutionContext.class))).thenReturn(conditionResult);
 
+        // action throttler
         Throttler.Result throttleResult = mock(Throttler.Result.class);
         when(throttleResult.throttle()).thenReturn(true);
         when(throttleResult.reason()).thenReturn("_throttle_reason");
         ActionThrottler throttler = mock(ActionThrottler.class);
         when(throttler.throttle("_action", context)).thenReturn(throttleResult);
 
-        ExecutableTransform transform = mock(ExecutableTransform.class);
+        // unused with throttle
+        ExecutableCondition actionCondition = mock(ExecutableCondition.class);
+        ExecutableTransform actionTransform = mock(ExecutableTransform.class);
 
         ExecutableAction action = mock(ExecutableAction.class);
         when(action.type()).thenReturn("_type");
-        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, transform, action);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
         ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
 
         WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(now)));
@@ -552,6 +600,7 @@ public class ExecutionServiceTests extends ESTestCase {
         ActionWrapper.Result result = watchRecord.result().actionsResults().get("_action");
         assertThat(result, notNullValue());
         assertThat(result.id(), is("_action"));
+        assertThat(result.condition(), nullValue());
         assertThat(result.transform(), nullValue());
         assertThat(result.action(), instanceOf(Action.Result.Throttled.class));
         Action.Result.Throttled throttled = (Action.Result.Throttled) result.action();
@@ -559,10 +608,131 @@ public class ExecutionServiceTests extends ESTestCase {
 
         verify(condition, times(1)).execute(context);
         verify(throttler, times(1)).throttle("_action", context);
-        verify(transform, never()).execute(context, payload);
+        verify(actionCondition, never()).execute(context);
+        verify(actionTransform, never()).execute(context, payload);
     }
 
     public void testExecuteInnerConditionNotMet() throws Exception {
+        DateTime now = DateTime.now(DateTimeZone.UTC);
+        Watch watch = mock(Watch.class);
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
+        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
+
+        Condition.Result conditionResult = AlwaysCondition.Result.INSTANCE;
+        ExecutableCondition condition = mock(ExecutableCondition.class);
+        when(condition.execute(any(WatchExecutionContext.class))).thenReturn(conditionResult);
+
+        // action throttler
+        Throttler.Result throttleResult = mock(Throttler.Result.class);
+        when(throttleResult.throttle()).thenReturn(false);
+        ActionThrottler throttler = mock(ActionThrottler.class);
+        when(throttler.throttle("_action", context)).thenReturn(throttleResult);
+
+        // action condition (always fails)
+        Condition.Result actionConditionResult = mock(Condition.Result.class);
+        // note: sometimes it can be met _with_ success
+        if (randomBoolean()) {
+            when(actionConditionResult.status()).thenReturn(Condition.Result.Status.SUCCESS);
+        } else {
+            when(actionConditionResult.status()).thenReturn(Condition.Result.Status.FAILURE);
+        }
+        when(actionConditionResult.met()).thenReturn(false);
+        ExecutableCondition actionCondition = mock(ExecutableCondition.class);
+        when(actionCondition.execute(context)).thenReturn(actionConditionResult);
+
+        // unused with failed condition
+        ExecutableTransform actionTransform = mock(ExecutableTransform.class);
+
+        ExecutableAction action = mock(ExecutableAction.class);
+        when(action.type()).thenReturn("_type");
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
+        ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
+
+        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(now)));
+
+        when(watch.input()).thenReturn(input);
+        when(watch.condition()).thenReturn(condition);
+        when(watch.actions()).thenReturn(actions);
+        when(watch.status()).thenReturn(watchStatus);
+
+        WatchRecord watchRecord = executionService.executeInner(context);
+        assertThat(watchRecord.result().inputResult(), sameInstance(inputResult));
+        assertThat(watchRecord.result().conditionResult(), sameInstance(conditionResult));
+        assertThat(watchRecord.result().transformResult(), nullValue());
+        assertThat(watchRecord.result().actionsResults().count(), is(1));
+        ActionWrapper.Result result = watchRecord.result().actionsResults().get("_action");
+        assertThat(result, notNullValue());
+        assertThat(result.id(), is("_action"));
+        assertThat(result.condition(), sameInstance(actionConditionResult));
+        assertThat(result.transform(), nullValue());
+        assertThat(result.action(), instanceOf(Action.Result.ConditionFailed.class));
+        Action.Result.ConditionFailed conditionFailed = (Action.Result.ConditionFailed) result.action();
+        assertThat(conditionFailed.reason(), is("condition not met. skipping"));
+
+        verify(condition, times(1)).execute(context);
+        verify(throttler, times(1)).throttle("_action", context);
+        verify(actionCondition, times(1)).execute(context);
+        verify(actionTransform, never()).execute(context, payload);
+    }
+
+    public void testExecuteInnerConditionNotMetDueToException() throws Exception {
+        DateTime now = DateTime.now(DateTimeZone.UTC);
+        Watch watch = mock(Watch.class);
+        when(watch.id()).thenReturn(getTestName());
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
+        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event, timeValueSeconds(5));
+
+        Condition.Result conditionResult = AlwaysCondition.Result.INSTANCE;
+        ExecutableCondition condition = mock(ExecutableCondition.class);
+        when(condition.execute(any(WatchExecutionContext.class))).thenReturn(conditionResult);
+
+        // action throttler
+        Throttler.Result throttleResult = mock(Throttler.Result.class);
+        when(throttleResult.throttle()).thenReturn(false);
+        ActionThrottler throttler = mock(ActionThrottler.class);
+        when(throttler.throttle("_action", context)).thenReturn(throttleResult);
+
+        // action condition (always fails)
+        ExecutableCondition actionCondition = mock(ExecutableCondition.class);
+        when(actionCondition.execute(context)).thenThrow(new IllegalArgumentException("[expected] failed for test"));
+
+        // unused with failed condition
+        ExecutableTransform actionTransform = mock(ExecutableTransform.class);
+
+        ExecutableAction action = mock(ExecutableAction.class);
+        when(action.type()).thenReturn("_type");
+        when(action.logger()).thenReturn(logger);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
+        ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
+
+        WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(now)));
+
+        when(watch.input()).thenReturn(input);
+        when(watch.condition()).thenReturn(condition);
+        when(watch.actions()).thenReturn(actions);
+        when(watch.status()).thenReturn(watchStatus);
+
+        WatchRecord watchRecord = executionService.executeInner(context);
+        assertThat(watchRecord.result().inputResult(), sameInstance(inputResult));
+        assertThat(watchRecord.result().conditionResult(), sameInstance(conditionResult));
+        assertThat(watchRecord.result().transformResult(), nullValue());
+        assertThat(watchRecord.result().actionsResults().count(), is(1));
+        ActionWrapper.Result result = watchRecord.result().actionsResults().get("_action");
+        assertThat(result, notNullValue());
+        assertThat(result.id(), is("_action"));
+        assertThat(result.condition(), nullValue());
+        assertThat(result.transform(), nullValue());
+        assertThat(result.action(), instanceOf(Action.Result.ConditionFailed.class));
+        Action.Result.ConditionFailed conditionFailed = (Action.Result.ConditionFailed) result.action();
+        assertThat(conditionFailed.reason(), is("condition failed. skipping: [expected] failed for test"));
+
+        verify(condition, times(1)).execute(context);
+        verify(throttler, times(1)).throttle("_action", context);
+        verify(actionCondition, times(1)).execute(context);
+        verify(actionTransform, never()).execute(context, payload);
+    }
+
+    public void testExecuteConditionNotMet() throws Exception {
         DateTime now = DateTime.now(DateTimeZone.UTC);
         Watch watch = mock(Watch.class);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
@@ -577,9 +747,10 @@ public class ExecutionServiceTests extends ESTestCase {
 
         // action throttler
         ActionThrottler throttler = mock(ActionThrottler.class);
+        ExecutableCondition actionCondition = mock(ExecutableCondition.class);
         ExecutableTransform actionTransform = mock(ExecutableTransform.class);
         ExecutableAction action = mock(ExecutableAction.class);
-        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionTransform, action);
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, actionCondition, actionTransform, action);
         ExecutableActions actions = new ExecutableActions(Arrays.asList(actionWrapper));
 
         WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), singletonMap("_action", new ActionStatus(now)));
@@ -602,4 +773,23 @@ public class ExecutionServiceTests extends ESTestCase {
         verify(actionTransform, never()).execute(context, payload);
         verify(action, never()).execute("_action", context, payload);
     }
+
+    private Tuple<ExecutableCondition, Condition.Result> whenCondition(final WatchExecutionContext context) {
+        Condition.Result conditionResult = mock(Condition.Result.class);
+        when(conditionResult.met()).thenReturn(true);
+        ExecutableCondition condition = mock(ExecutableCondition.class);
+        when(condition.execute(context)).thenReturn(conditionResult);
+
+        return new Tuple<>(condition, conditionResult);
+    }
+
+    private Tuple<ExecutableTransform, Transform.Result> whenTransform(final WatchExecutionContext context) {
+        Transform.Result transformResult = mock(Transform.Result.class);
+        when(transformResult.payload()).thenReturn(payload);
+        ExecutableTransform transform = mock(ExecutableTransform.class);
+        when(transform.execute(context, payload)).thenReturn(transformResult);
+
+        return new Tuple<>(transform, transformResult);
+    }
+
 }

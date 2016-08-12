@@ -220,6 +220,6 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         IndexService index = createIndex("foo");
         SearchContext searchContext = createSearchContext(index);
         SearchSlowLog.SlowLogSearchContextPrinter p = new SearchSlowLog.SlowLogSearchContextPrinter(searchContext, 10, true);
-        assertThat(p.toString(), startsWith(index.index().toString()));
+        assertThat(p.toString(), startsWith("[foo][0]"));
     }
 }

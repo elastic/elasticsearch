@@ -80,8 +80,8 @@ public final class SearchSlowLog{
 
         this.level = indexSettings.get(INDEX_SEARCH_SLOWLOG_LEVEL, "TRACE").toUpperCase(Locale.ROOT);
 
-        this.queryLogger = Loggers.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
-        this.fetchLogger = Loggers.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
+        this.queryLogger = Loggers.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query", indexSettings);
+        this.fetchLogger = Loggers.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch", indexSettings);
 
         queryLogger.setLevel(level);
         fetchLogger.setLevel(level);
@@ -173,7 +173,7 @@ public final class SearchSlowLog{
         @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
-            sb.append(context.indexShard().indexService().index());
+            sb.append(context.indexShard().shardId()).append(" ");
             sb.append("took[").append(TimeValue.timeValueNanos(tookInNanos)).append("], took_millis[").append(TimeUnit.NANOSECONDS.toMillis(tookInNanos)).append("], ");
             if (context.types() == null) {
                 sb.append("types[], ");

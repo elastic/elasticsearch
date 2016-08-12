@@ -59,9 +59,10 @@ public class EngineSearcher extends Engine.Searcher {
         } catch (IOException e) {
             throw new IllegalStateException("Cannot close", e);
         } catch (AlreadyClosedException e) {
-                /* this one can happen if we already closed the
-                 * underlying store / directory and we call into the
-                 * IndexWriter to free up pending files. */
+            /* This can happen in a race condition: since we don't hold the engine's readLock (preventing it from closing) while
+             * holding this searcher, while closing just now, it's possible that we concurrently close the engine's IndexWriter and ES's
+             * store, and since closing Lucene's DirectoryReader tries to delete pending files it had held open, we can hit
+             * AlreadyClosedException from Lucene's Directory */
         } finally {
             store.decRef();
         }

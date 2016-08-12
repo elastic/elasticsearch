@@ -561,9 +561,6 @@ public class InternalEngine extends Engine {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             searcherManager.maybeRefreshBlocking();
-        } catch (AlreadyClosedException e) {
-            ensureOpen();
-            maybeFailEngine("refresh", e);
         } catch (EngineClosedException e) {
             throw e;
         } catch (Exception e) {
@@ -609,9 +606,6 @@ public class InternalEngine extends Engine {
                              new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
                 indexWriter.flush();
             }
-        } catch (AlreadyClosedException e) {
-            ensureOpen();
-            maybeFailEngine("writeIndexingBuffer", e);
         } catch (EngineClosedException e) {
             throw e;
         } catch (Exception e) {
@@ -914,6 +908,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public long getIndexBufferRAMBytesUsed() {
+        // We don't guard w/ readLock here, so we could throw AlreadyClosedException
         return indexWriter.ramBytesUsed() + versionMap.ramBytesUsedForRefresh();
     }
 
@@ -961,11 +956,7 @@ public class InternalEngine extends Engine {
                 }
                 // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
                 logger.trace("rollback indexWriter");
-                try {
-                    indexWriter.rollback();
-                } catch (AlreadyClosedException e) {
-                    // ignore
-                }
+                indexWriter.rollback();
                 logger.trace("rollback indexWriter done");
             } catch (Exception e) {
                 logger.warn("failed to rollback writer on close", e);

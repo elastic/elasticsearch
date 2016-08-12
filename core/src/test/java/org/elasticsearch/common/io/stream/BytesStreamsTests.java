@@ -20,6 +20,7 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -30,7 +31,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -42,7 +42,6 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests for {@link BytesStreamOutput} paging behaviour.
@@ -599,6 +598,24 @@ public class BytesStreamsTests extends ESTestCase {
             StreamInput wrap = out.bytes().streamInput();
             GeoPoint point = wrap.readGeoPoint();
             assertEquals(point, geoPoint);
+        }
+    }
+
+    public void testWriteUnsupportedOperationException() throws IOException {
+        String message = randomBoolean() ? null : randomAsciiOfLength(5);
+        Exception cause = randomBoolean() ? null : new ElasticsearchException("test");
+        UnsupportedOperationException e = new UnsupportedOperationException(message, cause);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeException(e);
+            try (StreamInput in = out.bytes().streamInput()) {
+                UnsupportedOperationException read = in.readException();
+                assertEquals(message, read.getMessage());
+                if (cause == null) {
+                    assertNull(read.getCause());
+                } else {
+                    assertEquals(cause.getMessage(), read.getCause().getMessage());
+                }
+            }
         }
     }
 

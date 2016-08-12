@@ -746,6 +746,8 @@ public abstract class StreamOutput extends OutputStream {
                 writeCause = false;
             } else if (throwable instanceof IOException) {
                 writeVInt(17);
+            } else if (throwable instanceof UnsupportedOperationException) {
+                writeVInt(18);
             } else {
                 ElasticsearchException ex;
                 if (throwable instanceof ElasticsearchException && ElasticsearchException.isRegistered(throwable.getClass())) {

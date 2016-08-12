@@ -27,6 +27,8 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -42,6 +44,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -56,12 +59,15 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 
 /**
  * Migrates documents from one index to a newly created index with a different mapping.
@@ -136,7 +142,7 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
             return;
         }
 
-        Operation operation = buildOperation(task, request, listener);
+        Operation operation = buildOperation(task, request, state.metaData(), listener);
         ((MigrateIndexTask) task).setOperation(operation);
         operation.start();
     }
@@ -211,7 +217,8 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
      * Build the Operation for this request, either a {@link ActingOperation} is this is the first request on this index or an
      * {@link ObservingOperation} if there is already an {@linkplain ActingOperation} for this index.
      */
-    Operation buildOperation(Task task, MigrateIndexRequest request, ActionListener<MigrateIndexResponse> listener) {
+    Operation buildOperation(Task task, MigrateIndexRequest request, MetaData clusterMetaData,
+            ActionListener<MigrateIndexResponse> listener) {
         synchronized (runningOperations) {
             ActingOperation currentlyRunning = runningOperations.get(request.getCreateIndexRequest().index());
             if (currentlyRunning != null) {
@@ -222,7 +229,8 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
                 return newOperation;
             }
             // This Operation is the first concurrent attempt at this request.
-            ActingOperation newOperation = new ActingOperation(client(task), request, listener);
+            IndexMetaData sourceIndex = sourceIndexMetaData(clusterMetaData, request.getSourceIndex());
+            ActingOperation newOperation = new ActingOperation(client(task), request, sourceIndex, listener);
             // Add our operation to the map so another migration for the same index can wait for this one to complete.
             runningOperations.put(request.getCreateIndexRequest().index(), newOperation);
             return newOperation;
@@ -235,6 +243,20 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
     Client client(Task task) {
         TaskId thisTaskId = new TaskId(clusterService.localNode().getEphemeralId(), task.getId());
         return new ParentTaskAssigningClient(sharedClient, thisTaskId);
+    }
+
+    /**
+     * Lookup information about the source index.
+     */
+    IndexMetaData sourceIndexMetaData(MetaData clusterMetaData, String name) {
+        AliasOrIndex sourceAliasOrIndex = clusterMetaData.getAliasAndIndexLookup().get(name);
+        if (sourceAliasOrIndex == null) {
+            return null;
+        }
+        if (sourceAliasOrIndex.isAlias()) {
+            throw new IllegalArgumentException("Can't migrate from an alias and [" + name + "] is an alias.");
+        }
+        return ((AliasOrIndex.Index)sourceAliasOrIndex).getIndex();
     }
 
     abstract class Operation {
@@ -277,6 +299,11 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
          */
         final MigrateIndexRequest request;
         /**
+         * The source index. Null if there is no source.
+         */
+        @Nullable
+        private final IndexMetaData sourceIndex;
+        /**
          * The listener for responses of this operation. Fires the listeners of all {@link #observers}.
          */
         final ActionListener<MigrateIndexResponse> listener;
@@ -284,9 +311,11 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
         /**
          * Build the operation, coalescing it into any currently running operation against the same index.
          */
-        public ActingOperation(Client client, MigrateIndexRequest request, ActionListener<MigrateIndexResponse> listenerForThisRequest) {
+        public ActingOperation(Client client, MigrateIndexRequest request, IndexMetaData sourceIndex,
+                ActionListener<MigrateIndexResponse> listenerForThisRequest) {
             this.client = client;
             this.request = request;
+            this.sourceIndex = sourceIndex;
             this.listener = new ActionListener<MigrateIndexResponse>() {
                 @Override
                 public void onResponse(MigrateIndexResponse response) {
@@ -301,7 +330,7 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
         }
 
         /**
-         * Called on the {@linkplain ThreadPool.Names.GENERIC} thread pool if this is the first migration for this index.
+         * Called on the {@linkplain ThreadPool.Names#GENERIC} thread pool if this is the first migration for this index.
          */
         @Override
         void start() {
@@ -324,26 +353,28 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
                 if (response.isShardsAcked() == false) {
                     throw new ElasticsearchException("Timed out waiting for shards for [" + template.index() + "] to come online");
                 }
-                createdIndex();
+                migrateDocuments();
             }));
         }
 
         /**
-         * Called on the {@linkplain ThreadPool.Names.LISTENER} thread pool when the index has been successfully created.
+         * Called on the {@linkplain ThreadPool.Names#LISTENER} thread pool when the index has been successfully created.
          */
-        void createdIndex() {
-            documentMigrater.migrateDocuments(request.getSourceIndex(), request.getCreateIndexRequest().index(), request.getScript(),
-                    request.timeout(), client, listener(v -> {
-                        migratedDocuments();
-                    }));
+        void migrateDocuments() {
+            if (sourceIndex == null) {
+                // Source index doesn't exist, not documents to migrate.
+                swapAliases();
+            } else {
+                documentMigrater.migrateDocuments(request.getSourceIndex(), request.getCreateIndexRequest().index(), request.getScript(),
+                        request.timeout(), client, listener(v -> swapAliases()));
+            }
         }
 
         /**
-         * Called on the {@linkplain ThreadPool.Names.LISTENER} thread pool when the documents have been successfully migrated.
+         * Called on the {@linkplain ThreadPool.Names#LISTENER} thread pool when the documents have been successfully migrated.
          */
-        void migratedDocuments() {
+        void swapAliases() {
             // NOCOMMIT remove the alias and the source index in the same atomic cluster state operation
-            AliasOrIndex source = clusterService.state().metaData().getAliasAndIndexLookup().get(request.getSourceIndex());
             IndicesAliasesRequest aliases = new IndicesAliasesRequest();
             for (Alias alias: request.getCreateIndexRequest().aliases()) {
                 AliasAction aliasAction = new AliasAction(AliasAction.Type.ADD, request.getCreateIndexRequest().index(),
@@ -354,9 +385,9 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
                 aliases.addAliasAction(aliasAction);
             }
             // Strip all the aliases from the source indexes while we add aliases to the new index.
-            for (IndexMetaData indexMetaData : source.getIndices()) {
-                for (ObjectCursor<String> alias : indexMetaData.getAliases().keys()) {
-                    aliases.addAliasAction(new AliasAction(AliasAction.Type.ADD, indexMetaData.getIndex().getName(), alias.value));
+            if (sourceIndex != null) {
+                for (ObjectCursor<String> alias : sourceIndex.getAliases().keys()) {
+                    aliases.addAliasAction(new AliasAction(AliasAction.Type.REMOVE, sourceIndex.getIndex().getName(), alias.value));
                 }
             }
             aliases.timeout(request.timeout());
@@ -364,14 +395,18 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
                 if (false == response.isAcknowledged()) {
                     throw new ElasticsearchException("Timed out waiting to remove aliases");
                 }
-                removedIndex();
+                if (sourceIndex == null) {
+                    listener.onResponse(new MigrateIndexResponse(true, false));
+                } else {
+                    removeSourceIndex();
+                }
             }));
         }
 
         /**
-         * Called on the {@linkplain ThreadPool.Names.LISTENER} thread pool when the aliases have been successfully added to the new index.
+         * Called on the {@linkplain ThreadPool.Names#LISTENER} thread pool when the aliases have been successfully added to the new index.
          */
-        void removedIndex() {
+        void removeSourceIndex() {
             DeleteIndexRequest delete = new DeleteIndexRequest(request.getSourceIndex());
             delete.timeout(request.timeout());
             client.admin().indices().delete(delete, listener(response -> {
@@ -427,12 +462,36 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
         }
     }
 
+    /**
+     * {@linkplain DocumentMigrater} that never copies any documents, instead halting the process if there are any documents to copy.
+     */
     public static class EmptyIndexDocumentMigrater implements DocumentMigrater {
         @Override
         public void migrateDocuments(String sourceIndex, String destinationIndex, Script script, TimeValue timeout, Client client,
                 ActionListener<Void> listener) {
-            // NOCOMMIT impl
-            throw new UnsupportedOperationException();
+            SearchRequest search = new SearchRequest(sourceIndex).source(searchSource().size(0).terminateAfter(1));
+            client.search(search, new ActionListener<SearchResponse>() {
+                @Override
+                public void onResponse(SearchResponse response) {
+                    if (response.getFailedShards() > 0) {
+                        onFailure(new ElasticsearchException("There were shard failures while checking if [" + sourceIndex
+                                + "] is empty:  " + Arrays.toString(response.getShardFailures())));
+                        return;
+                    }
+                    if (response.getHits().getTotalHits() > 0) {
+                        onFailure(new UnsupportedOperationException("Without the reindex module Elasticsearch can only migrate from "
+                                + "empty indexes and [" + sourceIndex + "] does not appear to be empty."));
+                        return;
+                    }
+                    listener.onResponse(null);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+            
         }
     }
 }

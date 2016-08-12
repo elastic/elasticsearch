@@ -17,44 +17,46 @@
  * under the License.
  */
 
-package org.elasticsearch.index.reindex;
+package org.elasticsearch.index;
 
 import org.elasticsearch.action.admin.indices.migrate.MigrateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-public class MigrateIndexTests extends ReindexTestCase {
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(CustomScriptPlugin.class);
-        return plugins;
+/**
+ * Common superclass for integration tests for migrating indexes.
+ */
+public abstract class MigrateIndexTestCase extends ESIntegTestCase {
+    public void testMigrateFromEmptyIndex() throws InterruptedException, ExecutionException {
+        migrateIndexTestCase(0, new Script("ctx._source.foo += ' cat'", ScriptType.INLINE, "doesn't matter, not used", emptyMap()));
     }
 
-    public void testMigrateIndex() throws InterruptedException, ExecutionException {
-        // Index a pile of documents
-        int docCount = between(10, 10000);
-        List<IndexRequestBuilder> docs = new ArrayList<>(docCount);
-        for (int i = 0; i < docCount; i++) {
-            docs.add(client().prepareIndex("test_0", "test").setSource("foo", "bar", "i", i));
+    public void testMigrateFromNonExistentIndex() {
+        client().admin().indices().prepareMigrateIndex("dontexist", "test_2").setAliases("test").get();
+        assertTrue(client().admin().indices().prepareExists("test_2").get().isExists());
+        assertTrue(client().admin().indices().prepareAliasesExist("test").get().isExists());
+    }
+
+    protected void migrateIndexTestCase(int docCount, Script script) throws InterruptedException, ExecutionException {
+        if (docCount > 0) {
+            List<IndexRequestBuilder> docs = new ArrayList<>(docCount);
+            for (int i = 0; i < docCount; i++) {
+                docs.add(client().prepareIndex("test_0", "test").setSource("foo", "bar", "i", i));
+            }
+            indexRandom(true, docs);
+        } else {
+            client().admin().indices().prepareCreate("test_0").get();
         }
-        indexRandom(true, docs);
         client().admin().indices().prepareAliases().addAlias("test_0", "test").get();
 
         // They are there, great
@@ -80,28 +82,9 @@ public class MigrateIndexTests extends ReindexTestCase {
 
         // But we can migrate to a new index and actually apply a script
         MigrateIndexRequestBuilder migrate = client().admin().indices().prepareMigrateIndex("test_1", "test_2").setAliases("test");
-        migrate.setScript(new Script("ctx._source.foo += ' cat'", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap()));
+        migrate.setScript(script);
         assertFalse(migrate.get().isNoop());
-        
-        // And now the script is applied to the alias! Huzzah!
-        searchResponse = client().prepareSearch("test").setSize(0).setQuery(matchQuery("foo", "cat")).get();
-        assertHitCount(searchResponse, docCount);
-    }
-
-    public static class CustomScriptPlugin extends MockScriptPlugin {
-        @Override
-        @SuppressWarnings("unchecked")
-        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-
-            scripts.put("ctx._source.foo += ' cat'", vars -> {
-                Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
-                Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
-                source.put("foo", source.get("foo") + " cat");
-                return null;
-            });
-
-            return scripts;
-        }
+        assertFalse(client().admin().indices().prepareExists("test_1").get().isExists());
+        assertTrue(client().admin().indices().prepareExists("test_2").get().isExists());
     }
 }

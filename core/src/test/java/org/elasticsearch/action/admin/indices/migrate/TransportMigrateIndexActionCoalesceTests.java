@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -293,8 +294,16 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
             return null;
         }
 
-        Operation buildOperation(Task task, MigrateIndexRequest request, ActionListener<MigrateIndexResponse> listener) {
-            Operation operation = super.buildOperation(task, request, listener);
+        @Override
+        IndexMetaData sourceIndexMetaData(MetaData clusterMetaData, String name) {
+            // Not needed and lets us skip building a bunch of mocks
+            return null;
+        }
+
+        @Override
+        Operation buildOperation(Task task, MigrateIndexRequest request, MetaData clusterMetaData,
+                ActionListener<MigrateIndexResponse> listener) {
+            Operation operation = super.buildOperation(task, request, clusterMetaData, listener);
             if (operation instanceof ActingOperation) {
                 final ActingOperation acting = (ActingOperation) operation;
                 operation = new Operation() {

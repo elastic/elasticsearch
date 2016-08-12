@@ -68,6 +68,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -151,7 +152,7 @@ public final class NodeEnvironment  implements Closeable {
     /**
      * Maximum number of data nodes that should run in an environment.
      */
-    public static final Setting<Integer> MAX_LOCAL_STORAGE_NODES_SETTING = Setting.intSetting("node.max_local_storage_nodes", 50, 1,
+    public static final Setting<Integer> MAX_LOCAL_STORAGE_NODES_SETTING = Setting.intSetting("node.max_local_storage_nodes", 1, 1,
         Property.NodeScope);
 
     /**
@@ -244,8 +245,15 @@ public final class NodeEnvironment  implements Closeable {
             }
 
             if (locks[0] == null) {
-                throw new IllegalStateException("Failed to obtain node lock, is the following location writable?: "
-                    + Arrays.toString(environment.dataWithClusterFiles()), lastException);
+                final String message = String.format(
+                    Locale.ROOT,
+                    "failed to obtain node locks, tried [%s] with lock id%s;" +
+                        " maybe these locations are not writable or multiple nodes were started without increasing [%s] (was [%d])?",
+                    Arrays.toString(environment.dataWithClusterFiles()),
+                    maxLocalStorageNodes == 1 ? " [0]" : "s [0--" + (maxLocalStorageNodes - 1) + "]",
+                    MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
+                    maxLocalStorageNodes);
+                throw new IllegalStateException(message, lastException);
             }
             this.nodeMetaData = loadOrCreateNodeMetaData(settings, startupTraceLogger, nodePaths);
             this.logger = Loggers.getLogger(getClass(), Node.addNodeNameIfNeeded(settings, this.nodeMetaData.nodeId()));

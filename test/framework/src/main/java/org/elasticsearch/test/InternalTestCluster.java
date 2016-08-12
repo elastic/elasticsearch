@@ -175,8 +175,8 @@ public final class InternalTestCluster extends TestCluster {
     public final int HTTP_BASE_PORT = GLOBAL_HTTP_BASE_PORT + CLUSTER_BASE_PORT_OFFSET;
 
 
-    static final int DEFAULT_LOW_NUM_MASTER_NODES = 1;
-    static final int DEFAULT_HIGH_NUM_MASTER_NODES = 3;
+    public static final int DEFAULT_LOW_NUM_MASTER_NODES = 1;
+    public static final int DEFAULT_HIGH_NUM_MASTER_NODES = 3;
 
     static final int DEFAULT_MIN_NUM_DATA_NODES = 1;
     static final int DEFAULT_MAX_NUM_DATA_NODES = TEST_NIGHTLY ? 6 : 3;
@@ -300,6 +300,7 @@ public final class InternalTestCluster extends TestCluster {
                 builder.put(Environment.PATH_DATA_SETTING.getKey(), dataPath.toString());
             }
         }
+        builder.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), Integer.MAX_VALUE);
         builder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), baseDir.resolve("custom"));
         builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));

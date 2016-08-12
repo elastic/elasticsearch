@@ -387,7 +387,7 @@ curl http://localhost:9200/
 
 This command should give you a JSON result:
 
-[source,javascript]
+[source,js]
 ----
 {
   "status" : 200,

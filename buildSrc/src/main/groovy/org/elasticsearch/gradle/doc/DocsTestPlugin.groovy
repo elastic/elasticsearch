@@ -48,8 +48,8 @@ public class DocsTestPlugin extends RestTestPlugin {
                 return
             }
             List<String> languages = [
-                // These languages should almost always be marked console
-                'js', 'json',
+                // This language should almost always be marked console
+                'js',
                 // These are often curl commands that should be converted but
                 // are probably false positives
                 'sh', 'shell',

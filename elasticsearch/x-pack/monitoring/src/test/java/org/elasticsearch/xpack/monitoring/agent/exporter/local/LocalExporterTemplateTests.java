@@ -70,7 +70,7 @@ public class LocalExporterTemplateTests extends AbstractExporterTemplateTestCase
                 }
             }
             assertTrue("failed to find a pipeline matching [" + name + "]", found);
-        }, 30, TimeUnit.SECONDS);
+        }, 60, TimeUnit.SECONDS);
     }
 
     @Override

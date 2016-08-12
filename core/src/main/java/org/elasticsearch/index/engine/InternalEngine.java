@@ -561,6 +561,10 @@ public class InternalEngine extends Engine {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             searcherManager.maybeRefreshBlocking();
+        } catch (AlreadyClosedException e) {
+            // This means there's a bug somewhere: don't suppress it
+            maybeFailEngine("refresh", e);
+            throw new AssertionError(e);
         } catch (EngineClosedException e) {
             throw e;
         } catch (Exception e) {
@@ -606,6 +610,10 @@ public class InternalEngine extends Engine {
                              new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
                 indexWriter.flush();
             }
+        } catch (AlreadyClosedException e) {
+            // This means there's a bug somewhere: don't suppress it
+            maybeFailEngine("writeIndexingBuffer", e);
+            throw new AssertionError(e);
         } catch (EngineClosedException e) {
             throw e;
         } catch (Exception e) {

@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -189,6 +190,9 @@ public class ShadowEngine extends Engine {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             searcherManager.maybeRefreshBlocking();
+        } catch (AlreadyClosedException e) {
+            // This means there's a bug somewhere: don't suppress it
+            throw new AssertionError(e);
         } catch (EngineClosedException e) {
             throw e;
         } catch (Exception e) {

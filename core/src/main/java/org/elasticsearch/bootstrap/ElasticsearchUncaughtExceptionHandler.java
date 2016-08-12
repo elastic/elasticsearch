@@ -20,6 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -71,7 +72,15 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
     }
 
     private static boolean isFatalCause(Throwable cause) {
-        return cause instanceof Error;
+        return cause instanceof Error && isWrappedAlreadyClosedException(cause) == false;
+    }
+
+    private static boolean isWrappedAlreadyClosedException(Throwable cause) {
+        if (cause instanceof AssertionError == false) {
+            return false;
+        }
+        AssertionError ae = (AssertionError) cause;
+        return ae.getCause() instanceof AlreadyClosedException;
     }
 
     // visible for testing

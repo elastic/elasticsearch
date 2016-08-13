@@ -84,7 +84,7 @@ public class CustomFieldQuery extends FieldQuery {
             flatten(blockJoinQuery.getChildQuery(), reader, flatQueries, boost);
         } else if (sourceQuery instanceof BoostingQuery) {
             BoostingQuery boostingQuery = (BoostingQuery) sourceQuery;
-            flatten(boostingQuery.getContext(), reader, flatQueries, boostingQuery.getBoost());
+            flatten(boostingQuery.getContext(), reader, flatQueries, boost * boostingQuery.getBoost());
             flatten(boostingQuery.getMatch(), reader, flatQueries, boost);
         } else {
             super.flatten(sourceQuery, reader, flatQueries, boost);

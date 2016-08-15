@@ -60,7 +60,9 @@ public class TribeUnitTests extends ESTestCase {
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
             .put("transport.type", "local")
             .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local")
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
+            .build();
 
         tribe1 = new TribeClientNode(
             Settings.builder()

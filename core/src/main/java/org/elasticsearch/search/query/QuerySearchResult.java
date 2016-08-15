@@ -188,6 +188,12 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         return this;
     }
 
+    /** Returns true iff the result has hits */
+    public boolean hasHits() {
+        return (topDocs != null && topDocs.scoreDocs.length > 0) ||
+            (suggest != null && suggest.hasScoreDocs());
+    }
+
     public static QuerySearchResult readQuerySearchResult(StreamInput in) throws IOException {
         QuerySearchResult result = new QuerySearchResult();
         result.readFrom(in);

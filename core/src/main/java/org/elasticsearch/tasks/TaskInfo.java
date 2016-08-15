@@ -207,7 +207,7 @@ public final class TaskInfo implements Writeable, ToXContent {
                 return new TaskInfo(id, type, action, description, status, startTime, runningTimeNanos, cancellable, parentTaskId);
             });
     static {
-        // Note for the future: this has to be backwards compatible with all changes to the task persistence format
+        // Note for the future: this has to be backwards compatible with all changes to the task storage format
         PARSER.declareString(constructorArg(), new ParseField("node"));
         PARSER.declareLong(constructorArg(), new ParseField("id"));
         PARSER.declareString(constructorArg(), new ParseField("type"));

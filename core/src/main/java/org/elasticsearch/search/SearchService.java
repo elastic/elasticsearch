@@ -67,11 +67,11 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
-import org.elasticsearch.search.fetch.docvalues.DocValueFieldsContext;
-import org.elasticsearch.search.fetch.docvalues.DocValueFieldsContext.DocValueField;
-import org.elasticsearch.search.fetch.docvalues.DocValueFieldsFetchSubPhase;
-import org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField;
-import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.DocValueField;
+import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ScrollContext;
@@ -269,7 +269,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             loadOrExecuteQueryPhase(request, context);
 
-            if (hasHits(context.queryResult()) == false && context.scrollContext() == null) {
+            if (context.queryResult().hasHits() == false && context.scrollContext() == null) {
                 freeContext(context.id());
             } else {
                 contextProcessedSuccessfully(context);
@@ -324,7 +324,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             operationListener.onPreQueryPhase(context);
             long time = System.nanoTime();
             queryPhase.execute(context);
-            if (hasHits(context.queryResult()) == false && context.scrollContext() == null) {
+            if (context.queryResult().hasHits() == false && context.scrollContext() == null) {
                 // no hits, we can release the context since there will be no fetch phase
                 freeContext(context.id());
             } else {
@@ -859,11 +859,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         context.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
-    }
-
-    private static boolean hasHits(final QuerySearchResult searchResult) {
-        return searchResult.topDocs().scoreDocs.length > 0 ||
-            (searchResult.suggest() != null && searchResult.suggest().hasScoreDocs());
     }
 
     private void processScroll(InternalScrollSearchRequest request, SearchContext context) {

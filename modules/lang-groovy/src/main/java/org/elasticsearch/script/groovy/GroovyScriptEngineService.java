@@ -293,10 +293,19 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
                 // NOTE: we truncate the stack because IndyInterface has security issue (needs getClassLoader)
                 // we don't do a security check just as a tradeoff, it cannot really escalate to anything.
                 return AccessController.doPrivileged((PrivilegedAction<Object>) script::run);
-            } catch (Exception e) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("failed to run {}", e, compiledScript);
+            } catch (AssertionError ae) {
+                // Groovy asserts are not java asserts, and cannot be disabled, so we do a best-effort trying to determine if this is a
+                // Groovy assert (in which case we wrap it and throw), or a real Java assert, in which case we rethrow it as-is, likely
+                // resulting in the uncaughtExceptionHandler handling it.
+                final StackTraceElement[] elements = ae.getStackTrace();
+                if (elements.length > 0 && "org.codehaus.groovy.runtime.InvokerHelper".equals(elements[0].getClassName())) {
+                    logger.trace("failed to run {}", ae, compiledScript);
+                    throw new ScriptException("Error evaluating " + compiledScript.name(),
+                            ae, emptyList(), "", compiledScript.lang());
                 }
+                throw ae;
+            } catch (Exception | NoClassDefFoundError e) {
+                logger.trace("failed to run {}", e, compiledScript);
                 throw new ScriptException("Error evaluating " + compiledScript.name(), e, emptyList(), "", compiledScript.lang());
             }
         }

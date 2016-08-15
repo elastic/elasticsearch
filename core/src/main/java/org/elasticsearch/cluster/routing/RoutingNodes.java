@@ -546,24 +546,15 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             assert failedShard.active();
             if (failedShard.primary()) {
                 // promote active replica to primary if active replica exists
-                ShardRouting candidate = activeReplica(failedShard.shardId());
-                if (candidate == null) {
+                ShardRouting activeReplica = activeReplica(failedShard.shardId());
+                if (activeReplica == null) {
                     moveToUnassigned(failedShard, unassignedInfo);
                 } else {
+                    // if the activeReplica was relocating before this call to failShard, its relocation was cancelled above when we
+                    // failed initializing replica shards (and moved replica relocation source back to started)
+                    assert activeReplica.started() : "replica relocation should have been cancelled: " + activeReplica;
                     movePrimaryToUnassignedAndDemoteToReplica(failedShard, unassignedInfo);
-                    ShardRouting primarySwappedCandidate = promoteAssignedReplicaShardToPrimary(candidate);
-                    if (primarySwappedCandidate.relocatingNodeId() != null) {
-                        // its also relocating, make sure to move the other routing to primary
-                        RoutingNode node = node(primarySwappedCandidate.relocatingNodeId());
-                        if (node != null) {
-                            for (ShardRouting shardRouting : node) {
-                                if (shardRouting.shardId().equals(primarySwappedCandidate.shardId()) && !shardRouting.primary()) {
-                                    promoteAssignedReplicaShardToPrimary(shardRouting);
-                                    break;
-                                }
-                            }
-                        }
-                    }
+                    ShardRouting primarySwappedCandidate = promoteActiveReplicaShardToPrimary(activeReplica);
                     if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings())) {
                         reinitShadowPrimary(primarySwappedCandidate);
                     }
@@ -621,8 +612,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * @param replicaShard the replica shard to be promoted to primary
      * @return             the resulting primary shard
      */
-    private ShardRouting promoteAssignedReplicaShardToPrimary(ShardRouting replicaShard) {
-        assert replicaShard.unassigned() == false : "unassigned shard cannot be promoted to primary: " + replicaShard;
+    private ShardRouting promoteActiveReplicaShardToPrimary(ShardRouting replicaShard) {
+        assert replicaShard.active() : "non-active shard cannot be promoted to primary: " + replicaShard;
         assert replicaShard.primary() == false : "primary shard cannot be promoted to primary: " + replicaShard;
         ShardRouting primaryShard = replicaShard.moveToPrimary();
         updateAssigned(replicaShard, primaryShard);
@@ -729,7 +720,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     /**
      * Moves assigned primary to unassigned and demotes it to a replica.
-     * Used in conjunction with {@link #promoteAssignedReplicaShardToPrimary} when an active replica is promoted to primary.
+     * Used in conjunction with {@link #promoteActiveReplicaShardToPrimary} when an active replica is promoted to primary.
      */
     private ShardRouting movePrimaryToUnassignedAndDemoteToReplica(ShardRouting shard, UnassignedInfo unassignedInfo) {
         assert shard.unassigned() == false : "only assigned shards can be moved to unassigned (" + shard + ")";

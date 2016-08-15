@@ -466,7 +466,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             assert relocationSourceShard.getTargetRelocatingShard() == initializingShard : "relocation target mismatch, expected: "
                 + initializingShard + " but was: " + relocationSourceShard.getTargetRelocatingShard();
             remove(relocationSourceShard);
-            routingChanges.relocationSourceRemoved(relocationSourceShard);
+            routingChanges.relocationCompleted(relocationSourceShard);
         }
         return startedShard;
     }
@@ -523,11 +523,13 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 logger.trace("{} is removed due to the failure/cancellation of the source shard", targetShard);
                 // cancel and remove target shard
                 remove(targetShard);
+                routingChanges.initializingShardFailed(targetShard);
             } else {
                 logger.trace("{}, relocation source failed / cancelled, mark as initializing without relocation source", targetShard);
                 // promote to initializing shard without relocation source and ensure that removed relocation source
                 // is not added back as unassigned shard
                 removeRelocationSource(targetShard);
+                routingChanges.relocationSourceRemoved(targetShard);
             }
         }
 

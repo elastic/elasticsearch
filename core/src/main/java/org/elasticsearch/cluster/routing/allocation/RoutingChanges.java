@@ -100,9 +100,19 @@ public class RoutingChanges {
     /**
      * Called on relocation source when relocation completes after relocation target is started.
      */
-    public void relocationSourceRemoved(ShardRouting removedRelocationSource) {
+    public void relocationCompleted(ShardRouting removedRelocationSource) {
         assert removedRelocationSource.relocating() : "expected relocating shard " + removedRelocationSource;
-        changes(removedRelocationSource.shardId()).removedRelocationSourceShards.add(removedRelocationSource);
+        changes(removedRelocationSource.shardId()).relocationCompletedSourceShards.add(removedRelocationSource);
+    }
+
+    /**
+     * Called on replica relocation target when replica relocation source fails. Promotes the replica relocation target to ordinary
+     * initializing shard.
+     */
+    public void relocationSourceRemoved(ShardRouting removedReplicaRelocationSource) {
+        assert removedReplicaRelocationSource.primary() == false && removedReplicaRelocationSource.isRelocationTarget() :
+            "expected replica relocation target shard " + removedReplicaRelocationSource;
+        setChanged();
     }
 
     /**
@@ -143,7 +153,7 @@ public class RoutingChanges {
         private final List<ShardRouting> initializedShards = new ArrayList<>();
         private final List<ShardRouting> startedShards = new ArrayList<>();
         private final List<Tuple<ShardRouting, UnassignedInfo>> failedActiveShards = new ArrayList<>();
-        private final List<ShardRouting> removedRelocationSourceShards = new ArrayList<>();
+        private final List<ShardRouting> relocationCompletedSourceShards = new ArrayList<>();
         private final List<ShardRouting> primaryPromotedShards = new ArrayList<>();
         private final List<ShardRouting> reinitalizedPrimaryShards = new ArrayList<>();
 
@@ -175,8 +185,8 @@ public class RoutingChanges {
         /**
          * Returns list of relocation source shards that where removed after relocation completed.
          */
-        public List<ShardRouting> getRemovedRelocationSourceShards() {
-            return Collections.unmodifiableList(removedRelocationSourceShards);
+        public List<ShardRouting> getRelocationCompletedSourceShards() {
+            return Collections.unmodifiableList(relocationCompletedSourceShards);
         }
 
         /**
@@ -199,7 +209,7 @@ public class RoutingChanges {
             sb.append("initialized shards: ").append(initializedShards).append(", ");
             sb.append("started shards: ").append(startedShards).append(", ");
             sb.append("failed active shards: ").append(failedActiveShards).append(", ");
-            sb.append("removed relocation-source shards: ").append(removedRelocationSourceShards).append(", ");
+            sb.append("removed relocation-source shards: ").append(relocationCompletedSourceShards).append(", ");
             sb.append("primary-promoted shards: ").append(primaryPromotedShards).append(", ");
             sb.append("reinitialized primary shards: ").append(reinitalizedPrimaryShards);
             return sb.toString();

@@ -163,7 +163,7 @@ public class AllocationService extends AbstractComponent {
                 for (ShardRouting reinitializedShard : shardRoutingChanges.getReinitalizedPrimaryShards()) {
                     activeAllocationIds.remove(reinitializedShard.allocationId().getId());
                 }
-                for (ShardRouting removedActiveShard : shardRoutingChanges.getRemovedRelocationSourceShards()) {
+                for (ShardRouting removedActiveShard : shardRoutingChanges.getRelocationCompletedSourceShards()) {
                     activeAllocationIds.remove(removedActiveShard.allocationId().getId());
                 }
                 for (Tuple<ShardRouting, UnassignedInfo> failActiveShardEntry : shardRoutingChanges.getFailedActiveShards()) {

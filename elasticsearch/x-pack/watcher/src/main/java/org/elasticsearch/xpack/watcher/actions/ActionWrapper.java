@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
@@ -15,6 +16,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.actions.throttler.ActionThrottler;
 import org.elasticsearch.xpack.watcher.actions.throttler.Throttler;
 import org.elasticsearch.xpack.watcher.condition.Condition;
@@ -22,7 +24,6 @@ import org.elasticsearch.xpack.watcher.condition.ConditionRegistry;
 import org.elasticsearch.xpack.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.elasticsearch.xpack.watcher.transform.TransformRegistry;
@@ -131,7 +132,9 @@ public class ActionWrapper implements ToXContent {
                 }
                 payload = transformResult.payload();
             } catch (Exception e) {
-                action.logger().error("failed to execute action [{}/{}]. failed to transform payload.", e, ctx.watch().id(), id);
+                action.logger().error(
+                        new ParameterizedMessage("failed to execute action [{}/{}]. failed to transform payload.", ctx.watch().id(), id),
+                        e);
                 return new ActionWrapper.Result(id, conditionResult, null,
                                                 new Action.Result.Failure(action.type(), "Failed to transform payload. error: {}",
                                                     ExceptionsHelper.detailedMessage(e)));
@@ -141,7 +144,7 @@ public class ActionWrapper implements ToXContent {
             Action.Result actionResult = action.execute(id, ctx, payload);
             return new ActionWrapper.Result(id, conditionResult, transformResult, actionResult);
         } catch (Exception e) {
-            action.logger().error("failed to execute action [{}/{}]", e, ctx.watch().id(), id);
+            action.logger().error(new ParameterizedMessage("failed to execute action [{}/{}]", ctx.watch().id(), id), e);
             return new ActionWrapper.Result(id, new Action.Result.Failure(action.type(), ExceptionsHelper.detailedMessage(e)));
         }
     }

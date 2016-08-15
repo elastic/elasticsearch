@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.xpack.monitoring.agent.exporter;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.node.Node;
@@ -81,12 +82,12 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
         return exporters.get().values().iterator();
     }
 
-    static void closeExporters(ESLogger logger, Map<String, Exporter> exporters) {
+    static void closeExporters(Logger logger, Map<String, Exporter> exporters) {
         for (Exporter exporter : exporters.values()) {
             try {
                 exporter.close();
             } catch (Exception e) {
-                logger.error("failed to close exporter [{}]", e, exporter.name());
+                logger.error(new ParameterizedMessage("failed to close exporter [{}]", exporter.name()), e);
             }
         }
     }
@@ -107,7 +108,7 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
                     bulks.add(bulk);
                 }
             } catch (Exception e) {
-                logger.error("exporter [{}] failed to open exporting bulk", e, exporter.name());
+                logger.error(new ParameterizedMessage("exporter [{}] failed to open exporting bulk", exporter.name()), e);
             }
         }
         return bulks.isEmpty() ? null : new ExportBulk.Compound(bulks);

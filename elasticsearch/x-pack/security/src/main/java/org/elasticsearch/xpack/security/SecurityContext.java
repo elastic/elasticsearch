@@ -5,9 +5,7 @@
  */
 package org.elasticsearch.xpack.security;
 
-import java.io.IOException;
-
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -17,12 +15,14 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.user.User;
 
+import java.io.IOException;
+
 /**
  * A lightweight utility that can find the current user and authentication information for the local thread.
  */
 public class SecurityContext {
 
-    private final ESLogger logger;
+    private final Logger logger;
     private final ThreadContext threadContext;
     private final CryptoService cryptoService;
     private final boolean signUserHeader;

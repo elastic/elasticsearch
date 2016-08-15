@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -56,7 +56,7 @@ public class RealmConfig {
         return globalSettings;
     }
 
-    public ESLogger logger(Class clazz) {
+    public Logger logger(Class clazz) {
         return Loggers.getLogger(clazz, globalSettings);
     }
 

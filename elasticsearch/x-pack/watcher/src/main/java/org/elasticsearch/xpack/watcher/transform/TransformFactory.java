@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.transform;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -15,9 +15,9 @@ import java.io.IOException;
  */
 public abstract class TransformFactory<T extends Transform, R extends Transform.Result, E extends ExecutableTransform<T, R>> {
 
-    protected final ESLogger transformLogger;
+    protected final Logger transformLogger;
 
-    public TransformFactory(ESLogger transformLogger) {
+    public TransformFactory(Logger transformLogger) {
         this.transformLogger = transformLogger;
     }
 

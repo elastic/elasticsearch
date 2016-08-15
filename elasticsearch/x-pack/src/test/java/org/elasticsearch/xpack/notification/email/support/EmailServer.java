@@ -5,8 +5,9 @@
  */
 package org.elasticsearch.xpack.notification.email.support;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.transport.PortsRange;
 import org.subethamail.smtp.TooMuchDataException;
 import org.subethamail.smtp.auth.EasyAuthenticationHandlerFactory;
@@ -42,7 +43,7 @@ public class EmailServer {
 
     private final SMTPServer server;
 
-    public EmailServer(String host, int port, final String username, final String password, final ESLogger logger) {
+    public EmailServer(String host, int port, final String username, final String password, final Logger logger) {
         server = new SMTPServer(new SimpleMessageListenerAdapter(new SimpleMessageListener() {
             @Override
             public boolean accept(String from, String recipient) {
@@ -98,7 +99,7 @@ public class EmailServer {
         return new Listener.Handle(listeners, listener);
     }
 
-    public static EmailServer localhost(String portRangeStr, final String username, final String password, final ESLogger logger) {
+    public static EmailServer localhost(String portRangeStr, final String username, final String password, final Logger logger) {
         final AtomicReference<EmailServer> emailServer = new AtomicReference<>();
         boolean bound = new PortsRange(portRangeStr).iterate(new PortsRange.PortCallback() {
             @Override
@@ -110,7 +111,7 @@ public class EmailServer {
                     return true;
                 } catch (RuntimeException re) {
                     if (re.getCause() instanceof BindException) {
-                        logger.warn("port [{}] was already in use trying next port", re, port);
+                        logger.warn(new ParameterizedMessage("port [{}] was already in use trying next port", port), re);
                         return false;
                     } else {
                         throw re;

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport.netty3;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
@@ -12,10 +13,10 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.netty3.Netty3HttpServerTransport;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
@@ -23,7 +24,6 @@ import org.jboss.netty.channel.ExceptionEvent;
 import org.jboss.netty.handler.ssl.SslHandler;
 
 import javax.net.ssl.SSLEngine;
-
 import java.util.List;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_COMPRESSION;
@@ -74,14 +74,18 @@ public class SecurityNetty3HttpServerTransport extends Netty3HttpServerTransport
         Throwable t = e.getCause();
         if (isNotSslRecordException(t)) {
             if (logger.isTraceEnabled()) {
-                logger.trace("received plaintext http traffic on a https channel, closing connection {}", t, ctx.getChannel());
+                logger.trace(
+                        new ParameterizedMessage(
+                                "received plaintext http traffic on a https channel, closing connection {}",
+                                ctx.getChannel()),
+                        t);
             } else {
                 logger.warn("received plaintext http traffic on a https channel, closing connection {}", ctx.getChannel());
             }
             ctx.getChannel().close();
         } else if (isCloseDuringHandshakeException(t)) {
             if (logger.isTraceEnabled()) {
-                logger.trace("connection {} closed during handshake", t, ctx.getChannel());
+                logger.trace(new ParameterizedMessage("connection {} closed during handshake", ctx.getChannel()), t);
             } else {
                 logger.warn("connection {} closed during handshake", ctx.getChannel());
             }

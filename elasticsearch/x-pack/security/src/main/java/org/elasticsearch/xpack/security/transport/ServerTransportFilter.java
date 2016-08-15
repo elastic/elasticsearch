@@ -5,13 +5,8 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLPeerUnverifiedException;
-import java.io.IOException;
-import java.security.cert.Certificate;
-import java.security.cert.X509Certificate;
-
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.DelegatingTransportChannel;
@@ -25,6 +20,12 @@ import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.handler.ssl.SslHandler;
+
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLPeerUnverifiedException;
+import java.io.IOException;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
 
 import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;
 
@@ -48,7 +49,7 @@ public interface ServerTransportFilter {
      * request is properly authenticated and authorized
      */
     class NodeProfile implements ServerTransportFilter {
-        private static final ESLogger logger = Loggers.getLogger(NodeProfile.class);
+        private static final Logger logger = Loggers.getLogger(NodeProfile.class);
 
         private final AuthenticationService authcService;
         private final AuthorizationService authzService;
@@ -113,7 +114,7 @@ public interface ServerTransportFilter {
                 assert sslEngine.getNeedClientAuth() == false;
                 assert sslEngine.getWantClientAuth();
                 if (logger.isTraceEnabled()) {
-                    logger.trace("SSL Peer did not present a certificate on channel [{}]", e, channel);
+                    logger.trace(new ParameterizedMessage("SSL Peer did not present a certificate on channel [{}]", channel), e);
                 } else if (logger.isDebugEnabled()) {
                     logger.debug("SSL Peer did not present a certificate on channel [{}]", channel);
                 }

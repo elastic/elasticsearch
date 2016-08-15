@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.security.transport.netty3;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelFutureListener;
 import org.jboss.netty.channel.ChannelHandlerContext;
@@ -31,7 +32,7 @@ import java.util.Queue;
  */
 public class Netty3HandshakeWaitingHandler extends SimpleChannelHandler {
 
-    private final ESLogger logger;
+    private final Logger logger;
 
     private boolean handshaken = false;
     private Queue<MessageEvent> pendingWrites = new LinkedList<>();
@@ -39,7 +40,7 @@ public class Netty3HandshakeWaitingHandler extends SimpleChannelHandler {
     /**
      * @param logger    We pass a context aware logger here (logger that is aware of the node name &amp; env)
      */
-    public Netty3HandshakeWaitingHandler(ESLogger logger) {
+    public Netty3HandshakeWaitingHandler(Logger logger) {
         this.logger = logger;
     }
 
@@ -69,7 +70,7 @@ public class Netty3HandshakeWaitingHandler extends SimpleChannelHandler {
                 } else {
                     Throwable cause = handshakeFuture.getCause();
                     if (logger.isDebugEnabled()) {
-                        logger.debug("SSL/TLS handshake failed, closing channel: {}", cause, cause.getMessage());
+                        logger.debug(new ParameterizedMessage("SSL/TLS handshake failed, closing channel: {}", cause.getMessage()), cause);
                     } else {
                         logger.error("SSL/TLS handshake failed, closing channel: {}", cause.getMessage());
                     }

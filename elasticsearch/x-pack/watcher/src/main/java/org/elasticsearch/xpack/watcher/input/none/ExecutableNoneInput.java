@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher.input.none;
 
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.watch.Payload;
@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
  */
 public class ExecutableNoneInput extends ExecutableInput<NoneInput, NoneInput.Result> {
 
-    public ExecutableNoneInput(ESLogger logger) {
+    public ExecutableNoneInput(Logger logger) {
         super(NoneInput.INSTANCE, logger);
     }
 

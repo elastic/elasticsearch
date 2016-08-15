@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition.always;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
@@ -16,7 +16,7 @@ import java.io.IOException;
  */
 public class ExecutableAlwaysCondition extends ExecutableCondition<AlwaysCondition, AlwaysCondition.Result> {
 
-    public ExecutableAlwaysCondition(ESLogger logger) {
+    public ExecutableAlwaysCondition(Logger logger) {
         super(AlwaysCondition.INSTANCE, logger);
     }
 

@@ -5,10 +5,15 @@
  */
 package org.elasticsearch.xpack.security.authc.file;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.internal.Nullable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.watcher.FileChangesListener;
+import org.elasticsearch.watcher.FileWatcher;
+import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.RefreshListener;
@@ -16,10 +21,6 @@ import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.support.NoOpLogger;
 import org.elasticsearch.xpack.security.support.Validation;
 import org.elasticsearch.xpack.security.support.Validation.Users;
-import org.elasticsearch.watcher.FileChangesListener;
-import org.elasticsearch.watcher.FileWatcher;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.XPackPlugin;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -38,7 +39,7 @@ import static org.elasticsearch.xpack.security.support.SecurityFiles.openAtomicM
 
 public class FileUserPasswdStore {
 
-    private final ESLogger logger;
+    private final Logger logger;
 
     private final Path file;
     final Hasher hasher = Hasher.BCRYPT;
@@ -97,11 +98,12 @@ public class FileUserPasswdStore {
      * Internally in this class, we try to load the file, but if for some reason we can't, we're being more lenient by
      * logging the error and skipping all users. This is aligned with how we handle other auto-loaded files in security.
      */
-    static Map<String, char[]> parseFileLenient(Path path, ESLogger logger) {
+    static Map<String, char[]> parseFileLenient(Path path, Logger logger) {
         try {
             return parseFile(path, logger);
         } catch (Exception e) {
-            logger.error("failed to parse users file [{}]. skipping/removing all users...", e, path.toAbsolutePath());
+            logger.error(
+                    new ParameterizedMessage("failed to parse users file [{}]. skipping/removing all users...", path.toAbsolutePath()), e);
             return emptyMap();
         }
     }
@@ -110,7 +112,7 @@ public class FileUserPasswdStore {
      * parses the users file. Should never return {@code null}, if the file doesn't exist an
      * empty map is returned
      */
-    public static Map<String, char[]> parseFile(Path path, @Nullable ESLogger logger) {
+    public static Map<String, char[]> parseFile(Path path, @Nullable Logger logger) {
         if (logger == null) {
             logger = NoOpLogger.INSTANCE;
         }

@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.xpack.watcher.actions.slack;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.watcher.actions.Action;
-import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
 import org.elasticsearch.xpack.notification.slack.SentMessages;
 import org.elasticsearch.xpack.notification.slack.SlackAccount;
 import org.elasticsearch.xpack.notification.slack.SlackService;
 import org.elasticsearch.xpack.notification.slack.message.SlackMessage;
+import org.elasticsearch.xpack.watcher.actions.Action;
+import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
 import org.elasticsearch.xpack.watcher.watch.Payload;
@@ -27,7 +27,7 @@ public class ExecutableSlackAction extends ExecutableAction<SlackAction> {
     private final TextTemplateEngine templateEngine;
     private final SlackService slackService;
 
-    public ExecutableSlackAction(SlackAction action, ESLogger logger, SlackService slackService, TextTemplateEngine templateEngine) {
+    public ExecutableSlackAction(SlackAction action, Logger logger, SlackService slackService, TextTemplateEngine templateEngine) {
         super(action, logger);
         this.slackService = slackService;
         this.templateEngine = templateEngine;

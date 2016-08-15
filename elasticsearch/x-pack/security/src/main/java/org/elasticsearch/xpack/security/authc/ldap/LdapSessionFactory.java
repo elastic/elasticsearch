@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPException;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
@@ -64,7 +65,7 @@ public class LdapSessionFactory extends SessionFactory {
             } catch (LDAPException e) {
                 // we catch the ldapException here since we expect it can happen and we shouldn't be logging this all the time otherwise
                 // it is just noise
-                logger.debug("failed LDAP authentication with user template [{}] and DN [{}]", e, template, dn);
+                logger.debug(new ParameterizedMessage("failed LDAP authentication with user template [{}] and DN [{}]", template, dn), e);
                 if (lastException == null) {
                     lastException = e;
                 } else {

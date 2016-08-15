@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.notification.hipchat;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -83,7 +83,7 @@ public class UserAccountTests extends ESTestCase {
         }
         Settings settings = sb.build();
 
-        UserAccount account = new UserAccount(accountName, settings, HipChatServer.DEFAULT, mock(HttpClient.class), mock(ESLogger.class));
+        UserAccount account = new UserAccount(accountName, settings, HipChatServer.DEFAULT, mock(HttpClient.class), mock(Logger.class));
 
         assertThat(account.profile, is(HipChatAccount.Profile.USER));
         assertThat(account.name, equalTo(accountName));
@@ -108,7 +108,7 @@ public class UserAccountTests extends ESTestCase {
     public void testSettingsNoAuthToken() throws Exception {
         Settings.Builder sb = Settings.builder();
         try {
-            new UserAccount("_name", sb.build(), HipChatServer.DEFAULT, mock(HttpClient.class), mock(ESLogger.class));
+            new UserAccount("_name", sb.build(), HipChatServer.DEFAULT, mock(HttpClient.class), mock(Logger.class));
             fail("Expected SettingsException");
         } catch (SettingsException e) {
             assertThat(e.getMessage(), is("hipchat account [_name] missing required [auth_token] setting"));
@@ -121,7 +121,7 @@ public class UserAccountTests extends ESTestCase {
                 .put("host", "_host")
                 .put("port", "443")
                 .put("auth_token", "_token")
-                .build(), HipChatServer.DEFAULT, httpClient, mock(ESLogger.class));
+                .build(), HipChatServer.DEFAULT, httpClient, mock(Logger.class));
 
         HipChatMessage.Format format = randomFrom(HipChatMessage.Format.values());
         HipChatMessage.Color color = randomFrom(HipChatMessage.Color.values());

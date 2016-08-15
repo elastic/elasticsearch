@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.security.authc.support;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.support.Exceptions;
@@ -130,7 +130,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             }
 
             if (logger.isTraceEnabled()) {
-                logger.trace("realm [{}] could not authenticate [{}]", ee, type(), token.principal());
+                logger.trace(new ParameterizedMessage("realm [{}] could not authenticate [{}]", type(), token.principal()), ee);
             } else if (logger.isDebugEnabled()) {
                 logger.debug("realm [{}] could not authenticate [{}]", type(), token.principal());
             }
@@ -160,7 +160,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             return userWithHash.user;
         } catch (ExecutionException ee) {
             if (logger.isTraceEnabled()) {
-                logger.trace("realm [{}] could not lookup [{}]", ee, name(), username);
+                logger.trace(new ParameterizedMessage("realm [{}] could not lookup [{}]", name(), username), ee);
             } else if (logger.isDebugEnabled()) {
                 logger.debug("realm [{}] could not authenticate [{}]", name(), username);
             }

@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.notification.hipchat;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.xpack.notification.hipchat.HipChatAccount.Profile;
 import org.elasticsearch.xpack.common.http.HttpClient;
+import org.elasticsearch.xpack.notification.hipchat.HipChatAccount.Profile;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -22,7 +22,7 @@ public class HipChatAccounts {
     private final Map<String, HipChatAccount> accounts;
     private final String defaultAccountName;
 
-    public HipChatAccounts(Settings settings, HttpClient httpClient, ESLogger logger) {
+    public HipChatAccounts(Settings settings, HttpClient httpClient, Logger logger) {
         HipChatServer defaultServer = new HipChatServer(settings);
         Settings accountsSettings = settings.getAsSettings("account");
         accounts = new HashMap<>();

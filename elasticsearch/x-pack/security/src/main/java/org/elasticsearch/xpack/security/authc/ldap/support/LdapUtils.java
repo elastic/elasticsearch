@@ -14,7 +14,8 @@ import com.unboundid.ldap.sdk.ResultCode;
 import com.unboundid.ldap.sdk.SearchRequest;
 import com.unboundid.ldap.sdk.SearchResult;
 import com.unboundid.ldap.sdk.SearchResultEntry;
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 
 import javax.naming.ldap.Rdn;
 import java.text.MessageFormat;
@@ -48,15 +49,18 @@ public final class LdapUtils {
      * This method performs a LDAPConnection.search(...) operation while handling referral exceptions. This is necessary
      * to maintain backwards compatibility with the original JNDI implementation
      */
-    public static SearchResult search(LDAPInterface ldap, SearchRequest searchRequest, ESLogger logger) throws LDAPException {
+    public static SearchResult search(LDAPInterface ldap, SearchRequest searchRequest, Logger logger) throws LDAPException {
         SearchResult results;
         try {
             results = ldap.search(searchRequest);
         } catch (LDAPSearchException e) {
             if (e.getResultCode().equals(ResultCode.REFERRAL) && e.getSearchResult() != null) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("a referral could not be followed for request [{}] so some results may not have been retrieved", e,
-                            searchRequest);
+                    logger.debug(
+                            new ParameterizedMessage(
+                                    "a referral could not be followed for request [{}] so some results may not have been retrieved",
+                                    searchRequest),
+                            e);
                 }
                 results = e.getSearchResult();
             } else {
@@ -70,15 +74,18 @@ public final class LdapUtils {
      * This method performs a LDAPConnection.searchForEntry(...) operation while handling referral exceptions. This is necessary
      * to maintain backwards compatibility with the original JNDI implementation
      */
-    public static SearchResultEntry searchForEntry(LDAPInterface ldap, SearchRequest searchRequest, ESLogger logger) throws LDAPException {
+    public static SearchResultEntry searchForEntry(LDAPInterface ldap, SearchRequest searchRequest, Logger logger) throws LDAPException {
         SearchResultEntry entry;
         try {
             entry = ldap.searchForEntry(searchRequest);
         } catch (LDAPSearchException e) {
             if (e.getResultCode().equals(ResultCode.REFERRAL) && e.getSearchResult() != null && e.getSearchResult().getEntryCount() > 0) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("a referral could not be followed for request [{}] so some results may not have been retrieved", e,
-                            searchRequest);
+                    logger.debug(
+                            new ParameterizedMessage(
+                                    "a referral could not be followed for request [{}] so some results may not have been retrieved",
+                                    searchRequest),
+                            e);
                 }
                 entry = e.getSearchResult().getSearchEntries().get(0);
             } else {

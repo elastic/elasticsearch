@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.notification.email;
 
-import java.util.HashMap;
-import java.util.Map;
-
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  *
@@ -21,7 +21,7 @@ public class Accounts {
     private final String defaultAccountName;
     private final Map<String, Account> accounts;
 
-    public Accounts(Settings settings, CryptoService cryptoService, ESLogger logger) {
+    public Accounts(Settings settings, CryptoService cryptoService, Logger logger) {
         Settings accountsSettings = settings.getAsSettings("account");
         accounts = new HashMap<>();
         for (String name : accountsSettings.names()) {

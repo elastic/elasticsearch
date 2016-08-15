@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.notification.pagerduty;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.xpack.common.http.HttpClient;
@@ -27,9 +27,9 @@ public class PagerDutyAccount {
     final String serviceKey;
     final HttpClient httpClient;
     final IncidentEventDefaults eventDefaults;
-    final ESLogger logger;
+    final Logger logger;
 
-    public PagerDutyAccount(String name, Settings accountSettings, Settings serviceSettings, HttpClient httpClient, ESLogger logger) {
+    public PagerDutyAccount(String name, Settings accountSettings, Settings serviceSettings, HttpClient httpClient, Logger logger) {
         this.name = name;
         this.serviceKey = accountSettings.get(SERVICE_KEY_SETTING, serviceSettings.get(SERVICE_KEY_SETTING, null));
         if (this.serviceKey == null) {

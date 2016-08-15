@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.user.User;
 
@@ -19,7 +19,7 @@ import java.util.Map;
  */
 public abstract class Realm implements Comparable<Realm> {
 
-    protected final ESLogger logger;
+    protected final Logger logger;
     protected final String type;
     protected RealmConfig config;
 

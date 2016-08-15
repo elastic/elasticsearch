@@ -5,24 +5,24 @@
  */
 package org.elasticsearch.xpack.notification.hipchat;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
-import org.elasticsearch.xpack.notification.hipchat.HipChatMessage.Color;
-import org.elasticsearch.xpack.notification.hipchat.HipChatMessage.Format;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.common.http.Scheme;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.notification.hipchat.HipChatMessage.Color;
+import org.elasticsearch.xpack.notification.hipchat.HipChatMessage.Format;
+import org.elasticsearch.xpack.watcher.actions.hipchat.HipChatAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +38,7 @@ public class UserAccount extends HipChatAccount {
 
     final Defaults defaults;
 
-    public UserAccount(String name, Settings settings, HipChatServer defaultServer, HttpClient httpClient, ESLogger logger) {
+    public UserAccount(String name, Settings settings, HipChatServer defaultServer, HttpClient httpClient, Logger logger) {
         super(name, Profile.USER, settings, defaultServer, httpClient, logger);
         defaults = new Defaults(settings);
     }

@@ -5,17 +5,20 @@
  */
 package org.elasticsearch.xpack.security.authc.file;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.RefreshListener;
 import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.After;
 import org.junit.Before;
@@ -40,9 +43,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
 public class FileUserPasswdStoreTests extends ESTestCase {
 
     private Settings settings;
@@ -173,17 +173,17 @@ public class FileUserPasswdStoreTests extends ESTestCase {
 
     public void testParseFile_Empty() throws Exception {
         Path empty = createTempFile();
-        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.DEBUG);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.DEBUG);
         Map<String, char[]> users = FileUserPasswdStore.parseFile(empty, logger);
         assertThat(users.isEmpty(), is(true));
-        List<CapturingLogger.Msg> msgs = logger.output(CapturingLogger.Level.DEBUG);
-        assertThat(msgs.size(), is(1));
-        assertThat(msgs.get(0).text, containsString("parsed [0] users"));
+        List<String> events = CapturingLogger.output(logger.getName(), Level.DEBUG);
+        assertThat(events.size(), is(1));
+        assertThat(events.get(0), containsString("parsed [0] users"));
     }
 
     public void testParseFile_WhenFileDoesNotExist() throws Exception {
         Path file = createTempDir().resolve(randomAsciiOfLength(10));
-        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         Map<String, char[]> users = FileUserPasswdStore.parseFile(file, logger);
         assertThat(users, notNullValue());
         assertThat(users.isEmpty(), is(true));
@@ -193,7 +193,7 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Path file = createTempFile();
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
-        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         try {
             FileUserPasswdStore.parseFile(file, logger);
             fail("expected a parse failure");
@@ -214,13 +214,13 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         Path file = createTempFile();
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
-        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         Map<String, char[]> users = FileUserPasswdStore.parseFileLenient(file, logger);
         assertThat(users, notNullValue());
         assertThat(users.isEmpty(), is(true));
-        List<CapturingLogger.Msg> msgs = logger.output(CapturingLogger.Level.ERROR);
-        assertThat(msgs.size(), is(1));
-        assertThat(msgs.get(0).text, containsString("failed to parse users file"));
+        List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
+        assertThat(events.size(), is(1));
+        assertThat(events.get(0), containsString("failed to parse users file"));
     }
 
     public void testParseFileWithLineWithEmptyPasswordAndWhitespace() throws Exception {
@@ -230,4 +230,5 @@ public class FileUserPasswdStoreTests extends ESTestCase {
         assertThat(users, notNullValue());
         assertThat(users.keySet(), is(empty()));
     }
+
 }

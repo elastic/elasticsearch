@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.xpack.common.http.HttpClient;
+import org.elasticsearch.xpack.common.http.HttpRequest;
+import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
-import org.elasticsearch.xpack.common.http.HttpClient;
-import org.elasticsearch.xpack.common.http.HttpRequest;
-import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.util.Map;
@@ -25,7 +25,7 @@ public class ExecutableWebhookAction extends ExecutableAction<WebhookAction> {
     private final HttpClient httpClient;
     private final TextTemplateEngine templateEngine;
 
-    public ExecutableWebhookAction(WebhookAction action, ESLogger logger, HttpClient httpClient, TextTemplateEngine templateEngine) {
+    public ExecutableWebhookAction(WebhookAction action, Logger logger, HttpClient httpClient, TextTemplateEngine templateEngine) {
         super(action, logger);
         this.httpClient = httpClient;
         this.templateEngine = templateEngine;

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.notification.hipchat;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -32,7 +32,7 @@ public abstract class HipChatAccount  {
     public static final String DEFAULT_COLOR_SETTING = "message_defaults." + HipChatMessage.Field.COLOR.getPreferredName();
     public static final String DEFAULT_NOTIFY_SETTING = "message_defaults." + HipChatMessage.Field.NOTIFY.getPreferredName();
 
-    protected final ESLogger logger;
+    protected final Logger logger;
     protected final String name;
     protected final Profile profile;
     protected final HipChatServer server;
@@ -40,7 +40,7 @@ public abstract class HipChatAccount  {
     protected final String authToken;
 
     protected HipChatAccount(String name, Profile profile, Settings settings, HipChatServer defaultServer, HttpClient httpClient,
-                             ESLogger logger) {
+                             Logger logger) {
         this.name = name;
         this.profile = profile;
         this.server = new HipChatServer(settings, defaultServer);
@@ -66,27 +66,27 @@ public abstract class HipChatAccount  {
         V1() {
             @Override
             HipChatAccount createAccount(String name, Settings settings, HipChatServer defaultServer, HttpClient httpClient,
-                                         ESLogger logger) {
+                                         Logger logger) {
                 return new V1Account(name, settings, defaultServer, httpClient, logger);
             }
         },
         INTEGRATION() {
             @Override
             HipChatAccount createAccount(String name, Settings settings, HipChatServer defaultServer, HttpClient httpClient,
-                                         ESLogger logger) {
+                                         Logger logger) {
                 return new IntegrationAccount(name, settings, defaultServer, httpClient, logger);
             }
         },
         USER() {
             @Override
             HipChatAccount createAccount(String name, Settings settings, HipChatServer defaultServer, HttpClient httpClient,
-                                         ESLogger logger) {
+                                         Logger logger) {
                 return new UserAccount(name, settings, defaultServer, httpClient, logger);
             }
         };
 
         abstract HipChatAccount createAccount(String name, Settings settings, HipChatServer defaultServer, HttpClient httpClient,
-                                              ESLogger logger);
+                                              Logger logger);
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

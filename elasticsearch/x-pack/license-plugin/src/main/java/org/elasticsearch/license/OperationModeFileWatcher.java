@@ -6,7 +6,8 @@
 package org.elasticsearch.license;
 
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -32,11 +33,11 @@ public final class OperationModeFileWatcher implements FileChangesListener {
     private final AtomicBoolean initialized = new AtomicBoolean();
     private final OperationMode defaultOperationMode = OperationMode.PLATINUM;
     private volatile OperationMode currentOperationMode = defaultOperationMode;
-    private final ESLogger logger;
+    private final Logger logger;
     private final Runnable onChange;
 
     public OperationModeFileWatcher(ResourceWatcherService resourceWatcherService, Path licenseModePath,
-                                    ESLogger logger, Runnable onChange) {
+                                    Logger logger, Runnable onChange) {
         this.resourceWatcherService = resourceWatcherService;
         this.licenseModePath = licenseModePath;
         this.logger = logger;
@@ -95,14 +96,19 @@ public final class OperationModeFileWatcher implements FileChangesListener {
                 try {
                     content = Files.readAllBytes(licenseModePath);
                 } catch (IOException e) {
-                    logger.error("couldn't read operation mode from [{}]", e, licenseModePath.toAbsolutePath().toString());
+                    logger.error(
+                            new ParameterizedMessage(
+                                    "couldn't read operation mode from [{}]",
+                                    licenseModePath.toAbsolutePath().toString()),
+                            e);
                     return;
                 }
                 String operationMode = new String(content, StandardCharsets.UTF_8);
                 try {
                     currentOperationMode = OperationMode.resolve(operationMode);
                 } catch (IllegalArgumentException e) {
-                    logger.error("invalid operation mode in [{}]", e, licenseModePath.toAbsolutePath().toString());
+                    logger.error(
+                            new ParameterizedMessage("invalid operation mode in [{}]", licenseModePath.toAbsolutePath().toString()), e);
                     return;
                 }
             }

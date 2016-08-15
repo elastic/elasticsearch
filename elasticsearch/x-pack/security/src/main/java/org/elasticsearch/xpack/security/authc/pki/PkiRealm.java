@@ -5,14 +5,15 @@
  */
 package org.elasticsearch.xpack.security.authc.pki;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
@@ -20,8 +21,7 @@ import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.security.user.User;
 
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
@@ -98,7 +98,7 @@ public class PkiRealm extends Realm {
         return false;
     }
 
-    static X509AuthenticationToken token(Object pkiHeaderValue, Pattern principalPattern, ESLogger logger) {
+    static X509AuthenticationToken token(Object pkiHeaderValue, Pattern principalPattern, Logger logger) {
         if (pkiHeaderValue == null) {
             return null;
         }
@@ -128,7 +128,7 @@ public class PkiRealm extends Realm {
         return new X509AuthenticationToken(certificates, principal, dn);
     }
 
-    static boolean isCertificateChainTrusted(X509TrustManager[] trustManagers, X509AuthenticationToken token, ESLogger logger) {
+    static boolean isCertificateChainTrusted(X509TrustManager[] trustManagers, X509AuthenticationToken token, Logger logger) {
         if (trustManagers.length > 0) {
             boolean trusted = false;
             for (X509TrustManager trustManager : trustManagers) {
@@ -138,7 +138,7 @@ public class PkiRealm extends Realm {
                     break;
                 } catch (CertificateException e) {
                     if (logger.isTraceEnabled()) {
-                        logger.trace("failed certificate validation for principal [{}]", e, token.principal());
+                        logger.trace(new ParameterizedMessage("failed certificate validation for principal [{}]", token.principal()), e);
                     } else if (logger.isDebugEnabled()) {
                         logger.debug("failed certificate validation for principal [{}]", token.principal());
                     }
@@ -200,7 +200,7 @@ public class PkiRealm extends Realm {
      * @param config this realm's configuration
      * @param logger the logger to use if there is a configuration issue
      */
-    static void checkSSLEnabled(RealmConfig config, ESLogger logger) {
+    static void checkSSLEnabled(RealmConfig config, Logger logger) {
         Settings settings = config.globalSettings();
 
         final boolean httpSsl = SecurityNetty3HttpServerTransport.SSL_SETTING.get(settings);

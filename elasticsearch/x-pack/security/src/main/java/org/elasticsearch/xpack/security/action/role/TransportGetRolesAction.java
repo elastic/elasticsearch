@@ -5,22 +5,24 @@
  */
 package org.elasticsearch.xpack.security.action.role;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.security.authz.permission.KibanaRole;
-import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.security.authz.permission.KibanaRole;
+import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
+import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.common.Strings.arrayToDelimitedString;
 
 public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequest, GetRolesResponse> {
 
@@ -78,7 +80,7 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
 
                 @Override
                 public void onFailure(Exception t) {
-                    logger.error("failed to retrieve role [{}]", t, rolename);
+                    logger.error(new ParameterizedMessage("failed to retrieve role [{}]", rolename), t);
                     listener.onFailure(t);
                 }
             });
@@ -96,8 +98,7 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
 
                 @Override
                 public void onFailure(Exception t) {
-                    logger.error("failed to retrieve role [{}]", t,
-                            Strings.arrayToDelimitedString(request.names(), ","));
+                    logger.error(new ParameterizedMessage("failed to retrieve role [{}]", arrayToDelimitedString(request.names(), ",")), t);
                     listener.onFailure(t);
                 }
             });

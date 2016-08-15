@@ -6,8 +6,9 @@
 package org.elasticsearch.xpack.watcher.input.http;
 
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -25,6 +26,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.watcher.input.http.HttpInput.TYPE;
+
 /**
  */
 public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Result> {
@@ -32,7 +35,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
     private final HttpClient client;
     private final TextTemplateEngine templateEngine;
 
-    public ExecutableHttpInput(HttpInput input, ESLogger logger, HttpClient client, TextTemplateEngine templateEngine) {
+    public ExecutableHttpInput(HttpInput input, Logger logger, HttpClient client, TextTemplateEngine templateEngine) {
         super(input, logger);
         this.client = client;
         this.templateEngine = templateEngine;
@@ -45,7 +48,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
             request = input.getRequest().render(templateEngine, model);
             return doExecute(ctx, request);
         } catch (Exception e) {
-            logger.error("failed to execute [{}] input for [{}]", e, HttpInput.TYPE, ctx.watch());
+            logger.error(new ParameterizedMessage("failed to execute [{}] input for [{}]", TYPE, ctx.watch()), e);
             return new HttpInput.Result(request, e);
         }
     }

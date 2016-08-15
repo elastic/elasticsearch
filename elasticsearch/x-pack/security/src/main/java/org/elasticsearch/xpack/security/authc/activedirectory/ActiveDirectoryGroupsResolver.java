@@ -13,7 +13,8 @@ import com.unboundid.ldap.sdk.SearchRequest;
 import com.unboundid.ldap.sdk.SearchResult;
 import com.unboundid.ldap.sdk.SearchResultEntry;
 import com.unboundid.ldap.sdk.SearchScope;
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
@@ -42,7 +43,7 @@ public class ActiveDirectoryGroupsResolver implements GroupsResolver {
     }
 
     @Override
-    public List<String> resolve(LDAPInterface connection, String userDn, TimeValue timeout, ESLogger logger,
+    public List<String> resolve(LDAPInterface connection, String userDn, TimeValue timeout, Logger logger,
                                 Collection<Attribute> attributes) {
         Filter groupSearchFilter = buildGroupQuery(connection, userDn, timeout, logger);
         logger.debug("group SID to DN search filter: [{}]", groupSearchFilter);
@@ -56,7 +57,7 @@ public class ActiveDirectoryGroupsResolver implements GroupsResolver {
         try {
             results = search(connection, searchRequest, logger);
         } catch (LDAPException e) {
-            logger.error("failed to fetch AD groups for DN [{}]", e, userDn);
+            logger.error(new ParameterizedMessage("failed to fetch AD groups for DN [{}]", userDn), e);
             return Collections.emptyList();
         }
 
@@ -76,7 +77,7 @@ public class ActiveDirectoryGroupsResolver implements GroupsResolver {
         return null;
     }
 
-    static Filter buildGroupQuery(LDAPInterface connection, String userDn, TimeValue timeout, ESLogger logger) {
+    static Filter buildGroupQuery(LDAPInterface connection, String userDn, TimeValue timeout, Logger logger) {
         try {
             SearchRequest request = new SearchRequest(userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER, "tokenGroups");
             request.setTimeLimitSeconds(Math.toIntExact(timeout.seconds()));
@@ -92,7 +93,7 @@ public class ActiveDirectoryGroupsResolver implements GroupsResolver {
             }
             return Filter.createORFilter(orFilters);
         } catch (LDAPException e) {
-            logger.error("failed to fetch AD groups for DN [{}]", e, userDn);
+            logger.error(new ParameterizedMessage("failed to fetch AD groups for DN [{}]", userDn), e);
             return null;
         }
     }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.watch;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -31,9 +32,8 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.xpack.security.InternalClient;
-import org.elasticsearch.xpack.watcher.WatcherFeatureSet;
 import org.elasticsearch.xpack.common.stats.Counters;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
@@ -93,7 +93,7 @@ public class WatchStore extends AbstractComponent {
                 logger.debug("loaded [{}] watches from the watches index [{}]", count, INDEX);
                 started.set(true);
             } catch (Exception e) {
-                logger.debug("failed to load watches for watch index [{}]", e, INDEX);
+                logger.debug(new ParameterizedMessage("failed to load watches for watch index [{}]", INDEX), e);
                 watches.clear();
                 throw e;
             }
@@ -315,7 +315,7 @@ public class WatchStore extends AbstractComponent {
                         watches.put(id, watch);
                         count++;
                     } catch (Exception e) {
-                        logger.error("couldn't load watch [{}], ignoring it...", e, id);
+                        logger.error(new ParameterizedMessage("couldn't load watch [{}], ignoring it...", id), e);
                     }
                 }
                 response = client.searchScroll(response.getScrollId(), scrollTimeout);

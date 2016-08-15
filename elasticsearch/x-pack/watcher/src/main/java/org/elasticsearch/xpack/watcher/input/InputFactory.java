@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.input;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -15,9 +15,9 @@ import java.io.IOException;
  */
 public abstract class InputFactory<I extends Input, R extends Input.Result, E extends ExecutableInput<I, R>> {
 
-    protected final ESLogger inputLogger;
+    protected final Logger inputLogger;
 
-    public InputFactory(ESLogger inputLogger) {
+    public InputFactory(Logger inputLogger) {
         this.inputLogger = inputLogger;
     }
 

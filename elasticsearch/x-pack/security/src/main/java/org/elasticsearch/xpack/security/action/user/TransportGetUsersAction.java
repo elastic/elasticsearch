@@ -5,23 +5,25 @@
  */
 package org.elasticsearch.xpack.security.action.user;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
-import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.elasticsearch.common.Strings.arrayToDelimitedString;
 
 public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequest, GetUsersResponse> {
 
@@ -79,7 +81,7 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("failed to retrieve user [{}]", e, username);
+                    logger.error(new ParameterizedMessage("failed to retrieve user [{}]", username), e);
                     listener.onFailure(e);
                 }
             });
@@ -95,8 +97,8 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("failed to retrieve user [{}]", e,
-                            Strings.arrayToDelimitedString(request.usernames(), ","));
+                    logger.error(
+                            new ParameterizedMessage("failed to retrieve user [{}]", arrayToDelimitedString(request.usernames(), ",")), e);
                     listener.onFailure(e);
                 }
             });

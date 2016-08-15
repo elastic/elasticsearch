@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring.agent.exporter.local;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
@@ -21,14 +22,12 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.xpack.common.init.proxy.ClientProxy;
 import org.elasticsearch.xpack.monitoring.agent.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.agent.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
@@ -387,7 +386,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
         @Override
         public void onFailure(Exception e) {
-            logger.error("failed to set monitoring index {} [{}]", e, type, name);
+            logger.error(new ParameterizedMessage("failed to set monitoring index {} [{}]", type, name), e);
         }
     }
 }

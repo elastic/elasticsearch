@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition.never;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
@@ -16,7 +16,7 @@ import java.io.IOException;
  */
 public class ExecutableNeverCondition extends ExecutableCondition<NeverCondition, NeverCondition.Result> {
 
-    public ExecutableNeverCondition(ESLogger logger) {
+    public ExecutableNeverCondition(Logger logger) {
         super(NeverCondition.INSTANCE, logger);
     }
 

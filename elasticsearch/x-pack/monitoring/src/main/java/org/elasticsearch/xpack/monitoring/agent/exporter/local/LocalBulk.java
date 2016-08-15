@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.monitoring.agent.exporter.local;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.monitoring.agent.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.agent.exporter.ExportException;
@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.monitoring.agent.exporter.Exporter.EXPORT_
  */
 public class LocalBulk extends ExportBulk {
 
-    private final ESLogger logger;
+    private final Logger logger;
     private final InternalClient client;
     private final ResolversRegistry resolvers;
     private final boolean usePipeline;
@@ -37,7 +37,7 @@ public class LocalBulk extends ExportBulk {
     private BulkRequestBuilder requestBuilder;
 
 
-    public LocalBulk(String name, ESLogger logger, InternalClient client, ResolversRegistry resolvers, boolean usePipeline) {
+    public LocalBulk(String name, Logger logger, InternalClient client, ResolversRegistry resolvers, boolean usePipeline) {
         super(name);
         this.logger = logger;
         this.client = client;

@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.actions;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -144,7 +144,7 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
 
         public static class Executable extends ExecutableAction<ErrorAction> {
 
-            public Executable(ErrorAction action, ESLogger logger) {
+            public Executable(ErrorAction action, Logger logger) {
                 super(action, logger);
             }
 

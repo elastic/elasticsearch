@@ -5,11 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.agent.collector.cluster;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
@@ -24,6 +20,11 @@ import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.agent.collector.AbstractCollector;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.security.InternalClient;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Collector for cluster stats.
@@ -66,7 +67,7 @@ public class ClusterStatsCollector extends AbstractCollector {
             clusterStats = client.admin().cluster().prepareClusterStats().get(monitoringSettings.clusterStatsTimeout());
         } catch (ElasticsearchSecurityException e) {
             if (LicenseUtils.isLicenseExpiredException(e)) {
-                logger.trace("collector [{}] - unable to collect data because of expired license", e, name());
+                logger.trace(new ParameterizedMessage("collector [{}] - unable to collect data because of expired license", name()), e);
             } else {
                 throw e;
             }

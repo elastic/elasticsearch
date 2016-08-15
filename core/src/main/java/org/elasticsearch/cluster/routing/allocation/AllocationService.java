@@ -399,7 +399,6 @@ public class AllocationService extends AbstractComponent {
                 // its a live node, continue
                 continue;
             }
-            allocation.changes().setChanged();
             // now, go over all the shards routing on the node, and fail them
             for (ShardRouting shardRouting : node.copyShards()) {
                 final IndexMetaData indexMetaData = allocation.metaData().getIndexSafe(shardRouting.index());

@@ -51,6 +51,8 @@ import java.util.Locale;
  */
 final class BootstrapCheck {
 
+    private static String BOOTSTRAP_CHECKS_FAILED = "bootstrap checks failed";
+
     private BootstrapCheck() {
     }
 
@@ -127,7 +129,7 @@ final class BootstrapCheck {
 
         if (!errors.isEmpty()) {
             final List<String> messages = new ArrayList<>(1 + errors.size());
-            messages.add("bootstrap checks failed");
+            messages.add(BOOTSTRAP_CHECKS_FAILED);
             messages.addAll(errors);
             final RuntimeException re = new RuntimeException(String.join("\n", messages));
             errors.stream().map(IllegalStateException::new).forEach(re::addSuppressed);
@@ -138,6 +140,10 @@ final class BootstrapCheck {
 
     static void log(final ESLogger logger, final String error) {
         logger.warn(error);
+    }
+
+    static boolean isBootstrapCheckException(final Throwable t) {
+        return t != null && t instanceof RuntimeException && t.getMessage().contains(BOOTSTRAP_CHECKS_FAILED);
     }
 
     /**

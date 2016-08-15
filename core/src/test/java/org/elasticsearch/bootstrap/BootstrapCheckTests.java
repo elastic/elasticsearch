@@ -26,6 +26,9 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -39,6 +42,7 @@ import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
@@ -81,6 +85,41 @@ public class BootstrapCheckTests extends ESTestCase {
             verify(logger).warn("enforcing bootstrap checks but ignoring system bootstrap checks, consider not ignoring system checks");
         }
         verifyNoMoreInteractions(logger);
+    }
+
+    public void testFailingBootstrapChecksException() throws UnsupportedEncodingException {
+        final RuntimeException e = expectThrows(RuntimeException.class, () -> BootstrapCheck.check(
+            true,
+            false,
+            Collections.singletonList(new BootstrapCheck.Check() {
+                @Override
+                public boolean check() {
+                    return true;
+                }
+
+                @Override
+                public String errorMessage() {
+                    return "error";
+                }
+
+                @Override
+                public boolean isSystemCheck() {
+                    return randomBoolean();
+                }
+            }),
+            "testFailingBootstrapChecksException"));
+        final StartupException se = new StartupException(e);
+        final ByteArrayOutputStream os = new ByteArrayOutputStream();
+        final PrintStream ps = new PrintStream(os, false, "UTF-8");
+        se.printStackTrace(ps);
+        ps.flush();
+        final String stackTrace = os.toString("UTF-8");
+        final String[] elements = stackTrace.split("\\n");
+        assertThat(elements.length, equalTo(4));
+        assertThat(elements[0], equalTo("java.lang.RuntimeException: bootstrap checks failed"));
+        assertThat(elements[1], equalTo("error"));
+        assertThat(elements[2], startsWith("\tat org.elasticsearch.bootstrap.BootstrapCheck.check"));
+        assertThat(elements[3], equalTo("\t<<<truncated>>>"));
     }
 
     public void testEnforceLimitsWhenBoundToNonLocalAddress() {

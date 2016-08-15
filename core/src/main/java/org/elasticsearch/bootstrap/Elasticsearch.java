@@ -102,7 +102,7 @@ class Elasticsearch extends SettingCommand {
         } catch (final Throwable t) {
             // format exceptions to the console in a special way
             // to avoid 2MB stacktraces from guice, etc.
-            throw new StartupError(t);
+            throw new StartupException(t);
         }
     }
 

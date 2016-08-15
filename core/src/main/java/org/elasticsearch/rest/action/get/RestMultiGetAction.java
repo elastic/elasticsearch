@@ -31,7 +31,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;

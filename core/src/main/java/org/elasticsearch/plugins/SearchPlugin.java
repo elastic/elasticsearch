@@ -37,7 +37,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.highlight.Highlighter;
+import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.suggest.Suggester;
 
 import java.util.List;
@@ -143,9 +143,9 @@ public interface SearchPlugin {
     /**
      * Specification of search time behavior extension like a custom {@link MovAvgModel} or {@link ScoreFunction}.
      *
-     * @param W the type of the main {@link NamedWriteable} for this spec. All specs have this but it isn't always *for* the same thing
+     * @param <W> the type of the main {@link NamedWriteable} for this spec. All specs have this but it isn't always *for* the same thing
      *        though, usually it is some sort of builder sent from the coordinating node to the data nodes executing the behavior
-     * @param P the type of the parser for this spec. The parser runs on the coordinating node, converting {@link XContent} into the
+     * @param <P> the type of the parser for this spec. The parser runs on the coordinating node, converting {@link XContent} into the
      *        behavior to execute
      */
     class SearchExtensionSpec<W extends NamedWriteable, P> {

@@ -181,7 +181,7 @@ public class SearchPhaseController extends AbstractComponent {
         } else {
             // lets see if we only got hits from a single shard, if so, we can optimize...
             for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : results) {
-                if (entry.value.queryResult().topDocs().scoreDocs.length > 0) {
+                if (entry.value.queryResult().hasHits()) {
                     if (result != null) { // we already have one, can't really optimize
                         canOptimize = false;
                         break;

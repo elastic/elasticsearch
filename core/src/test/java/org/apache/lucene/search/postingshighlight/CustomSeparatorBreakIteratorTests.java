@@ -19,7 +19,7 @@
 
 package org.apache.lucene.search.postingshighlight;
 
-import org.elasticsearch.search.highlight.HighlightUtils;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.text.BreakIterator;

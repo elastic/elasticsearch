@@ -19,13 +19,6 @@
 
 package org.elasticsearch.search;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
-import java.util.function.Consumer;
-import java.util.function.Function;
-
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.ParseField;
@@ -253,18 +246,18 @@ import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipel
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.fetch.docvalues.DocValueFieldsFetchSubPhase;
-import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
-import org.elasticsearch.search.fetch.matchedqueries.MatchedQueriesFetchSubPhase;
-import org.elasticsearch.search.fetch.parent.ParentFieldSubFetchPhase;
-import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
-import org.elasticsearch.search.fetch.source.FetchSourceSubPhase;
-import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
-import org.elasticsearch.search.highlight.FastVectorHighlighter;
-import org.elasticsearch.search.highlight.HighlightPhase;
-import org.elasticsearch.search.highlight.Highlighter;
-import org.elasticsearch.search.highlight.PlainHighlighter;
-import org.elasticsearch.search.highlight.PostingsHighlighter;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.ExplainFetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.FetchSourceSubPhase;
+import org.elasticsearch.search.fetch.subphase.MatchedQueriesFetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.ParentFieldSubFetchPhase;
+import org.elasticsearch.search.fetch.subphase.ScriptFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.VersionFetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
+import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
+import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
+import org.elasticsearch.search.fetch.subphase.highlight.PostingsHighlighter;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -282,6 +275,13 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
 import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggester;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Objects.requireNonNull;
@@ -361,7 +361,7 @@ public class SearchModule extends AbstractModule {
     /**
      * The registry of {@link MovAvgModel}s.
      */
-    public ParseFieldRegistry<MovAvgModel.AbstractModelParser> getMovingAverageMdelParserRegistry() {
+    public ParseFieldRegistry<MovAvgModel.AbstractModelParser> getMovingAverageModelParserRegistry() {
         return movingAverageModelParserRegistry;
     }
 

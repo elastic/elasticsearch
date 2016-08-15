@@ -33,7 +33,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 

@@ -39,6 +39,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -128,6 +129,7 @@ public class TribeIT extends ESIntegTestCase {
         tribe1Defaults.putArray("tribe.t2." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), getUnicastHosts(cluster2.client()));
 
         Settings merged = Settings.builder()
+                .put(internalCluster().getDefaultSettings())
                 .put("tribe.t1.cluster.name", internalCluster().getClusterName())
                 .put("tribe.t2.cluster.name", cluster2.getClusterName())
                 .put("tribe.t1.transport.type", "local")
@@ -142,7 +144,6 @@ public class TribeIT extends ESIntegTestCase {
 
                 .put(tribe1Defaults.build())
                 .put(tribe2Defaults.build())
-                .put(internalCluster().getDefaultSettings())
                 .put("node.name", "tribe_node") // make sure we can identify threads from this node
                 .build();
 

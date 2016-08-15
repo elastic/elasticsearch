@@ -74,18 +74,14 @@ public class NodeEnvironmentTests extends ESTestCase {
     }
 
     public void testNodeLockSingleEnvironment() throws IOException {
-        final Settings settings = buildEnvSettings(Settings.builder()
-            .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 1).build());
+        final Settings settings = buildEnvSettings(Settings.builder().put("node.max_local_storage_nodes", 1).build());
         NodeEnvironment env = newNodeEnvironment(settings);
         List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
 
-        try {
-            // Reuse the same location and attempt to lock again
-            new NodeEnvironment(settings, new Environment(settings));
-            fail("env has already locked all the data directories it is allowed");
-        } catch (IllegalStateException ex) {
-            assertThat(ex.getMessage(), containsString("Failed to obtain node lock"));
-        }
+        // Reuse the same location and attempt to lock again
+        IllegalStateException ex =
+            expectThrows(IllegalStateException.class, () -> new NodeEnvironment(settings, new Environment(settings)));
+        assertThat(ex.getMessage(), containsString("failed to obtain node lock"));
 
         // Close the environment that holds the lock and make sure we can get the lock after release
         env.close();
@@ -121,7 +117,7 @@ public class NodeEnvironmentTests extends ESTestCase {
     }
 
     public void testNodeLockMultipleEnvironment() throws IOException {
-        final Settings settings = buildEnvSettings(Settings.EMPTY);
+        final Settings settings = buildEnvSettings(Settings.builder().put("node.max_local_storage_nodes", 2).build());
         final NodeEnvironment first = newNodeEnvironment(settings);
         List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
         NodeEnvironment second = new NodeEnvironment(settings, new Environment(settings));

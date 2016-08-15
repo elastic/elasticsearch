@@ -310,3 +310,14 @@ The unit 'w' representing weeks is no longer supported.
 
 Fractional time values (e.g., 0.5s) are no longer supported. For example, this means when setting
 timeouts "0.5s" will be rejected and should instead be input as "500ms".
+
+==== Node max local storage nodes
+
+Previous versions of Elasticsearch defaulted to allowing multiple nodes to share the same data
+directory (up to 50). This can be confusing where users accidentally startup multiple nodes and end
+up thinking that they've lost data because the second node will start with an empty data directory.
+While the default of allowing multiple nodes is friendly to playing with forming a small cluster on
+a laptop, and end-users do sometimes run multiple nodes on the same host, this tends to be the
+exception. Keeping with Elasticsearch's continual movement towards safer out-of-the-box defaults,
+and optimizing for the norm instead of the exception, the default for
+`node.max_local_storage_nodes` is now one.

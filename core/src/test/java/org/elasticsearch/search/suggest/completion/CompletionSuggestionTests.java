@@ -32,7 +32,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class CompletionSuggestionTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/19896")
     public void testToReduce() throws Exception {
         List<Suggest.Suggestion<CompletionSuggestion.Entry>> shardSuggestions = new ArrayList<>();
         int nShards = randomIntBetween(1, 10);
@@ -47,8 +46,11 @@ public class CompletionSuggestionTests extends ESTestCase {
         float maxScore = randomIntBetween(totalResults, totalResults*2);
         for (int i = 0; i < totalResults; i++) {
             Suggest.Suggestion<CompletionSuggestion.Entry> suggestion = randomFrom(shardSuggestions);
-            suggestion.getEntries().get(0).addOption(new CompletionSuggestion.Entry.Option(i, new Text(""),
-                maxScore - i, Collections.emptyMap()));
+            CompletionSuggestion.Entry entry = suggestion.getEntries().get(0);
+            if (entry.getOptions().size() < size) {
+                entry.addOption(new CompletionSuggestion.Entry.Option(i, new Text(""),
+                    maxScore - i, Collections.emptyMap()));
+            }
         }
         CompletionSuggestion reducedSuggestion = CompletionSuggestion.reduceTo(shardSuggestions);
         assertNotNull(reducedSuggestion);

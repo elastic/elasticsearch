@@ -15,6 +15,7 @@ This plugin can be installed using the plugin manager:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin install mapper-size
 ----------------------------------------------------------------
+// NOTCONSOLE
 
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
@@ -29,6 +30,7 @@ The plugin can be removed with the following command:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin remove mapper-size
 ----------------------------------------------------------------
+// NOTCONSOLE
 
 The node must be stopped before removing the plugin.
 
@@ -106,4 +108,3 @@ GET my_index/_search
 <2> Aggregating on the `_size` field
 <3> Sorting on the `_size` field
 <4> Accessing the `_size` field in scripts (inline scripts must be modules-security-scripting.html#enable-dynamic-scripting[enabled] for this example to work)
-

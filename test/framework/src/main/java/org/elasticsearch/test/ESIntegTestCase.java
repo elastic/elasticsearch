@@ -31,6 +31,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
 import org.elasticsearch.action.ActionListener;
@@ -1630,6 +1631,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder()
+                .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), Integer.MAX_VALUE)
                 // Default the watermarks to absurdly low to prevent the tests
                 // from failing on nodes without enough disk space
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")

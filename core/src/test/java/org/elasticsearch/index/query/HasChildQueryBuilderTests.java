@@ -42,7 +42,7 @@ import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
+import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;

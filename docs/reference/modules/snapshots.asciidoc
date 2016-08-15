@@ -38,7 +38,7 @@ which returns:
   "my_backup": {
     "type": "fs",
     "settings": {
-      "compress": "true",
+      "compress": true,
       "location": "/mount/backups/my_backup"
     }
   }
@@ -219,7 +219,7 @@ specifying the list of indices in the body of the snapshot request.
 PUT /_snapshot/my_backup/snapshot_1
 {
   "indices": "index_1,index_2",
-  "ignore_unavailable": "true",
+  "ignore_unavailable": true,
   "include_global_state": false
 }
 -----------------------------------
@@ -340,7 +340,7 @@ with associated indices
 POST /_snapshot/my_backup/snapshot_1/_restore
 {
   "indices": "index_1,index_2",
-  "ignore_unavailable": "true",
+  "ignore_unavailable": true,
   "include_global_state": true,
   "rename_pattern": "index_(.+)",
   "rename_replacement": "restored_index_$1"

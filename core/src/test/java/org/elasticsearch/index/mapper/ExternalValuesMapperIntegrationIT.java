@@ -25,7 +25,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;

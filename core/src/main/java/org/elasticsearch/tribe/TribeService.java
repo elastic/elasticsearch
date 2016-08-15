@@ -117,6 +117,9 @@ public class TribeService extends AbstractLifecycleComponent {
         sb.put(Node.NODE_MASTER_SETTING.getKey(), false);
         sb.put(Node.NODE_DATA_SETTING.getKey(), false);
         sb.put(Node.NODE_INGEST_SETTING.getKey(), false);
+        if (!NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.exists(settings)) {
+            sb.put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), nodesSettings.size());
+        }
         sb.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local"); // a tribe node should not use zen discovery
         // nothing is going to be discovered, since no master will be elected
         sb.put(DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.getKey(), 0);

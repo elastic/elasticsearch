@@ -28,11 +28,18 @@ import java.util.Collection;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 
-@ClusterScope(scope = SUITE, transportClientRatio = 0)
+/**
+ * Base test case for integration tests against the reindex plugin.
+ */
+@ClusterScope(scope = SUITE)
 public abstract class ReindexTestCase extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(ReindexPlugin.class);
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return Arrays.asList(ReindexPlugin.class);
     }
 

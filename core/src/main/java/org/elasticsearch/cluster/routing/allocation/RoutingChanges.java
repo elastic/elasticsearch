@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.collect.Tuple;
@@ -30,6 +31,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Records changes made to {@link RoutingNodes} during an allocation round.
+ */
 public class RoutingChanges {
     private final Map<ShardId, ShardRoutingChanges> shardChanges = new HashMap<>();
 
@@ -42,6 +46,9 @@ public class RoutingChanges {
         return changed;
     }
 
+    /**
+     * Returns the changes that were made to the routing entries. Changes are grouped per shard id.
+     */
     public Map<ShardId, ShardRoutingChanges> getChanges() {
         return Collections.unmodifiableMap(shardChanges);
     }
@@ -143,7 +150,7 @@ public class RoutingChanges {
     /**
      * Marks the allocation as changed.
      */
-    public void setChanged() {
+    private void setChanged() {
         changed = true;
     }
 
@@ -203,6 +210,7 @@ public class RoutingChanges {
             return Collections.unmodifiableList(reinitalizedPrimaryShards);
         }
 
+        @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
             sb.append("Shard: ").append(shardId).append(", ");

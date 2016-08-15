@@ -206,11 +206,7 @@ public class AllocationDeciders extends AllocationDecider {
         }
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider decider : allocations) {
-            Decision decision = decider.canAllocate(shardRouting, node, allocation);
-            if (decision == Decision.NO) {
-                // on a NO decision, see if we can force allocate the primary
-                decision = decider.canForceAllocatePrimary(shardRouting, node, allocation);
-            }
+            Decision decision = decider.canForceAllocatePrimary(shardRouting, node, allocation);
             // short track if a NO is returned.
             if (decision == Decision.NO) {
                 if (logger.isTraceEnabled()) {

@@ -51,13 +51,11 @@ public final class ScriptProcessor extends AbstractProcessor {
 
     private final Script script;
     private final ScriptService scriptService;
-    private final String field;
 
-    ScriptProcessor(String tag, Script script, ScriptService scriptService, String field)  {
+    ScriptProcessor(String tag, Script script, ScriptService scriptService)  {
         super(tag);
         this.script = script;
         this.scriptService = scriptService;
-        this.field = field;
     }
 
     @Override
@@ -66,10 +64,7 @@ public final class ScriptProcessor extends AbstractProcessor {
         vars.put("ctx", document.getSourceAndMetadata());
         CompiledScript compiledScript = scriptService.compile(script, ScriptContext.Standard.INGEST, emptyMap());
         ExecutableScript executableScript = scriptService.executable(compiledScript, vars);
-        Object value = executableScript.run();
-        if (field != null) {
-            document.setFieldValue(field, value);
-        }
+        executableScript.run();
     }
 
     @Override
@@ -88,7 +83,6 @@ public final class ScriptProcessor extends AbstractProcessor {
         @Override
         public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                       Map<String, Object> config) throws Exception {
-            String field = readOptionalStringProperty(TYPE, processorTag, config, "field");
             String lang = readStringProperty(TYPE, processorTag, config, "lang");
             String inline = readOptionalStringProperty(TYPE, processorTag, config, "inline");
             String file = readOptionalStringProperty(TYPE, processorTag, config, "file");
@@ -116,7 +110,7 @@ public final class ScriptProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, processorTag, null, "Could not initialize script");
             }
 
-            return new ScriptProcessor(processorTag, script, scriptService, field);
+            return new ScriptProcessor(processorTag, script, scriptService);
         }
     }
 }

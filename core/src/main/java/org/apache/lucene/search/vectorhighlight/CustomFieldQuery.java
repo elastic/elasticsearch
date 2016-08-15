@@ -58,12 +58,12 @@ public class CustomFieldQuery extends FieldQuery {
 
     @Override
     void flatten(Query sourceQuery, IndexReader reader, Collection<Query> flatQueries, float boost) throws IOException {
-        while (sourceQuery instanceof BoostQuery) {
+        if (sourceQuery instanceof BoostQuery) {
             BoostQuery bq = (BoostQuery) sourceQuery;
             sourceQuery = bq.getQuery();
             boost *= bq.getBoost();
-        }
-        if (sourceQuery instanceof SpanTermQuery) {
+            flatten(sourceQuery, reader, flatQueries, boost);
+        } else if (sourceQuery instanceof SpanTermQuery) {
             super.flatten(new TermQuery(((SpanTermQuery) sourceQuery).getTerm()), reader, flatQueries, boost);
         } else if (sourceQuery instanceof ConstantScoreQuery) {
             flatten(((ConstantScoreQuery) sourceQuery).getQuery(), reader, flatQueries, boost);
@@ -84,8 +84,10 @@ public class CustomFieldQuery extends FieldQuery {
             flatten(blockJoinQuery.getChildQuery(), reader, flatQueries, boost);
         } else if (sourceQuery instanceof BoostingQuery) {
             BoostingQuery boostingQuery = (BoostingQuery) sourceQuery;
-            flatten(boostingQuery.getContext(), reader, flatQueries, boost * boostingQuery.getBoost());
+            //flatten positive query with query boost
             flatten(boostingQuery.getMatch(), reader, flatQueries, boost);
+            //flatten negative query with negative boost
+            flatten(boostingQuery.getContext(), reader, flatQueries, boostingQuery.getBoost());
         } else {
             super.flatten(sourceQuery, reader, flatQueries, boost);
         }

@@ -85,8 +85,7 @@ public class GroovyScriptTests extends ESIntegTestCase {
         try {
             client().prepareSearch("test")
                     .setQuery(
-                            constantScoreQuery(scriptQuery(new Script("1 == not_found", ScriptType.INLINE, GroovyScriptEngineService.NAME,
-                                    null)))).get();
+                            constantScoreQuery(scriptQuery(new Script("1 == not_found", ScriptType.INLINE, "groovy", null)))).get();
             fail("should have thrown an exception");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.toString()+ "should not contained NotSerializableTransportException",

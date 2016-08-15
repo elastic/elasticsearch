@@ -136,7 +136,7 @@ public class GroovyIndexedScriptTests extends ESIntegTestCase {
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         try {
             client().prepareUpdate("test", "scriptTest", "1")
-                    .setScript(new Script("script1", ScriptService.ScriptType.STORED, GroovyScriptEngineService.NAME, null)).get();
+                    .setScript(new Script("script1", ScriptService.ScriptType.STORED, "groovy", null)).get();
             fail("update script should have been rejected");
         } catch (Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
@@ -157,7 +157,7 @@ public class GroovyIndexedScriptTests extends ESIntegTestCase {
                 .prepareSearch("test")
                 .setSource(
                         new SearchSourceBuilder().aggregation(AggregationBuilders.terms("test").script(
-                                new Script("script1", ScriptType.STORED, null, null)))).get();
+                                new Script("script1", ScriptType.STORED, "groovy", null)))).get();
         assertHitCount(searchResponse, 1);
         assertThat(searchResponse.getAggregations().get("test"), notNullValue());
     }

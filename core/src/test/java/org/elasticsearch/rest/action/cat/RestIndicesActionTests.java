@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -37,6 +38,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -57,6 +59,7 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.usage.UsageService;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -73,7 +76,9 @@ public class RestIndicesActionTests extends ESTestCase {
 
     public void testBuildTable() {
         final Settings settings = Settings.EMPTY;
-        final RestController restController = new RestController(settings, Collections.emptySet());
+        DiscoveryNode discoveryNode = new DiscoveryNode("foo", new LocalTransportAddress("bar"), Version.CURRENT);
+        UsageService usageService = new UsageService(() -> discoveryNode, settings);
+        final RestController restController = new RestController(settings, Collections.emptySet(), usageService);
         final RestIndicesAction action = new RestIndicesAction(settings, restController, new IndexNameExpressionResolver(settings));
 
         // build a (semi-)random table

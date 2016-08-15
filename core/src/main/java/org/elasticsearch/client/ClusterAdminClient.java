@@ -45,6 +45,12 @@ import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.usage.ClearNodesUsageRequest;
+import org.elasticsearch.action.admin.cluster.node.usage.ClearNodesUsageRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.usage.ClearNodesUsageResponse;
+import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
+import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryResponse;
@@ -264,8 +270,60 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     NodesStatsRequestBuilder prepareNodesStats(String... nodesIds);
 
     /**
-     * Returns top N hot-threads samples per node. The hot-threads are only sampled
-     * for the node ids specified in the request.
+     * Nodes usage of the cluster.
+     *
+     * @param request
+     *            The nodes usage request
+     * @return The result future
+     * @see org.elasticsearch.client.Requests#nodesUsageRequest(String...)
+     */
+    ActionFuture<NodesUsageResponse> nodesUsage(NodesUsageRequest request);
+
+    /**
+     * Nodes usage of the cluster.
+     *
+     * @param request
+     *            The nodes usage request
+     * @param listener
+     *            A listener to be notified with a result
+     * @see org.elasticsearch.client.Requests#nodesUsageRequest(String...)
+     */
+    void nodesUsage(NodesUsageRequest request, ActionListener<NodesUsageResponse> listener);
+
+    /**
+     * Nodes usage of the cluster.
+     */
+    NodesUsageRequestBuilder prepareNodesUsage(String... nodesIds);
+
+    /**
+     * Clear Nodes Usage statistics.
+     *
+     * @param request
+     *            The clear nodes usage request
+     * @return The result future
+     * @see org.elasticsearch.client.Requests#clearNodesUsageRequest(String...)
+     */
+    ActionFuture<ClearNodesUsageResponse> clearNodesUsage(ClearNodesUsageRequest request);
+
+    /**
+     * Clear Nodes Usage statistics.
+     *
+     * @param request
+     *            The clear nodes usage request
+     * @param listener
+     *            A listener to be notified with a result
+     * @see org.elasticsearch.client.Requests#clearNodesUsageRequest(String...)
+     */
+    void clearNodesUsage(ClearNodesUsageRequest request, ActionListener<ClearNodesUsageResponse> listener);
+
+    /**
+     * Clear Nodes Usage statistics.
+     */
+    ClearNodesUsageRequestBuilder prepareClearNodesUsage(String... nodesIds);
+
+    /**
+     * Returns top N hot-threads samples per node. The hot-threads are only
+     * sampled for the node ids specified in the request.
      */
     ActionFuture<NodesHotThreadsResponse> nodesHotThreads(NodesHotThreadsRequest request);
 

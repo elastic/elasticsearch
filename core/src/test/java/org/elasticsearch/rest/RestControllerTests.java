@@ -26,12 +26,16 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.usage.UsageService;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -44,7 +48,9 @@ public class RestControllerTests extends ESTestCase {
     public void testApplyRelevantHeaders() throws Exception {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         Set<String> headers = new HashSet<>(Arrays.asList("header.1", "header.2"));
-        final RestController restController = new RestController(Settings.EMPTY, headers) {
+        DiscoveryNode discoveryNode = new DiscoveryNode("foo", new LocalTransportAddress("bar"), Version.CURRENT);
+        UsageService usageService = new UsageService(() -> discoveryNode, Settings.EMPTY);
+        final RestController restController = new RestController(Settings.EMPTY, headers, usageService) {
             @Override
             boolean checkRequestParameters(RestRequest request, RestChannel channel) {
                 return true;
@@ -69,7 +75,9 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testCanTripCircuitBreaker() throws Exception {
-        RestController controller = new RestController(Settings.EMPTY, Collections.emptySet());
+        DiscoveryNode discoveryNode = new DiscoveryNode("foo", new LocalTransportAddress("bar"), Version.CURRENT);
+        UsageService usageService = new UsageService(() -> discoveryNode, Settings.EMPTY);
+        RestController controller = new RestController(Settings.EMPTY, Collections.emptySet(), usageService);
         // trip circuit breaker by default
         controller.registerHandler(RestRequest.Method.GET, "/trip", new FakeRestHandler(true));
         controller.registerHandler(RestRequest.Method.GET, "/do-not-trip", new FakeRestHandler(false));

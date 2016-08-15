@@ -19,13 +19,17 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.usage.UsageService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -40,7 +44,9 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class RestFilterChainTests extends ESTestCase {
     public void testRestFilters() throws Exception {
 
-        RestController restController = new RestController(Settings.EMPTY, Collections.emptySet());
+        DiscoveryNode discoveryNode = new DiscoveryNode("foo", new LocalTransportAddress("bar"), Version.CURRENT);
+        UsageService usageService = new UsageService(() -> discoveryNode, Settings.EMPTY);
+        RestController restController = new RestController(Settings.EMPTY, Collections.emptySet(), usageService);
 
         int numFilters = randomInt(10);
         Set<Integer> orders = new HashSet<>(numFilters);
@@ -121,7 +127,9 @@ public class RestFilterChainTests extends ESTestCase {
             }
         });
 
-        RestController restController = new RestController(Settings.EMPTY, Collections.emptySet());
+        DiscoveryNode discoveryNode = new DiscoveryNode("foo", new LocalTransportAddress("bar"), Version.CURRENT);
+        UsageService usageService = new UsageService(() -> discoveryNode, Settings.EMPTY);
+        RestController restController = new RestController(Settings.EMPTY, Collections.emptySet(), usageService);
         restController.registerFilter(testFilter);
 
         restController.registerHandler(RestRequest.Method.GET, "/", new RestHandler() {

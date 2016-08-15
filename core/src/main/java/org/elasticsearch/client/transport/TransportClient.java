@@ -53,7 +53,6 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportService;
-
 import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -138,7 +137,7 @@ public abstract class TransportClient extends AbstractClient {
             modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
             modules.add(searchModule);
             ActionModule actionModule = new ActionModule(false, true, settings, null, settingsModule.getClusterSettings(),
-                pluginsService.filterPlugins(ActionPlugin.class));
+                    pluginsService.filterPlugins(ActionPlugin.class), null);
             modules.add(actionModule);
 
             pluginsService.processModules(modules);

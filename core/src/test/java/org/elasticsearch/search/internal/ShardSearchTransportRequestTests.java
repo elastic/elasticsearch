@@ -37,6 +37,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -67,6 +68,11 @@ public class ShardSearchTransportRequestTests extends ESTestCase {
         entries.addAll(indicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());
         namedWriteableRegistry = new NamedWriteableRegistry(entries);
+    }
+
+    @AfterClass
+    public static void afterClass() {
+        namedWriteableRegistry = null;
     }
 
     public void testSerialization() throws Exception {

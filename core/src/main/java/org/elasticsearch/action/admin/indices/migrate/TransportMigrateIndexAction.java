@@ -222,8 +222,12 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
         synchronized (runningOperations) {
             ActingOperation currentlyRunning = runningOperations.get(request.getCreateIndexRequest().index());
             if (currentlyRunning != null) {
-                // There is a request currently running for this index. We have to "follow" it.
-                // NOCOMMIT make sure that the requests are the same....
+                // There is a request currently running for this index. If it is for the same index we have to "follow" it.
+                if (false == request.equals(currentlyRunning.request)) {
+                    throw new IllegalArgumentException("Attempting two concurrent but different migration requests for the same index ["
+                            + request.getCreateIndexRequest().index() + "]. This request is [" + request
+                            + "] and the currently running request is [" + currentlyRunning.request + "]");
+                }
                 ObservingOperation newOperation = new ObservingOperation(currentlyRunning, listener);
                 currentlyRunning.observers.add(newOperation);
                 return newOperation;

@@ -47,6 +47,7 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptySet;
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -243,9 +244,29 @@ public class TransportMigrateIndexActionCoalesceTests extends ESTestCase {
         assertBusy(() -> action.withRunningOperation("test", op -> assertNull(op)));
     }
 
+    public void testDifferentRequestsForTheSameIndexFail() throws Exception {
+        MockAction action = new MockAction() {
+            @Override
+            void shortCircuitMigration(ActingOperation operation) {
+                // Don't return anything so it looks like the request is still running
+            }
+        };
+        ActionListener<MigrateIndexResponse> mainListener = listener();
+        action.masterOperation(request("test"), mainListener);
+
+        ActionListener<MigrateIndexResponse> followerListener = listener();
+        MigrateIndexRequest differentRequest = request("test");
+        differentRequest.setSourceIndex(differentRequest.getSourceIndex() + "_different");
+        Exception e = expectThrows(IllegalArgumentException.class, () -> action.masterOperation(differentRequest, followerListener));
+        assertThat(e.getMessage(), containsString("Attempting two concurrent but different migration requests for the same index [test]"));
+        /* The error message contains the different parts. It contains the whole request right now, but it also contains the different
+         * parts.... */
+        assertThat(e.getMessage(), containsString("source=test_0"));
+        assertThat(e.getMessage(), containsString("source=test_0_different"));
+    }
+
     private MigrateIndexRequest request(String destIndex) {
-        MigrateIndexRequest request = new MigrateIndexRequest();
-        request.setCreateIndexRequest(new CreateIndexRequest(destIndex));
+        MigrateIndexRequest request = new MigrateIndexRequest(destIndex + "_0", destIndex);
         return request;
     }
 

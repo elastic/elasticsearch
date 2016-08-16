@@ -309,6 +309,7 @@ public class SearchModule extends AbstractModule {
 
     private final Settings settings;
     private final List<Entry> namedWriteables = new ArrayList<>();
+    private final SearchRequestParsers searchRequestParsers;
 
     public SearchModule(Settings settings, boolean transportClient, List<SearchPlugin> plugins) {
         this.settings = settings;
@@ -326,6 +327,7 @@ public class SearchModule extends AbstractModule {
         registerPipelineAggregations(plugins);
         registerFetchSubPhases(plugins);
         registerShapes();
+        searchRequestParsers = new SearchRequestParsers(queryParserRegistry, aggregatorParsers, getSuggesters());
     }
 
     public List<Entry> getNamedWriteables() {
@@ -338,6 +340,10 @@ public class SearchModule extends AbstractModule {
 
     public IndicesQueriesRegistry getQueryParserRegistry() {
         return queryParserRegistry;
+    }
+
+    public SearchRequestParsers getSearchRequestParsers() {
+        return searchRequestParsers;
     }
 
     /**
@@ -372,14 +378,9 @@ public class SearchModule extends AbstractModule {
     @Override
     protected void configure() {
         if (false == transportClient) {
-            /*
-             * Nothing is bound for transport client *but* SearchModule is still responsible for settings up the things like the
-             * NamedWriteableRegistry.
-             */
             bind(IndicesQueriesRegistry.class).toInstance(queryParserRegistry);
-            bind(Suggesters.class).toInstance(getSuggesters());
+            bind(SearchRequestParsers.class).toInstance(searchRequestParsers);
             configureSearch();
-            bind(AggregatorParsers.class).toInstance(aggregatorParsers);
         }
     }
 

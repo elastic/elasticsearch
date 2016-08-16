@@ -43,6 +43,7 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 
@@ -81,17 +82,12 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         }, new ParseField("inline", "template"), ObjectParser.ValueType.OBJECT_OR_STRING);
     }
 
-    private final IndicesQueriesRegistry queryRegistry;
-    private final AggregatorParsers aggParsers;
-    private final Suggesters suggesters;
+    private final SearchRequestParsers searchRequestParsers;
 
     @Inject
-    public RestSearchTemplateAction(Settings settings, RestController controller, IndicesQueriesRegistry queryRegistry,
-                                    AggregatorParsers aggregatorParsers, Suggesters suggesters) {
+    public RestSearchTemplateAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers) {
         super(settings);
-        this.queryRegistry = queryRegistry;
-        this.aggParsers = aggregatorParsers;
-        this.suggesters = suggesters;
+        this.searchRequestParsers = searchRequestParsers;
 
         controller.registerHandler(GET, "/_search/template", this);
         controller.registerHandler(POST, "/_search/template", this);
@@ -109,7 +105,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
         // Creates the search request with all required params
         SearchRequest searchRequest = new SearchRequest();
-        RestSearchAction.parseSearchRequest(searchRequest, queryRegistry, request, parseFieldMatcher, aggParsers, suggesters, null);
+        RestSearchAction.parseSearchRequest(searchRequest, request, searchRequestParsers, parseFieldMatcher, null);
 
         // Creates the search template request
         SearchTemplateRequest searchTemplateRequest = parse(RestActions.getRestContent(request));

@@ -1400,7 +1400,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         assertHighlight(searchResponse, 0, "field2", 0, 1, equalTo("The quick <x>brown</x> fox jumps over the lazy dog"));
     }
 
-    @AwaitsFix(bugUrl="Broken now that BoostingQuery does not extend BooleanQuery anymore")
     public void testBoostingQueryTermVector() throws IOException {
         assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
         ensureGreen();
@@ -2643,7 +2642,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl="Broken now that BoostingQuery does not extend BooleanQuery anymore")
     public void testFastVectorHighlighterPhraseBoost() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type1", type1TermVectorMapping()));
         phraseBoostTestCase("fvh");

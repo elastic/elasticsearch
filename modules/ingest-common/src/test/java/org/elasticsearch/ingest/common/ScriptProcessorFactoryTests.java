@@ -52,7 +52,6 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
 
         configMap.put(randomType, "foo");
         configMap.put(otherRandomType, "bar");
-        configMap.put("field", "my_field");
         configMap.put("lang", "mockscript");
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
@@ -62,7 +61,6 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
 
     public void testFactoryValidationAtLeastOneScriptingType() throws Exception {
         Map<String, Object> configMap = new HashMap<>();
-        configMap.put("field", "my_field");
         configMap.put("lang", "mockscript");
 
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,

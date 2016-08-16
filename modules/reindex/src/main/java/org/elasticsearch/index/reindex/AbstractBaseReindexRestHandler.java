@@ -77,7 +77,7 @@ public abstract class AbstractBaseReindexRestHandler<
             client.executeLocally(action, internal, new BulkIndexByScrollResponseContentListener(channel, params));
             return;
         } else {
-            internal.setShouldPersistResult(true);
+            internal.setShouldStoreResult(true);
         }
 
         /*

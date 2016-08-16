@@ -11,3 +11,15 @@ project.forbiddenPatterns {
 }
 
 dependencyLicenses.enabled = false
+
+task buildZip(type: Zip, dependsOn: jar) {
+  into('lib') {
+    from jar
+    from configurations.runtime
+  } 
+  into('bin') {
+    from 'bin'
+  }
+}
+
+assemble.dependsOn buildZip

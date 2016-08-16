@@ -19,6 +19,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggesters;
@@ -164,8 +165,9 @@ public class SearchInputTests extends ESIntegTestCase {
         parser.nextToken();
 
         IndicesQueriesRegistry indicesQueryRegistry = internalCluster().getInstance(IndicesQueriesRegistry.class);
-        SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, WatcherClientProxy.of(client()), indicesQueryRegistry,
-                                                            null, null, scriptService());
+        SearchRequestParsers searchParsers = new SearchRequestParsers(indicesQueryRegistry, null, null);
+        SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, WatcherClientProxy.of(client()),
+                                                            searchParsers, scriptService());
 
         SearchInput searchInput = factory.parseInput("_id", parser);
         assertEquals(SearchInput.TYPE, searchInput.type());
@@ -176,9 +178,7 @@ public class SearchInputTests extends ESIntegTestCase {
         String master = internalCluster().getMasterName();
         return new WatcherSearchTemplateService(internalCluster().clusterService(master).getSettings(),
                 internalCluster().getInstance(ScriptService.class, master),
-                internalCluster().getInstance(IndicesQueriesRegistry.class, master),
-                internalCluster().getInstance(AggregatorParsers.class, master),
-                internalCluster().getInstance(Suggesters.class, master)
+                internalCluster().getInstance(SearchRequestParsers.class, master)
         );
     }
 

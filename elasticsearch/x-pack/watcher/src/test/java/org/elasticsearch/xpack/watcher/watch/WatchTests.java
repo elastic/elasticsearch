@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
@@ -351,7 +352,8 @@ public class WatchTests extends ESTestCase {
                 IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry();
                 QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
                 queryRegistry.register(queryParser, MatchAllQueryBuilder.NAME);
-                parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, queryRegistry, null, null, scriptService));
+                SearchRequestParsers searchParsers = new SearchRequestParsers(queryRegistry, null,  null);
+                parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, searchParsers, scriptService));
                 return new InputRegistry(Settings.EMPTY, parsers);
             default:
                 parsers.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
@@ -424,9 +426,10 @@ public class WatchTests extends ESTestCase {
         IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry();
         QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
         queryRegistry.register(queryParser, MatchAllQueryBuilder.NAME);
+        SearchRequestParsers searchParsers = new SearchRequestParsers(queryRegistry, null, null);
         Map<String, TransformFactory> factories = new HashMap<>();
         factories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
-        factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, queryRegistry, null, null, scriptService));
+        factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, searchParsers, scriptService));
         TransformRegistry registry = new TransformRegistry(Settings.EMPTY, unmodifiableMap(factories));
         return registry;
     }

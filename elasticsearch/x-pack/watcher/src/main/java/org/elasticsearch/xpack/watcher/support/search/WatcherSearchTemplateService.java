@@ -19,6 +19,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggesters;
@@ -42,18 +43,13 @@ public class WatcherSearchTemplateService extends AbstractComponent {
 
     private final ScriptService scriptService;
     private final ParseFieldMatcher parseFieldMatcher;
-    private final IndicesQueriesRegistry queryRegistry;
-    private final AggregatorParsers aggsParsers;
-    private final Suggesters suggesters;
+    private final SearchRequestParsers searchRequestParsers;
 
     @Inject
-    public WatcherSearchTemplateService(Settings settings, ScriptService scriptService,
-                                        IndicesQueriesRegistry queryRegistry, AggregatorParsers aggregatorParsers, Suggesters suggesters) {
+    public WatcherSearchTemplateService(Settings settings, ScriptService scriptService, SearchRequestParsers searchRequestParsers) {
         super(settings);
         this.scriptService = scriptService;
-        this.queryRegistry = queryRegistry;
-        this.aggsParsers = aggregatorParsers;
-        this.suggesters = suggesters;
+        this.searchRequestParsers = searchRequestParsers;
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
     }
 
@@ -118,7 +114,8 @@ public class WatcherSearchTemplateService extends AbstractComponent {
         BytesReference source = (BytesReference) scriptService.executable(compiledScript, template.params()).run();
         if (source != null && source.length() > 0) {
             try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
-                sourceBuilder.parseXContent(new QueryParseContext(queryRegistry, parser, parseFieldMatcher), aggsParsers, suggesters);
+                sourceBuilder.parseXContent(new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher),
+                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
             }
         }
         return sourceBuilder;

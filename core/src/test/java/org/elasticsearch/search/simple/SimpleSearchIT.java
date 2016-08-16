@@ -19,10 +19,6 @@
 
 package org.elasticsearch.search.simple;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ExecutionException;
-
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -36,6 +32,11 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+
+import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -50,23 +51,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
-
 public class SimpleSearchIT extends ESIntegTestCase {
     public void testSearchNullIndex() {
-        try {
-            client().prepareSearch((String) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
-            fail();
-        } catch (IllegalArgumentException e) {
+        expectThrows(NullPointerException.class,
+                () -> client().prepareSearch((String) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).get());
 
-        }
+        expectThrows(NullPointerException.class,
+                () -> client().prepareSearch((String[]) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).get());
 
-        try {
-            client().prepareSearch((String[]) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
-            fail();
-        } catch (IllegalArgumentException e) {
-
-        }
     }
 
     public void testSearchRandomPreference() throws InterruptedException, ExecutionException {

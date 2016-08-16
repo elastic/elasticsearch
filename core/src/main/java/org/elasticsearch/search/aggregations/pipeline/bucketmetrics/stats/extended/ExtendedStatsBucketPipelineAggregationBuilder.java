@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,7 +36,6 @@ import java.util.Objects;
 public class ExtendedStatsBucketPipelineAggregationBuilder
         extends BucketMetricsPipelineAggregationBuilder<ExtendedStatsBucketPipelineAggregationBuilder> {
     public static final String NAME = "extended_stats_bucket";
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private double sigma = 2.0;
 

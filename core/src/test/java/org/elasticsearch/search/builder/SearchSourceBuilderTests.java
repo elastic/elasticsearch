@@ -190,7 +190,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         namedWriteableRegistry = null;
     }
 
-    protected final SearchSourceBuilder createSearchSourceBuilder() throws IOException {
+    public static SearchSourceBuilder createSearchSourceBuilder() throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
         if (randomBoolean()) {
             builder.from(randomIntBetween(0, 10000));
@@ -484,8 +484,8 @@ public class SearchSourceBuilderTests extends ESTestCase {
         assertTrue("equals is not symmetric", thirdBuilder.equals(firstBuilder));
     }
 
-    //we use the streaming infra to create a copy of the query provided as argument
-    protected SearchSourceBuilder copyBuilder(SearchSourceBuilder builder) throws IOException {
+    //we use the streaming infra to create a copy of the builder provided as argument
+    protected static SearchSourceBuilder copyBuilder(SearchSourceBuilder builder) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             builder.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {

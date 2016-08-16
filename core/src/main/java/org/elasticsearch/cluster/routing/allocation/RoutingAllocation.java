@@ -252,6 +252,17 @@ public class RoutingAllocation {
         nodes.add(nodeId);
     }
 
+    /**
+     * Returns whether the given node id should be ignored from consideration when {@link AllocationDeciders}
+     * is deciding whether to allocate the specified shard id to that node.  The node will be ignored if
+     * the specified shard failed on that node, triggering the current round of allocation.  Since the shard
+     * just failed on that node, we don't want to try to reassign it there, if the node is still a part
+     * of the cluster.
+     *
+     * @param shardId the shard id to be allocated
+     * @param nodeId the node id to check against
+     * @return true if the node id should be ignored in allocation decisions, false otherwise
+     */
     public boolean shouldIgnoreShardForNode(ShardId shardId, String nodeId) {
         if (ignoredShardToNodes == null) {
             return false;

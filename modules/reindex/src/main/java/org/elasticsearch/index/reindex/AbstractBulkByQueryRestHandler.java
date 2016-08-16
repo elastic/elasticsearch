@@ -31,8 +31,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 

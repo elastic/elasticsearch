@@ -22,7 +22,7 @@ POST /_aliases
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/^/PUT test1\n/]
+// TEST[s/^/PUT test1\nPUT test2\n/]
 
 An alias can also be removed, for example:
 
@@ -48,7 +48,7 @@ POST /_aliases
 {
     "actions" : [
         { "remove" : { "index" : "test1", "alias" : "alias1" } },
-        { "add" : { "index" : "test1", "alias" : "alias2" } }
+        { "add" : { "index" : "test2", "alias" : "alias1" } }
     ]
 }
 --------------------------------------------------

@@ -46,6 +46,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -524,5 +525,39 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         }
         out.writeBoolean(updateAllTypes);
         waitForActiveShards.writeTo(out);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (getClass() != obj.getClass()) return false;
+        CreateIndexRequest other = (CreateIndexRequest) obj;
+        return Objects.equals(cause, other.cause)
+                && Objects.equals(index, other.index)
+                && Objects.equals(settings, other.settings)
+                && Objects.equals(timeout, other.timeout)
+                && Objects.equals(mappings, other.mappings)
+                && Objects.equals(customs, other.customs)
+                && Objects.equals(aliases, other.aliases)
+                && Objects.equals(updateAllTypes, other.updateAllTypes)
+                && Objects.equals(waitForActiveShards, other.waitForActiveShards);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(cause, index, settings, timeout, mappings, customs, aliases, updateAllTypes, waitForActiveShards);
+    }
+
+    @Override
+    public String toString() {
+        return "CreateIndex["
+                + "cause=" + cause
+                + ",index=" + index
+                + ",settings=" + settings
+                + ",timeout=" + timeout
+                + ",mappings=" + mappings
+                + ",customs=" + customs
+                + ",aliases=" + aliases
+                + ",updateAllTypes=" + updateAllTypes
+                + ",waitForActiveShards=" + waitForActiveShards + "]";
     }
 }

@@ -38,8 +38,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class MigrateIndexRequest extends AcknowledgedRequest<MigrateIndexRequest> implements IndicesRequest {
     private String sourceIndex;
-    private Script script;
     private CreateIndexRequest createIndexRequest;
+    private Script script;
 
     /**
      * Build an empty request.
@@ -75,18 +75,20 @@ public class MigrateIndexRequest extends AcknowledgedRequest<MigrateIndexRequest
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        readTimeout(in);
         sourceIndex = in.readString();
-        script = in.readOptionalWriteable(Script::new);
         createIndexRequest = new CreateIndexRequest();
         createIndexRequest.readFrom(in);
+        script = in.readOptionalWriteable(Script::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        writeTimeout(out);
         out.writeString(sourceIndex);
-        out.writeOptionalWriteable(script);
         createIndexRequest.writeTo(out);
+        out.writeOptionalWriteable(script);
     }
 
     @Override
@@ -144,5 +146,33 @@ public class MigrateIndexRequest extends AcknowledgedRequest<MigrateIndexRequest
     @Override
     public IndicesOptions indicesOptions() {
         return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+    }
+
+    @Override
+    public String toString() {
+        return "MigrateIndex["
+                + "source=" + sourceIndex
+                + ",create=" + createIndexRequest
+                + ",script=" + script
+                + ",timeout=" + timeout
+                + ",masterNodeTimeout=" + masterNodeTimeout
+                + ",parentTask=" + getParentTask() + "]";
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (getClass() != obj.getClass()) return false;
+        MigrateIndexRequest other = (MigrateIndexRequest) obj;
+        return Objects.equals(sourceIndex, other.sourceIndex)
+                && Objects.equals(createIndexRequest, other.createIndexRequest)
+                && Objects.equals(script, other.script)
+                && Objects.equals(timeout, other.timeout)
+                && Objects.equals(masterNodeTimeout, other.masterNodeTimeout)
+                && Objects.equals(getParentTask(), other.getParentTask());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(sourceIndex, script, createIndexRequest, timeout, masterNodeTimeout, getParentTask());
     }
 }

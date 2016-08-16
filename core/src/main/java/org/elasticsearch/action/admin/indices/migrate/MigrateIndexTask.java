@@ -23,6 +23,9 @@ import org.elasticsearch.action.admin.indices.migrate.TransportMigrateIndexActio
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
+/**
+ * Task subclass that supports getting information about the currently running migration.
+ */
 public class MigrateIndexTask extends Task {
     private volatile Operation operation;
 

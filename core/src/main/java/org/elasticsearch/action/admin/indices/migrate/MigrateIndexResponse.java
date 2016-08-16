@@ -20,12 +20,14 @@
 package org.elasticsearch.action.admin.indices.migrate;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class MigrateIndexResponse extends AcknowledgedResponse implements ToXContent {
     private boolean noop; // NOCOMMIT we can do better. Probably like reindex, make the task status useful and capture that in the response.
@@ -65,4 +67,23 @@ public class MigrateIndexResponse extends AcknowledgedResponse implements ToXCon
         builder.field("noop", isNoop());
         return builder;
     }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this, true);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (getClass() != obj.getClass()) return false;
+        MigrateIndexResponse other = (MigrateIndexResponse) obj;
+        return Objects.equals(isAcknowledged(), other.isAcknowledged())
+                && Objects.equals(noop, other.noop);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(isAcknowledged(), noop);
+    }
+
 }

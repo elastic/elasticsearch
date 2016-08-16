@@ -168,7 +168,7 @@ The default `shard_size` is a multiple of the `size` parameter which is dependan
 
 There are two error values which can be shown on the terms aggregation.  The first gives a value for the aggregation as
 a whole which represents the maximum potential document count for a term which did not make it into the final list of
-terms. This is calculated as the sum of the document count from the last term returned from each shard .For the example
+terms. This is calculated as the sum of the document count from the last term returned from each shard. For the example
 given above the value would be 46 (2 + 15 + 29). This means that in the worst case scenario a term which was not returned
 could have the 4th highest document count.
 

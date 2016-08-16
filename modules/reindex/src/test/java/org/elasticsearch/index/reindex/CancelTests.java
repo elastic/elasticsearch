@@ -32,7 +32,6 @@ import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
@@ -44,7 +43,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.empty;
@@ -57,7 +55,6 @@ import static org.hamcrest.Matchers.hasSize;
  * different cancellation places - that is the responsibility of {@link AsyncBulkByScrollActionTests} which have more precise control to
  * simulate failures but do not exercise important portion of the stack like transport and task management.
  */
-@ClusterScope(scope = SUITE, transportClientRatio = 0)
 public class CancelTests extends ReindexTestCase {
 
     protected static final String INDEX = "reindex-cancel-index";
@@ -100,7 +97,7 @@ public class CancelTests extends ReindexTestCase {
         assertHitCount(client().prepareSearch(INDEX).setSize(0).get(), numDocs);
         assertThat(ALLOWED_OPERATIONS.drainPermits(), equalTo(0));
 
-        // Scroll 1 by 1 so that cancellation is easier to control
+        // Scroll by 1 so that cancellation is easier to control
         builder.source().setSize(1);
 
         // Allow a random number of the documents minus 1
@@ -195,11 +192,11 @@ public class CancelTests extends ReindexTestCase {
 
         @Override
         public void onIndexModule(IndexModule indexModule) {
-            indexModule.addIndexOperationListener(new BlockingDeleteListener());
+            indexModule.addIndexOperationListener(new BlockingOperationListener());
         }
     }
 
-    public static class BlockingDeleteListener implements IndexingOperationListener {
+    public static class BlockingOperationListener implements IndexingOperationListener {
 
         @Override
         public Engine.Index preIndex(Engine.Index index) {

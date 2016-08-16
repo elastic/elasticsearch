@@ -233,7 +233,6 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         final String indexName = "test-idx";
         assertAcked(client().admin().indices()
                         .prepareCreate(indexName)
-                        .setWaitForActiveShards(ActiveShardCount.ALL)
                         .setSettings(Settings.builder().put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                          .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0))
                         .get());
@@ -245,8 +244,8 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         logger.info("--> full cluster restart");
         internalCluster().fullRestart();
         logger.info("--> checking that the primary shard is force allocated to the data node despite being blocked by the exclude filter");
-        ensureYellow(indexName);
-        assertEquals(1, internalCluster().clusterService(internalCluster().getMasterName())
-                            .state().routingTable().index(indexName).shardsWithState(ShardRoutingState.STARTED).size());
+        ensureGreen(indexName);
+        assertEquals(1, client().admin().cluster().prepareState().get().getState()
+                            .routingTable().index(indexName).shardsWithState(ShardRoutingState.STARTED).size());
     }
 }

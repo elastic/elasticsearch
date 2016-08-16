@@ -176,9 +176,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                 unassignedIterator.initialize(nodeShardState.getNode().getId(), nodeShardState.allocationId(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
             } else if (nodesToAllocate.throttleNodeShards.isEmpty() == true && nodesToAllocate.noNodeShards.isEmpty() == false) {
                 // The deciders returned a NO decision for all nodes with shard copies, so we check if primary shard
-                // can be force-allocated to one of the nodes, despite getting a NO decision for allocation. The decision
-                // to force allocate a primary to a node comes from AllocationDeciders#canForceAllocatePrimary, which calls
-                // the same method on each individual decider.
+                // can be force-allocated to one of the nodes.
                 final NodesToAllocate nodesToForceAllocate = buildNodesToAllocate(
                     allocation, nodeShardsResult.orderedAllocationCandidates, shard, true
                 );

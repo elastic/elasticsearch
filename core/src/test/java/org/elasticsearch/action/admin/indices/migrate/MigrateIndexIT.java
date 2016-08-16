@@ -39,6 +39,8 @@ public class MigrateIndexIT extends MigrateIndexTestCase {
 
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> client().admin().indices()
                 .prepareMigrateIndex("test_0", "test_1").setAliases("test").get());
-        
+        assertEquals(
+                "Without the reindex module Elasticsearch can only migrate from empty indexes and [test_0] does not appear to be empty.",
+                e.getMessage());
     }
 }

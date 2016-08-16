@@ -41,6 +41,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
@@ -57,15 +58,13 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
  */
 public class RestSuggestAction extends BaseRestHandler {
 
-    private final IndicesQueriesRegistry queryRegistry;
-    private final Suggesters suggesters;
+    private final SearchRequestParsers searchRequestParsers;
 
     @Inject
     public RestSuggestAction(Settings settings, RestController controller,
-                             IndicesQueriesRegistry queryRegistry, Suggesters suggesters) {
+                             SearchRequestParsers searchRequestParsers) {
         super(settings);
-        this.queryRegistry = queryRegistry;
-        this.suggesters = suggesters;
+        this.searchRequestParsers = searchRequestParsers;
         controller.registerHandler(POST, "/_suggest", this);
         controller.registerHandler(GET, "/_suggest", this);
         controller.registerHandler(POST, "/{index}/_suggest", this);
@@ -79,8 +78,8 @@ public class RestSuggestAction extends BaseRestHandler {
         if (RestActions.hasBodyContent(request)) {
             final BytesReference sourceBytes = RestActions.getRestContent(request);
             try (XContentParser parser = XContentFactory.xContent(sourceBytes).createParser(sourceBytes)) {
-                final QueryParseContext context = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
-                searchRequest.source().suggest(SuggestBuilder.fromXContent(context, suggesters));
+                final QueryParseContext context = new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
+                searchRequest.source().suggest(SuggestBuilder.fromXContent(context, searchRequestParsers.suggesters));
             }
         } else {
             throw new IllegalArgumentException("no content or source provided to execute suggestion");

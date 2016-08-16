@@ -33,6 +33,7 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.support.RestActions;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 
@@ -49,10 +50,9 @@ public abstract class AbstractBulkByQueryRestHandler<
         Request extends AbstractBulkByScrollRequest<Request>,
         A extends GenericAction<Request, BulkIndexByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
 
-    protected AbstractBulkByQueryRestHandler(Settings settings, IndicesQueriesRegistry indicesQueriesRegistry,
-                                             AggregatorParsers aggParsers, Suggesters suggesters, ClusterService clusterService,
-                                             A action) {
-        super(settings, indicesQueriesRegistry, aggParsers, suggesters, clusterService, action);
+    protected AbstractBulkByQueryRestHandler(Settings settings, SearchRequestParsers searchRequestParsers,
+                                             ClusterService clusterService, A action) {
+        super(settings, searchRequestParsers, clusterService, action);
     }
 
     protected void parseInternalRequest(Request internal, RestRequest restRequest,
@@ -111,7 +111,6 @@ public abstract class AbstractBulkByQueryRestHandler<
             }
         }
 
-        RestSearchAction.parseSearchRequest(searchRequest, indicesQueriesRegistry, restRequest, parseFieldMatcher, aggParsers,
-                suggesters, content);
+        RestSearchAction.parseSearchRequest(searchRequest, restRequest, searchRequestParsers, parseFieldMatcher, content);
     }
 }

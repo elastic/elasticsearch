@@ -32,6 +32,7 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.tasks.LoggingTaskListener;
@@ -46,19 +47,14 @@ public abstract class AbstractBaseReindexRestHandler<
                 A extends GenericAction<Request, BulkIndexByScrollResponse>
             > extends BaseRestHandler {
 
-    protected final IndicesQueriesRegistry indicesQueriesRegistry;
-    protected final AggregatorParsers aggParsers;
-    protected final Suggesters suggesters;
+    protected final SearchRequestParsers searchRequestParsers;
     private final ClusterService clusterService;
     private final A action;
 
-    protected AbstractBaseReindexRestHandler(Settings settings, IndicesQueriesRegistry indicesQueriesRegistry,
-                                             AggregatorParsers aggParsers, Suggesters suggesters,
+    protected AbstractBaseReindexRestHandler(Settings settings, SearchRequestParsers searchRequestParsers,
                                              ClusterService clusterService, A action) {
         super(settings);
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
-        this.aggParsers = aggParsers;
-        this.suggesters = suggesters;
+        this.searchRequestParsers = searchRequestParsers;
         this.clusterService = clusterService;
         this.action = action;
     }

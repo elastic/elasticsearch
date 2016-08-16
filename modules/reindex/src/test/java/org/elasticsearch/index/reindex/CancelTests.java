@@ -29,9 +29,10 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
 import org.elasticsearch.index.shard.IndexingOperationListener;
+import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.ingest.IngestTestPlugin;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
@@ -43,6 +44,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.empty;
@@ -55,6 +57,7 @@ import static org.hamcrest.Matchers.hasSize;
  * different cancellation places - that is the responsibility of {@link AsyncBulkByScrollActionTests} which have more precise control to
  * simulate failures but do not exercise important portion of the stack like transport and task management.
  */
+@ClusterScope(scope = SUITE, transportClientRatio = 0)
 public class CancelTests extends ReindexTestCase {
 
     protected static final String INDEX = "reindex-cancel-index";

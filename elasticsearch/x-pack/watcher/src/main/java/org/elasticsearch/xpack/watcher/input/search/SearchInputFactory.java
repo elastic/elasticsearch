@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.xpack.security.InternalClient;
@@ -31,28 +32,24 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
 
     private final WatcherClientProxy client;
     private final TimeValue defaultTimeout;
-    private final IndicesQueriesRegistry queryRegistry;
-    private final AggregatorParsers aggParsers;
-    private final Suggesters suggesters;
+    private final SearchRequestParsers searchRequestParsers;
     private final ParseFieldMatcher parseFieldMatcher;
     private final WatcherSearchTemplateService searchTemplateService;
 
     @Inject
-    public SearchInputFactory(Settings settings, InternalClient client, IndicesQueriesRegistry queryRegistry,
-                              AggregatorParsers aggParsers, Suggesters suggesters, ScriptService scriptService) {
-        this(settings, new WatcherClientProxy(settings, client), queryRegistry, aggParsers, suggesters, scriptService);
+    public SearchInputFactory(Settings settings, InternalClient client,
+                              SearchRequestParsers searchRequestParsers, ScriptService scriptService) {
+        this(settings, new WatcherClientProxy(settings, client), searchRequestParsers, scriptService);
     }
 
-    public SearchInputFactory(Settings settings, WatcherClientProxy client, IndicesQueriesRegistry queryRegistry,
-                              AggregatorParsers aggParsers, Suggesters suggesters, ScriptService scriptService) {
+    public SearchInputFactory(Settings settings, WatcherClientProxy client,
+                              SearchRequestParsers searchRequestParsers, ScriptService scriptService) {
         super(Loggers.getLogger(ExecutableSimpleInput.class, settings));
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.client = client;
-        this.queryRegistry = queryRegistry;
-        this.aggParsers = aggParsers;
-        this.suggesters = suggesters;
+        this.searchRequestParsers = searchRequestParsers;
         this.defaultTimeout = settings.getAsTime("xpack.watcher.input.search.default_timeout", null);
-        this.searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, queryRegistry, aggParsers, suggesters);
+        this.searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, searchRequestParsers);
     }
 
     @Override
@@ -62,8 +59,8 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
 
     @Override
     public SearchInput parseInput(String watchId, XContentParser parser) throws IOException {
-        QueryParseContext context = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
-        return SearchInput.parse(watchId, parser, context, aggParsers, suggesters);
+        QueryParseContext context = new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
+        return SearchInput.parse(watchId, parser, context, searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
     }
 
     @Override

@@ -24,6 +24,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggesters;
@@ -214,9 +215,9 @@ public class SearchTransformTests extends ESIntegTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        IndicesQueriesRegistry indicesQueryRegistry = internalCluster().getInstance(IndicesQueriesRegistry.class);
+        SearchRequestParsers searchRequestParsers = internalCluster().getInstance(SearchRequestParsers.class);
         SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, WatcherClientProxy.of(client()),
-                                                                             indicesQueryRegistry, null, null, scriptService());
+                                                                             searchRequestParsers, scriptService());
         ExecutableSearchTransform executable = transformFactory.parseExecutable("_id", parser);
 
         assertThat(executable, notNullValue());
@@ -293,9 +294,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         String master = internalCluster().getMasterName();
         return new WatcherSearchTemplateService(internalCluster().clusterService(master).getSettings(),
                 internalCluster().getInstance(ScriptService.class, master),
-                internalCluster().getInstance(IndicesQueriesRegistry.class, master),
-                internalCluster().getInstance(AggregatorParsers.class, master),
-                internalCluster().getInstance(Suggesters.class, master)
+                internalCluster().getInstance(SearchRequestParsers.class, master)
         );
     }
 

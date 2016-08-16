@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.common.unit.TimeValue;
@@ -21,6 +20,7 @@ import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.execution.Wid;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -42,15 +42,13 @@ import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBu
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.compareCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
-import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.newInputSearchRequest;
+import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.joda.time.DateTimeZone.UTC;
 
-/**
- */
 @TestLogging("watcher:TRACE")
 public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
     @Override
@@ -217,12 +215,13 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
     public void testLoadExistingWatchesUponStartup() throws Exception {
         int numWatches = scaledRandomIntBetween(16, 128);
-        SearchRequest searchRequest = newInputSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
+        WatcherSearchTemplateRequest request =
+                templateRequest(searchSource().query(termQuery("field", "value")), "my-index");
         for (int i = 0; i < numWatches; i++) {
             client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id" + i)
                     .setSource(watchBuilder()
                                     .trigger(schedule(cron("0 0/5 * * * ? 2050")))
-                                    .input(searchInput(searchRequest))
+                                    .input(searchInput(request))
                                     .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
                                     .buildAsBytes(XContentType.JSON)
                     )
@@ -246,13 +245,14 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         assertThat(response.getWatcherState(), equalTo(WatcherState.STARTED));
         assertThat(response.getWatchesCount(), equalTo(0L));
 
-        SearchRequest searchRequest = newInputSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
+        WatcherSearchTemplateRequest request =
+                templateRequest(searchSource().query(termQuery("field", "value")), "my-index");
         int numWatches = 8;
         for (int i = 0; i < numWatches; i++) {
             String watchId = "_id" + i;
             watcherClient().preparePutWatch(watchId).setSource(watchBuilder()
                             .trigger(schedule(cron("0/5 * * * * ? 2050")))
-                            .input(searchInput(searchRequest))
+                            .input(searchInput(request))
                             .condition(alwaysCondition())
                             .addAction("_id", indexAction("output", "test"))
                             .defaultThrottlePeriod(TimeValue.timeValueMillis(0))
@@ -302,10 +302,10 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         assertThat(response.getWatchesCount(), equalTo(0L));
 
         String watchId = "_id";
-        SearchRequest searchRequest = newInputSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
+        WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "value")), "my-index");
         watcherClient().preparePutWatch(watchId).setSource(watchBuilder()
                         .trigger(schedule(cron("0/5 * * * * ? 2050")))
-                        .input(searchInput(searchRequest))
+                        .input(searchInput(request))
                         .condition(alwaysCondition())
                         .addAction("_id", indexAction("output", "test"))
                         .defaultThrottlePeriod(TimeValue.timeValueMillis(0))

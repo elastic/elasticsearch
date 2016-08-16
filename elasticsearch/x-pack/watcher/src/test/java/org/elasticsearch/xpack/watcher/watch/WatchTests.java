@@ -5,14 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.watch;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
@@ -89,7 +81,6 @@ import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
 import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
-import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
@@ -126,12 +117,20 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
-import static org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS;
-import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.matchAllRequest;
+import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -337,7 +336,7 @@ public class WatchTests extends ESTestCase {
         String type = randomFrom(SearchInput.TYPE, SimpleInput.TYPE);
         switch (type) {
             case SearchInput.TYPE:
-                SearchInput searchInput = searchInput(WatcherTestUtils.newInputSearchRequest("idx")).build();
+                SearchInput searchInput = searchInput(WatcherTestUtils.templateRequest(searchSource(), "idx")).build();
                 return new ExecutableSearchInput(searchInput, logger, client, searchTemplateService, null);
             default:
                 SimpleInput simpleInput = InputBuilders.simpleInput(singletonMap("_key", "_val")).build();
@@ -405,17 +404,17 @@ public class WatchTests extends ESTestCase {
                 return new ExecutableScriptTransform(new ScriptTransform(WatcherScript.inline("_script").build()), logger, scriptService);
             case SearchTransform.TYPE:
                 SearchTransform transform = new SearchTransform(
-                        new WatcherSearchTemplateRequest(matchAllRequest(DEFAULT_INDICES_OPTIONS), null), timeout, timeZone);
+                        templateRequest(searchSource()), timeout, timeZone);
                 return new ExecutableSearchTransform(transform, logger, client, searchTemplateService, null);
             default: // chain
                 SearchTransform searchTransform = new SearchTransform(
-                        new WatcherSearchTemplateRequest(matchAllRequest(DEFAULT_INDICES_OPTIONS), null), timeout, timeZone);
+                        templateRequest(searchSource()), timeout, timeZone);
                 ScriptTransform scriptTransform = new ScriptTransform(WatcherScript.inline("_script").build());
 
                 ChainTransform chainTransform = new ChainTransform(Arrays.asList(searchTransform, scriptTransform));
                 return new ExecutableChainTransform(chainTransform, logger, Arrays.<ExecutableTransform>asList(
                         new ExecutableSearchTransform(new SearchTransform(
-                                new WatcherSearchTemplateRequest(matchAllRequest(DEFAULT_INDICES_OPTIONS), null), timeout, timeZone),
+                                templateRequest(searchSource()), timeout, timeZone),
                                 logger, client, searchTemplateService, null),
                         new ExecutableScriptTransform(new ScriptTransform(WatcherScript.inline("_script").build()),
                             logger, scriptService)));

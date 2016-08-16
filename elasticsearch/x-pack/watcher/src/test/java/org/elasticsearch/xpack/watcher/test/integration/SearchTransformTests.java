@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -71,6 +69,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.EMPTY_PAYLOAD;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
+import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -108,7 +107,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         ensureGreen("idx");
         refresh();
 
-        SearchRequest request = Requests.searchRequest("idx").source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()));
+        WatcherSearchTemplateRequest request = templateRequest(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()), "idx");
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
         ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, WatcherClientProxy.of(client()),
                 watcherSearchTemplateService(), null);
@@ -120,7 +119,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(result.type(), is(SearchTransform.TYPE));
         assertThat(result.status(), is(Transform.Result.Status.SUCCESS));
 
-        SearchResponse response = client().search(request).get();
+        SearchResponse response = client().prepareSearch("idx").get();
         Payload expectedPayload = new Payload.XContent(response);
 
         // we need to remove the "took" field from teh response as this is the only field
@@ -141,9 +140,9 @@ public class SearchTransformTests extends ESIntegTestCase {
         refresh();
 
         // create a bad request
-        SearchRequest request = Requests.searchRequest("idx").source(
-                new SearchSourceBuilder().query(QueryBuilders.wrapperQuery(jsonBuilder().startObject()
-                        .startObject("_unknown_query_").endObject().endObject().bytes())));
+        WatcherSearchTemplateRequest request = templateRequest(new SearchSourceBuilder().query(
+                QueryBuilders.wrapperQuery(jsonBuilder().startObject()
+                .startObject("_unknown_query_").endObject().endObject().bytes())), "idx");
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
         ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, WatcherClientProxy.of(client()),
                 watcherSearchTemplateService(), null);
@@ -159,11 +158,14 @@ public class SearchTransformTests extends ESIntegTestCase {
 
         // extract the base64 encoded query from the template script, path is: query -> wrapper -> query
         try (XContentBuilder builder = jsonBuilder()) {
-            result.executedRequest().source().toXContent(builder, ToXContent.EMPTY_PARAMS);
+            result.executedRequest().toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             String jsonQuery = builder.string();
             Map<String, Object> map = XContentFactory.xContent(jsonQuery).createParser(jsonQuery).map();
+            assertThat(map, hasKey("body"));
+            assertThat(map.get("body"), instanceOf(Map.class));
 
+            map = (Map<String, Object>) map.get("body");
             assertThat(map, hasKey("query"));
             assertThat(map.get("query"), instanceOf(Map.class));
 
@@ -224,41 +226,34 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(executable.type(), is(SearchTransform.TYPE));
         assertThat(executable.transform().getRequest(), notNullValue());
         if (indices != null) {
-            assertThat(executable.transform().getRequest().getRequest().indices(), arrayContainingInAnyOrder(indices));
+            assertThat(executable.transform().getRequest().getIndices(), arrayContainingInAnyOrder(indices));
         }
         if (searchType != null) {
-            assertThat(executable.transform().getRequest().getRequest().searchType(), is(searchType));
+            assertThat(executable.transform().getRequest().getSearchType(), is(searchType));
         }
         if (templateName != null) {
             assertThat(executable.transform().getRequest().getTemplate(),
                     equalTo(WatcherScript.file("template1").build()));
         }
-        SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery());
-        assertThat(executable.transform().getRequest().getRequest().source(), equalTo(source));
+        assertThat(executable.transform().getRequest().getSearchSource().utf8ToString(), equalTo("{\"query\":{\"match_all\":{}}}"));
         assertThat(executable.transform().getTimeout(), equalTo(readTimeout));
     }
 
     public void testDifferentSearchType() throws Exception {
         WatchExecutionContext ctx = createContext();
-
         SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery()
               .must(matchQuery("event_type", "a")));
-
         final SearchType searchType = getRandomSupportedSearchType();
-        SearchRequest request = client()
-                .prepareSearch("test-search-index")
-                .setSearchType(searchType)
-                .request()
-                .source(searchSourceBuilder);
 
-        SearchTransform.Result result = executeSearchTransform(request, null, ctx);
+        WatcherSearchTemplateRequest request = templateRequest(searchSourceBuilder, searchType, "test-search-index");
+        SearchTransform.Result result = executeSearchTransform(request, ctx);
 
         assertThat(XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
         assertThat(result.executedRequest(), notNullValue());
         assertThat(result.status(), is(Transform.Result.Status.SUCCESS));
-        assertThat(result.executedRequest().searchType(), is(searchType));
-        assertThat(result.executedRequest().indices(), arrayContainingInAnyOrder(request.indices()));
-        assertThat(result.executedRequest().indicesOptions(), equalTo(request.indicesOptions()));
+        assertThat(result.executedRequest().getSearchType(), is(searchType));
+        assertThat(result.executedRequest().getIndices(), arrayContainingInAnyOrder(request.getIndices()));
+        assertThat(result.executedRequest().getIndicesOptions(), equalTo(request.getIndicesOptions()));
     }
 
     private WatchExecutionContext createContext() {
@@ -278,12 +273,12 @@ public class SearchTransformTests extends ESIntegTestCase {
                 timeValueSeconds(5));
     }
 
-    private SearchTransform.Result executeSearchTransform(SearchRequest request, WatcherScript template, WatchExecutionContext ctx)
+    private SearchTransform.Result executeSearchTransform(WatcherSearchTemplateRequest request, WatchExecutionContext ctx)
             throws IOException {
         createIndex("test-search-index");
         ensureGreen("test-search-index");
 
-        SearchTransform searchTransform = TransformBuilders.searchTransform(new WatcherSearchTemplateRequest(request, template)).build();
+        SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
         ExecutableSearchTransform executableSearchTransform = new ExecutableSearchTransform(searchTransform, logger,
                 WatcherClientProxy.of(client()), watcherSearchTemplateService(), null);
 

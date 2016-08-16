@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.actions.email;
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.QueueDispatcher;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +24,7 @@ import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.Scheme;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.junit.After;
@@ -51,7 +51,7 @@ import static org.elasticsearch.xpack.notification.email.DataAttachment.YAML;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.compareCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
-import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.newInputSearchRequest;
+import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.allOf;
@@ -164,7 +164,7 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         // Have a sample document in the index, the watch is going to evaluate
         client().prepareIndex("idx", "type").setSource("field", "value").get();
         refresh();
-        SearchRequest searchRequest = newInputSearchRequest("idx").source(searchSource().query(matchAllQuery()));
+        WatcherSearchTemplateRequest request = templateRequest(searchSource().query(matchAllQuery()), "idx");
 
         List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>();
 
@@ -188,7 +188,7 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         EmailTemplate.Builder emailBuilder = EmailTemplate.builder().from("_from").to("_to").subject("Subject");
         WatchSourceBuilder watchSourceBuilder = watchBuilder()
                 .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                .input(searchInput(searchRequest))
+                .input(searchInput(request))
                 .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0L))
                 .addAction("_email", emailAction(emailBuilder).setAuthentication(USERNAME, PASSWORD.toCharArray())
                 .setAttachments(emailAttachments));

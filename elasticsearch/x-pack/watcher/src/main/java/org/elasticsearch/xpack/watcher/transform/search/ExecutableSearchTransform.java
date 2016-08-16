@@ -5,21 +5,20 @@
  */
 package org.elasticsearch.xpack.watcher.transform.search;
 
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
-/**
- *
- */
 public class ExecutableSearchTransform extends ExecutableTransform<SearchTransform, SearchTransform.Result> {
 
     public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.QUERY_THEN_FETCH;
@@ -38,10 +37,13 @@ public class ExecutableSearchTransform extends ExecutableTransform<SearchTransfo
 
     @Override
     public SearchTransform.Result execute(WatchExecutionContext ctx, Payload payload) {
-        SearchRequest request = null;
+        WatcherSearchTemplateRequest request = null;
         try {
-            request = searchTemplateService.createSearchRequestFromPrototype(transform.getRequest(), ctx, payload);
-            SearchResponse resp = client.search(request, timeout);
+            WatcherScript template = transform.getRequest().getOrCreateTemplate();
+            BytesReference renderedTemplate = searchTemplateService.renderTemplate(template, ctx, payload);
+            // We need to make a copy, so that we don't modify the original instance that we keep around in a watch:
+            request = new WatcherSearchTemplateRequest(transform.getRequest(), renderedTemplate);
+            SearchResponse resp = client.search(searchTemplateService.toSearchRequest(request), timeout);
             return new SearchTransform.Result(request, new Payload.XContent(resp));
         } catch (Exception e) {
             logger.error("failed to execute [{}] transform for [{}]", e, SearchTransform.TYPE, ctx.id());

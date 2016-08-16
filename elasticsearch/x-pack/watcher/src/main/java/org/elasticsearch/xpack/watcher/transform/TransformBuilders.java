@@ -5,16 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher.transform;
 
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.transform.chain.ChainTransform;
 import org.elasticsearch.xpack.watcher.transform.script.ScriptTransform;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransform;
 
-/**
- *
- */
 public final class TransformBuilders {
 
     private TransformBuilders() {
@@ -22,10 +18,6 @@ public final class TransformBuilders {
 
     public static SearchTransform.Builder searchTransform(WatcherSearchTemplateRequest request) {
         return SearchTransform.builder(request);
-    }
-
-    public static SearchTransform.Builder searchTransform(SearchRequest request) {
-        return searchTransform(new WatcherSearchTemplateRequest(request));
     }
 
     public static ScriptTransform.Builder scriptTransform(String script) {

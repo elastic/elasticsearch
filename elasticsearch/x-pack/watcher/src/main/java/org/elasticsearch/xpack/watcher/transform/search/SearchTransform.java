@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.transform.search;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -24,9 +23,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class SearchTransform implements Transform {
 
     public static final String TYPE = "search";
@@ -108,8 +104,7 @@ public class SearchTransform implements Transform {
                 currentFieldName = parser.currentName();
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.REQUEST)) {
                 try {
-                    request = WatcherSearchTemplateRequest.fromXContent(parser, ExecutableSearchTransform.DEFAULT_SEARCH_TYPE, context,
-                                                             aggParsers, suggesters);
+                    request = WatcherSearchTemplateRequest.fromXContent(parser, ExecutableSearchTransform.DEFAULT_SEARCH_TYPE);
                 } catch (ElasticsearchParseException srpe) {
                     throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse [{}]", srpe,
                             TYPE, watchId, currentFieldName);
@@ -142,19 +137,19 @@ public class SearchTransform implements Transform {
 
     public static class Result extends Transform.Result {
 
-        @Nullable private final SearchRequest request;
+        @Nullable private final WatcherSearchTemplateRequest request;
 
-        public Result(SearchRequest request, Payload payload) {
+        public Result(WatcherSearchTemplateRequest request, Payload payload) {
             super(TYPE, payload);
             this.request = request;
         }
 
-        public Result(SearchRequest request, Exception e) {
+        public Result(WatcherSearchTemplateRequest request, Exception e) {
             super(TYPE, e);
             this.request = request;
         }
 
-        public SearchRequest executedRequest() {
+        public WatcherSearchTemplateRequest executedRequest() {
             return request;
         }
 
@@ -162,7 +157,7 @@ public class SearchTransform implements Transform {
         protected XContentBuilder typeXContent(XContentBuilder builder, Params params) throws IOException {
             if (request != null) {
                 builder.startObject(type);
-                builder.field(Field.REQUEST.getPreferredName(), new WatcherSearchTemplateRequest(request));
+                builder.field(Field.REQUEST.getPreferredName(), request);
                 builder.endObject();
             }
             return builder;

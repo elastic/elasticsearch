@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.input;
 
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.input.chain.ChainInput;
@@ -19,9 +18,6 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- *
- */
 public final class InputBuilders {
 
     private InputBuilders() {
@@ -35,12 +31,8 @@ public final class InputBuilders {
         return SearchInput.builder(request);
     }
 
-    public static SearchInput.Builder searchInput(SearchRequest request) {
-        return searchInput(new WatcherSearchTemplateRequest(request));
-    }
-
     public static SimpleInput.Builder simpleInput() {
-        return simpleInput(new HashMap<String, Object>());
+        return simpleInput(new HashMap<>());
     }
 
     public static SimpleInput.Builder simpleInput(String key, Object value) {

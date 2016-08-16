@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.Wid;
-import org.elasticsearch.xpack.watcher.input.search.ExecutableSearchInput;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.support.WatcherScript;
@@ -79,15 +78,13 @@ import java.util.Map;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 import static java.util.Collections.emptyMap;
 import static org.apache.lucene.util.LuceneTestCase.createTempDir;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.joda.time.DateTimeZone.UTC;
 import static org.junit.Assert.assertThat;
 
-/**
- *
- */
 public final class WatcherTestUtils {
 
     public static final Payload EMPTY_PAYLOAD = new Payload.Simple(emptyMap());
@@ -112,12 +109,20 @@ public final class WatcherTestUtils {
         return builder.contentType().xContent().createParser(builder.bytes());
     }
 
-    public static SearchRequest newInputSearchRequest(String... indices) {
-        SearchRequest request = new SearchRequest();
-        request.indices(indices);
-        request.indicesOptions(WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS);
-        request.searchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE);
-        return request;
+    public static WatcherSearchTemplateRequest templateRequest(SearchSourceBuilder sourceBuilder, String... indices) {
+        return templateRequest(sourceBuilder, SearchType.DEFAULT, indices);
+    }
+
+    public static WatcherSearchTemplateRequest templateRequest(SearchSourceBuilder sourceBuilder, SearchType searchType,
+                                                               String... indices) {
+        try {
+            XContentBuilder xContentBuilder = jsonBuilder();
+            xContentBuilder.value(sourceBuilder);
+            return new WatcherSearchTemplateRequest(indices, new String[0], searchType,
+                    WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS, xContentBuilder.bytes());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public static SearchRequest matchAllRequest() {
@@ -177,10 +182,8 @@ public final class WatcherTestUtils {
     public static Watch createTestWatch(String watchName, WatcherClientProxy client, HttpClient httpClient, EmailService emailService,
                                         WatcherSearchTemplateService searchTemplateService, ESLogger logger) throws AddressException {
 
-        SearchRequest conditionRequest = newInputSearchRequest("my-condition-index").source(searchSource().query(matchAllQuery()));
-        SearchRequest transformRequest = newInputSearchRequest("my-payload-index").source(searchSource().query(matchAllQuery()));
-        transformRequest.searchType(ExecutableSearchTransform.DEFAULT_SEARCH_TYPE);
-        conditionRequest.searchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE);
+        WatcherSearchTemplateRequest transformRequest =
+                templateRequest(searchSource().query(matchAllQuery()), "my-payload-index");
 
         List<ActionWrapper> actions = new ArrayList<>();
 
@@ -224,7 +227,7 @@ public final class WatcherTestUtils {
         statuses.put("_webhook", new ActionStatus(now));
         statuses.put("_email", new ActionStatus(now));
 
-        SearchTransform searchTransform = new SearchTransform(new WatcherSearchTemplateRequest(transformRequest), null, null);
+        SearchTransform searchTransform = new SearchTransform(transformRequest, null, null);
 
         return new Watch(
                 watchName,

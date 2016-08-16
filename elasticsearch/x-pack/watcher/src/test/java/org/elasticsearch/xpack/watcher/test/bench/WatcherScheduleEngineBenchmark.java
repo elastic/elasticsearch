@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.test.bench;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
@@ -49,6 +48,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.percenti
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
+import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 
@@ -111,9 +111,7 @@ public class WatcherScheduleEngineBenchmark {
                     client.prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, id)
                             .setSource(new WatchSourceBuilder()
                                             .trigger(schedule(interval(interval + "s")))
-                                            .input(searchInput(new SearchRequest("test")
-                                                            .source(new SearchSourceBuilder()))
-                                            )
+                                            .input(searchInput(templateRequest(new SearchSourceBuilder(), "test")))
                                             .condition(scriptCondition("ctx.payload.hits.total > 0"))
                                             .addAction("logging", ActionBuilders.loggingAction("test").setLevel(LoggingLevel.TRACE))
                                             .buildAsBytes(XContentType.JSON)

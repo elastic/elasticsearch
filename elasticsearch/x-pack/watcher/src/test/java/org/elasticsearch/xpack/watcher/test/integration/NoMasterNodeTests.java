@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
@@ -28,8 +27,8 @@ import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilders;
 import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsResponse;
 
@@ -44,6 +43,7 @@ import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.always
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.compareCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
+import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
@@ -90,11 +90,10 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
 
         // Have a sample document in the index, the watch is going to evaluate
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
-        SearchRequest searchRequest = WatcherTestUtils.newInputSearchRequest("my-index").source(
-                searchSource().query(termQuery("field", "value")));
+        WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "value")), "my-index");
         WatchSourceBuilder watchSource = watchBuilder()
                 .trigger(schedule(cron("0/5 * * * * ? *")))
-                .input(searchInput(searchRequest))
+                .input(searchInput(request))
                 .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L));
 
         // we first need to make sure the license is enabled, otherwise all APIs will be blocked
@@ -200,11 +199,10 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
         ensureLicenseEnabled();
         for (int i = 1; i <= numberOfWatches; i++) {
             String watchName = "watch" + i;
-            SearchRequest searchRequest = WatcherTestUtils.newInputSearchRequest("my-index").source(
-                    searchSource().query(termQuery("field", "value")));
+            WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "value")), "my-index");
             WatchSourceBuilder watchSource = watchBuilder()
                     .trigger(schedule(cron("0/5 * * * * ? *")))
-                    .input(searchInput(searchRequest))
+                    .input(searchInput(request))
                     .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L));
             watcherClient().preparePutWatch(watchName).setSource(watchSource).get();
         }

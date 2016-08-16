@@ -5,11 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
-
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -18,11 +15,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParser;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.support.clock.SystemClock;
@@ -45,11 +38,8 @@ import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class WatcherUtilsTests extends ESTestCase {
     public void testFlattenModel() throws Exception {
         DateTime now = SystemClock.INSTANCE.nowUTC();
@@ -96,22 +86,15 @@ public class WatcherUtilsTests extends ESTestCase {
     }
 
     public void testSerializeSearchRequest() throws Exception {
-        String[] randomIndices = generateRandomStringArray(5, 5, false);
-        SearchRequest expectedRequest = new SearchRequest(randomIndices);
+        String[] expectedIndices = generateRandomStringArray(5, 5, true);
+        String[] expectedTypes = generateRandomStringArray(2, 5, true);
+        IndicesOptions expectedIndicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
+                randomBoolean(), WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS);
+        SearchType expectedSearchType = getRandomSupportedSearchType();
+
+        BytesReference expectedSource = null;
         WatcherScript expectedTemplate = null;
-
-        if (randomBoolean()) {
-            String[] randomTypes = generateRandomStringArray(2, 5, false);
-            expectedRequest.types(randomTypes);
-        }
-
-        expectedRequest.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
-                randomBoolean(), WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS));
-        expectedRequest.searchType(getRandomSupportedSearchType());
-
-        SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()).size(11);
-        expectedRequest.source(searchSourceBuilder);
-
+        WatcherSearchTemplateRequest request;
         if (randomBoolean()) {
             Map<String, Object> params = new HashMap<>();
             if (randomBoolean()) {
@@ -123,28 +106,33 @@ public class WatcherUtilsTests extends ESTestCase {
             String text = randomAsciiOfLengthBetween(1, 5);
             expectedTemplate = randomFrom(WatcherScript.inline(text), WatcherScript.file(text),
                 WatcherScript.indexed(text)).params(params).build();
+            request = new WatcherSearchTemplateRequest(expectedIndices, expectedTypes, expectedSearchType,
+                    expectedIndicesOptions, expectedTemplate);
+        } else {
+            SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()).size(11);
+            XContentBuilder builder = jsonBuilder();
+            builder.value(sourceBuilder);
+            expectedSource = builder.bytes();
+            request = new WatcherSearchTemplateRequest(expectedIndices, expectedTypes, expectedSearchType,
+                    expectedIndicesOptions, expectedSource);
         }
-
-        WatcherSearchTemplateRequest request = new WatcherSearchTemplateRequest(expectedRequest, expectedTemplate);
 
         XContentBuilder builder = jsonBuilder();
         request.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentParser parser = XContentHelper.createParser(builder.bytes());
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
-        QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
-        registry.register(queryParser, MatchAllQueryBuilder.NAME);
-        QueryParseContext context = new QueryParseContext(registry, parser, ParseFieldMatcher.STRICT);
-        WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, DEFAULT_SEARCH_TYPE, context, null, null);
+        WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, DEFAULT_SEARCH_TYPE);
 
-        assertThat(result.getRequest(), is(notNullValue()));
-        assertThat(result.getRequest().indices(), arrayContainingInAnyOrder(expectedRequest.indices()));
-        assertThat(result.getRequest().types(), arrayContainingInAnyOrder(expectedRequest.types()));
-        assertThat(result.getRequest().indicesOptions(), equalTo(expectedRequest.indicesOptions()));
-        assertThat(result.getRequest().searchType(), equalTo(expectedRequest.searchType()));
-        assertThat(result.getRequest().source(), equalTo(searchSourceBuilder));
+        assertThat(result.getIndices(), arrayContainingInAnyOrder(expectedIndices != null ? expectedIndices : new String[0]));
+        assertThat(result.getTypes(), arrayContainingInAnyOrder(expectedTypes != null ? expectedTypes : new String[0]));
+        assertThat(result.getIndicesOptions(), equalTo(expectedIndicesOptions));
+        assertThat(result.getSearchType(), equalTo(expectedSearchType));
+        if (expectedSource == null) {
+            assertThat(result.getTemplate(), equalTo(expectedTemplate));
+        } else {
+            assertThat(result.getTemplate().script(), equalTo(expectedSource.utf8ToString()));
+        }
 
-        assertThat(result.getTemplate(), equalTo(expectedTemplate));
     }
 
     public void testDeserializeSearchRequest() throws Exception {
@@ -192,9 +180,8 @@ public class WatcherUtilsTests extends ESTestCase {
         }
 
         BytesReference source = null;
-        SearchSourceBuilder searchSourceBuilder = null;
         if (randomBoolean()) {
-            searchSourceBuilder = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()).size(11);
+            SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()).size(11);
             XContentBuilder searchSourceJsonBuilder = jsonBuilder();
             searchSourceBuilder.toXContent(searchSourceJsonBuilder, ToXContent.EMPTY_PARAMS);
             source = searchSourceBuilder.buildAsBytes(XContentType.JSON);
@@ -218,18 +205,17 @@ public class WatcherUtilsTests extends ESTestCase {
 
         XContentParser parser = XContentHelper.createParser(builder.bytes());
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
-        QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
-        registry.register(queryParser, MatchAllQueryBuilder.NAME);
-        QueryParseContext context = new QueryParseContext(registry, parser, ParseFieldMatcher.STRICT);
-        WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, DEFAULT_SEARCH_TYPE, context, null, null);
+        WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, DEFAULT_SEARCH_TYPE);
 
-        assertThat(result.getRequest(), is(notNullValue()));
-        assertThat(result.getRequest().indices(), arrayContainingInAnyOrder(indices));
-        assertThat(result.getRequest().types(), arrayContainingInAnyOrder(types));
-        assertThat(result.getRequest().indicesOptions(), equalTo(indicesOptions));
-        assertThat(result.getRequest().searchType(), equalTo(searchType));
-        assertThat(result.getRequest().source(), equalTo(searchSourceBuilder));
+        assertThat(result.getIndices(), arrayContainingInAnyOrder(indices));
+        assertThat(result.getTypes(), arrayContainingInAnyOrder(types));
+        assertThat(result.getIndicesOptions(), equalTo(indicesOptions));
+        assertThat(result.getSearchType(), equalTo(searchType));
+        if (source == null) {
+            assertThat(result.getSearchSource(), nullValue());
+        } else {
+            assertThat(result.getSearchSource().utf8ToString(), equalTo(source.utf8ToString()));
+        }
         assertThat(result.getTemplate(), equalTo(template));
     }
 

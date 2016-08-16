@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.transform;
 
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -15,15 +14,14 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.xpack.watcher.support.WatcherScript;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +37,7 @@ import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBu
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
+import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.chainTransform;
 import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.scriptTransform;
 import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.searchTransform;
@@ -177,10 +176,8 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         index("my-payload-index", "payload", "mytestresult");
         refresh();
 
-        SearchRequest inputRequest = WatcherTestUtils.newInputSearchRequest("my-condition-index")
-                .source(searchSource().query(matchAllQuery()));
-        SearchRequest transformRequest = WatcherTestUtils.newInputSearchRequest("my-payload-index")
-                .source(searchSource().query(matchAllQuery()));
+        WatcherSearchTemplateRequest inputRequest = templateRequest(searchSource().query(matchAllQuery()), "my-condition-index");
+        WatcherSearchTemplateRequest transformRequest = templateRequest(searchSource().query(matchAllQuery()), "my-payload-index");
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id1")
                 .setSource(watchBuilder()

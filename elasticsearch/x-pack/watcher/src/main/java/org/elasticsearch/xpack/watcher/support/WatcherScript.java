@@ -21,9 +21,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-/**
- *
- */
+// TODO: remove this class as it is exactly the same as org.elasticsearch.script.Script
+// and we should be able to remove it without breaking bwc in the .watch index
 public class WatcherScript implements ToXContent {
 
     public static final String DEFAULT_LANG = ScriptSettings.DEFAULT_LANG;

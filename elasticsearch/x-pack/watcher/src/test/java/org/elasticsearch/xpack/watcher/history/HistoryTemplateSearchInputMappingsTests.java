@@ -5,16 +5,16 @@
  */
 package org.elasticsearch.xpack.watcher.history;
 
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
@@ -50,10 +50,13 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
         flush();
         refresh();
 
+        WatcherSearchTemplateRequest request = new WatcherSearchTemplateRequest(
+                new String[]{index}, new String[]{type}, SearchType.QUERY_AND_FETCH,
+                WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS, new BytesArray("{}")
+        );
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
-                .input(searchInput(new SearchRequest().indices(index).types(type).searchType(SearchType.QUERY_AND_FETCH)
-                        .source(searchSource().query(matchAllQuery()))))
+                .input(searchInput(request))
                 .condition(alwaysCondition())
                 .addAction("logger", loggingAction("indexed")))
                 .get();

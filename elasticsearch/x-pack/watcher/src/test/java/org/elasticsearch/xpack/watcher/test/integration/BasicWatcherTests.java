@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -42,7 +42,7 @@ import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.always
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.compareCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
-import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.newInputSearchRequest;
+import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.xContentSource;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
@@ -55,8 +55,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
 public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
@@ -70,11 +68,11 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         // Have a sample document in the index, the watch is going to evaluate
         client().prepareIndex("idx", "type").setSource("field", "value").get();
         refresh();
-        SearchRequest searchRequest = newInputSearchRequest("idx").source(searchSource().query(termQuery("field", "value")));
+        WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "value")), "idx");
         watcherClient.preparePutWatch("_name")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(searchInput(searchRequest))
+                        .input(searchInput(request))
                         .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
                         .addAction("_logger", loggingAction("_logging")
                                         .setCategory("_category")))
@@ -89,7 +87,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
     public void testIndexWatchRegisterWatchBeforeTargetIndex() throws Exception {
         WatcherClient watcherClient = watcherClient();
-        SearchRequest searchRequest = newInputSearchRequest("idx").source(searchSource().query(termQuery("field", "value")));
+        WatcherSearchTemplateRequest searchRequest = templateRequest(searchSource().query(termQuery("field", "value")), "idx");
         watcherClient.preparePutWatch("_name")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
@@ -115,7 +113,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
     public void testDeleteWatch() throws Exception {
         WatcherClient watcherClient = watcherClient();
-        SearchRequest searchRequest = newInputSearchRequest("idx").source(searchSource().query(matchAllQuery()));
+        WatcherSearchTemplateRequest searchRequest = templateRequest(searchSource().query(matchAllQuery()), "idx");
         PutWatchResponse indexResponse = watcherClient.preparePutWatch("_name")
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0/1 * * * * ? 2020")))
@@ -148,7 +146,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         watchSource.startObject("schedule").field("cron", "0/5 * * * * ? *").endObject();
 
         watchSource.startObject("condition").startObject("script").field("script", "return true");
-        watchSource.field("request", new WatcherSearchTemplateRequest(newInputSearchRequest()));
+        watchSource.field("request", templateRequest(searchSource().query(matchAllQuery())));
         watchSource.endObject().endObject();
 
         watchSource.endObject();
@@ -171,8 +169,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testModifyWatches() throws Exception {
-        SearchRequest searchRequest = newInputSearchRequest("idx")
-                .source(searchSource().query(matchAllQuery()));
+        WatcherSearchTemplateRequest searchRequest = templateRequest(searchSource().query(matchAllQuery()), "idx");
 
         WatchSourceBuilder source = watchBuilder()
                 .trigger(schedule(interval("5s")))
@@ -248,7 +245,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
     public void testConditionSearchWithSource() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(matchQuery("level", "a"));
-        testConditionSearch(newInputSearchRequest("events").source(searchSourceBuilder), null);
+        testConditionSearch(templateRequest(searchSourceBuilder, "events"));
     }
 
     public void testConditionSearchWithIndexedTemplate() throws Exception {
@@ -260,8 +257,9 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .get());
 
         WatcherScript template = WatcherScript.indexed("my-template").lang("mustache").build();
-        SearchRequest searchRequest = newInputSearchRequest("events");
-        testConditionSearch(searchRequest, template);
+        WatcherSearchTemplateRequest searchRequest = new WatcherSearchTemplateRequest(new String[]{"events"}, new String[0],
+                SearchType.DEFAULT, WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS, template);
+        testConditionSearch(searchRequest);
     }
 
     public void testInputFiltering() throws Exception {
@@ -270,18 +268,18 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         // Have a sample document in the index, the watch is going to evaluate
         client().prepareIndex("idx", "type").setSource("field", "value").get();
         refresh();
-        SearchRequest searchRequest = newInputSearchRequest("idx").source(searchSource().query(termQuery("field", "value")));
+        WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "value")), "idx");
         watcherClient.preparePutWatch("_name1")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(searchInput(searchRequest).extractKeys("hits.total"))
+                        .input(searchInput(request).extractKeys("hits.total"))
                         .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))
                 .get();
         // in this watcher the condition will fail, because max_score isn't extracted, only total:
         watcherClient.preparePutWatch("_name2")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(searchInput(searchRequest).extractKeys("hits.total"))
+                        .input(searchInput(request).extractKeys("hits.total"))
                         .condition(compareCondition("ctx.payload.hits.max_score", CompareCondition.Op.GTE, 0L)))
                 .get();
 
@@ -368,7 +366,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         }
     }
 
-    private void testConditionSearch(SearchRequest request, WatcherScript template) throws Exception {
+    private void testConditionSearch(WatcherSearchTemplateRequest request) throws Exception {
         // reset, so we don't miss event docs when we filter over the _timestamp field.
         timeWarp().clock().setTime(SystemClock.INSTANCE.nowUTC());
 
@@ -378,7 +376,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         watcherClient().preparePutWatch(watchName)
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
-                        .input(searchInput(new WatcherSearchTemplateRequest(request, template)))
+                        .input(searchInput(request))
                         .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.GTE, 3L)))
                 .get();
 

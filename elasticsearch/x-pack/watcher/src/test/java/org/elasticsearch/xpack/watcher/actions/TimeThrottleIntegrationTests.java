@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.actions;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
@@ -26,15 +27,13 @@ import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.compareCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
-import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.matchAllRequest;
+import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.elasticsearch.xpack.watcher.transform.TransformBuilders.searchTransform;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
-/**
- */
 public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTestCase {
     
     private IndexResponse indexTestDoc() {
@@ -62,9 +61,9 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
                 .setId("_name")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
-                        .input(searchInput(matchAllRequest().indices("events")))
+                        .input(searchInput(templateRequest(new SearchSourceBuilder(), "events")))
                         .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0L))
-                        .transform(searchTransform(matchAllRequest().indices("events")))
+                        .transform(searchTransform(templateRequest(new SearchSourceBuilder(), "events")))
                         .addAction("_id", indexAction("actions", "action"))
                         .defaultThrottlePeriod(TimeValue.timeValueSeconds(30)))
                 .get();
@@ -136,9 +135,9 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
                 .setId("_name")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("1s")))
-                        .input(searchInput(matchAllRequest().indices("events")))
+                        .input(searchInput(templateRequest(new SearchSourceBuilder(), "events")))
                         .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0L))
-                        .transform(searchTransform(matchAllRequest().indices("events")))
+                        .transform(searchTransform(templateRequest(new SearchSourceBuilder(), "events")))
                         .addAction("_id", indexAction("actions", "action")))
                 .get();
         assertThat(putWatchResponse.isCreated(), is(true));

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -39,6 +38,7 @@ import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
+import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -79,13 +79,8 @@ public class SearchInputTests extends ESIntegTestCase {
     public void testExecute() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(
                 boolQuery().must(matchQuery("event_type", "a")));
-        SearchRequest searchRequest = client()
-                .prepareSearch()
-                .setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
-                .request()
-                .source(searchSourceBuilder);
 
-        WatcherSearchTemplateRequest request = new WatcherSearchTemplateRequest(searchRequest);
+        WatcherSearchTemplateRequest request = WatcherTestUtils.templateRequest(searchSourceBuilder);
         ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null), logger,
                 WatcherClientProxy.of(client()), watcherSearchTemplateService(), null);
         WatchExecutionContext ctx = new TriggeredExecutionContext(
@@ -106,9 +101,9 @@ public class SearchInputTests extends ESIntegTestCase {
         assertThat(XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
         assertNotNull(result.executedRequest());
         assertThat(result.status(), is(Input.Result.Status.SUCCESS));
-        assertEquals(result.executedRequest().searchType(), request.getRequest().searchType());
-        assertArrayEquals(result.executedRequest().indices(), request.getRequest().indices());
-        assertEquals(result.executedRequest().indicesOptions(), request.getRequest().indicesOptions());
+        assertEquals(result.executedRequest().getSearchType(), request.getSearchType());
+        assertArrayEquals(result.executedRequest().getIndices(), request.getIndices());
+        assertEquals(result.executedRequest().getIndicesOptions(), request.getIndicesOptions());
     }
 
     public void testDifferentSearchType() throws Exception {
@@ -116,14 +111,7 @@ public class SearchInputTests extends ESIntegTestCase {
                 boolQuery().must(matchQuery("event_type", "a"))
         );
         SearchType searchType = getRandomSupportedSearchType();
-
-        SearchRequest searchRequest = client()
-                .prepareSearch()
-                .setSearchType(searchType)
-                .request()
-                .source(searchSourceBuilder);
-
-        WatcherSearchTemplateRequest request = new WatcherSearchTemplateRequest(searchRequest);
+        WatcherSearchTemplateRequest request = WatcherTestUtils.templateRequest(searchSourceBuilder, searchType);
 
         ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null), logger,
                 WatcherClientProxy.of(client()), watcherSearchTemplateService(), null);
@@ -145,22 +133,19 @@ public class SearchInputTests extends ESIntegTestCase {
         assertThat(XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
         assertNotNull(result.executedRequest());
         assertThat(result.status(), is(Input.Result.Status.SUCCESS));
-        assertEquals(result.executedRequest().searchType(), searchType);
-        assertArrayEquals(result.executedRequest().indices(), searchRequest.indices());
-        assertEquals(result.executedRequest().indicesOptions(), searchRequest.indicesOptions());
+        assertEquals(result.executedRequest().getSearchType(), searchType);
+        assertArrayEquals(result.executedRequest().getIndices(), request.getIndices());
+        assertEquals(result.executedRequest().getIndicesOptions(), request.getIndicesOptions());
     }
 
     public void testParserValid() throws Exception {
-        SearchRequest searchRequest = client().prepareSearch()
-                .setSearchType(ExecutableSearchInput.DEFAULT_SEARCH_TYPE)
-                .request()
-                .source(searchSource()
+        SearchSourceBuilder source = searchSource()
                         .query(boolQuery().must(matchQuery("event_type", "a")).must(rangeQuery("_timestamp")
-                                .from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
+                                .from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}")));
 
         TimeValue timeout = randomBoolean() ? TimeValue.timeValueSeconds(randomInt(10)) : null;
         XContentBuilder builder = jsonBuilder().value(
-                new SearchInput(new WatcherSearchTemplateRequest(searchRequest), null, timeout, null));
+                new SearchInput(WatcherTestUtils.templateRequest(source), null, timeout, null));
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 

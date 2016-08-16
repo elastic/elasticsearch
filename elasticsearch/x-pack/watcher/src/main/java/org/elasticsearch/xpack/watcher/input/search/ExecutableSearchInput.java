@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.watcher.input.search;
 
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -17,8 +17,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
+import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
@@ -47,9 +49,12 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
 
     @Override
     public SearchInput.Result execute(WatchExecutionContext ctx, Payload payload) {
-        SearchRequest request = null;
+        WatcherSearchTemplateRequest request = null;
         try {
-            request = searchTemplateService.createSearchRequestFromPrototype(input.getRequest(), ctx, payload);
+            WatcherScript template = input.getRequest().getOrCreateTemplate();
+            BytesReference renderedTemplate = searchTemplateService.renderTemplate(template, ctx, payload);
+            // We need to make a copy, so that we don't modify the original instance that we keep around in a watch:
+            request = new WatcherSearchTemplateRequest(input.getRequest(), renderedTemplate);
             return doExecute(ctx, request);
         } catch (Exception e) {
             logger.error("failed to execute [{}] input for [{}]", e, SearchInput.TYPE, ctx.watch());
@@ -57,12 +62,12 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
         }
     }
 
-    SearchInput.Result doExecute(WatchExecutionContext ctx, SearchRequest request) throws Exception {
+    SearchInput.Result doExecute(WatchExecutionContext ctx, WatcherSearchTemplateRequest request) throws Exception {
         if (logger.isTraceEnabled()) {
-            logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().id(), XContentHelper.toString(request.source()));
+            logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().id(), request.getSearchSource().utf8ToString());
         }
 
-        SearchResponse response = client.search(request, timeout);
+        SearchResponse response = client.search(searchTemplateService.toSearchRequest(request), timeout);
 
         if (logger.isDebugEnabled()) {
             logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits());

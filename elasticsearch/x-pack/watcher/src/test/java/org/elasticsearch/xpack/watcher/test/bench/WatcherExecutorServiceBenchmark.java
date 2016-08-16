@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.test.bench;
 
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.Loggers;
@@ -32,6 +31,7 @@ import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction
 import static org.elasticsearch.xpack.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
+import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 
@@ -80,9 +80,7 @@ public class WatcherExecutorServiceBenchmark {
                 final String name = "_name" + i;
                 PutWatchRequest putAlertRequest = new PutWatchRequest(name, new WatchSourceBuilder()
                         .trigger(schedule(interval("5s")))
-                        .input(searchInput(new SearchRequest("test")
-                                        .source(new SearchSourceBuilder()))
-                        )
+                        .input(searchInput(templateRequest(new SearchSourceBuilder(), "test")))
                         .condition(scriptCondition("ctx.payload.hits.total > 0")));
                 putAlertRequest.setId(name);
                 watcherClient.putWatch(putAlertRequest).actionGet();
@@ -123,10 +121,8 @@ public class WatcherExecutorServiceBenchmark {
                 final String name = "_name" + i;
                 PutWatchRequest putAlertRequest = new PutWatchRequest(name, new WatchSourceBuilder()
                         .trigger(schedule(interval("5s")))
-                        .input(searchInput(new SearchRequest()
-                                        .source(new SearchSourceBuilder()))
-                                        .extractKeys("hits.total")
-                        )
+                        .input(searchInput(templateRequest(new SearchSourceBuilder(), "test"))
+                                .extractKeys("hits.total"))
                         .condition(scriptCondition("1 == 1"))
                         .addAction("_id", indexAction("index", "type")));
                 putAlertRequest.setId(name);

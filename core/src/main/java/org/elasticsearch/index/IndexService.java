@@ -39,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
@@ -279,8 +280,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         boolean success = false;
         Store store = null;
         IndexShard indexShard = null;
-        final ShardLock lock = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5));
+        ShardLock lock = null;
         try {
+            lock = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5));
             eventListener.beforeIndexShardCreated(shardId, indexSettings);
             ShardPath path;
             try {
@@ -349,9 +351,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             shards = newMapBuilder(shards).put(shardId.id(), indexShard).immutableMap();
             success = true;
             return indexShard;
+        } catch (ShardLockObtainFailedException e) {
+            throw new IOException("failed to obtain in-memory shard lock", e);
         } finally {
             if (success == false) {
-                IOUtils.closeWhileHandlingException(lock);
+                if (lock != null) {
+                    IOUtils.closeWhileHandlingException(lock);
+                }
                 closeShard("initialization failed", shardId, indexShard, store, eventListener);
             }
         }

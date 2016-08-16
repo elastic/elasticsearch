@@ -70,6 +70,7 @@ import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
@@ -388,6 +389,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             // that's fine - happens all the time no need to log
         } catch (FileNotFoundException | NoSuchFileException ex) {
             logger.info("Failed to open / find files while reading metadata snapshot");
+        } catch (ShardLockObtainFailedException ex) {
+            logger.info("{}: failed to obtain shard lock", ex, shardId);
         }
         return MetadataSnapshot.EMPTY;
     }
@@ -418,6 +421,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             failIfCorrupted(dir, shardId);
             SegmentInfos segInfo = Lucene.readSegmentInfos(dir);
             logger.trace("{} loaded segment info [{}]", shardId, segInfo);
+        } catch (ShardLockObtainFailedException ex) {
+            logger.error("{} unable to acquire shard lock", ex, shardId);
+            throw new IOException(ex);
         }
     }
 

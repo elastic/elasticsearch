@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
-import org.elasticsearch.cluster.routing.allocation.RoutingChanges;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.Tuple;
@@ -410,7 +409,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * @return                     the initialized shard
      */
     public ShardRouting initializeShard(ShardRouting unassignedShard, String nodeId, @Nullable String existingAllocationId,
-                                        long expectedSize, RoutingChanges routingChanges) {
+                                        long expectedSize, RoutingChangesObserver routingChangesObserver) {
         ensureMutable();
         assert unassignedShard.unassigned() : "expected an unassigned shard " + unassignedShard;
         ShardRouting initializedShard = unassignedShard.initialize(nodeId, existingAllocationId, expectedSize);
@@ -421,7 +420,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
         addRecovery(initializedShard);
         assignedShardsAdd(initializedShard);
-        routingChanges.shardInitialized(unassignedShard);
+        routingChangesObserver.shardInitialized(unassignedShard);
         return initializedShard;
     }
 
@@ -432,7 +431,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * @return pair of source relocating and target initializing shards.
      */
     public Tuple<ShardRouting,ShardRouting> relocateShard(ShardRouting startedShard, String nodeId, long expectedShardSize,
-                                                          RoutingChanges changes) {
+                                                          RoutingChangesObserver changes) {
         ensureMutable();
         relocatingShards++;
         ShardRouting source = startedShard.relocate(nodeId, expectedShardSize);
@@ -452,11 +451,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      *
      * @return the started shard
      */
-    public ShardRouting startShard(ESLogger logger, ShardRouting initializingShard, RoutingChanges routingChanges) {
+    public ShardRouting startShard(ESLogger logger, ShardRouting initializingShard, RoutingChangesObserver routingChangesObserver) {
         ensureMutable();
         ShardRouting startedShard = started(initializingShard);
         logger.trace("{} marked shard as started (routing: {})", initializingShard.shardId(), initializingShard);
-        routingChanges.shardStarted(initializingShard, startedShard);
+        routingChangesObserver.shardStarted(initializingShard, startedShard);
 
         if (initializingShard.relocatingNodeId() != null) {
             // relocation target has been started, remove relocation source
@@ -466,7 +465,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             assert relocationSourceShard.getTargetRelocatingShard() == initializingShard : "relocation target mismatch, expected: "
                 + initializingShard + " but was: " + relocationSourceShard.getTargetRelocatingShard();
             remove(relocationSourceShard);
-            routingChanges.relocationCompleted(relocationSourceShard);
+            routingChangesObserver.relocationCompleted(relocationSourceShard);
         }
         return startedShard;
     }
@@ -485,7 +484,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      *
      */
     public void failShard(ESLogger logger, ShardRouting failedShard, UnassignedInfo unassignedInfo, IndexMetaData indexMetaData,
-                          RoutingChanges routingChanges) {
+                          RoutingChangesObserver routingChangesObserver) {
         ensureMutable();
         assert failedShard.assignedToNode() : "only assigned shards can be failed";
         assert indexMetaData.getIndex().equals(failedShard.index()) :
@@ -509,7 +508,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                         UnassignedInfo primaryFailedUnassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.PRIMARY_FAILED,
                             "primary failed while replica initializing", null, 0, unassignedInfo.getUnassignedTimeInNanos(),
                             unassignedInfo.getUnassignedTimeInMillis(), false, AllocationStatus.NO_ATTEMPT);
-                        failShard(logger, replicaShard, primaryFailedUnassignedInfo, indexMetaData, routingChanges);
+                        failShard(logger, replicaShard, primaryFailedUnassignedInfo, indexMetaData, routingChangesObserver);
                     }
                 }
             }
@@ -523,13 +522,13 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 logger.trace("{} is removed due to the failure/cancellation of the source shard", targetShard);
                 // cancel and remove target shard
                 remove(targetShard);
-                routingChanges.initializingShardFailed(targetShard);
+                routingChangesObserver.shardFailed(targetShard, unassignedInfo);
             } else {
                 logger.trace("{}, relocation source failed / cancelled, mark as initializing without relocation source", targetShard);
                 // promote to initializing shard without relocation source and ensure that removed relocation source
                 // is not added back as unassigned shard
                 removeRelocationSource(targetShard);
-                routingChanges.relocationSourceRemoved(targetShard);
+                routingChangesObserver.relocationSourceRemoved(targetShard);
             }
         }
 
@@ -551,7 +550,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 cancelRelocation(sourceShard);
                 remove(failedShard);
             }
-            routingChanges.initializingShardFailed(failedShard);
+            routingChangesObserver.shardFailed(failedShard, unassignedInfo);
         } else {
             assert failedShard.active();
             if (failedShard.primary()) {
@@ -565,10 +564,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     assert activeReplica.started() : "replica relocation should have been cancelled: " + activeReplica;
                     movePrimaryToUnassignedAndDemoteToReplica(failedShard, unassignedInfo);
                     ShardRouting primarySwappedCandidate = promoteActiveReplicaShardToPrimary(activeReplica);
-                    routingChanges.replicaPromoted(activeReplica);
+                    routingChangesObserver.replicaPromoted(activeReplica);
                     if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings())) {
                         ShardRouting initializedShard = reinitShadowPrimary(primarySwappedCandidate);
-                        routingChanges.startedPrimaryReinitialized(primarySwappedCandidate, initializedShard);
+                        routingChangesObserver.startedPrimaryReinitialized(primarySwappedCandidate, initializedShard);
                     }
                 }
             } else {
@@ -579,7 +578,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     moveToUnassigned(failedShard, unassignedInfo);
                 }
             }
-            routingChanges.activeShardFailed(failedShard, unassignedInfo);
+            routingChangesObserver.shardFailed(failedShard, unassignedInfo);
         }
         assert node(failedShard.currentNodeId()).getByShardId(failedShard.shardId()) == null : "failedShard " + failedShard +
             " was matched but wasn't removed";
@@ -819,10 +818,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
          * Should be used with caution, typically,
          * the correct usage is to removeAndIgnore from the iterator.
          * @see #ignored()
-         * @see UnassignedIterator#removeAndIgnore(AllocationStatus, RoutingChanges)
+         * @see UnassignedIterator#removeAndIgnore(AllocationStatus, RoutingChangesObserver)
          * @see #isIgnoredEmpty()
          */
-        public void ignoreShard(ShardRouting shard, AllocationStatus allocationStatus, RoutingChanges changes) {
+        public void ignoreShard(ShardRouting shard, AllocationStatus allocationStatus, RoutingChangesObserver changes) {
             nodes.ensureMutable();
             if (shard.primary()) {
                 ignoredPrimaries++;
@@ -866,10 +865,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
              * @param existingAllocationId allocation id to use. If null, a fresh allocation id is generated.
              */
             public ShardRouting initialize(String nodeId, @Nullable String existingAllocationId, long expectedShardSize,
-                                           RoutingChanges routingChanges) {
+                                           RoutingChangesObserver routingChangesObserver) {
                 nodes.ensureMutable();
                 innerRemove();
-                return nodes.initializeShard(current, nodeId, existingAllocationId, expectedShardSize, routingChanges);
+                return nodes.initializeShard(current, nodeId, existingAllocationId, expectedShardSize, routingChangesObserver);
             }
 
             /**
@@ -880,7 +879,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
              *
              * @param attempt the result of the allocation attempt
              */
-            public void removeAndIgnore(AllocationStatus attempt, RoutingChanges changes) {
+            public void removeAndIgnore(AllocationStatus attempt, RoutingChangesObserver changes) {
                 nodes.ensureMutable();
                 innerRemove();
                 ignoreShard(current, attempt, changes);
@@ -897,7 +896,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
              * @param  unassignedInfo the new unassigned info to use
              * @return the shard with unassigned info updated
              */
-            public ShardRouting updateUnassignedInfo(UnassignedInfo unassignedInfo, RoutingChanges changes) {
+            public ShardRouting updateUnassignedInfo(UnassignedInfo unassignedInfo, RoutingChangesObserver changes) {
                 nodes.ensureMutable();
                 ShardRouting updatedShardRouting = current.updateUnassignedInfo(unassignedInfo);
                 changes.unassignedInfoUpdated(current, unassignedInfo);
@@ -906,8 +905,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             }
 
             /**
-             * Unsupported operation, just there for the interface. Use {@link #removeAndIgnore(AllocationStatus, RoutingChanges)} or
-             * {@link #initialize(String, String, long, RoutingChanges)}.
+             * Unsupported operation, just there for the interface. Use {@link #removeAndIgnore(AllocationStatus, RoutingChangesObserver)} or
+             * {@link #initialize(String, String, long, RoutingChangesObserver)}.
              */
             @Override
             public void remove() {
@@ -931,8 +930,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         /**
          * Returns <code>true</code> iff any unassigned shards are marked as temporarily ignored.
-         * @see UnassignedShards#ignoreShard(ShardRouting, AllocationStatus, RoutingChanges)
-         * @see UnassignedIterator#removeAndIgnore(AllocationStatus, RoutingChanges)
+         * @see UnassignedShards#ignoreShard(ShardRouting, AllocationStatus, RoutingChangesObserver)
+         * @see UnassignedIterator#removeAndIgnore(AllocationStatus, RoutingChangesObserver)
          */
         public boolean isIgnoredEmpty() {
             return ignored.isEmpty();

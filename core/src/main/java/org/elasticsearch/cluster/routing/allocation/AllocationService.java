@@ -36,21 +36,14 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation.Result;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -115,11 +108,10 @@ public class AllocationService extends AbstractComponent {
     }
 
     protected Result buildResultAndLogHealthChange(RoutingAllocation allocation, String reason, RoutingExplanations explanations) {
-        MetaData oldMetaData = allocation.metaData();
         RoutingTable oldRoutingTable = allocation.routingTable();
         RoutingNodes newRoutingNodes = allocation.routingNodes();
         final RoutingTable newRoutingTable = new RoutingTable.Builder().updateNodes(oldRoutingTable.version(), newRoutingNodes).build();
-        MetaData newMetaData = updateMetaDataWithRoutingChanges(oldMetaData, allocation.changes());
+        MetaData newMetaData = allocation.updateMetaDataWithRoutingChanges();
         assert newRoutingTable.validate(newMetaData); // validates the routing table is coherent with the cluster state metadata
         logClusterHealthStateChange(
             new ClusterStateHealth(ClusterState.builder(clusterName).
@@ -129,77 +121,6 @@ public class AllocationService extends AbstractComponent {
             reason
         );
         return Result.changed(newRoutingTable, newMetaData, explanations);
-    }
-
-    /**
-     * Updates the current {@link MetaData} based on the newly created {@link RoutingTable}. Specifically
-     * we update {@link IndexMetaData#getActiveAllocationIds()} and {@link IndexMetaData#primaryTerm(int)} based on
-     * the changes made during this allocation.
-     *
-     * @param oldMetaData     {@link MetaData} object from before the routing table was changed.
-     * @param routingChanges The changes made to the {@link RoutingTable}.
-     * @return adapted {@link MetaData}, potentially the original one if no change was needed.
-     */
-    static MetaData updateMetaDataWithRoutingChanges(MetaData oldMetaData, RoutingChanges routingChanges) {
-        Map<Index, List<Entry<ShardId, RoutingChanges.ShardRoutingChanges>>> changesGroupedByIndex =
-            routingChanges.getChanges().entrySet().stream().collect(Collectors.groupingBy(e -> e.getKey().getIndex()));
-
-        MetaData.Builder metaDataBuilder = null;
-        for (Entry<Index, List<Entry<ShardId, RoutingChanges.ShardRoutingChanges>>> indexChanges : changesGroupedByIndex.entrySet()) {
-            Index index = indexChanges.getKey();
-            final IndexMetaData oldIndexMetaData = oldMetaData.index(index);
-            if (oldIndexMetaData == null) {
-                throw new IllegalStateException("no metadata found for index " + index);
-            }
-            IndexMetaData.Builder indexMetaDataBuilder = null;
-            for (Entry<ShardId, RoutingChanges.ShardRoutingChanges> shardEntry : indexChanges.getValue()) {
-                ShardId shardId = shardEntry.getKey();
-                RoutingChanges.ShardRoutingChanges shardRoutingChanges = shardEntry.getValue();
-
-                Set<String> activeAllocationIds = new HashSet<>(oldIndexMetaData.activeAllocationIds(shardId.id()));
-                for (ShardRouting shardRouting : shardRoutingChanges.getStartedShards()) {
-                    activeAllocationIds.add(shardRouting.allocationId().getId());
-                }
-                for (ShardRouting reinitializedShard : shardRoutingChanges.getReinitalizedPrimaryShards()) {
-                    activeAllocationIds.remove(reinitializedShard.allocationId().getId());
-                }
-                for (ShardRouting removedActiveShard : shardRoutingChanges.getRelocationCompletedSourceShards()) {
-                    activeAllocationIds.remove(removedActiveShard.allocationId().getId());
-                }
-                for (Tuple<ShardRouting, UnassignedInfo> failActiveShardEntry : shardRoutingChanges.getFailedActiveShards()) {
-                    activeAllocationIds.remove(failActiveShardEntry.v1().allocationId().getId());
-                }
-                // only update active allocation ids if there is an active shard
-                if (activeAllocationIds.isEmpty() == false) {
-                    if (indexMetaDataBuilder == null) {
-                        indexMetaDataBuilder = IndexMetaData.builder(oldIndexMetaData);
-                    }
-                    indexMetaDataBuilder.putActiveAllocationIds(shardId.id(), activeAllocationIds);
-                }
-
-                // update primary term on primary initialization or primary promotion
-                if (shardRoutingChanges.getInitializedShards().stream().anyMatch(ShardRouting::primary) ||
-                    shardRoutingChanges.getPrimaryPromotedShards().isEmpty() == false) {
-                    if (indexMetaDataBuilder == null) {
-                        indexMetaDataBuilder = IndexMetaData.builder(oldIndexMetaData);
-                    }
-                    indexMetaDataBuilder.primaryTerm(shardId.id(), oldIndexMetaData.primaryTerm(shardId.id()) + 1);
-                }
-            }
-
-            if (indexMetaDataBuilder != null) {
-                if (metaDataBuilder == null) {
-                    metaDataBuilder = MetaData.builder(oldMetaData);
-                }
-                metaDataBuilder.put(indexMetaDataBuilder);
-            }
-        }
-
-        if (metaDataBuilder != null) {
-            return metaDataBuilder.build();
-        } else {
-            return oldMetaData;
-        }
     }
 
     public Result applyFailedShard(ClusterState clusterState, ShardRouting failedShard) {
@@ -269,7 +190,7 @@ public class AllocationService extends AbstractComponent {
             reroute(allocation);
         }
 
-        if (allocation.changes().isChanged() == false) {
+        if (allocation.routingNodesChanged() == false) {
             return Result.unchanged(clusterState);
         }
         return buildResultAndLogHealthChange(allocation, reason);
@@ -356,7 +277,7 @@ public class AllocationService extends AbstractComponent {
             clusterInfoService.getClusterInfo(), currentNanoTime(), false);
         allocation.debugDecision(debug);
         reroute(allocation);
-        if (allocation.changes().isChanged() == false) {
+        if (allocation.routingNodesChanged() == false) {
             return Result.unchanged(clusterState);
         }
         return buildResultAndLogHealthChange(allocation, reason);

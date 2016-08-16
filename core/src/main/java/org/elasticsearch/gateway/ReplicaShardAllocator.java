@@ -31,7 +31,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
-import org.elasticsearch.cluster.routing.allocation.RoutingChanges;
+import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
@@ -206,7 +206,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
      * @param unassignedIterator iterator over unassigned shards
      * @param shard the shard which might be delayed
      */
-    public void ignoreUnassignedIfDelayed(RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator, ShardRouting shard, RoutingChanges changes) {
+    public void ignoreUnassignedIfDelayed(RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator, ShardRouting shard, RoutingChangesObserver changes) {
         if (shard.unassignedInfo().isDelayed()) {
             logger.debug("{}: allocation of [{}] is delayed", shard.shardId(), shard);
             unassignedIterator.removeAndIgnore(AllocationStatus.DELAYED_ALLOCATION, changes);

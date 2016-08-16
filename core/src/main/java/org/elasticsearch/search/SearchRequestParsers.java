@@ -31,6 +31,7 @@ import org.elasticsearch.search.suggest.Suggesters;
 public class SearchRequestParsers {
     // TODO: this class should be renamed to SearchRequestParser, and all the parse
     // methods split across RestSearchAction and SearchSourceBuilder should be moved here
+    // TODO: make all members private once parsing functions are moved here
 
     // TODO: IndicesQueriesRegistry should be removed and just have the map of query parsers here
     /**

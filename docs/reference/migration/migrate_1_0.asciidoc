@@ -141,8 +141,7 @@ This is a breaking change for the `get_mapping` API.
 
 In the future we will also provide plural versions to allow putting multiple mappings etc in a single request.
 
-See <<indices-put-mapping,`put-mapping`>>, <<indices-get-mapping,`get-
-mapping`>>, <<indices-get-field-mapping,`get-field-mapping`>>,
+See <<indices-put-mapping,`put-mapping`>>, <<indices-get-mapping,`get-mapping`>>, <<indices-get-field-mapping,`get-field-mapping`>>,
 <<indices-delete-mapping,`delete-mapping`>>,
 <<indices-update-settings,`update-settings`>>, <<indices-get-settings,`get-settings`>>,
 <<indices-warmers,`warmers`>>, and <<indices-aliases,`aliases`>> for more details.

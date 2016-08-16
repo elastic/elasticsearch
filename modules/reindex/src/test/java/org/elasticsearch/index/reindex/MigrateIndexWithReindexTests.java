@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
@@ -47,7 +48,7 @@ public class MigrateIndexWithReindexTests extends MigrateIndexTestCase {
         return plugins;
     }
 
-    public void testMigrateNonEmptyIndex() throws InterruptedException, ExecutionException {
+    public void testMigrateNonEmptyIndex() throws InterruptedException, ExecutionException, TimeoutException {
         int docCount = between(1, 1000);
         Script script = new Script("ctx._source.foo += ' cat'", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap());
         migrateIndexTestCase(docCount, script);

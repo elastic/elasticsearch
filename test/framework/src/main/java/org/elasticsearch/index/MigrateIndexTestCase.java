@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.indices.migrate.MigrateIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.migrate.MigrateIndexResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.script.Script;
@@ -28,7 +30,13 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -37,7 +45,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
  * Common superclass for integration tests for migrating indexes.
  */
 public abstract class MigrateIndexTestCase extends ESIntegTestCase {
-    public void testMigrateFromEmptyIndex() throws InterruptedException, ExecutionException {
+    public void testMigrateFromEmptyIndex() throws InterruptedException, ExecutionException, TimeoutException {
         migrateIndexTestCase(0, new Script("ctx._source.foo += ' cat'", ScriptType.INLINE, "doesn't matter, not used", emptyMap()));
     }
 
@@ -47,7 +55,7 @@ public abstract class MigrateIndexTestCase extends ESIntegTestCase {
         assertTrue(client().admin().indices().prepareAliasesExist("test").get().isExists());
     }
 
-    protected void migrateIndexTestCase(int docCount, Script script) throws InterruptedException, ExecutionException {
+    protected void migrateIndexTestCase(int docCount, Script script) throws InterruptedException, ExecutionException, TimeoutException {
         if (docCount > 0) {
             List<IndexRequestBuilder> docs = new ArrayList<>(docCount);
             for (int i = 0; i < docCount; i++) {
@@ -80,11 +88,42 @@ public abstract class MigrateIndexTestCase extends ESIntegTestCase {
         // Doing it again from and to the same index does nothing
         assertTrue(client().admin().indices().prepareMigrateIndex("test_0", "test_1").setAliases("test").get().isNoop());
 
-        // But we can migrate to a new index and actually apply a script
-        MigrateIndexRequestBuilder migrate = client().admin().indices().prepareMigrateIndex("test_1", "test_2").setAliases("test");
-        migrate.setScript(script);
-        assertFalse(migrate.get().isNoop());
-        assertFalse(client().admin().indices().prepareExists("test_1").get().isExists());
-        assertTrue(client().admin().indices().prepareExists("test_2").get().isExists());
+        // We can also migrate to a new index and actually apply a script
+        {
+            MigrateIndexRequestBuilder migrate = client().admin().indices().prepareMigrateIndex("test_1", "test_2")
+                    .setAliases("test").setScript(script);
+            assertFalse(migrate.get().isNoop());
+            assertFalse(client().admin().indices().prepareExists("test_1").get().isExists());
+            assertTrue(client().admin().indices().prepareExists("test_2").get().isExists());
+        }
+
+        /* We could migrate to yet another index lots of time concurrently. This is important because masterless systems like logstash need
+         * to be able to consistently use this API on startup in all nodes.*/ 
+        MigrateIndexRequestBuilder migrate = client().admin().indices().prepareMigrateIndex("test_2", "test_3")
+                .setAliases("test").setScript(script);
+        int latchSize = 10;
+        CountDownLatch latch = new CountDownLatch(latchSize);
+        ExecutorService executor = Executors.newFixedThreadPool(between(2, Runtime.getRuntime().availableProcessors()));
+        try {
+            int totalRequests = between(1, 100) * latchSize;
+            List<Future<ListenableActionFuture<MigrateIndexResponse>>> tasks = new ArrayList<>(totalRequests);
+            for (int i = 0; i < totalRequests; i++) {
+                tasks.add(executor.submit(() -> {
+                    try {
+                        latch.await();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    return migrate.execute();
+                }));
+            }
+            for (Future<ListenableActionFuture<MigrateIndexResponse>> task : tasks) {
+                MigrateIndexResponse response = task.get(20, TimeUnit.SECONDS).get();
+                assertTrue(response.isAcknowledged());
+            }
+        } finally {
+            executor.shutdown();
+        }
+        
     }
 }

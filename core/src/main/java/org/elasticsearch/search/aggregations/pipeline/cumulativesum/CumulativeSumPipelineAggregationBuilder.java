@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline.cumulativesum;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,7 +45,6 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.
 
 public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<CumulativeSumPipelineAggregationBuilder> {
     public static final String NAME = "cumulative_sum";
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private String format;
 

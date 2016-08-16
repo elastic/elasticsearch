@@ -48,7 +48,7 @@ import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.TypeParsers;
-import org.elasticsearch.rest.action.termvectors.RestTermVectorsAction;
+import org.elasticsearch.rest.action.document.RestTermVectorsAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.hamcrest.Matchers;

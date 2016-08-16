@@ -33,16 +33,14 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
 import java.util.Arrays;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
-/**
- */
 public class RestClearScrollAction extends BaseRestHandler {
 
     @Inject
@@ -98,7 +96,8 @@ public class RestClearScrollAction extends BaseRestHandler {
                             clearScrollRequest.addScrollId(parser.text());
                         }
                     } else {
-                        throw new IllegalArgumentException("Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
+                        throw new IllegalArgumentException("Unknown parameter [" + currentFieldName
+                                + "] in request body or parameter is of the wrong type[" + token + "] ");
                     }
                 }
             }

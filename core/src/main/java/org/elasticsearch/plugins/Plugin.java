@@ -22,7 +22,6 @@ package org.elasticsearch.plugins;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -39,6 +37,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -165,6 +164,14 @@ public abstract class Plugin {
      */
     @Deprecated
     public final void onModule(ActionModule module) {}
+
+    /**
+     * Old-style action extension point.
+     *
+     * @deprecated implement {@link SearchPlugin} instead
+     */
+    @Deprecated
+    public final void onModule(SearchModule module) {}
 
     /**
      * Provides the list of this plugin's custom thread pools, empty if

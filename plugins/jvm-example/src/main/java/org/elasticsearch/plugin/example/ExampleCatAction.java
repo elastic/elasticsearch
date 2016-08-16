@@ -27,7 +27,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.cat.RestTable;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 

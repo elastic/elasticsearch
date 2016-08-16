@@ -649,7 +649,6 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
 
     private AllocationDecider getNoDeciderThatAllowsForceAllocate() {
         return getNoDeciderWithForceAllocate(Decision.YES);
-
     }
 
     private AllocationDecider getNoDeciderThatThrottlesForceAllocate() {

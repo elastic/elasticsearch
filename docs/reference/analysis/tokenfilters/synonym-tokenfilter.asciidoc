@@ -96,8 +96,7 @@ configuration file (note use of `synonyms` instead of `synonyms_path`):
 --------------------------------------------------
 
 However, it is recommended to define large synonyms set in a file using
-`synonyms_path`, as storing these in mappings can cause an explosion in
-cluster state size.
+`synonyms_path`, because specifying them inline increases cluster size unnecessarily.
 
 [float]
 ==== WordNet synonyms

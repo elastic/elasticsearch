@@ -33,7 +33,6 @@ import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.oio.OioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.oio.OioServerSocketChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
@@ -74,7 +73,7 @@ import org.elasticsearch.http.netty4.pipelining.HttpPipeliningHandler;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.support.RestUtils;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.netty4.Netty4OpenChannelsHandler;
@@ -382,7 +381,8 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         return publishPort;
     }
 
-    private Netty4CorsConfig buildCorsConfig(Settings settings) {
+    // package private for testing
+    static Netty4CorsConfig buildCorsConfig(Settings settings) {
         if (SETTING_CORS_ENABLED.get(settings) == false) {
             return Netty4CorsConfigBuilder.forOrigins().disable().build();
         }
@@ -403,14 +403,14 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {
             builder.allowCredentials();
         }
-        String[] strMethods = settings.getAsArray(SETTING_CORS_ALLOW_METHODS.getKey());
+        String[] strMethods = Strings.splitStringByCommaToArray(SETTING_CORS_ALLOW_METHODS.get(settings));
         HttpMethod[] methods = Arrays.asList(strMethods)
             .stream()
             .map(HttpMethod::valueOf)
             .toArray(size -> new HttpMethod[size]);
         return builder.allowedRequestMethods(methods)
             .maxAge(SETTING_CORS_MAX_AGE.get(settings))
-            .allowedRequestHeaders(settings.getAsArray(SETTING_CORS_ALLOW_HEADERS.getKey()))
+            .allowedRequestHeaders(Strings.splitStringByCommaToArray(SETTING_CORS_ALLOW_HEADERS.get(settings)))
             .shortCircuit()
             .build();
     }
@@ -525,12 +525,12 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         return new HttpChannelHandler(this, detailedErrorsEnabled, threadPool.getThreadContext());
     }
 
-    static class HttpChannelHandler extends ChannelInitializer<SocketChannel> {
+    protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 
         private final Netty4HttpServerTransport transport;
         private final Netty4HttpRequestHandler requestHandler;
 
-        HttpChannelHandler(
+        protected HttpChannelHandler(
             final Netty4HttpServerTransport transport,
             final boolean detailedErrorsEnabled,
             final ThreadContext threadContext) {
@@ -539,7 +539,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         }
 
         @Override
-        protected void initChannel(SocketChannel ch) throws Exception {
+        protected void initChannel(Channel ch) throws Exception {
             ch.pipeline().addLast("openChannels", transport.serverOpenChannels);
             final HttpRequestDecoder decoder = new HttpRequestDecoder(
                 Math.toIntExact(transport.maxInitialLineLength.bytes()),
@@ -548,12 +548,12 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
             decoder.setCumulator(ByteToMessageDecoder.COMPOSITE_CUMULATOR);
             ch.pipeline().addLast("decoder", decoder);
             ch.pipeline().addLast("decoder_compress", new HttpContentDecompressor());
+            ch.pipeline().addLast("encoder", new HttpResponseEncoder());
             final HttpObjectAggregator aggregator = new HttpObjectAggregator(Math.toIntExact(transport.maxContentLength.bytes()));
             if (transport.maxCompositeBufferComponents != -1) {
                 aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             }
             ch.pipeline().addLast("aggregator", aggregator);
-            ch.pipeline().addLast("encoder", new HttpResponseEncoder());
             if (transport.compression) {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(transport.compressionLevel));
             }

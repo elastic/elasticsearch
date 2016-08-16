@@ -237,7 +237,7 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
             ClusterState state = lastClusterStatePerMaster[masterIndex];
             if (state == null) {
                 state = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(DiscoveryNodes.builder()
-                                .put(new DiscoveryNode(masters[masterIndex], LocalTransportAddress.buildUnique(),
+                                .add(new DiscoveryNode(masters[masterIndex], LocalTransportAddress.buildUnique(),
                                         emptyMap(), emptySet(),Version.CURRENT)).masterNodeId(masters[masterIndex]).build()
                 ).build();
             } else {

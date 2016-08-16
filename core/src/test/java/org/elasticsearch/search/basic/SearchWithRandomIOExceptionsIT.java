@@ -21,6 +21,7 @@ package org.elasticsearch.search.basic;
 
 import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -37,6 +38,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.concurrent.ExecutionException;
 
@@ -47,7 +49,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockFSIndexStore.TestPlugin.class);
+        return Arrays.asList(MockFSIndexStore.TestPlugin.class);
     }
 
     public void testRandomDirectoryIOExceptions() throws IOException, InterruptedException, ExecutionException {
@@ -136,7 +138,7 @@ public class SearchWithRandomIOExceptionsIT extends ESIntegTestCase {
             added[i] = false;
             try {
                 IndexResponse indexResponse = client().prepareIndex("test", "type", Integer.toString(i)).setTimeout(TimeValue.timeValueSeconds(1)).setSource("test", English.intToEnglish(i)).get();
-                if (indexResponse.isCreated()) {
+                if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
                     numCreated++;
                     added[i] = true;
                 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -55,9 +56,9 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
             public void run() {
                 while (finished.get() == false) {
                     IndexResponse indexResponse = client().prepareIndex("test", "type", "id").setSource("field", "value").get();
-                    assertThat("deleted document was found", indexResponse.isCreated(), equalTo(true));
+                    assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
                     DeleteResponse deleteResponse = client().prepareDelete("test", "type", "id").get();
-                    assertThat("indexed document was not found", deleteResponse.isFound(), equalTo(true));
+                    assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
                 }
             }
         };

@@ -654,7 +654,7 @@ public abstract class Engine implements Closeable {
      *
      * @param flushFirst indicates whether the engine should flush before returning the snapshot
      */
-    public abstract IndexCommit snapshotIndex(boolean flushFirst) throws EngineException;
+    public abstract IndexCommit acquireIndexCommit(boolean flushFirst) throws EngineException;
 
     /**
      * fail engine due to some error. the engine will also be closed.
@@ -704,9 +704,6 @@ public abstract class Engine implements Closeable {
     protected boolean maybeFailEngine(String source, Exception e) {
         if (Lucene.isCorruptionException(e)) {
             failEngine("corrupt file (source: [" + source + "])", e);
-            return true;
-        } else if (ExceptionsHelper.isOOM(e)) {
-            failEngine("out of memory (source: [" + source + "])", e);
             return true;
         }
         return false;

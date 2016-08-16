@@ -149,6 +149,7 @@ public class RequestLoggerTests extends RestClientTestCase {
             if (getRandom().nextBoolean()) {
                 entity = new StringEntity(responseBody, StandardCharsets.UTF_8);
             } else {
+                //test a non repeatable entity
                 entity = new InputStreamEntity(new ByteArrayInputStream(responseBody.getBytes(StandardCharsets.UTF_8)));
             }
             httpResponse.setEntity(entity);

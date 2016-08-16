@@ -59,6 +59,9 @@
 # use our provided JNA always versus the system one
 -Djna.nosys=true
 
+# flag to explicitly tell Netty to not use unsafe
+-Dio.netty.noUnsafe=true
+
 ## heap dumps
 
 # generate a heap dump when an allocation from the Java heap fails

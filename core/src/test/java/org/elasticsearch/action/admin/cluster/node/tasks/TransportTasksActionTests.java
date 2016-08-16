@@ -736,12 +736,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         ListTasksResponse response = testNodes[0].transportListTasksAction.execute(listTasksRequest).get();
         assertEquals(testNodes.length + 1, response.getTasks().size());
 
-        // First group by node
-        DiscoveryNodes.Builder discoNodes = DiscoveryNodes.builder();
-        for (TestNode testNode : this.testNodes) {
-            discoNodes.put(testNode.discoveryNode);
-        }
-        response.setDiscoveryNodes(discoNodes.build());
         Map<String, Object> byNodes = serialize(response, new ToXContent.MapParams(Collections.singletonMap("group_by", "nodes")));
         byNodes = (Map<String, Object>) byNodes.get("nodes");
         // One element on the top level

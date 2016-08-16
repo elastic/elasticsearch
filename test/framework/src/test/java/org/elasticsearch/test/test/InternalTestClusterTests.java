@@ -128,12 +128,16 @@ public class InternalTestClusterTests extends ESTestCase {
         boolean masterNodes = randomBoolean();
         int minNumDataNodes = randomIntBetween(0, 3);
         int maxNumDataNodes = randomIntBetween(minNumDataNodes, 4);
+        int numClientNodes = randomIntBetween(0, 2);
         final String clusterName1 = "shared1";
         final String clusterName2 = "shared2";
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder()
+                    .put(
+                        NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
+                        2 * ((masterNodes ? InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES : 0) + maxNumDataNodes + numClientNodes))
                     .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                     .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local")
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
@@ -145,7 +149,7 @@ public class InternalTestClusterTests extends ESTestCase {
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
             }
         };
-        int numClientNodes = randomIntBetween(0, 2);
+
         boolean enableHttpPipelining = randomBoolean();
         String nodePrefix = "foobar";
 
@@ -187,13 +191,17 @@ public class InternalTestClusterTests extends ESTestCase {
         long clusterSeed = randomLong();
         boolean masterNodes = randomBoolean();
         // we need one stable node
-        int minNumDataNodes = 2;
-        int maxNumDataNodes = 2;
+        final int minNumDataNodes = 2;
+        final int maxNumDataNodes = 2;
+        final int numClientNodes = randomIntBetween(0, 2);
         final String clusterName1 = "shared1";
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false)
+                    .put(
+                        NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(),
+                        2 + (masterNodes ? InternalTestCluster.DEFAULT_HIGH_NUM_MASTER_NODES : 0) + maxNumDataNodes + numClientNodes)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, "local")
                     .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local")
                     .build();
@@ -203,7 +211,7 @@ public class InternalTestClusterTests extends ESTestCase {
                 return Settings.builder()
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, "local").build();
             }
-        };        int numClientNodes = randomIntBetween(0, 2);
+        };
         boolean enableHttpPipelining = randomBoolean();
         String nodePrefix = "test";
         Path baseDir = createTempDir();
@@ -269,11 +277,13 @@ public class InternalTestClusterTests extends ESTestCase {
 
     public void testDifferentRolesMaintainPathOnRestart() throws Exception {
         final Path baseDir = createTempDir();
+        final int numNodes = 5;
         InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, true, 0, 0, "test",
             new NodeConfigurationSource() {
                 @Override
                 public Settings nodeSettings(int nodeOrdinal) {
                     return Settings.builder()
+                        .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), numNodes)
                         .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, "local")
                         .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local")
@@ -289,7 +299,7 @@ public class InternalTestClusterTests extends ESTestCase {
         cluster.beforeTest(random(), 0.0);
         try {
             Map<DiscoveryNode.Role, Set<String>> pathsPerRole = new HashMap<>();
-            for (int i = 0; i < 5; i++) {
+            for (int i = 0; i < numNodes; i++) {
                 final DiscoveryNode.Role role = randomFrom(MASTER, DiscoveryNode.Role.DATA, DiscoveryNode.Role.INGEST);
                 final String node;
                 switch (role) {

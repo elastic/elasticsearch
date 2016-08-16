@@ -21,23 +21,25 @@ package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Label;
+import org.objectweb.asm.Opcodes;
 
 import java.util.Set;
-
-import org.elasticsearch.painless.MethodWriter;
 
 /**
  * Represents a for loop.
  */
 public final class SFor extends AStatement {
 
-    ANode initializer;
-    AExpression condition;
-    AExpression afterthought;
-    final SBlock block;
+    private ANode initializer;
+    private AExpression condition;
+    private AExpression afterthought;
+    private final SBlock block;
+
+    private boolean continuous = false;
 
     public SFor(Location location, ANode initializer, AExpression condition, AExpression afterthought, SBlock block) {
         super(location);
@@ -47,18 +49,21 @@ public final class SFor extends AStatement {
         this.afterthought = afterthought;
         this.block = block;
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         if (initializer != null) {
             initializer.extractVariables(variables);
         }
+
         if (condition != null) {
             condition.extractVariables(variables);
         }
+
         if (afterthought != null) {
             afterthought.extractVariables(variables);
         }
+
         if (block != null) {
             block.extractVariables(variables);
         }
@@ -68,11 +73,9 @@ public final class SFor extends AStatement {
     void analyze(Locals locals) {
         locals = Locals.newLocalScope(locals);
 
-        boolean continuous = false;
-
         if (initializer != null) {
             if (initializer instanceof AStatement) {
-                ((AStatement)initializer).analyze(locals);
+                initializer.analyze(locals);
             } else if (initializer instanceof AExpression) {
                 AExpression initializer = (AExpression)this.initializer;
 
@@ -150,7 +153,7 @@ public final class SFor extends AStatement {
         Label end = new Label();
 
         if (initializer instanceof SDeclBlock) {
-            ((SDeclBlock)initializer).write(writer, globals);
+            initializer.write(writer, globals);
         } else if (initializer instanceof AExpression) {
             AExpression initializer = (AExpression)this.initializer;
 
@@ -160,9 +163,9 @@ public final class SFor extends AStatement {
 
         writer.mark(start);
 
-        if (condition != null) {
-            condition.fals = end;
+        if (condition != null && !continuous) {
             condition.write(writer, globals);
+            writer.ifZCmp(Opcodes.IFEQ, end);
         }
 
         boolean allEscape = false;
@@ -179,6 +182,7 @@ public final class SFor extends AStatement {
             if (loopCounter != null) {
                 writer.writeLoopCounter(loopCounter.getSlot(), statementCount, location);
             }
+
             block.write(writer, globals);
         } else {
             if (loopCounter != null) {

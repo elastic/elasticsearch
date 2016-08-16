@@ -53,7 +53,7 @@ public class ForEachProcessorTests extends ESTestCase {
         );
         processor.execute(ingestDocument);
 
-        List<String> result = ingestDocument.getFieldValue("values", List.class);
+        List result = ingestDocument.getFieldValue("values", List.class);
         assertThat(result.get(0), equalTo("FOO"));
         assertThat(result.get(1), equalTo("BAR"));
         assertThat(result.get(2), equalTo("BAZ"));
@@ -176,9 +176,9 @@ public class ForEachProcessorTests extends ESTestCase {
 
         ForEachProcessor processor = new ForEachProcessor("_tag", "values", innerProcessor);
         processor.execute(ingestDocument);
+        @SuppressWarnings("unchecked")
         List<String> result = ingestDocument.getFieldValue("values", List.class);
         assertThat(result.size(), equalTo(numValues));
-
         for (String r : result) {
             assertThat(r, equalTo("."));
         }
@@ -203,12 +203,12 @@ public class ForEachProcessorTests extends ESTestCase {
         ));
         processor.execute(ingestDocument);
 
-        List<String> result = ingestDocument.getFieldValue("values", List.class);
+        List result = ingestDocument.getFieldValue("values", List.class);
         assertThat(result.get(0), equalTo("STRING"));
         assertThat(result.get(1), equalTo(1));
         assertThat(result.get(2), equalTo(null));
 
-        List<String> errors = ingestDocument.getFieldValue("errors", List.class);
+        List errors = ingestDocument.getFieldValue("errors", List.class);
         assertThat(errors.size(), equalTo(2));
     }
 
@@ -229,7 +229,7 @@ public class ForEachProcessorTests extends ESTestCase {
         ForEachProcessor forEachProcessor = new ForEachProcessor("_tag", "values", processor);
         forEachProcessor.execute(ingestDocument);
 
-        List<String> result = ingestDocument.getFieldValue("values", List.class);
+        List result = ingestDocument.getFieldValue("values", List.class);
         assertThat(result.get(0), equalTo("new_value"));
         assertThat(result.get(1), equalTo("new_value"));
         assertThat(result.get(2), equalTo("new_value"));
@@ -262,7 +262,7 @@ public class ForEachProcessorTests extends ESTestCase {
                 "_tag", "values1", new ForEachProcessor("_tag", "_ingest._value.values2", testProcessor));
         processor.execute(ingestDocument);
 
-        List<String> result = ingestDocument.getFieldValue("values1.0.values2", List.class);
+        List result = ingestDocument.getFieldValue("values1.0.values2", List.class);
         assertThat(result.get(0), equalTo("ABC"));
         assertThat(result.get(1), equalTo("DEF"));
 

@@ -205,7 +205,7 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public IndexCommit snapshotIndex(boolean flushFirst) throws EngineException {
+    public IndexCommit acquireIndexCommit(boolean flushFirst) throws EngineException {
         throw new UnsupportedOperationException("Can not take snapshot from a shadow engine");
     }
 

@@ -35,9 +35,9 @@ class InternalOrder extends Histogram.Order {
     final byte id;
     final String key;
     final boolean asc;
-    final Comparator<InternalHistogram.Bucket> comparator;
+    final Comparator<Histogram.Bucket> comparator;
 
-    InternalOrder(byte id, String key, boolean asc, Comparator<InternalHistogram.Bucket> comparator) {
+    InternalOrder(byte id, String key, boolean asc, Comparator<Histogram.Bucket> comparator) {
         this.id = id;
         this.key = key;
         this.asc = asc;
@@ -57,7 +57,7 @@ class InternalOrder extends Histogram.Order {
     }
 
     @Override
-    Comparator<InternalHistogram.Bucket> comparator() {
+    Comparator<Histogram.Bucket> comparator() {
         return comparator;
     }
 
@@ -90,11 +90,7 @@ class InternalOrder extends Histogram.Order {
         static final byte ID = 0;
 
         Aggregation(String key, boolean asc) {
-            super(ID, key, asc, new MultiBucketsAggregation.Bucket.SubAggregationComparator<InternalHistogram.Bucket>(key, asc));
-        }
-
-        private static String key(String aggName, String valueName) {
-            return (valueName == null) ? aggName : aggName + "." + valueName;
+            super(ID, key, asc, new MultiBucketsAggregation.Bucket.SubAggregationComparator<Histogram.Bucket>(key, asc));
         }
 
     }

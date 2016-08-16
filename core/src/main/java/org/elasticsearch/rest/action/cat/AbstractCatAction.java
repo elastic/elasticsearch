@@ -29,8 +29,8 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
-import static org.elasticsearch.rest.action.support.RestTable.buildHelpWidths;
-import static org.elasticsearch.rest.action.support.RestTable.pad;
+import static org.elasticsearch.rest.action.cat.RestTable.buildHelpWidths;
+import static org.elasticsearch.rest.action.cat.RestTable.pad;
 
 /**
  *

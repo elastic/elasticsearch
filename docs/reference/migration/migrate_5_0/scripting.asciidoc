@@ -315,3 +315,27 @@ instead the constructors on `TemplateQueryBuilder` should be used.
 
 The `template` query has been deprecated in favour of the search template api. The `template` query is scheduled
 to be removed in the next major version.
+
+==== GeoPoint scripts
+
+The following helper methods have been removed from GeoPoint scripting:
+
+* `factorDistance`
+* `factorDistanceWithDefault`
+* `factorDistance02`
+* `factorDistance13`
+* `arcDistanceInKm`
+* `arcDistanceInKmWithDefault`
+* `arcDistanceInMiles`
+* `arcDistanceInMilesWithDefault`
+* `distanceWithDefault`
+* `distanceInKm`
+* `distanceInKmWithDefault`
+* `distanceInMiles`
+* `distanceInMilesWithDefault`
+* `geohashDistanceInKm`
+* `geohashDistanceInMiles`
+
+Instead use `arcDistance`, `arcDistanceWithDefault`, `planeDistance`, `planeDistanceWithDefault`, `geohashDistance`,
+`geohashDistanceWithDefault` and convert from default units (meters) to desired units using the appropriate constance
+(e.g., multiply by `0.001` to convert to Km).

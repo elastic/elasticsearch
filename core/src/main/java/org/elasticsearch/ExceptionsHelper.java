@@ -180,19 +180,6 @@ public final class ExceptionsHelper {
     }
 
     /**
-     * Returns <code>true</code> iff the given throwable is and OutOfMemoryException, otherwise <code>false</code>
-     */
-    public static boolean isOOM(Throwable t) {
-        return t != null
-                && (t instanceof OutOfMemoryError
-                    || (t instanceof IllegalStateException
-                        && t.getMessage() != null
-                        && t.getMessage().contains("OutOfMemoryError")
-                        )
-                    );
-    }
-
-    /**
      * Throws the specified exception. If null if specified then <code>true</code> is returned.
      */
     public static boolean reThrowIfNotNull(@Nullable Throwable e) {

@@ -69,7 +69,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(TestPlugin.class); //
+        return Arrays.asList(TestPlugin.class);
     }
 
     public void testSpecifiedIndexUnavailableMultipleIndices() throws Exception {

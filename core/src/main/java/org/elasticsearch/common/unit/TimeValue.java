@@ -326,7 +326,10 @@ public class TimeValue implements Writeable {
             return new TimeValue(parse(sValue, normalized, 2), TimeUnit.MILLISECONDS);
         } else if (normalized.endsWith("s")) {
             return new TimeValue(parse(sValue, normalized, 1), TimeUnit.SECONDS);
-        } else if (normalized.endsWith("m")) {
+        } else if (sValue.endsWith("m")) {
+            // parsing minutes should be case sensitive as `M` is generally
+            // accepted to mean months not minutes. This is the only case where
+            // the upper and lower case forms indicate different time units
             return new TimeValue(parse(sValue, normalized, 1), TimeUnit.MINUTES);
         } else if (normalized.endsWith("h")) {
             return new TimeValue(parse(sValue, normalized, 1), TimeUnit.HOURS);

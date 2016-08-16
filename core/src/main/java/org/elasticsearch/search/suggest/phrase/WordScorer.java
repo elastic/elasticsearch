@@ -100,6 +100,16 @@ public abstract class WordScorer {
        return scoreBigram(word, w_1);
    }
 
+   public static BytesRef join(BytesRef separator, BytesRefBuilder result, BytesRef... toJoin) {
+       result.clear();
+       for (int i = 0; i < toJoin.length - 1; i++) {
+           result.append(toJoin[i]);
+           result.append(separator);
+       }
+       result.append(toJoin[toJoin.length-1]);
+       return result.get();
+   }
+
    public interface WordScorerFactory {
        WordScorer newScorer(IndexReader reader, Terms terms,
                             String field, double realWordLikelyhood, BytesRef separator) throws IOException;

@@ -160,7 +160,8 @@ NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sens
         override it and reset it to be equal to `size`.
 
 
-The default `shard_size` is a multiple of the `size` parameter which is dependant on the number of shards.
+The default `shard_size` will be `size` if the search request needs to go to a single shard, and `(size * 1.5 + 10)`
+otherwise.
 
 ==== Calculating Document Count Error
 
@@ -446,7 +447,7 @@ Generating the terms using a script:
         "genres" : {
             "terms" : {
                 "script" : {
-                    "inline": "doc['genre'].value"
+                    "inline": "doc['genre'].value",
                     "lang": "painless"
                 }
             }

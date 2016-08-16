@@ -20,7 +20,7 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.rest.yaml.support.Features;
+import org.elasticsearch.test.rest.yaml.Features;
 
 import java.util.ArrayList;
 import java.util.List;

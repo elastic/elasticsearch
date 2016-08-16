@@ -34,6 +34,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.junit.Before;
 
+import java.util.Collections;
+
 import static org.hamcrest.Matchers.is;
 
 public class Netty3TransportMultiPortTests extends ESTestCase {
@@ -135,8 +137,8 @@ public class Netty3TransportMultiPortTests extends ESTestCase {
 
     private TcpTransport<?> startTransport(Settings settings, ThreadPool threadPool) {
         BigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
-        TcpTransport<?> transport = new Netty3Transport(settings, threadPool, new NetworkService(settings), bigArrays,
-            new NamedWriteableRegistry(), new NoneCircuitBreakerService());
+        TcpTransport<?> transport = new Netty3Transport(settings, threadPool, new NetworkService(settings, Collections.emptyList()),
+            bigArrays, new NamedWriteableRegistry(Collections.emptyList()), new NoneCircuitBreakerService());
         transport.start();
 
         assertThat(transport.lifecycleState(), is(Lifecycle.State.STARTED));

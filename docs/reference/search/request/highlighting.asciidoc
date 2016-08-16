@@ -52,9 +52,9 @@ It tries hard to reflect the query matching logic in terms of understanding word
 
 [WARNING]
 If you want to highlight a lot of fields in a lot of documents with complex queries this highlighter will not be fast.
-In its efforts to accurately reflect query logic it creates a tiny in-memory index and re-runs the original query criteria through 
-Lucene's query execution planner to get access to low-level match information on the current document. 
-This is repeated for every field and every document that needs highlighting. If this presents a performance issue in your system consider using an alternative highlighter. 
+In its efforts to accurately reflect query logic it creates a tiny in-memory index and re-runs the original query criteria through
+Lucene's query execution planner to get access to low-level match information on the current document.
+This is repeated for every field and every document that needs highlighting. If this presents a performance issue in your system consider using an alternative highlighter.
 
 [[postings-highlighter]]
 ==== Postings highlighter
@@ -387,7 +387,7 @@ GET /_search
                 "match_phrase": {
                     "content": {
                         "query": "foo bar",
-                        "phrase_slop": 1
+                        "slop": 1
                     }
                 }
             },
@@ -413,7 +413,7 @@ GET /_search
                             "match_phrase": {
                                 "content": {
                                     "query": "foo bar",
-                                    "phrase_slop": 1,
+                                    "slop": 1,
                                     "boost": 10.0
                                 }
                             }

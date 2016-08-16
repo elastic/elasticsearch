@@ -81,7 +81,7 @@ public class ClusterStateCreationUtils {
         Set<String> unassignedNodes = new HashSet<>();
         for (int i = 0; i < numberOfNodes + 1; i++) {
             final DiscoveryNode node = newNode(i);
-            discoBuilder = discoBuilder.put(node);
+            discoBuilder = discoBuilder.add(node);
             unassignedNodes.add(node.getId());
         }
         discoBuilder.localNodeId(newNode(0).getId());
@@ -153,7 +153,7 @@ public class ClusterStateCreationUtils {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         for (int i = 0; i < numberOfNodes + 1; i++) {
             final DiscoveryNode node = newNode(i);
-            discoBuilder = discoBuilder.put(node);
+            discoBuilder = discoBuilder.add(node);
         }
         discoBuilder.localNodeId(newNode(0).getId());
         discoBuilder.masterNodeId(newNode(1).getId()); // we need a non-local master to test shard failures
@@ -241,7 +241,7 @@ public class ClusterStateCreationUtils {
     public static ClusterState state(DiscoveryNode localNode, DiscoveryNode masterNode, DiscoveryNode... allNodes) {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         for (DiscoveryNode node : allNodes) {
-            discoBuilder.put(node);
+            discoBuilder.add(node);
         }
         if (masterNode != null) {
             discoBuilder.masterNodeId(masterNode.getId());

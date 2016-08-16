@@ -23,22 +23,20 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.s3.S3Repository;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class AwsS3ServiceImplTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/19556")
     public void testAWSCredentialsWithSystemProviders() {
-        AWSCredentialsProvider credentialsProvider = InternalAwsS3Service.buildCredentials(logger, "", "");
-
-        AWSCredentials credentials = credentialsProvider.getCredentials();
-        assertThat(credentials.getAWSAccessKeyId(), is("DUMMY_ACCESS_KEY"));
-        assertThat(credentials.getAWSSecretKey(), is("DUMMY_SECRET_KEY"));
+        AWSCredentialsProvider credentialsProvider = InternalAwsS3Service.buildCredentials(logger, Settings.EMPTY, Settings.EMPTY);
+        assertThat(credentialsProvider, instanceOf(DefaultAWSCredentialsProviderChain.class));
     }
 
     public void testAWSCredentialsWithElasticsearchAwsSettings() {
@@ -138,12 +136,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
 
     protected void launchAWSCredentialsWithElasticsearchSettingsTest(Settings singleRepositorySettings, Settings settings,
                                                                      String expectedKey, String expectedSecret) {
-        String key = S3Repository.getValue(singleRepositorySettings, settings,
-            S3Repository.Repository.KEY_SETTING, S3Repository.Repositories.KEY_SETTING);
-        String secret = S3Repository.getValue(singleRepositorySettings, settings,
-            S3Repository.Repository.SECRET_SETTING, S3Repository.Repositories.SECRET_SETTING);
-
-        AWSCredentials credentials = InternalAwsS3Service.buildCredentials(logger, key, secret).getCredentials();
+        AWSCredentials credentials = InternalAwsS3Service.buildCredentials(logger, settings, singleRepositorySettings).getCredentials();
         assertThat(credentials.getAWSAccessKeyId(), is(expectedKey));
         assertThat(credentials.getAWSSecretKey(), is(expectedSecret));
     }

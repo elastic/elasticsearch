@@ -31,6 +31,14 @@ REST::
 
 Settings::
 * Remove `action.get.realtime` setting {pull}17857[#17857] (issue: {issue}12543[#12543])
+
+
+
+[[breaking java-5.0.0-alpha2]]
+[float]
+=== Breaking Java changes
+
+Settings::
 * Remove Settings.settingsBuilder. {pull}17619[#17619]
 
 
@@ -70,6 +78,9 @@ CAT API::
 
 Cache::
 * Allow the query cache to be disabled. {pull}16268[#16268] (issue: {issue}15802[#15802])
+
+Circuit Breakers::
+* Limit request size {pull}17133[#17133] (issue: {issue}16011[#16011])
 
 Cluster::
 * Adds tombstones to cluster state for index deletions {pull}17265[#17265] (issues: {issue}16358[#16358], {issue}17435[#17435])

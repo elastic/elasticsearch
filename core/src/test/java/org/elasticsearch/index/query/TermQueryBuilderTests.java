@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -27,14 +28,11 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.either;
 
 public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBuilder> {
 
@@ -115,12 +113,8 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
                 "        \"age\": [34, 35]\n" +
                 "    }\n" +
                 "}";
-        try {
-            parseQuery(queryAsString);
-            fail("Expected ParsingException");
-        } catch (ParsingException e) {
-            assertThat(e.getMessage(), is("[term] query does not support array of values"));
-        }
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(queryAsString));
+        assertEquals("[term] query does not support array of values", e.getMessage());
     }
 
     public void testFromJson() throws IOException {
@@ -136,7 +130,6 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
 
         TermQueryBuilder parsed = (TermQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
-
         assertEquals(json, "Quick Foxes!", parsed.value());
     }
 
@@ -144,9 +137,32 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         TermQueryBuilder query = new TermQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
         QueryShardContext context = createShardContext();
-        QueryShardException e = expectThrows(QueryShardException.class,
-                () -> query.toQuery(context));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(context));
         assertEquals("Geo fields do not support exact searching, use dedicated geo queries instead: [mapped_geo_point]",
                 e.getMessage());
+    }
+
+    public void testParseFailsWithMultipleFields() throws IOException {
+        String json = "{\n" +
+                "  \"term\" : {\n" +
+                "    \"message1\" : {\n" +
+                "      \"value\" : \"this\"\n" +
+                "    },\n" +
+                "    \"message2\" : {\n" +
+                "      \"value\" : \"this\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertEquals("[term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
+
+        String shortJson = "{\n" +
+                "  \"term\" : {\n" +
+                "    \"message1\" : \"this\",\n" +
+                "    \"message2\" : \"this\"\n" +
+                "  }\n" +
+                "}";
+        e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
+        assertEquals("[term] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 }

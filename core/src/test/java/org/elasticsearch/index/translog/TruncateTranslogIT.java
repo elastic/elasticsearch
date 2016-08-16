@@ -81,7 +81,7 @@ public class TruncateTranslogIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class, MockEngineFactoryPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class, MockEngineFactoryPlugin.class);
     }
 
     public void testCorruptTranslogTruncation() throws Exception {
@@ -153,7 +153,8 @@ public class TruncateTranslogIT extends ESIntegTestCase {
                         Lock writeLock = dir.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
                     // Great, do nothing, we just wanted to obtain the lock
                 }  catch (LockObtainFailedException lofe) {
-                    throw new ElasticsearchException("Still waiting for lock release at [" + idxLocation + "]");
+                    logger.info("--> failed acquiring lock for {}", idxLocation);
+                    fail("still waiting for lock release at [" + idxLocation + "]");
                 } catch (IOException ioe) {
                     fail("Got an IOException: " + ioe);
                 }

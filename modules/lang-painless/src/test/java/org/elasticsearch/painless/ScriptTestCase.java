@@ -22,6 +22,7 @@ package org.elasticsearch.painless;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptException;
@@ -49,19 +50,30 @@ public abstract class ScriptTestCase extends ESTestCase {
 
     /** Compiles and returns the result of {@code script} */
     public Object exec(String script) {
-        return exec(script, null);
+        return exec(script, null, true);
+    }
+
+    /** Compiles and returns the result of {@code script} with access to {@code picky} */
+    public Object exec(String script, boolean picky) {
+        return exec(script, null, picky);
     }
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} */
-    public Object exec(String script, Map<String, Object> vars) {
+    public Object exec(String script, Map<String, Object> vars, boolean picky) {
         Map<String,String> compilerSettings = new HashMap<>();
-        compilerSettings.put(CompilerSettings.PICKY, "true");
         compilerSettings.put(CompilerSettings.INITIAL_CALL_SITE_DEPTH, random().nextBoolean() ? "0" : "10");
-        return exec(script, vars, compilerSettings, null);
+        return exec(script, vars, compilerSettings, null, picky);
     }
 
     /** Compiles and returns the result of {@code script} with access to {@code vars} and compile-time parameters */
-    public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, Scorer scorer) {
+    public Object exec(String script, Map<String, Object> vars, Map<String,String> compileParams, Scorer scorer, boolean picky) {
+        // test for ambiguity errors before running the actual script if picky is true
+        if (picky) {
+            CompilerSettings pickySettings = new CompilerSettings();
+            pickySettings.setPicky(true);
+            Walker.buildPainlessTree(getTestName(), script, pickySettings, null);
+        }
+        // test actual script execution
         Object object = scriptEngine.compile(null, script, compileParams);
         CompiledScript compiled = new CompiledScript(ScriptService.ScriptType.INLINE, getTestName(), "painless", object);
         ExecutableScript executableScript = scriptEngine.executable(compiled, vars);
@@ -79,7 +91,7 @@ public abstract class ScriptTestCase extends ESTestCase {
         final String asm = Debugger.toString(script);
         assertTrue("bytecode not found, got: \n" + asm , asm.contains(bytecode));
     }
-    
+
     /**
      * Uses the {@link Debugger} to get the bytecode output for a script and compare
      * it against an expected bytecode pattern as a regular expression (please try to avoid!)
@@ -88,7 +100,7 @@ public abstract class ScriptTestCase extends ESTestCase {
         final String asm = Debugger.toString(script);
         assertTrue("bytecode not found, got: \n" + asm , asm.matches(pattern));
     }
-    
+
     /** Checks a specific exception class is thrown (boxed inside ScriptException) and returns it. */
     public static <T extends Throwable> T expectScriptThrows(Class<T> expectedType, ThrowingRunnable runnable) {
         try {
@@ -104,7 +116,7 @@ public abstract class ScriptTestCase extends ESTestCase {
                 assertion.initCause(e);
                 throw assertion;
             }
-            AssertionFailedError assertion = new AssertionFailedError("Unexpected exception type, expected " 
+            AssertionFailedError assertion = new AssertionFailedError("Unexpected exception type, expected "
                                                                       + expectedType.getSimpleName());
             assertion.initCause(e);
             throw assertion;

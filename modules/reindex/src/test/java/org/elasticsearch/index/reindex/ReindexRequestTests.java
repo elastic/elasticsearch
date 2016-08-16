@@ -26,6 +26,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.test.ESTestCase;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 /**
@@ -44,7 +45,7 @@ public class ReindexRequestTests extends ESTestCase {
     public void testReindexFromRemoteDoesNotSupportSearchQuery() {
         ReindexRequest reindex = request();
         reindex.setRemoteInfo(new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), between(1, Integer.MAX_VALUE),
-                new BytesArray("real_query"), null, null));
+                new BytesArray("real_query"), null, null, emptyMap()));
         reindex.getSearchRequest().source().query(matchAllQuery()); // Unsupported place to put query
         ActionRequestValidationException e = reindex.validate();
         assertEquals("Validation Failed: 1: reindex from remote sources should use RemoteInfo's query instead of source's query;",

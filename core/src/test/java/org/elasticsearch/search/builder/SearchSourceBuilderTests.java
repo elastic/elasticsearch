@@ -60,8 +60,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
-import org.elasticsearch.search.highlight.HighlightBuilderTests;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.rescore.QueryRescoreBuilderTests;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
@@ -122,7 +122,6 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false).build();
 
-        namedWriteableRegistry = new NamedWriteableRegistry();
         index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         final ThreadPool threadPool = new ThreadPool(settings);
@@ -133,25 +132,29 @@ public class SearchSourceBuilderTests extends ESTestCase {
         List<Setting<?>> scriptSettings = scriptModule.getSettings();
         scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
         SettingsModule settingsModule = new SettingsModule(settings, scriptSettings, Collections.emptyList());
+        IndicesModule indicesModule = new IndicesModule(Collections.emptyList()) {
+            @Override
+            protected void configure() {
+                bindMapperExtension();
+            }
+        };
+        SearchModule searchModule = new SearchModule(settings, false, emptyList()) {
+            @Override
+            protected void configureSearch() {
+                // Skip me
+            }
+        };
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.addAll(indicesModule.getNamedWriteables());
+        entries.addAll(searchModule.getNamedWriteables());
+        namedWriteableRegistry = new NamedWriteableRegistry(entries);
         injector = new ModulesBuilder().add(
                 (b) -> {
                     b.bind(Environment.class).toInstance(new Environment(settings));
                     b.bind(ThreadPool.class).toInstance(threadPool);
                     b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
                 },
-                settingsModule,
-                new IndicesModule(namedWriteableRegistry, Collections.emptyList()) {
-                    @Override
-                    protected void configure() {
-                        bindMapperExtension();
-                    }
-                },
-                new SearchModule(settings, namedWriteableRegistry, false, emptyList()) {
-                    @Override
-                    protected void configureSearch() {
-                        // Skip me
-                    }
-                },
+                settingsModule, indicesModule, searchModule,
                 new IndexSettingsModule(index, settings),
                 new AbstractModule() {
                     @Override
@@ -187,7 +190,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         namedWriteableRegistry = null;
     }
 
-    protected final SearchSourceBuilder createSearchSourceBuilder() throws IOException {
+    public static SearchSourceBuilder createSearchSourceBuilder() throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
         if (randomBoolean()) {
             builder.from(randomIntBetween(0, 10000));
@@ -481,8 +484,8 @@ public class SearchSourceBuilderTests extends ESTestCase {
         assertTrue("equals is not symmetric", thirdBuilder.equals(firstBuilder));
     }
 
-    //we use the streaming infra to create a copy of the query provided as argument
-    protected SearchSourceBuilder copyBuilder(SearchSourceBuilder builder) throws IOException {
+    //we use the streaming infra to create a copy of the builder provided as argument
+    protected static SearchSourceBuilder copyBuilder(SearchSourceBuilder builder) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             builder.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
@@ -541,6 +544,41 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 assertEquals(new FieldSortBuilder("name").order(SortOrder.DESC), searchSourceBuilder.sorts().get(2));
                 assertEquals(new FieldSortBuilder("age").order(SortOrder.DESC), searchSourceBuilder.sorts().get(3));
                 assertEquals(new ScoreSortBuilder(), searchSourceBuilder.sorts().get(4));
+            }
+        }
+    }
+
+    public void testAggsParsing() throws IOException {
+        {
+            String restContent = "{\n" + "    " + 
+                    "\"aggs\": {" + 
+                    "        \"test_agg\": {\n" + 
+                    "            " + "\"terms\" : {\n" + 
+                    "                \"field\": \"foo\"\n" + 
+                    "            }\n" + 
+                    "        }\n" + 
+                    "    }\n" + 
+                    "}\n";
+            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser), aggParsers,
+                        suggesters);
+                assertEquals(1, searchSourceBuilder.aggregations().count());
+            }
+        }
+        {
+            String restContent = "{\n" + 
+                    "    \"aggregations\": {" + 
+                    "        \"test_agg\": {\n" + 
+                    "            \"terms\" : {\n" + 
+                    "                \"field\": \"foo\"\n" + 
+                    "            }\n" + 
+                    "        }\n" + 
+                    "    }\n" + 
+                    "}\n";
+            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser), aggParsers,
+                        suggesters);
+                assertEquals(1, searchSourceBuilder.aggregations().count());
             }
         }
     }

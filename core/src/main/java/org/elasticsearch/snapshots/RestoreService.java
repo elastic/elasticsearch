@@ -63,8 +63,10 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
 import org.elasticsearch.transport.TransportChannel;
@@ -185,7 +187,8 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         try {
             // Read snapshot info and metadata from the repository
             Repository repository = repositoriesService.repository(request.repositoryName);
-            final Optional<SnapshotId> matchingSnapshotId = repository.getSnapshots().stream()
+            final RepositoryData repositoryData = repository.getRepositoryData();
+            final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds().stream()
                 .filter(s -> request.snapshotName.equals(s.getName())).findFirst();
             if (matchingSnapshotId.isPresent() == false) {
                 throw new SnapshotRestoreException(request.repositoryName, request.snapshotName, "snapshot does not exist");
@@ -194,7 +197,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
             final Snapshot snapshot = new Snapshot(request.repositoryName, snapshotId);
             List<String> filteredIndices = SnapshotUtils.filterIndices(snapshotInfo.indices(), request.indices(), request.indicesOptions());
-            MetaData metaDataIn = repository.getSnapshotMetaData(snapshotInfo, filteredIndices);
+            MetaData metaDataIn = repository.getSnapshotMetaData(snapshotInfo, repositoryData.resolveIndices(filteredIndices));
 
             final MetaData metaData;
             if (snapshotInfo.version().before(Version.V_2_0_0_beta1)) {

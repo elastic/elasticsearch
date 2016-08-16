@@ -2,106 +2,124 @@
 == cat thread pool
 
 The `thread_pool` command shows cluster wide thread pool statistics per node. By default the active, queue and rejected
-statistics are returned for the bulk, index and search thread pools.
+statistics are returned for all thread pools.
 
 [source,sh]
 --------------------------------------------------
 % curl 192.168.56.10:9200/_cat/thread_pool
-host1 192.168.1.35 0 0 0 0 0 0 0 0 0
-host2 192.168.1.36 0 0 0 0 0 0 0 0 0
+0EWUhXe bulk                0 0 0
+0EWUhXe fetch_shard_started 0 0 0
+0EWUhXe fetch_shard_store   0 0 0
+0EWUhXe flush               0 0 0
+0EWUhXe force_merge         0 0 0
+0EWUhXe generic             0 0 0
+0EWUhXe get                 0 0 0
+0EWUhXe index               0 0 0
+0EWUhXe listener            0 0 0
+0EWUhXe management          1 0 0
+0EWUhXe refresh             0 0 0
+0EWUhXe search              0 0 0
+0EWUhXe snapshot            0 0 0
+0EWUhXe warmer              0 0 0
 --------------------------------------------------
 
-The first two columns contain the host and ip of a node.
+The first column is the node name
 
 [source,sh]
 --------------------------------------------------
-host      ip
-host1 192.168.1.35
-host2 192.168.1.36
+node_name
+0EWUhXe
 --------------------------------------------------
 
-The next three columns show the active queue and rejected statistics for the bulk thread pool.
+The second column is the thread pool name
+[source,sh]
+--------------------------------------------------
+name
+bulk
+fetch_shard_started
+fetch_shard_store
+flush
+force_merge
+generic
+get
+index
+listener
+management
+refresh
+search
+snapshot
+warmer
+--------------------------------------------------
+
+
+The next three columns show the active, queue, and rejected statistics for each thread pool
 
 [source,sh]
 --------------------------------------------------
-bulk.active bulk.queue bulk.rejected
-          0          0             0
+active queue rejected
+     0     0        0
+     0     0        0
+     0     0        0
+     0     0        0
+     0     0        0
+     0     0        0
+     0     0        0
+     0     0        0
+     0     0        0
+     1     0        0
+     0     0        0
+     0     0        0
+     0     0        0
+     0     0        0
 --------------------------------------------------
 
-The remaining columns show the active queue and rejected statistics of the index and search thread pool respectively.
-
-Also other statistics of different thread pools can be retrieved by using the `h` (header) parameter.
+The cat thread pool API accepts a `thread_pool_patterns` URL parameter for specifying a
+comma-separated list of regular expressions to match thread pool names.
 
 [source,sh]
 --------------------------------------------------
-% curl 'localhost:9200/_cat/thread_pool?v&h=id,host,suggest.active,suggest.rejected,suggest.completed'
-host      suggest.active suggest.rejected suggest.completed
-host1                  0                0                 0
-host2                  0                0                 0
+% curl 'localhost:9200/_cat/thread_pool/generic?v&h=id,name,active,rejected,completed'
+id                     name    active rejected completed
+0EWUhXeBQtaVGlexUeVwMg generic      0        0        70
 --------------------------------------------------
 
-Here the host columns and the active, rejected and completed suggest thread pool statistic are displayed. The suggest
-thread pool won't be displayed by default, so you always need to be specific about what statistic you want to display.
+Here the host columns and the active, rejected and completed suggest thread pool statistic are displayed.
 
-[float]
-=== Available Thread Pools
-
-Currently available <<modules-threadpool,thread pools>>:
-
-[cols="<,<,<",options="header"]
-|=======================================================================
-|Thread Pool |Alias |Description
-|`bulk` |`b` |Thread pool used for <<docs-bulk,bulk>> operations
-|`flush` |`f` |Thread pool used for <<indices-flush,flush>> operations
-|`generic` |`ge` |Thread pool used for generic operations (e.g. background node discovery)
-|`get` |`g` |Thread pool used for <<docs-get,get>> operations
-|`index` |`i` |Thread pool used for <<docs-index_,index>>/<<docs-delete,delete>> operations
-|`management` |`ma` |Thread pool used for management of Elasticsearch (e.g. cluster management)
-|`force_merge` |`fm` |Thread pool used for <<indices-forcemerge,force merge>> operations
-|`refresh` |`r` |Thread pool used for <<indices-refresh,refresh>> operations
-|`search` |`s` |Thread pool used for <<search-search,search>>/<<search-count,count>> operations
-|`snapshot` |`sn` |Thread pool used for <<modules-snapshots,snapshot>> operations
-|`suggest` |`su` |Thread pool used for <<search-suggesters,suggester>> operations
-|`warmer` |`w` |Thread pool used for index warm-up operations
-|=======================================================================
-
-The thread pool name (or alias) must be combined with a thread pool field below
-to retrieve the requested information.
-
+All <<modules-threadpool,built-in thread pools>> and custom thread pools are available.
 [float]
 ==== Thread Pool Fields
 
 For each thread pool, you can load details about it by using the field names
-in the table below, either using the full field name (e.g. `bulk.active`) or
-its alias (e.g. `sa` is equivalent to `search.active`).
+in the table below.
 
 [cols="<,<,<",options="header"]
 |=======================================================================
 |Field Name |Alias |Description
-|`type` |`t` |The current (*) type of thread pool (`cached`, `fixed` or `scaling`)
+|`type` |`t` |The current (*) type of thread pool (`fixed` or `scaling`)
 |`active` |`a` |The number of active threads in the current thread pool
 |`size` |`s` |The number of threads in the current thread pool
 |`queue` |`q` |The number of tasks in the queue for the current thread pool
-|`queueSize` |`qs` |The maximum number of tasks in the queue for the current thread pool
-|`rejected` |`r` |The number of rejected threads in the current thread pool
+|`queue_size` |`qs` |The maximum number of tasks permitted in the queue for the current thread pool
+|`rejected` |`r` |The number of tasks rejected by the thread pool executor
 |`largest` |`l` |The highest number of active threads in the current thread pool
-|`completed` |`c` |The number of completed threads in the current thread pool
+|`completed` |`c` |The number of tasks completed by the thread pool executor
 |`min` |`mi` |The configured minimum number of active threads allowed in the current thread pool
 |`max` |`ma` |The configured maximum number of active threads allowed in the current thread pool
-|`keepAlive` |`k` |The configured keep alive time for threads
+|`keep_alive` |`k` |The configured keep alive time for threads
 |=======================================================================
 
 [float]
 === Other Fields
 
 In addition to details about each thread pool, it is also convenient to get an
-understanding of where those thread pools reside.  As such, you can request
+understanding of where those thread pools reside. As such, you can request
 other details like the `ip` of the responding node(s).
 
 [cols="<,<,<",options="header"]
 |=======================================================================
 |Field Name |Alias |Description
-|`id` |`nodeId` |The unique node ID
+|`node_id` |`id` |The unique node ID
+|`ephemeral_id`|`eid` |The ephemeral node ID
 |`pid` |`p` |The process ID of the running node
 |`host` |`h` |The hostname for the current node
 |`ip` |`i` |The IP address for the current node

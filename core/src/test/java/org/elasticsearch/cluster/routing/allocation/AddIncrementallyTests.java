@@ -108,7 +108,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
 
         logger.info("now, start one more node, check that rebalancing will happen because we set it to always");
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
-        nodes.put(newNode("node2"));
+        nodes.add(newNode("node2"));
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -178,7 +178,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
 
         logger.info("now, start one more node, check that rebalancing will happen because we set it to always");
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
-        nodes.put(newNode("node2"));
+        nodes.add(newNode("node2"));
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
 
         RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -257,7 +257,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         logger.info("now, start [{}] more node, check that rebalancing will happen because we set it to always", numNodes);
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterState.nodes());
         for (int i = 0; i < numNodes; i++) {
-            nodes.put(newNode("node" + (i + nodeOffset)));
+            nodes.add(newNode("node" + (i + nodeOffset)));
         }
 
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
@@ -304,7 +304,7 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         logger.info("start {} nodes", numberOfNodes);
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         for (int i = 0; i < numberOfNodes; i++) {
-            nodes.put(newNode("node" + i));
+            nodes.add(newNode("node" + i));
         }
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
         routingTable = service.reroute(clusterState, "reroute").routingTable();
@@ -397,6 +397,8 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         }
 
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
+        clusterState = ClusterState.builder(clusterState)
+            .routingResult(service.deassociateDeadNodes(clusterState, true, "reroute")).build();
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
         logger.info("start all the primary shards, replicas will start initializing");

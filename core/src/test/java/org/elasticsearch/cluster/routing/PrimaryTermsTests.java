@@ -90,7 +90,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
         logger.info("adding {} nodes and performing rerouting", this.numberOfReplicas + 1);
         Builder discoBuilder = DiscoveryNodes.builder();
         for (int i = 0; i < this.numberOfReplicas + 1; i++) {
-            discoBuilder = discoBuilder.put(newNode("node" + i));
+            discoBuilder = discoBuilder.add(newNode("node" + i));
         }
         this.clusterState = ClusterState.builder(clusterState).nodes(discoBuilder).build();
         RoutingAllocation.Result rerouteResult = allocationService.reroute(clusterState, "reroute");
@@ -161,7 +161,7 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
         final int newNodes = randomInt(10);
         logger.info("adding [{}] nodes", newNodes);
         for (int i = 0; i < newNodes; i++) {
-            nodesBuilder.put(newNode("extra_" + i));
+            nodesBuilder.add(newNode("extra_" + i));
         }
         this.clusterState = ClusterState.builder(clusterState).nodes(nodesBuilder).build();
         RoutingAllocation.Result rerouteResult = allocationService.reroute(this.clusterState, "nodes added");

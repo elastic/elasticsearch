@@ -64,7 +64,7 @@ public class JvmExamplePlugin extends Plugin {
     }
 
     /**
-     * Module decalaring some example configuration and a _cat action that uses
+     * Module declaring some example configuration and a _cat action that uses
      * it.
      */
     public static class ConfiguredExampleModule extends AbstractModule {

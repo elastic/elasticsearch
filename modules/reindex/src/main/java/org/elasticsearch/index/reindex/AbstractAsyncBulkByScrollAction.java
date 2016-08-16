@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BackoffPolicy;
@@ -78,7 +79,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     private final ParentTaskAssigningClient client;
     private final ActionListener<BulkIndexByScrollResponse> listener;
     private final Retry bulkRetry;
-    private final ScrollableHitSource scrollSource; 
+    private final ScrollableHitSource scrollSource;
 
     public AbstractAsyncBulkByScrollAction(BulkByScrollTask task, ESLogger logger, ParentTaskAssigningClient client,
                                            ThreadPool threadPool, Request mainRequest, ActionListener<BulkIndexByScrollResponse> listener) {
@@ -100,7 +101,13 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         if (sorts == null || sorts.isEmpty()) {
             mainRequest.getSearchRequest().source().sort(fieldSort("_doc"));
         }
+        mainRequest.getSearchRequest().source().version(needsSourceDocumentVersions());
     }
+
+    /**
+     * Does this operation need the versions of the source documents?
+     */
+    protected abstract boolean needsSourceDocumentVersions();
 
     protected abstract BulkRequest buildBulk(Iterable<? extends ScrollableHitSource.Hit> docs);
 
@@ -208,7 +215,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             return;
         }
         request.timeout(mainRequest.getTimeout());
-        request.consistencyLevel(mainRequest.getConsistency());
+        request.waitForActiveShards(mainRequest.getWaitForActiveShards());
         if (logger.isDebugEnabled()) {
             logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
                     new ByteSizeValue(request.estimatedSizeInBytes()));
@@ -254,7 +261,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 case "index":
                 case "create":
                     IndexResponse ir = item.getResponse();
-                    if (ir.isCreated()) {
+                    if (ir.getResult() == DocWriteResponse.Result.CREATED) {
                         task.countCreated();
                     } else {
                         task.countUpdated();

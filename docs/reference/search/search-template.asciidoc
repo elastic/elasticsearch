@@ -54,23 +54,16 @@ GET /_search/template
 ------------------------------------------
 
 [float]
-===== Passing an array of strings
+===== Converting parameters to JSON
+
+The `{{toJson}}parameter{{/toJson}}` function can be used to convert parameters
+like maps and array to their JSON representation:
 
 [source,js]
 ------------------------------------------
 GET /_search/template
 {
-  "inline": {
-    "query": {
-      "terms": {
-        "status": [
-          "{{#status}}",
-          "{{.}}",
-          "{{/status}}"
-        ]
-      }
-    }
-  },
+  "inline": "{ \"query\": { \"terms\": { \"status\": {{#toJson}}status{{/toJson}} }}}",
   "params": {
     "status": [ "pending", "published" ]
   }
@@ -82,10 +75,49 @@ which is rendered as:
 [source,js]
 ------------------------------------------
 {
-"query": {
-  "terms": {
-    "status": [ "pending", "published" ]
+  "query": {
+    "terms": {
+      "status": [
+        "pending",
+        "published"
+      ]
+    }
   }
+}
+------------------------------------------
+
+A more complex example substitutes an array of JSON objects:
+
+[source,js]
+------------------------------------------
+{
+    "inline": "{\"query\":{\"bool\":{\"must\": {{#toJson}}clauses{{/toJson}} }}}",
+    "params": {
+        "clauses": [
+            { "term": "foo" },
+            { "term": "bar" }
+        ]
+   }
+}
+------------------------------------------
+
+which is rendered as:
+
+[source,js]
+------------------------------------------
+{
+    "query" : {
+      "bool" : {
+        "must" : [
+          {
+            "term" : "foo"
+          },
+          {
+            "term" : "bar"
+          }
+        ]
+      }
+    }
 }
 ------------------------------------------
 
@@ -223,45 +255,6 @@ for `end`:
 }
 ------------------------------------------
 
-[float]
-===== Converting parameters to JSON
-
-The `{{toJson}}parameter{{/toJson}}` function can be used to convert parameters
-like maps and array to their JSON representation:
-
-[source,js]
-------------------------------------------
-{
-    "inline": "{\"query\":{\"bool\":{\"must\": {{#toJson}}clauses{{/toJson}} }}}",
-    "params": {
-        "clauses": [
-            { "term": "foo" },
-            { "term": "bar" }
-        ]
-   }
-}
-------------------------------------------
-
-which is rendered as:
-
-[source,js]
-------------------------------------------
-{
-    "query" : {
-      "bool" : {
-        "must" : [
-          {
-            "term" : "foo"
-          },
-          {
-            "term" : "bar"
-          }
-        ]
-      }
-    }
-}
-------------------------------------------
-
 
 [float]
 ===== Conditional clauses
@@ -330,7 +323,7 @@ We could write the query as:
 ==================================
 As written above, this template is not valid JSON because it includes the
 _section_ markers like `{{#line_no}}`.  For this reason, the template should
-either be stored in a file (see <<pre-registered-templates>>) or, when used 
+either be stored in a file (see <<pre-registered-templates>>) or, when used
 via the REST API, should be written as a string:
 
 [source,js]
@@ -467,7 +460,7 @@ This call will return the rendered template:
 ------------------------------------------
 <1> `status` array has been populated with values from the `params` object.
 
-File and indexed templates can also be rendered by replacing `inline` with 
+File and indexed templates can also be rendered by replacing `inline` with
 `file` or `id` respectively. For example, to render a file template
 
 [source,js]

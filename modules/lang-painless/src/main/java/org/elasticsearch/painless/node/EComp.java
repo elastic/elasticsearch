@@ -43,10 +43,11 @@ import static org.elasticsearch.painless.WriterConstants.EQUALS;
  */
 public final class EComp extends AExpression {
 
-    final Operation operation;
-    AExpression left;
-    AExpression right;
-    Type promotedType;
+    private final Operation operation;
+    private AExpression left;
+    private AExpression right;
+
+    private Type promotedType;
 
     public EComp(Location location, Operation operation, AExpression left, AExpression right) {
         super(location);
@@ -55,7 +56,7 @@ public final class EComp extends AExpression {
         this.left = Objects.requireNonNull(left);
         this.right = Objects.requireNonNull(right);
     }
-    
+
     @Override
     void extractVariables(Set<String> variables) {
         left.extractVariables(variables);
@@ -449,25 +450,21 @@ public final class EComp extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         writer.writeDebugInfo(location);
 
-        boolean branch = tru != null || fals != null;
-
         left.write(writer, globals);
 
         if (!right.isNull) {
             right.write(writer, globals);
         }
 
-        Label jump = tru != null ? tru : fals != null ? fals : new Label();
+        Label jump = new Label();
         Label end = new Label();
 
-        boolean eq = (operation == Operation.EQ || operation == Operation.EQR) && (tru != null || fals == null) ||
-            (operation == Operation.NE || operation == Operation.NER) && fals != null;
-        boolean ne = (operation == Operation.NE || operation == Operation.NER) && (tru != null || fals == null) ||
-            (operation == Operation.EQ || operation == Operation.EQR) && fals != null;
-        boolean lt  = operation == Operation.LT  && (tru != null || fals == null) || operation == Operation.GTE && fals != null;
-        boolean lte = operation == Operation.LTE && (tru != null || fals == null) || operation == Operation.GT  && fals != null;
-        boolean gt  = operation == Operation.GT  && (tru != null || fals == null) || operation == Operation.LTE && fals != null;
-        boolean gte = operation == Operation.GTE && (tru != null || fals == null) || operation == Operation.LT  && fals != null;
+        boolean eq = (operation == Operation.EQ || operation == Operation.EQR);
+        boolean ne = (operation == Operation.NE || operation == Operation.NER);
+        boolean lt  = operation == Operation.LT;
+        boolean lte = operation == Operation.LTE;
+        boolean gt  = operation == Operation.GT;
+        boolean gte = operation == Operation.GTE;
 
         boolean writejump = true;
 
@@ -478,8 +475,8 @@ public final class EComp extends AExpression {
             case CHAR:
                 throw createError(new IllegalStateException("Illegal tree structure."));
             case BOOL:
-                if      (eq) writer.ifZCmp(MethodWriter.EQ, jump);
-                else if (ne) writer.ifZCmp(MethodWriter.NE, jump);
+                if      (eq) writer.ifCmp(promotedType.type, MethodWriter.EQ, jump);
+                else if (ne) writer.ifCmp(promotedType.type, MethodWriter.NE, jump);
                 else {
                     throw createError(new IllegalStateException("Illegal tree structure."));
                 }
@@ -503,10 +500,11 @@ public final class EComp extends AExpression {
             case DEF:
                 org.objectweb.asm.Type booleanType = org.objectweb.asm.Type.getType(boolean.class);
                 org.objectweb.asm.Type descriptor = org.objectweb.asm.Type.getMethodType(booleanType, left.actual.type, right.actual.type);
+
                 if (eq) {
                     if (right.isNull) {
                         writer.ifNull(jump);
-                    } else if (!left.isNull && (operation == Operation.EQ || operation == Operation.NE)) {
+                    } else if (!left.isNull && operation == Operation.EQ) {
                         writer.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                         writejump = false;
                     } else {
@@ -515,7 +513,7 @@ public final class EComp extends AExpression {
                 } else if (ne) {
                     if (right.isNull) {
                         writer.ifNonNull(jump);
-                    } else if (!left.isNull && (operation == Operation.EQ || operation == Operation.NE)) {
+                    } else if (!left.isNull && operation == Operation.NE) {
                         writer.invokeDefCall("eq", descriptor, DefBootstrap.BINARY_OPERATOR, DefBootstrap.OPERATOR_ALLOWS_NULL);
                         writer.ifZCmp(MethodWriter.EQ, jump);
                     } else {
@@ -537,22 +535,13 @@ public final class EComp extends AExpression {
                     throw createError(new IllegalStateException("Illegal tree structure."));
                 }
 
-                if (branch && !writejump) {
-                    writer.ifZCmp(MethodWriter.NE, jump);
-                }
-
                 break;
             default:
                 if (eq) {
                     if (right.isNull) {
                         writer.ifNull(jump);
-                    } else if (operation == Operation.EQ || operation == Operation.NE) {
+                    } else if (operation == Operation.EQ) {
                         writer.invokeStatic(OBJECTS_TYPE, EQUALS);
-
-                        if (branch) {
-                            writer.ifZCmp(MethodWriter.NE, jump);
-                        }
-
                         writejump = false;
                     } else {
                         writer.ifCmp(promotedType.type, MethodWriter.EQ, jump);
@@ -560,7 +549,7 @@ public final class EComp extends AExpression {
                 } else if (ne) {
                     if (right.isNull) {
                         writer.ifNonNull(jump);
-                    } else if (operation == Operation.EQ || operation == Operation.NE) {
+                    } else if (operation == Operation.NE) {
                         writer.invokeStatic(OBJECTS_TYPE, EQUALS);
                         writer.ifZCmp(MethodWriter.EQ, jump);
                     } else {
@@ -571,7 +560,7 @@ public final class EComp extends AExpression {
                 }
         }
 
-        if (!branch && writejump) {
+        if (writejump) {
             writer.push(false);
             writer.goTo(end);
             writer.mark(jump);

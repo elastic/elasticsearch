@@ -2,8 +2,8 @@
 === Inner hits
 
 The <<mapping-parent-field, parent/child>> and <<nested, nested>> features allow the return of documents that
-have matches in a different scope. In the parent/child case, parent document are returned based on matches in child
-documents or child document are returned based on matches in parent documents. In the nested case, documents are returned
+have matches in a different scope. In the parent/child case, parent documents are returned based on matches in child
+documents or child documents are returned based on matches in parent documents. In the nested case, documents are returned
 based on matches in nested inner objects.
 
 In both cases, the actual matches in the different scopes that caused a document to be returned is hidden. In many cases,
@@ -23,7 +23,7 @@ The structure looks like this:
 }
 --------------------------------------------------
 
-If `_inner_hits` is defined on a query that supports it then each search hit will contain an `inner_hits` json object with the following structure:
+If `inner_hits` is defined on a query that supports it then each search hit will contain an `inner_hits` json object with the following structure:
 
 [source,js]
 --------------------------------------------------

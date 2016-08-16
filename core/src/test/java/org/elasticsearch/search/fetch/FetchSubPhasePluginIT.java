@@ -44,6 +44,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -63,7 +64,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class FetchSubPhasePluginIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(FetchTermVectorsPlugin.class);
+        return Arrays.asList(FetchTermVectorsPlugin.class);
     }
 
     public void testPlugin() throws Exception {

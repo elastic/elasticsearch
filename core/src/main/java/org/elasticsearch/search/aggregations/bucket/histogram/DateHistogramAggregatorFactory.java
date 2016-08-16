@@ -21,25 +21,30 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
-import org.elasticsearch.common.rounding.TimeZoneRounding;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
 
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
-public class DateHistogramAggregatorFactory extends AbstractHistogramAggregatorFactory<DateHistogramAggregatorFactory> {
+public final class DateHistogramAggregatorFactory
+        extends ValuesSourceAggregatorFactory<ValuesSource.Numeric, DateHistogramAggregatorFactory> {
+
     public static final Map<String, DateTimeUnit> DATE_FIELD_UNITS;
-    private final DateHistogramInterval dateHistogramInterval;
 
     static {
         Map<String, DateTimeUnit> dateFieldUnits = new HashMap<>();
@@ -62,36 +67,83 @@ public class DateHistogramAggregatorFactory extends AbstractHistogramAggregatorF
         DATE_FIELD_UNITS = unmodifiableMap(dateFieldUnits);
     }
 
+    private final DateHistogramInterval dateHistogramInterval;
+    private final long interval;
+    private final long offset;
+    private final InternalOrder order;
+    private final boolean keyed;
+    private final long minDocCount;
+    private final ExtendedBounds extendedBounds;
+
     public DateHistogramAggregatorFactory(String name, Type type, ValuesSourceConfig<Numeric> config, long interval,
             DateHistogramInterval dateHistogramInterval, long offset, InternalOrder order, boolean keyed, long minDocCount,
             ExtendedBounds extendedBounds, AggregationContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, type, config, interval, offset, order, keyed, minDocCount, extendedBounds, InternalDateHistogram.HISTOGRAM_FACTORY,
-                context, parent, subFactoriesBuilder, metaData);
+        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
+        this.interval = interval;
         this.dateHistogramInterval = dateHistogramInterval;
+        this.offset = offset;
+        this.order = order;
+        this.keyed = keyed;
+        this.minDocCount = minDocCount;
+        this.extendedBounds = extendedBounds;
     }
 
-    @Override
-    protected Rounding createRounding() {
-        TimeZoneRounding.Builder tzRoundingBuilder;
+    public long minDocCount() {
+        return minDocCount;
+    }
+
+    private Rounding createRounding() {
+        Rounding.Builder tzRoundingBuilder;
         if (dateHistogramInterval != null) {
             DateTimeUnit dateTimeUnit = DATE_FIELD_UNITS.get(dateHistogramInterval.toString());
             if (dateTimeUnit != null) {
-                tzRoundingBuilder = TimeZoneRounding.builder(dateTimeUnit);
+                tzRoundingBuilder = Rounding.builder(dateTimeUnit);
             } else {
                 // the interval is a time value?
-                tzRoundingBuilder = TimeZoneRounding.builder(
+                tzRoundingBuilder = Rounding.builder(
                         TimeValue.parseTimeValue(dateHistogramInterval.toString(), null, getClass().getSimpleName() + ".interval"));
             }
         } else {
             // the interval is an integer time value in millis?
-            tzRoundingBuilder = TimeZoneRounding.builder(TimeValue.timeValueMillis(interval));
+            tzRoundingBuilder = Rounding.builder(TimeValue.timeValueMillis(interval));
         }
         if (timeZone() != null) {
             tzRoundingBuilder.timeZone(timeZone());
         }
-        Rounding rounding = tzRoundingBuilder.offset(offset).build();
+        Rounding rounding = tzRoundingBuilder.build();
         return rounding;
     }
 
+    @Override
+    protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
+        if (collectsFromSingleBucket == false) {
+            return asMultiBucketAggregator(this, context, parent);
+        }
+        return createAggregator(valuesSource, parent, pipelineAggregators, metaData);
+    }
+
+    private Aggregator createAggregator(ValuesSource.Numeric valuesSource, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) throws IOException {
+        Rounding rounding = createRounding();
+        // we need to round the bounds given by the user and we have to do it
+        // for every aggregator we create
+        // as the rounding is not necessarily an idempotent operation.
+        // todo we need to think of a better structure to the factory/agtor
+        // code so we won't need to do that
+        ExtendedBounds roundedBounds = null;
+        if (extendedBounds != null) {
+            // parse any string bounds to longs and round them
+            roundedBounds = extendedBounds.parseAndValidate(name, context.searchContext(), config.format()).round(rounding);
+        }
+        return new DateHistogramAggregator(name, factories, rounding, offset, order, keyed, minDocCount, roundedBounds, valuesSource,
+                config.format(), context, parent, pipelineAggregators, metaData);
+    }
+
+    @Override
+    protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+            throws IOException {
+        return createAggregator(null, parent, pipelineAggregators, metaData);
+    }
 }

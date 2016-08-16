@@ -179,42 +179,26 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     public void testFieldCannotBeNull() {
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
-        try {
-            qb.field(null);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("supplied field is null or empty."));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> qb.field(null));
+        assertEquals("supplied field is null or empty", e.getMessage());
     }
 
     public void testFieldCannotBeNullAndWeighted() {
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
-        try {
-            qb.field(null, AbstractQueryBuilder.DEFAULT_BOOST);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("supplied field is null or empty."));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> qb.field(null, AbstractQueryBuilder.DEFAULT_BOOST));
+        assertEquals("supplied field is null or empty", e.getMessage());
     }
 
     public void testFieldCannotBeEmpty() {
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
-        try {
-            qb.field("");
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("supplied field is null or empty."));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> qb.field(""));
+        assertEquals("supplied field is null or empty", e.getMessage());
     }
 
     public void testFieldCannotBeEmptyAndWeighted() {
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
-        try {
-            qb.field("", AbstractQueryBuilder.DEFAULT_BOOST);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("supplied field is null or empty."));
-        }
+        IllegalArgumentException  e = expectThrows(IllegalArgumentException.class, () -> qb.field("", AbstractQueryBuilder.DEFAULT_BOOST));
+        assertEquals("supplied field is null or empty", e.getMessage());
     }
 
     /**
@@ -223,12 +207,8 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
      * */
     public void testFieldsCannotBeSetToNull() {
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
-        try {
-            qb.fields(null);
-            fail("Expected NullPointerException");
-        } catch (NullPointerException e) {
-            assertThat(e.getMessage(), is("fields cannot be null"));
-        }
+        NullPointerException e = expectThrows(NullPointerException.class, () -> qb.fields(null));
+        assertEquals("fields cannot be null", e.getMessage());
     }
 
     public void testDefaultFieldParsing() throws IOException {

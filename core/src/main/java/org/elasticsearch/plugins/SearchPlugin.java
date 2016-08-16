@@ -37,7 +37,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Signi
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.highlight.Highlighter;
+import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.suggest.Suggester;
 
 import java.util.List;
@@ -98,7 +98,7 @@ public interface SearchPlugin {
     /**
      * Specification of custom {@link ScoreFunction}.
      */
-    public class ScoreFunctionSpec<T extends ScoreFunctionBuilder<T>> extends SearchExtensionSpec<T, ScoreFunctionParser<T>> {
+    class ScoreFunctionSpec<T extends ScoreFunctionBuilder<T>> extends SearchExtensionSpec<T, ScoreFunctionParser<T>> {
         public ScoreFunctionSpec(ParseField name, Reader<T> reader, ScoreFunctionParser<T> parser) {
             super(name, reader, parser);
         }
@@ -111,7 +111,7 @@ public interface SearchPlugin {
     /**
      * Specification of custom {@link Query}.
      */
-    public class QuerySpec<T extends QueryBuilder> extends SearchExtensionSpec<T, QueryParser<T>> {
+    class QuerySpec<T extends QueryBuilder> extends SearchExtensionSpec<T, QueryParser<T>> {
         /**
          * Specification of custom {@link Query}.
          *
@@ -143,12 +143,12 @@ public interface SearchPlugin {
     /**
      * Specification of search time behavior extension like a custom {@link MovAvgModel} or {@link ScoreFunction}.
      *
-     * @param W the type of the main {@link NamedWriteable} for this spec. All specs have this but it isn't always *for* the same thing
+     * @param <W> the type of the main {@link NamedWriteable} for this spec. All specs have this but it isn't always *for* the same thing
      *        though, usually it is some sort of builder sent from the coordinating node to the data nodes executing the behavior
-     * @param P the type of the parser for this spec. The parser runs on the coordinating node, converting {@link XContent} into the
+     * @param <P> the type of the parser for this spec. The parser runs on the coordinating node, converting {@link XContent} into the
      *        behavior to execute
      */
-    public class SearchExtensionSpec<W extends NamedWriteable, P> {
+    class SearchExtensionSpec<W extends NamedWriteable, P> {
         private final ParseField name;
         private final Writeable.Reader<W> reader;
         private final P parser;
@@ -205,7 +205,7 @@ public interface SearchPlugin {
     /**
      * Context available during fetch phase construction.
      */
-    public class FetchPhaseConstructionContext {
+    class FetchPhaseConstructionContext {
         private final Map<String, Highlighter> highlighters;
 
         public FetchPhaseConstructionContext(Map<String, Highlighter> highlighters) {

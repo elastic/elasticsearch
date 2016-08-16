@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -57,10 +56,13 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -100,6 +102,14 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             functionScoreQueryBuilder.setMinScore(randomFloat());
         }
         return functionScoreQueryBuilder;
+    }
+
+    @Override
+    protected Set<String> getObjectsHoldingArbitraryContent() {
+        //script_score.script.params can contain arbitrary parameters. no error is expected when adding additional objects
+        //within the params object. Score functions get parsed in the data nodes, so they are not validated in the coord node.
+        return new HashSet<>(Arrays.asList(Script.ScriptField.PARAMS.getPreferredName(), ExponentialDecayFunctionBuilder.NAME,
+                LinearDecayFunctionBuilder.NAME, GaussDecayFunctionBuilder.NAME));
     }
 
     /**
@@ -155,7 +165,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             functionBuilder = fieldValueFactorFunctionBuilder;
             break;
         case 2:
-            String script = "5";
+            String script = "1";
             Map<String, Object> params = Collections.emptyMap();
             functionBuilder = new ScriptScoreFunctionBuilder(
                     new Script(script, ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, params));
@@ -414,12 +424,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             "      \"weight\": 2\n" +
             "    }\n" +
             "}";
-        try {
-            parseQuery(functionScoreQuery);
-            fail("parsing should have failed");
-        } catch (ParsingException e) {
-            assertThat(e.getMessage(), containsString("use [functions] array if you want to define several functions."));
-        }
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(functionScoreQuery));
+        assertThat(e.getMessage(), containsString("use [functions] array if you want to define several functions."));
     }
 
     public void testProperErrorMessageWhenTwoFunctionsDefinedInFunctionsArray() throws IOException {

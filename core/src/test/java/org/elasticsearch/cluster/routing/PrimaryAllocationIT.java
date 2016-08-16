@@ -28,17 +28,19 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimary
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.disruption.NetworkDisconnectPartition;
+import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
+import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -56,7 +58,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         // disruption tests need MockTransportService
-        return pluginList(MockTransportService.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class);
     }
 
     private void createStaleReplicaScenario() throws Exception {
@@ -85,8 +87,9 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             replicaNode = state.getRoutingNodes().node(shards.get(0).currentNodeId()).node().getName();
         }
 
-        NetworkDisconnectPartition partition = new NetworkDisconnectPartition(
-            new HashSet<>(Arrays.asList(master, replicaNode)), Collections.singleton(primaryNode), random());
+        NetworkDisruption partition = new NetworkDisruption(
+            new TwoPartitions(Sets.newHashSet(master, replicaNode), Collections.singleton(primaryNode)),
+            new NetworkDisconnect());
         internalCluster().setDisruptionScheme(partition);
         logger.info("--> partitioning node with primary shard from rest of cluster");
         partition.startDisrupting();

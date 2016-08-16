@@ -32,6 +32,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -49,7 +50,7 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(CustomNativeScriptFactory.TestPlugin.class);
+        return Arrays.asList(CustomNativeScriptFactory.TestPlugin.class);
     }
 
     public void testThatUpdateUsingNativeScriptWorks() throws Exception {

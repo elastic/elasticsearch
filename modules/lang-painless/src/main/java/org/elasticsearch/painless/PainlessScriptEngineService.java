@@ -127,9 +127,9 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
             if (value != null) {
                 compilerSettings.setPicky(Boolean.parseBoolean(value));
             }
-            
+
             value = copy.remove(CompilerSettings.INITIAL_CALL_SITE_DEPTH);
-            
+
             if (value != null) {
                 compilerSettings.setInitialCallSiteDepth(Integer.parseInt(value));
             }
@@ -162,7 +162,8 @@ public final class PainlessScriptEngineService extends AbstractComponent impleme
                     return Compiler.compile(loader, scriptName == null ? INLINE_NAME : scriptName, scriptSource, compilerSettings);
                 }
             }, COMPILATION_CONTEXT);
-        } catch (Exception e) {
+        // Note that it is safe to catch any of the following errors since Painless is stateless.
+        } catch (OutOfMemoryError | StackOverflowError | Exception e) {
             throw convertToScriptException(scriptName == null ? scriptSource : scriptName, scriptSource, e);
         }
     }

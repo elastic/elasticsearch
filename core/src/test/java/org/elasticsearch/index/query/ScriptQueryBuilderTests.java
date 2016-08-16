@@ -28,13 +28,14 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBuilder> {
     @Override
     protected ScriptQueryBuilder doCreateTestQueryBuilder() {
-        String script = "5";
+        String script = "1";
         Map<String, Object> params = Collections.emptyMap();
         return new ScriptQueryBuilder(new Script(script, ScriptType.INLINE, MockScriptEngine.NAME, params));
     }
@@ -80,5 +81,12 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
 
         ScriptQueryBuilder parsed = (ScriptQueryBuilder) parseQuery(json);
         assertEquals(json, "5", parsed.script().getScript());
+    }
+
+    @Override
+    protected Set<String> getObjectsHoldingArbitraryContent() {
+        //script_score.script.params can contain arbitrary parameters. no error is expected when
+        //adding additional objects within the params object.
+        return Collections.singleton(Script.ScriptField.PARAMS.getPreferredName());
     }
 }

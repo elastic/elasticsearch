@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.io.IOException;
 import java.util.Map;

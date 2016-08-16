@@ -23,7 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -841,7 +841,7 @@ public class DateHistogramIT extends ESIntegTestCase {
 
         Histogram.Bucket bucket = buckets.get(1);
         assertThat(bucket, Matchers.notNullValue());
-        assertThat(bucket.getKeyAsString(), equalTo("1"));
+        assertThat(bucket.getKeyAsString(), equalTo("1.0"));
 
         Histogram dateHisto = bucket.getAggregations().get("date_histo");
         assertThat(dateHisto, Matchers.notNullValue());

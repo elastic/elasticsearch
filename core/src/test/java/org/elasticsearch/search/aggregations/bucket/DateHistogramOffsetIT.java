@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -97,7 +97,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
         assertThat(response.getHits().getTotalHits(), equalTo(5L));
 
         Histogram histo = response.getAggregations().get("date_histo");
-        List<? extends Histogram.Bucket> buckets = histo.getBuckets();
+        List<Histogram.Bucket> buckets = histo.getBuckets();
         assertThat(buckets.size(), equalTo(2));
 
         checkBucketFor(buckets.get(0), new DateTime(2014, 3, 10, 2, 0, DateTimeZone.UTC), 2L);

@@ -570,7 +570,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             if (!electMasterService.hasEnoughMasterNodes(remainingNodesClusterState.nodes())) {
                 return resultBuilder.build(rejoin.apply(remainingNodesClusterState, "not enough master nodes"));
             } else {
-                final RoutingAllocation.Result routingResult = allocationService.reroute(remainingNodesClusterState, describeTasks(tasks));
+                final RoutingAllocation.Result routingResult =
+                    allocationService.deassociateDeadNodes(remainingNodesClusterState, true, describeTasks(tasks));
                 return resultBuilder.build(ClusterState.builder(remainingNodesClusterState).routingResult(routingResult).build());
             }
         }

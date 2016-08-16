@@ -29,7 +29,7 @@ import org.apache.lucene.index.IndexableFieldType;
 import java.io.Reader;
 
 // used for binary and geo fields
-public abstract class CustomDocValuesField implements IndexableField {
+abstract class CustomDocValuesField implements IndexableField {
 
     public static final FieldType TYPE = new FieldType();
     static {

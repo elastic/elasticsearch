@@ -25,7 +25,7 @@ some bandwidth by supplying an index pattern to the end.
 
 [source,sh]
 --------------------------------------------------
-% curl 192.168.56.20:9200/_cat/shards/wiki2
+% curl 192.168.56.20:9200/_cat/shards/wiki*
 wiki2 0 p STARTED 197 3.2mb 192.168.56.10 Stiletto
 wiki2 1 p STARTED 205 5.9mb 192.168.56.30 Frankie Raye
 wiki2 2 p STARTED 275 7.8mb 192.168.56.20 Commander Kraken

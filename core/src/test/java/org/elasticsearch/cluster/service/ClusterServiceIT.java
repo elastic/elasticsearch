@@ -63,7 +63,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(TestPlugin.class);
+        return Arrays.asList(TestPlugin.class);
     }
 
     public void testAckedUpdateTask() throws Exception {

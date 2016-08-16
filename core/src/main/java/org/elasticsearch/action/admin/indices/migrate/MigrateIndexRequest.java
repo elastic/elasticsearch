@@ -20,7 +20,9 @@ package org.elasticsearch.action.admin.indices.migrate;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -56,18 +58,37 @@ public class MigrateIndexRequest extends AcknowledgedRequest<MigrateIndexRequest
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = createIndexRequest == null ? null : createIndexRequest.validate();
+        ActionRequestValidationException validationException = null;
         if (sourceIndex == null) {
             validationException = addValidationError("source index is not set", validationException);
         }
         if (createIndexRequest == null) {
             validationException = addValidationError("create index request is not set", validationException);
         } else {
+            ActionRequestValidationException createValidation = createIndexRequest.validate();
+            if (createValidation != null) {
+                for (String createValidationError: createValidation.validationErrors()) {
+                    validationException = addValidationError("validation error with create index: " + createValidationError,
+                            validationException);
+                }
+            }
             if (Objects.equals(sourceIndex, createIndexRequest.index())) {
                 validationException = addValidationError("source and destination can't be the same index", validationException);
             }
+            if (createIndexRequest.aliases().isEmpty()) {
+                validationException = addValidationError("migrating an index requires an alias", validationException);
+            }
+            for (Alias alias : createIndexRequest.aliases()) {
+                if (Objects.equals(createIndexRequest.index(), alias.name())) {
+                    validationException = addValidationError(
+                            "can't add an alias with the same name as the destination index [" + createIndexRequest.index() + "]",
+                            validationException);
+                }
+            }
+            if (ActiveShardCount.NONE.equals(createIndexRequest.waitForActiveShards())) {
+                validationException = addValidationError("must wait for more than one active shard in the new index", validationException);
+            }
         }
-        // NOCOMMIT validate wait_for_active_shards is at least 1.
         
         return validationException;
     }

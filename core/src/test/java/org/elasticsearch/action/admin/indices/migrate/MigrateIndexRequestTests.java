@@ -20,6 +20,9 @@
 package org.elasticsearch.action.admin.indices.migrate;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -55,6 +58,48 @@ public class MigrateIndexRequestTests extends ESTestCase {
         assertThat(string, containsString("timeout="));
         assertThat(string, containsString("masterNodeTimeout="));
         assertThat(string, containsString("parentTask="));
+    }
+
+    public void testValidation() {
+        MigrateIndexRequest request = new MigrateIndexRequest("test_0", "test_1");
+        request.getCreateIndexRequest().alias(new Alias("test"));
+        assertNull(request.validate());
+
+        request = new MigrateIndexRequest();
+        request.setCreateIndexRequest(new CreateIndexRequest("test_1").alias(new Alias("test")));
+        ValidationException e = request.validate();
+        assertEquals("Validation Failed: 1: source index is not set;", e.getMessage());
+
+        request = new MigrateIndexRequest();
+        request.setSourceIndex("test_0");
+        e = request.validate();
+        assertEquals("Validation Failed: 1: create index request is not set;", e.getMessage());
+
+        request = new MigrateIndexRequest();
+        request.setSourceIndex("test_0");
+        request.setCreateIndexRequest(new CreateIndexRequest().alias(new Alias("test")));
+        e = request.validate();
+        assertEquals("Validation Failed: 1: validation error with create index: index is missing;", e.getMessage());
+
+        request = new MigrateIndexRequest("test_0", "test_0");
+        request.getCreateIndexRequest().alias(new Alias("test"));
+        e = request.validate();
+        assertEquals("Validation Failed: 1: source and destination can't be the same index;", e.getMessage());
+
+        request = new MigrateIndexRequest("test_0", "test_1");
+        e = request.validate();
+        assertEquals("Validation Failed: 1: migrating an index requires an alias;", e.getMessage());
+        
+        request = new MigrateIndexRequest("test_0", "test_1");
+        request.getCreateIndexRequest().alias(new Alias("test_1"));
+        e = request.validate();
+        assertEquals("Validation Failed: 1: can't add an alias with the same name as the destination index [test_1];", e.getMessage());
+
+        request = new MigrateIndexRequest("test_0", "test_1");
+        request.getCreateIndexRequest().alias(new Alias("test"))
+                .waitForActiveShards(randomFrom(ActiveShardCount.from(0), ActiveShardCount.NONE));
+        e = request.validate();
+        assertEquals("Validation Failed: 1: must wait for more than one active shard in the new index;", e.getMessage());
     }
 
     private MigrateIndexRequest randomRequest() {

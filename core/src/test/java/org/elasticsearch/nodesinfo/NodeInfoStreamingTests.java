@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -135,12 +136,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
     }
 
     private void compareJsonOutput(ToXContent param1, ToXContent param2) throws IOException {
-        ToXContent.Params params = ToXContent.EMPTY_PARAMS;
-        XContentBuilder param1Builder = jsonBuilder();
-        XContentBuilder param2Builder = jsonBuilder();
-        param1.toXContent(param1Builder, params);
-        param2.toXContent(param2Builder, params);
-        assertThat(param1Builder.string(), equalTo(param2Builder.string()));
+        assertThat(Strings.toString(param1, true), equalTo(Strings.toString(param2, true)));
     }
 
     // see https://github.com/elastic/elasticsearch/issues/15422

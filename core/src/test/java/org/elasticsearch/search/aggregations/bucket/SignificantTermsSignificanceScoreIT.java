@@ -22,10 +22,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParsingException;
@@ -39,7 +39,9 @@ import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.script.NativeSignificanceScoreScriptNoParams;
 import org.elasticsearch.search.aggregations.bucket.script.NativeSignificanceScoreScriptWithParams;
-import org.elasticsearch.search.aggregations.bucket.significant.*;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
@@ -111,7 +113,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                 .execute()
                 .actionGet();
         assertSearchResponse(response);
-        StringTerms classes = (StringTerms) response.getAggregations().get("class");
+        StringTerms classes = response.getAggregations().get("class");
         assertThat(classes.getBuckets().size(), equalTo(2));
         for (Terms.Bucket classBucket : classes.getBuckets()) {
             Map<String, Aggregation> aggs = classBucket.getAggregations().asMap();
@@ -143,7 +145,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                 .execute()
                 .actionGet();
 
-        classes = (StringTerms) response.getAggregations().get("class");
+        classes = response.getAggregations().get("class");
         assertThat(classes.getBuckets().size(), equalTo(2));
         for (Terms.Bucket classBucket : classes.getBuckets()) {
             Map<String, Aggregation> aggs = classBucket.getAggregations().asMap();
@@ -251,7 +253,6 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
     @Test
     public void testXContentResponse() throws Exception {
-
         String type = randomBoolean() ? "string" : "long";
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
         SharedSignificantTermsTestMethods.index01Docs(type, settings, this);
@@ -260,7 +261,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                 .execute()
                 .actionGet();
         assertSearchResponse(response);
-        StringTerms classes = (StringTerms) response.getAggregations().get("class");
+        StringTerms classes = response.getAggregations().get("class");
         assertThat(classes.getBuckets().size(), equalTo(2));
         for (Terms.Bucket classBucket : classes.getBuckets()) {
             Map<String, Aggregation> aggs = classBucket.getAggregations().asMap();
@@ -272,15 +273,13 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
             assertTrue(term.equals(classTerm));
         }
 
-        XContentBuilder responseBuilder = XContentFactory.jsonBuilder();
-        classes.toXContent(responseBuilder, null);
         String result = null;
         if (type.equals("long")) {
-            result = "\"class\"{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"sig_terms\":{\"doc_count\":4,\"buckets\":[{\"key\":0,\"key_as_string\":\"0\",\"doc_count\":4,\"score\":0.39999999999999997,\"bg_count\":5}]}},{\"key\":\"1\",\"doc_count\":3,\"sig_terms\":{\"doc_count\":3,\"buckets\":[{\"key\":1,\"key_as_string\":\"1\",\"doc_count\":3,\"score\":0.75,\"bg_count\":4}]}}]}";
+            result = "{\"class\":{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"sig_terms\":{\"doc_count\":4,\"buckets\":[{\"key\":0,\"key_as_string\":\"0\",\"doc_count\":4,\"score\":0.39999999999999997,\"bg_count\":5}]}},{\"key\":\"1\",\"doc_count\":3,\"sig_terms\":{\"doc_count\":3,\"buckets\":[{\"key\":1,\"key_as_string\":\"1\",\"doc_count\":3,\"score\":0.75,\"bg_count\":4}]}}]}}";
         } else {
-            result = "\"class\"{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"sig_terms\":{\"doc_count\":4,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"score\":0.39999999999999997,\"bg_count\":5}]}},{\"key\":\"1\",\"doc_count\":3,\"sig_terms\":{\"doc_count\":3,\"buckets\":[{\"key\":\"1\",\"doc_count\":3,\"score\":0.75,\"bg_count\":4}]}}]}";
+            result = "{\"class\":{\"doc_count_error_upper_bound\":0,\"sum_other_doc_count\":0,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"sig_terms\":{\"doc_count\":4,\"buckets\":[{\"key\":\"0\",\"doc_count\":4,\"score\":0.39999999999999997,\"bg_count\":5}]}},{\"key\":\"1\",\"doc_count\":3,\"sig_terms\":{\"doc_count\":3,\"buckets\":[{\"key\":\"1\",\"doc_count\":3,\"score\":0.75,\"bg_count\":4}]}}]}}";
         }
-        assertThat(responseBuilder.string(), equalTo(result));
+        assertThat(Strings.toString(classes, true), equalTo(result));
 
     }
 

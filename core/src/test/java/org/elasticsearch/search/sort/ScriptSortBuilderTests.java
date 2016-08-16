@@ -44,14 +44,18 @@ public class ScriptSortBuilderTests extends ESTestCase {
         
         ScriptSortBuilder woBuildParams = prepareSSB();
         XContentBuilder xcWithOut = XContentFactory.contentBuilder(XContentType.JSON);
+        xcWithOut.startObject();
         woBuildParams.toXContent(xcWithOut, new ToXContent.MapParams(builderParams));
+        xcWithOut.endObject();
 
         ScriptSortBuilder withBuildParams = prepareSSB();
         Map<String, Object> params = ImmutableMap.of("first_script_key", new Object(), "second_script_key", "second_script_value");
         withBuildParams.setParams(params);
         XContentBuilder xcWith = XContentFactory.contentBuilder(XContentType.JSON);
+        xcWith.startObject();
         withBuildParams.toXContent(xcWith, new ToXContent.MapParams(builderParams));
+        xcWith.endObject();
         
-        assertEquals(withBuildParams.toString(), woBuildParams.toString());
+        assertEquals(xcWith.string(), xcWithOut.string());
     }
 }

@@ -143,6 +143,10 @@
             <artifactId>jackson-dataformat-cbor</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
+        </dependency>
+        <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty</artifactId>
         </dependency>

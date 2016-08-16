@@ -89,11 +89,9 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.IndexService;
@@ -1069,8 +1067,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public void logSegmentsState(String... indices) throws Exception {
         IndicesSegmentResponse segsRsp = client().admin().indices().prepareSegments(indices).get();
-        logger.debug("segments {} state: \n{}", indices.length == 0 ? "[_all]" : indices,
-                segsRsp.toXContent(JsonXContent.contentBuilder().prettyPrint(), ToXContent.EMPTY_PARAMS).string());
+        logger.debug("segments {} state: \n{}", indices.length == 0 ? "[_all]" : indices, Strings.toString(segsRsp, true));
     }
 
     /**

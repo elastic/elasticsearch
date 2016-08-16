@@ -140,10 +140,27 @@ public class MultiSearchRequestTests extends ESTestCase {
     }
 
     public void testResponseErrorToXContent() throws IOException {
-        MultiSearchResponse response = new MultiSearchResponse(new MultiSearchResponse.Item[]{new MultiSearchResponse.Item(null, new IllegalStateException("foobar")), new MultiSearchResponse.Item(null, new IllegalStateException("baaaaaazzzz"))});
+        MultiSearchResponse response = new MultiSearchResponse(
+                new MultiSearchResponse.Item[]{
+                        new MultiSearchResponse.Item(null, new IllegalStateException("foobar")),
+                        new MultiSearchResponse.Item(null, new IllegalStateException("baaaaaazzzz"))
+                });
+
         XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("\"responses\"[{\"error\":{\"root_cause\":[{\"type\":\"illegal_state_exception\",\"reason\":\"foobar\"}],\"type\":\"illegal_state_exception\",\"reason\":\"foobar\"}},{\"error\":{\"root_cause\":[{\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"}],\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"}}]",
+        builder.endObject();
+
+        assertEquals("{\"responses\":["
+                        + "{"
+                        + "\"error\":{\"root_cause\":[{\"type\":\"illegal_state_exception\",\"reason\":\"foobar\"}],"
+                        + "\"type\":\"illegal_state_exception\",\"reason\":\"foobar\"}"
+                        + "},"
+                        + "{"
+                        + "\"error\":{\"root_cause\":[{\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"}],"
+                        + "\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"}"
+                        + "}"
+                        + "]}",
                 builder.string());
     }
 }

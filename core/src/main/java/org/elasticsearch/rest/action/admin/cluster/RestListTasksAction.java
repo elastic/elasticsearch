@@ -28,10 +28,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.TaskId;
 
@@ -68,27 +73,30 @@ public class RestListTasksAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
-        ActionListener<ListTasksResponse> listener = nodeSettingListener(clusterService, new RestToXContentListener<>(channel));
-        client.admin().cluster().listTasks(generateListTasksRequest(request), listener);
+        client.admin().cluster().listTasks(generateListTasksRequest(request), listTasksResponseListener(clusterService, channel));
     }
 
     /**
-     * Wrap the normal channel listener in one that sets the discovery nodes on the response so we can support all of it's toXContent
-     * formats.
+     * Standard listener for extensions of {@link ListTasksResponse} that supports {@code group_by=nodes}.
      */
-    public static <T extends ListTasksResponse> ActionListener<T> nodeSettingListener(ClusterService clusterService,
-            ActionListener<T> channelListener) {
-        return new ActionListener<T>() {
-            @Override
-            public void onResponse(T response) {
-                channelListener.onResponse(response);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                channelListener.onFailure(e);
-            }
-        };
+    public static <T extends ListTasksResponse> ActionListener<T> listTasksResponseListener(ClusterService clusterService,
+            RestChannel channel) {
+        String groupBy = channel.request().param("group_by", "nodes");
+        if ("nodes".equals(groupBy)) {
+            return new RestBuilderListener<T>(channel) {
+                @Override
+                public RestResponse buildResponse(T response, XContentBuilder builder) throws Exception {
+                    builder.startObject();
+                    response.toXContentGroupedByNode(builder, channel.request(), clusterService.state().nodes());
+                    builder.endObject();
+                    return new BytesRestResponse(RestStatus.OK, builder);
+                }
+            };
+        } else if ("parents".equals(groupBy)) {
+            return new RestToXContentListener<>(channel);
+        } else {
+            throw new IllegalArgumentException("[group_by] must be one of [nodes] or [parents] but was [" + groupBy + "]");
+        }
     }
 
     @Override

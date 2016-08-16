@@ -47,6 +47,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -62,18 +63,16 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
 
     private final Client client;
     private final ParseFieldMatcher parseFieldMatcher;
-    private final IndicesQueriesRegistry queryRegistry;
-    private final AggregatorParsers aggParsers;
+    private final SearchRequestParsers searchRequestParsers;
 
     @Inject
     public TransportPercolateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                    Client client, IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers) {
+                                    Client client, SearchRequestParsers searchRequestParsers) {
         super(settings, PercolateAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, PercolateRequest::new);
         this.client = client;
-        this.aggParsers = aggParsers;
+        this.searchRequestParsers = searchRequestParsers;
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
-        this.queryRegistry = indicesQueriesRegistry;
     }
 
     @Override
@@ -102,7 +101,8 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
     private void innerDoExecute(PercolateRequest request, BytesReference docSource, ActionListener<PercolateResponse> listener) {
         SearchRequest searchRequest;
         try {
-            searchRequest = createSearchRequest(request, docSource, queryRegistry, aggParsers, parseFieldMatcher);
+            searchRequest = createSearchRequest(request, docSource, searchRequestParsers.queryParsers,
+                searchRequestParsers.aggParsers, parseFieldMatcher);
         } catch (IOException e) {
             listener.onFailure(e);
             return;

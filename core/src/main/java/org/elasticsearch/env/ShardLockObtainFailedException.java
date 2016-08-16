@@ -17,25 +17,32 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.node.tasks.cancel;
+package org.elasticsearch.env;
 
-import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.tasks.TaskInfo;
-
-import java.util.List;
+import org.elasticsearch.index.shard.ShardId;
 
 /**
- * Returns the list of tasks that were cancelled
+ * Exception used when the in-memory lock for a shard cannot be obtained
  */
-public class CancelTasksResponse extends ListTasksResponse {
+public class ShardLockObtainFailedException extends Exception {
+    private final ShardId shardId;
 
-    public CancelTasksResponse() {
+    public ShardLockObtainFailedException(ShardId shardId, String message) {
+        super(message);
+        this.shardId = shardId;
     }
 
-    public CancelTasksResponse(List<TaskInfo> tasks, List<TaskOperationFailure> taskFailures, List<? extends FailedNodeException>
-        nodeFailures) {
-        super(tasks, taskFailures, nodeFailures);
+    public ShardLockObtainFailedException(ShardId shardId, String message, Throwable cause) {
+        super(message, cause);
+        this.shardId = shardId;
+    }
+
+    @Override
+    public String getMessage() {
+        StringBuffer sb = new StringBuffer();
+        sb.append(shardId.toString());
+        sb.append(": ");
+        sb.append(super.getMessage());
+        return sb.toString();
     }
 }

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.indices.migrate.MigrateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.migrate.MigrateIndexResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -30,11 +30,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -101,29 +99,35 @@ public abstract class MigrateIndexTestCase extends ESIntegTestCase {
          * to be able to consistently use this API on startup in all nodes.*/ 
         MigrateIndexRequestBuilder migrate = client().admin().indices().prepareMigrateIndex("test_2", "test_3")
                 .setAliases("test").setScript(script);
-        int latchSize = 10;
-        CountDownLatch latch = new CountDownLatch(latchSize);
-        ExecutorService executor = Executors.newFixedThreadPool(between(2, Runtime.getRuntime().availableProcessors()));
-        try {
-            int totalRequests = between(1, 100) * latchSize;
-            List<Future<ListenableActionFuture<MigrateIndexResponse>>> tasks = new ArrayList<>(totalRequests);
-            for (int i = 0; i < totalRequests; i++) {
-                tasks.add(executor.submit(() -> {
+        int concurrentRequests = between(2, Runtime.getRuntime().availableProcessors());
+        CyclicBarrier latch = new CyclicBarrier(concurrentRequests);
+        int requestsPerThread = between(5, 100);
+        List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < concurrentRequests; i++) {
+            Thread t = new Thread(() ->{
+                for (int r = 0; r < requestsPerThread; r++) {
                     try {
                         latch.await();
-                    } catch (InterruptedException e) {
+                    } catch (InterruptedException | BrokenBarrierException e) {
                         throw new RuntimeException(e);
                     }
-                    return migrate.execute();
-                }));
-            }
-            for (Future<ListenableActionFuture<MigrateIndexResponse>> task : tasks) {
-                MigrateIndexResponse response = task.get(20, TimeUnit.SECONDS).get();
-                assertTrue(response.isAcknowledged());
-            }
-        } finally {
-            executor.shutdown();
+                    MigrateIndexResponse response = migrate.get();
+                    assertTrue(response.isAcknowledged());
+                    assertFalse(client().admin().indices().prepareExists("test_2").get().isExists());
+                    assertTrue(client().admin().indices().prepareExists("test_3").get().isExists());
+                }
+            });
+            t.setName(getTestName() + "#" + i);
+            threads.add(t);
+            t.start();
         }
-        
+        try {
+            for (Thread thread : threads) {
+                thread.join(TimeUnit.SECONDS.toMillis(30));
+            }
+        } catch (InterruptedException e) {
+            ListTasksResponse listTasks = client().admin().cluster().prepareListTasks().get();
+            throw new RuntimeException("Failed while waiting for migrations. These are the running tasks: " + listTasks, e);
+        }
     }
 }

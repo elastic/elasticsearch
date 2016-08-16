@@ -53,7 +53,7 @@ public class MigrateIndexWithReindexTests extends MigrateIndexTestCase {
         Script script = new Script("ctx._source.foo += ' cat'", ScriptType.INLINE, CustomScriptPlugin.NAME, emptyMap());
         migrateIndexTestCase(docCount, script);
         
-        // And now the script is applied to the alias! Huzzah!
+        // the migration applied the script to the documents
         SearchResponse searchResponse = client().prepareSearch("test").setSize(0).setQuery(matchQuery("foo", "cat")).get();
         assertHitCount(searchResponse, docCount);
     }

@@ -94,11 +94,12 @@ public class CertificateToolTests extends ESTestCase {
         final int numberOfInstances = scaledRandomIntBetween(1, 12);
         Map<String, Map<String, String>> instanceInput = new HashMap<>(numberOfInstances);
         for (int i = 0; i < numberOfInstances; i++) {
-            final String name = randomAsciiOfLengthBetween(1, 32);
+            final String name = getValidRandomInstanceName();
             Map<String, String> instanceInfo = new HashMap<>();
             instanceInput.put(name, instanceInfo);
             instanceInfo.put("ip", randomFrom("127.0.0.1", "::1", "192.168.1.1,::1", ""));
             instanceInfo.put("dns", randomFrom("localhost", "localhost.localdomain", "localhost,myhost", ""));
+            logger.info("instance [{}] name [{}] [{}]", i, name, instanceInfo);
         }
 
         int count = 0;
@@ -117,6 +118,7 @@ public class CertificateToolTests extends ESTestCase {
 
         Collection<CertificateInformation> certInfos = CertificateTool.getCertificateInformationList(terminal, null,
                 new Environment(Settings.builder().put("path.home", createTempDir()).build()));
+        logger.info("certificate tool output:\n{}", terminal.getOutput());
         assertEquals(numberOfInstances, certInfos.size());
         for (CertificateInformation certInfo : certInfos) {
             String name = certInfo.name.originalName;
@@ -386,5 +388,19 @@ public class CertificateToolTests extends ESTestCase {
                 fail("unknown general name with tag " + generalName.getTagNo());
             }
         }
+    }
+
+    /**
+     * Gets a random name that is valid for certificate generation. There are some cases where the random value could match one of the
+     * reserved names like ca, so this method allows us to avoid these issues.
+     */
+    private String getValidRandomInstanceName() {
+        String name;
+        boolean valid;
+        do {
+            name = randomAsciiOfLengthBetween(1, 32);
+            valid = Name.fromUserProvidedName(name).error == null;
+        } while (valid == false);
+        return name;
     }
 }

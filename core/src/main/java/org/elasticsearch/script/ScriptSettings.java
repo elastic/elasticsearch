@@ -59,7 +59,7 @@ public class ScriptSettings {
         this.scriptLanguageSettings = Collections.unmodifiableList(scriptLanguageSettings);
 
         this.defaultScriptLanguageSetting = new Setting<>("script.default_lang", DEFAULT_LANG, setting -> {
-            if (!"painless".equals(setting) && !scriptEngineRegistry.getRegisteredLanguages().containsKey(setting)) {
+            if (!DEFAULT_LANG.equals(setting) && !scriptEngineRegistry.getRegisteredLanguages().containsKey(setting)) {
                 throw new IllegalArgumentException("unregistered default language [" + setting + "]");
             }
             return setting;

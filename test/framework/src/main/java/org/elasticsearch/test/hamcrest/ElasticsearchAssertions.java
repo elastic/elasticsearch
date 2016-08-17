@@ -668,7 +668,7 @@ public class ElasticsearchAssertions {
             if (false == orig.equals(newBytes)) {
                 // The bytes are different. That is a failure. Lets try to throw a useful exception for debugging.
                 String message = "Serialization failed with version [" + version + "] bytes should be equal for streamable [" + streamable
-                        + "]";
+                        + "] and its serialized copy [" + newInstance + "]";
                 // If the bytes are different then comparing BytesRef's toStrings will show you *where* they are different
                 assertEquals(message, orig.toBytesRef().toString(), newBytes.toBytesRef().toString());
                 // They bytes aren't different. Very very weird.

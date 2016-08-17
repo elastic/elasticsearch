@@ -86,7 +86,8 @@ public class TaskManager extends AbstractComponent implements ClusterStateListen
         if (task == null) {
             return null;
         }
-        assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
+        assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve parentTaskId "
+                + "should have been [" + request.getParentTask() + "] but was [" + task.getParentTaskId() + "]";
         if (logger.isTraceEnabled()) {
             logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
         }

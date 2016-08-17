@@ -114,7 +114,7 @@ public class MigrateIndexRequest extends AcknowledgedRequest<MigrateIndexRequest
 
     @Override
     public MigrateIndexTask createTask(long id, String type, String action, TaskId parentTaskId) {
-        return new MigrateIndexTask(id, type, action, getDescription(), getParentTask());
+        return new MigrateIndexTask(id, type, action, getDescription(), parentTaskId);
     }
 
     /**

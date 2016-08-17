@@ -97,8 +97,6 @@ public abstract class MigrateIndexTestCase extends ESIntegTestCase {
 
         /* We could migrate to yet another index lots of time concurrently. This is important because masterless systems like logstash need
          * to be able to consistently use this API on startup in all nodes.*/ 
-        MigrateIndexRequestBuilder migrate = client().admin().indices().prepareMigrateIndex("test_2", "test_3")
-                .setAliases("test").setScript(script);
         int concurrentRequests = between(2, Runtime.getRuntime().availableProcessors());
         CyclicBarrier latch = new CyclicBarrier(concurrentRequests);
         int requestsPerThread = between(5, 100);
@@ -111,6 +109,8 @@ public abstract class MigrateIndexTestCase extends ESIntegTestCase {
                     } catch (InterruptedException | BrokenBarrierException e) {
                         throw new RuntimeException(e);
                     }
+                    MigrateIndexRequestBuilder migrate = client().admin().indices().prepareMigrateIndex("test_2", "test_3")
+                            .setAliases("test").setScript(script);
                     MigrateIndexResponse response = migrate.get();
                     assertTrue(response.isAcknowledged());
                     assertFalse(client().admin().indices().prepareExists("test_2").get().isExists());

@@ -13,6 +13,9 @@ teardown:
 
 ---
 "Test put watch api with action level condition":
+  -skip:
+      version: "all"
+      reason: awaits fix bug URL https://github.com/elastic/x-plugins/issues/3137
   - do:
       xpack.watcher.put_watch:
         id: "my_watch1"

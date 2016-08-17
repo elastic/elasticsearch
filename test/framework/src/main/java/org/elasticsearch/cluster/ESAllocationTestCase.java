@@ -71,6 +71,8 @@ import static org.hamcrest.CoreMatchers.is;
 /**
  */
 public abstract class ESAllocationTestCase extends ESTestCase {
+    private static final ClusterSettings EMPTY_CLUSTER_SETTINGS =
+        new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
     public static MockAllocationService createAllocationService() {
         return createAllocationService(Settings.Builder.EMPTY_SETTINGS);
@@ -81,7 +83,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static MockAllocationService createAllocationService(Settings settings, Random random) {
-        return createAllocationService(settings, new ClusterSettings(Settings.Builder.EMPTY_SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random);
+        return createAllocationService(settings, EMPTY_CLUSTER_SETTINGS, random);
     }
 
     public static MockAllocationService createAllocationService(Settings settings, ClusterSettings clusterSettings, Random random) {
@@ -92,13 +94,13 @@ public abstract class ESAllocationTestCase extends ESTestCase {
 
     public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
         return new MockAllocationService(settings,
-                randomAllocationDeciders(settings, new ClusterSettings(Settings.Builder.EMPTY_SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
+                randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
                 NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(settings), clusterInfoService);
     }
 
     public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator gatewayAllocator) {
         return new MockAllocationService(settings,
-                randomAllocationDeciders(settings, new ClusterSettings(Settings.Builder.EMPTY_SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
+                randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
                 gatewayAllocator, new BalancedShardsAllocator(settings), EmptyClusterInfoService.INSTANCE);
     }
 
@@ -137,7 +139,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         if (initializingShards.isEmpty()) {
             return clusterState;
         }
-        RoutingTable routingTable = strategy.applyStartedShards(clusterState, arrayAsArrayList(initializingShards.get(randomInt(initializingShards.size() - 1)))).routingTable();
+        RoutingTable routingTable = strategy.applyStartedShards(clusterState,
+            arrayAsArrayList(initializingShards.get(randomInt(initializingShards.size() - 1)))).routingTable();
         return ClusterState.builder(clusterState).routingTable(routingTable).build();
     }
 
@@ -208,8 +211,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     protected static class DelayedShardsMockGatewayAllocator extends GatewayAllocator {
         private final ReplicaShardAllocator replicaShardAllocator = new ReplicaShardAllocator(Settings.EMPTY) {
             @Override
-            protected AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetchData(ShardRouting shard, RoutingAllocation allocation) {
-                return new AsyncShardFetch.FetchResult<>(shard.shardId(), null, Collections.<String>emptySet(), Collections.<String>emptySet());
+            protected AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData>
+            fetchData(ShardRouting shard, RoutingAllocation allocation) {
+                return new AsyncShardFetch.FetchResult<>(shard.shardId(), null, Collections.emptySet(), Collections.emptySet());
             }
         };
 

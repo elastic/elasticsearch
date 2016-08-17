@@ -85,6 +85,7 @@ public class WatcherUtilsTests extends ESTestCase {
         assertThat(result, equalTo(expected));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/3134")
     public void testSerializeSearchRequest() throws Exception {
         String[] expectedIndices = generateRandomStringArray(5, 5, true);
         String[] expectedTypes = generateRandomStringArray(2, 5, true);

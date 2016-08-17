@@ -183,6 +183,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/3135")
     public void testParser() throws Exception {
         String[] indices = rarely() ? null : randomBoolean() ? new String[] { "idx" } : new String[] { "idx1", "idx2" };
         SearchType searchType = getRandomSupportedSearchType();

@@ -144,7 +144,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
     }
 
-    public void validateIndexName(String index, ClusterState state) {
+    public static void validateIndexName(String index, ClusterState state) {
         if (state.routingTable().hasIndex(index)) {
             throw new IndexAlreadyExistsException(state.routingTable().index(index).getIndex());
         }
@@ -157,8 +157,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         if (index.contains("#")) {
             throw new InvalidIndexNameException(index, "must not contain '#'");
         }
-        if (index.charAt(0) == '_') {
-            throw new InvalidIndexNameException(index, "must not start with '_'");
+        if (index.charAt(0) == '_' || index.charAt(0) == '-' || index.charAt(0) == '+') {
+            throw new InvalidIndexNameException(index, "must not start with '_', '-', or '+'");
         }
         if (!index.toLowerCase(Locale.ROOT).equals(index)) {
             throw new InvalidIndexNameException(index, "must be lowercase");

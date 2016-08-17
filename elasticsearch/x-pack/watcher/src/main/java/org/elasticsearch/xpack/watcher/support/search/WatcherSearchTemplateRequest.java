@@ -247,7 +247,7 @@ public class WatcherSearchTemplateRequest implements ToXContent {
                     indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed,
                             DEFAULT_INDICES_OPTIONS);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, TEMPLATE_FIELD)) {
-                    template = WatcherScript.parse(parser);
+                    template = WatcherScript.parse(parser, DEFAULT_LANG);
                 } else {
                     throw new ElasticsearchParseException("could not read search request. unexpected object field [" +
                             currentFieldName + "]");

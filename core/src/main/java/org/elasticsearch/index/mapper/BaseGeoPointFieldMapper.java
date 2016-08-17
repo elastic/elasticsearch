@@ -205,15 +205,21 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                     builder.precisionStep(XContentMapValues.nodeIntegerValue(propNode));
                     iterator.remove();
                 } else if (propName.equals("geohash")) {
+                    deprecationLogger.deprecated(CONTENT_TYPE + " geohash parameter is deprecated and will be removed "
+                        + "in the next major release");
                     builder.enableGeoHash(XContentMapValues.lenientNodeBooleanValue(propNode));
                     iterator.remove();
                 } else if (propName.equals("geohash_prefix")) {
+                    deprecationLogger.deprecated(CONTENT_TYPE + " geohash_prefix parameter is deprecated and will be removed "
+                        + "in the next major release");
                     builder.geoHashPrefix(XContentMapValues.lenientNodeBooleanValue(propNode));
                     if (XContentMapValues.lenientNodeBooleanValue(propNode)) {
                         builder.enableGeoHash(true);
                     }
                     iterator.remove();
                 } else if (propName.equals("geohash_precision")) {
+                    deprecationLogger.deprecated(CONTENT_TYPE + " geohash_precision parameter is deprecated and will be removed "
+                        + "in the next major release");
                     if (propNode instanceof Integer) {
                         builder.geoHashPrecision(XContentMapValues.nodeIntegerValue(propNode));
                     } else {

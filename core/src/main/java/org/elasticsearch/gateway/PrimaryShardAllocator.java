@@ -59,8 +59,7 @@ import java.util.stream.Collectors;
  * Note that the PrimaryShardAllocator does *not* allocate primaries on index creation
  * (see {@link org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator}),
  * nor does it allocate primaries when a primary shard failed and there is a valid replica
- * copy that can immediately be promoted to primary, as this takes place in
- * {@link RoutingNodes#failShard(ESLogger, ShardRouting, UnassignedInfo, IndexMetaData)}.
+ * copy that can immediately be promoted to primary, as this takes place in {@link RoutingNodes#failShard}.
  */
 public abstract class PrimaryShardAllocator extends AbstractComponent {
 
@@ -94,8 +93,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
         logger.debug("using initial_shards [{}]", NODE_INITIAL_SHARDS_SETTING.get(settings));
     }
 
-    public boolean allocateUnassigned(RoutingAllocation allocation) {
-        boolean changed = false;
+    public void allocateUnassigned(RoutingAllocation allocation) {
         final RoutingNodes routingNodes = allocation.routingNodes();
         final MetaData metaData = allocation.metaData();
 
@@ -119,7 +117,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             if (shardState.hasData() == false) {
                 logger.trace("{}: ignoring allocation, still fetching shard started state", shard);
                 allocation.setHasPendingAsyncFetch();
-                changed |= unassignedIterator.removeAndIgnore(AllocationStatus.FETCHING_SHARD_DATA);
+                unassignedIterator.removeAndIgnore(AllocationStatus.FETCHING_SHARD_DATA, allocation.changes());
                 continue;
             }
 
@@ -160,7 +158,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                     logger.debug("[{}][{}]: missing local data, recover from any node", shard.index(), shard.id());
                 } else {
                     // we can't really allocate, so ignore it and continue
-                    changed |= unassignedIterator.removeAndIgnore(AllocationStatus.NO_VALID_SHARD_COPY);
+                    unassignedIterator.removeAndIgnore(AllocationStatus.NO_VALID_SHARD_COPY, allocation.changes());
                     logger.debug("[{}][{}]: not allocating, number_of_allocated_shards_found [{}]", shard.index(), shard.id(), nodeShardsResult.allocationsFound);
                 }
                 continue;
@@ -172,8 +170,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             if (nodesToAllocate.yesNodeShards.isEmpty() == false) {
                 NodeGatewayStartedShards nodeShardState = nodesToAllocate.yesNodeShards.get(0);
                 logger.debug("[{}][{}]: allocating [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, nodeShardState.getNode());
-                changed = true;
-                unassignedIterator.initialize(nodeShardState.getNode().getId(), nodeShardState.allocationId(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                unassignedIterator.initialize(nodeShardState.getNode().getId(), nodeShardState.allocationId(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation.changes());
             } else if (nodesToAllocate.throttleNodeShards.isEmpty() == true && nodesToAllocate.noNodeShards.isEmpty() == false) {
                 // The deciders returned a NO decision for all nodes with shard copies, so we check if primary shard
                 // can be force-allocated to one of the nodes.
@@ -184,24 +181,22 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                     NodeGatewayStartedShards nodeShardState = nodesToForceAllocate.yesNodeShards.get(0);
                     logger.debug("[{}][{}]: allocating [{}] to [{}] on forced primary allocation",
                                  shard.index(), shard.id(), shard, nodeShardState.getNode());
-                    changed = true;
                     unassignedIterator.initialize(nodeShardState.getNode().getId(), nodeShardState.allocationId(),
-                                                  ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+                                                  ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE, allocation.changes());
                 } else if (nodesToForceAllocate.throttleNodeShards.isEmpty() == false) {
                     logger.debug("[{}][{}]: throttling allocation [{}] to [{}] on forced primary allocation",
                                  shard.index(), shard.id(), shard, nodesToForceAllocate.throttleNodeShards);
-                    changed |= unassignedIterator.removeAndIgnore(AllocationStatus.DECIDERS_THROTTLED);
+                    unassignedIterator.removeAndIgnore(AllocationStatus.DECIDERS_THROTTLED, allocation.changes());
                 } else {
                     logger.debug("[{}][{}]: forced primary allocation denied [{}]", shard.index(), shard.id(), shard);
-                    changed |= unassignedIterator.removeAndIgnore(AllocationStatus.DECIDERS_NO);
+                    unassignedIterator.removeAndIgnore(AllocationStatus.DECIDERS_NO, allocation.changes());
                 }
             } else {
                 // we are throttling this, but we have enough to allocate to this node, ignore it for now
                 logger.debug("[{}][{}]: throttling allocation [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, nodesToAllocate.throttleNodeShards);
-                changed |= unassignedIterator.removeAndIgnore(AllocationStatus.DECIDERS_THROTTLED);
+                unassignedIterator.removeAndIgnore(AllocationStatus.DECIDERS_THROTTLED, allocation.changes());
             }
         }
-        return changed;
     }
 
     /**

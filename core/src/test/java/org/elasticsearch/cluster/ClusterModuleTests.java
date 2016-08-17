@@ -51,8 +51,8 @@ public class ClusterModuleTests extends ModuleTestCase {
 
     static class FakeShardsAllocator implements ShardsAllocator {
         @Override
-        public boolean allocate(RoutingAllocation allocation) {
-            return false;
+        public void allocate(RoutingAllocation allocation) {
+            // noop
         }
 
         @Override

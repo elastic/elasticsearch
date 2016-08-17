@@ -636,19 +636,19 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
         AllocationService strategy = createAllocationService(Settings.EMPTY, new NoopGatewayAllocator() {
             @Override
-            public boolean allocateUnassigned(RoutingAllocation allocation) {
+            public void allocateUnassigned(RoutingAllocation allocation) {
                 if (allocateTest1.get() == false) {
                     RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
                     RoutingNodes.UnassignedShards.UnassignedIterator iterator = unassigned.iterator();
                     while (iterator.hasNext()) {
                         ShardRouting next = iterator.next();
                         if ("test1".equals(next.index().getName())) {
-                            iterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT);
+                            iterator.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
                         }
 
                     }
                 }
-                return super.allocateUnassigned(allocation);
+                super.allocateUnassigned(allocation);
             }
         });
 
@@ -742,11 +742,11 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         AllocationService strategy = createAllocationService(Settings.builder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build(), new NoopGatewayAllocator() {
             @Override
-            public boolean allocateUnassigned(RoutingAllocation allocation) {
+            public void allocateUnassigned(RoutingAllocation allocation) {
                 if (hasFetches.get()) {
                     allocation.setHasPendingAsyncFetch();
                 }
-                return super.allocateUnassigned(allocation);
+                super.allocateUnassigned(allocation);
             }
         });
 

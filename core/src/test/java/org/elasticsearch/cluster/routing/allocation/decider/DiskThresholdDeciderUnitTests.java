@@ -59,48 +59,10 @@ import static org.hamcrest.CoreMatchers.equalTo;
  * Unit tests for the DiskThresholdDecider
  */
 public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
-    public void testDynamicSettings() {
-        ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-
-        ClusterInfoService cis = EmptyClusterInfoService.INSTANCE;
-        DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss, cis, null);
-
-        assertThat(decider.getFreeBytesThresholdHigh(), equalTo(ByteSizeValue.parseBytesSizeValue("0b", "test")));
-        assertThat(decider.getFreeDiskThresholdHigh(), equalTo(10.0d));
-        assertThat(decider.getFreeBytesThresholdLow(), equalTo(ByteSizeValue.parseBytesSizeValue("0b", "test")));
-        assertThat(decider.getFreeDiskThresholdLow(), equalTo(15.0d));
-        assertThat(decider.getUsedDiskThresholdLow(), equalTo(85.0d));
-        assertThat(decider.getRerouteInterval().seconds(), equalTo(60L));
-        assertTrue(decider.isEnabled());
-        assertTrue(decider.isIncludeRelocations());
-
-        Settings newSettings = Settings.builder()
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey(), false)
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "70%")
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "500mb")
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "30s")
-                .build();
-
-        nss.applySettings(newSettings);
-        assertThat("high threshold bytes should be unset",
-                decider.getFreeBytesThresholdHigh(), equalTo(ByteSizeValue.parseBytesSizeValue("0b", "test")));
-        assertThat("high threshold percentage should be changed",
-                decider.getFreeDiskThresholdHigh(), equalTo(30.0d));
-        assertThat("low threshold bytes should be set to 500mb",
-                decider.getFreeBytesThresholdLow(), equalTo(ByteSizeValue.parseBytesSizeValue("500mb", "test")));
-        assertThat("low threshold bytes should be unset",
-                decider.getFreeDiskThresholdLow(), equalTo(0.0d));
-        assertThat("reroute interval should be changed to 30 seconds",
-                decider.getRerouteInterval().seconds(), equalTo(30L));
-        assertFalse("disk threshold decider should now be disabled", decider.isEnabled());
-        assertFalse("relocations should now be disabled", decider.isIncludeRelocations());
-    }
 
     public void testCanAllocateUsesMaxAvailableSpace() {
         ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ClusterInfoService cis = EmptyClusterInfoService.INSTANCE;
-        DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss, cis, null);
+        DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
@@ -144,8 +106,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
     public void testCanRemainUsesLeastAvailableSpace() {
         ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ClusterInfoService cis = EmptyClusterInfoService.INSTANCE;
-        DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss, cis, null);
+        DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY, nss);
         ImmutableOpenMap.Builder<ShardRouting, String> shardRoutingMap = ImmutableOpenMap.builder();
 
         DiscoveryNode node_0 = new DiscoveryNode("node_0", LocalTransportAddress.buildUnique(), Collections.emptyMap(),

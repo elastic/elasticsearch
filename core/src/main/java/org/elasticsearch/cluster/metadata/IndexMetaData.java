@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.Diff;
@@ -32,8 +31,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.IndexMetaDataUpdater;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
@@ -342,8 +340,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
      * a primary shard is assigned after a full cluster restart or a replica shard is promoted to a primary.
      *
      * Note: since we increment the term every time a shard is assigned, the term for any operational shard (i.e., a shard
-     * that can be indexed into) is larger than 0.
-     * See {@link AllocationService#updateMetaDataWithRoutingTable(MetaData, RoutingTable, RoutingTable)}.
+     * that can be indexed into) is larger than 0. See {@link IndexMetaDataUpdater#applyChanges(MetaData)}.
      **/
     public long primaryTerm(int shardId) {
         return this.primaryTerms[shardId];

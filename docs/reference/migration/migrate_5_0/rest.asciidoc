@@ -15,6 +15,11 @@ endpoint should be used in lieu of optimize.
 The `GET` HTTP verb for `/_forcemerge` is no longer supported, please use the
 `POST` HTTP verb.
 
+==== Index creation endpoint only accepts `PUT`
+
+It used to be possible to create an index by either calling `PUT index_name`
+or `POST index_name`. Only the former is now supported.
+
 ==== Removed `mem` section from `/_cluster/stats` response
 
 The `mem` section contained only one value, the total memory available

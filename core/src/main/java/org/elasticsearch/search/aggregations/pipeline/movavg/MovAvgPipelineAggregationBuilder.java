@@ -52,7 +52,6 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.
 
 public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<MovAvgPipelineAggregationBuilder> {
     public static final String NAME = "moving_avg";
-    public static final ParseField AGGREGATION_FIELD_NAME = new ParseField(NAME);
 
     public static final ParseField MODEL = new ParseField("model");
     private static final ParseField WINDOW = new ParseField("window");

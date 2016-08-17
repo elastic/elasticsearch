@@ -41,6 +41,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -63,17 +64,12 @@ import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
  */
 public class RestSearchAction extends BaseRestHandler {
 
-    private final IndicesQueriesRegistry queryRegistry;
-    private final AggregatorParsers aggParsers;
-    private final Suggesters suggesters;
+    private final SearchRequestParsers searchRequestParsers;
 
     @Inject
-    public RestSearchAction(Settings settings, RestController controller, IndicesQueriesRegistry queryRegistry,
-            AggregatorParsers aggParsers, Suggesters suggesters) {
+    public RestSearchAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers) {
         super(settings);
-        this.queryRegistry = queryRegistry;
-        this.aggParsers = aggParsers;
-        this.suggesters = suggesters;
+        this.searchRequestParsers = searchRequestParsers;
         controller.registerHandler(GET, "/_search", this);
         controller.registerHandler(POST, "/_search", this);
         controller.registerHandler(GET, "/{index}/_search", this);
@@ -86,7 +82,7 @@ public class RestSearchAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         BytesReference restContent = RestActions.hasBodyContent(request) ? RestActions.getRestContent(request) : null;
-        parseSearchRequest(searchRequest, queryRegistry, request, parseFieldMatcher, aggParsers, suggesters, restContent);
+        parseSearchRequest(searchRequest, request, searchRequestParsers, parseFieldMatcher, restContent);
         client.search(searchRequest, new RestStatusToXContentListener<>(channel));
     }
 
@@ -99,9 +95,8 @@ public class RestSearchAction extends BaseRestHandler {
      *            content is read from the request using
      *            RestAction.hasBodyContent.
      */
-    public static void parseSearchRequest(SearchRequest searchRequest, IndicesQueriesRegistry indicesQueriesRegistry, RestRequest request,
-            ParseFieldMatcher parseFieldMatcher, AggregatorParsers aggParsers, Suggesters suggesters, BytesReference restContent)
-        throws IOException {
+    public static void parseSearchRequest(SearchRequest searchRequest, RestRequest request, SearchRequestParsers searchRequestParsers,
+                                          ParseFieldMatcher parseFieldMatcher, BytesReference restContent) throws IOException {
 
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
@@ -109,8 +104,8 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         if (restContent != null) {
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-                QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, parseFieldMatcher);
-                searchRequest.source().parseXContent(context, aggParsers, suggesters);
+                QueryParseContext context = new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
+                searchRequest.source().parseXContent(context, searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
             }
         }
 

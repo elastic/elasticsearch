@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.nested;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,8 +29,8 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -40,7 +39,6 @@ import java.util.Objects;
 public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedAggregationBuilder> {
     public static final String NAME = "nested";
     private static final Type TYPE = new Type(NAME);
-    public static final ParseField AGGREGATION_FIELD_NAME = new ParseField(NAME);
 
     private final String path;
 

@@ -29,6 +29,7 @@ import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 
@@ -43,9 +44,8 @@ public class RestDeleteByQueryAction extends AbstractBulkByQueryRestHandler<Dele
 
     @Inject
     public RestDeleteByQueryAction(Settings settings, RestController controller,
-                                   IndicesQueriesRegistry indicesQueriesRegistry, AggregatorParsers aggParsers, Suggesters suggesters,
-                                   ClusterService clusterService) {
-        super(settings, indicesQueriesRegistry, aggParsers, suggesters, clusterService, DeleteByQueryAction.INSTANCE);
+                                   SearchRequestParsers searchRequestParsers, ClusterService clusterService) {
+        super(settings, searchRequestParsers, clusterService, DeleteByQueryAction.INSTANCE);
         controller.registerHandler(POST, "/{index}/_delete_by_query", this);
         controller.registerHandler(POST, "/{index}/{type}/_delete_by_query", this);
     }

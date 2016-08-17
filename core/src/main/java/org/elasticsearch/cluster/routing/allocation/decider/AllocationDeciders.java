@@ -196,4 +196,32 @@ public class AllocationDeciders extends AllocationDecider {
         }
         return ret;
     }
+
+    @Override
+    public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard routing " + shardRouting;
+
+        if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
+            return Decision.NO;
+        }
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider decider : allocations) {
+            Decision decision = decider.canForceAllocatePrimary(shardRouting, node, allocation);
+            // short track if a NO is returned.
+            if (decision == Decision.NO) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Shard [{}] can not be forcefully allocated to node [{}] due to [{}].",
+                        shardRouting.shardId(), node.nodeId(), decider.getClass().getSimpleName());
+                }
+                if (!allocation.debugDecision()) {
+                    return decision;
+                } else {
+                    ret.add(decision);
+                }
+            } else if (decision != Decision.ALWAYS) {
+                ret.add(decision);
+            }
+        }
+        return ret;
+    }
 }

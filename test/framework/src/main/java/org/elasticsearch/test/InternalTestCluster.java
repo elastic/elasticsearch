@@ -67,6 +67,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -863,7 +864,7 @@ public final class InternalTestCluster extends TestCluster {
         private void createNewNode(final Settings newSettings) {
             final long newIdSeed = NodeEnvironment.NODE_ID_SEED_SETTING.get(node.settings()) + 1; // use a new seed to make sure we have new node id
             Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed).build();
-            Collection<Class<? extends Plugin>> plugins = node.getPlugins();
+            Collection<Class<? extends Plugin>> plugins = node.getClasspathPlugins();
             node = new MockNode(finalSettings, plugins);
             markNodeDataDirsAsNotEligableForWipe(node);
         }
@@ -1912,7 +1913,7 @@ public final class InternalTestCluster extends TestCluster {
             for (ShardId id : shardIds) {
                 try {
                     env.shardLock(id, TimeUnit.SECONDS.toMillis(5)).close();
-                } catch (IOException ex) {
+                } catch (ShardLockObtainFailedException ex) {
                     fail("Shard " + id + " is still locked after 5 sec waiting");
                 }
             }

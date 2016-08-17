@@ -43,7 +43,6 @@ public class RestCreateIndexAction extends BaseRestHandler {
     public RestCreateIndexAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.PUT, "/{index}", this);
-        controller.registerHandler(RestRequest.Method.POST, "/{index}", this);
     }
 
     @SuppressWarnings({"unchecked"})

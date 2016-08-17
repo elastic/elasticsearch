@@ -43,7 +43,6 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
 
     public static final String NAME = "scripted_metric";
     private static final Type TYPE = new Type(NAME);
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField INIT_SCRIPT_FIELD = new ParseField("init_script");
     private static final ParseField MAP_SCRIPT_FIELD = new ParseField("map_script");

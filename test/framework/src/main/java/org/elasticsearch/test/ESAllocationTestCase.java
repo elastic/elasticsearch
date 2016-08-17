@@ -239,7 +239,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         public void applyFailedShards(FailedRerouteAllocation allocation) {}
 
         @Override
-        public boolean allocateUnassigned(RoutingAllocation allocation) {
+        public void allocateUnassigned(RoutingAllocation allocation) {
             final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = allocation.routingNodes().unassigned().iterator();
             while (unassignedIterator.hasNext()) {
                 ShardRouting shard = unassignedIterator.next();
@@ -247,9 +247,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 if (shard.primary() || shard.allocatedPostIndexCreate(indexMetaData) == false) {
                     continue;
                 }
-                replicaShardAllocator.ignoreUnassignedIfDelayed(unassignedIterator, shard);
+                replicaShardAllocator.ignoreUnassignedIfDelayed(unassignedIterator, shard, allocation.changes());
             }
-            return false;
         }
     }
 }

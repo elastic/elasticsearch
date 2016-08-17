@@ -326,52 +326,50 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
                 --------[test][3], node[3], [P], s[STARTED]
                 ---- unassigned
             */
-            public boolean allocate(RoutingAllocation allocation) {
+            public void allocate(RoutingAllocation allocation) {
                 RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
-                boolean changed = !unassigned.isEmpty();
                 ShardRouting[] drain = unassigned.drain();
                 ArrayUtil.timSort(drain, (a, b) -> { return a.primary() ? -1 : 1; }); // we have to allocate primaries first
                 for (ShardRouting sr : drain) {
                     switch (sr.id()) {
                         case 0:
                             if (sr.primary()) {
-                                allocation.routingNodes().initializeShard(sr, "node1", null, -1);
+                                allocation.routingNodes().initializeShard(sr, "node1", null, -1, allocation.changes());
                             } else {
-                                allocation.routingNodes().initializeShard(sr, "node0", null, -1);
+                                allocation.routingNodes().initializeShard(sr, "node0", null, -1, allocation.changes());
                             }
                             break;
                         case 1:
                             if (sr.primary()) {
-                                allocation.routingNodes().initializeShard(sr, "node1", null, -1);
+                                allocation.routingNodes().initializeShard(sr, "node1", null, -1, allocation.changes());
                             } else {
-                                allocation.routingNodes().initializeShard(sr, "node2", null, -1);
+                                allocation.routingNodes().initializeShard(sr, "node2", null, -1, allocation.changes());
                             }
                             break;
                         case 2:
                             if (sr.primary()) {
-                                allocation.routingNodes().initializeShard(sr, "node3", null, -1);
+                                allocation.routingNodes().initializeShard(sr, "node3", null, -1, allocation.changes());
                             } else {
-                                allocation.routingNodes().initializeShard(sr, "node2", null, -1);
+                                allocation.routingNodes().initializeShard(sr, "node2", null, -1, allocation.changes());
                             }
                             break;
                         case 3:
                             if (sr.primary()) {
-                                allocation.routingNodes().initializeShard(sr, "node3", null, -1);
+                                allocation.routingNodes().initializeShard(sr, "node3", null, -1, allocation.changes());
                             } else {
-                                allocation.routingNodes().initializeShard(sr, "node1", null, -1);
+                                allocation.routingNodes().initializeShard(sr, "node1", null, -1, allocation.changes());
                             }
                             break;
                         case 4:
                             if (sr.primary()) {
-                                allocation.routingNodes().initializeShard(sr, "node2", null, -1);
+                                allocation.routingNodes().initializeShard(sr, "node2", null, -1, allocation.changes());
                             } else {
-                                allocation.routingNodes().initializeShard(sr, "node0", null, -1);
+                                allocation.routingNodes().initializeShard(sr, "node0", null, -1, allocation.changes());
                             }
                             break;
                     }
 
                 }
-                return changed;
             }
         }, EmptyClusterInfoService.INSTANCE);
         MetaData.Builder metaDataBuilder = MetaData.builder();

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -59,13 +60,21 @@ public class RoutingAllocation {
         private final RoutingExplanations explanations;
 
         /**
-         * Creates a new {@link RoutingAllocation.Result}
-         * @param changed a flag to determine whether the actual {@link RoutingTable} has been changed
+         * Creates a new {@link RoutingAllocation.Result} where no change to the routing table was made.
+         * @param clusterState the unchanged {@link ClusterState}
+         */
+        public static Result unchanged(ClusterState clusterState) {
+            return new Result(false, clusterState.routingTable(), clusterState.metaData(), new RoutingExplanations());
+        }
+
+        /**
+         * Creates a new {@link RoutingAllocation.Result} where changes were made to the routing table.
          * @param routingTable the {@link RoutingTable} this Result references
          * @param metaData the {@link MetaData} this Result references
+         * @param explanations Explanation for the reroute actions
          */
-        public Result(boolean changed, RoutingTable routingTable, MetaData metaData) {
-            this(changed, routingTable, metaData, new RoutingExplanations());
+        public static Result changed(RoutingTable routingTable, MetaData metaData, RoutingExplanations explanations) {
+            return new Result(true, routingTable, metaData, explanations);
         }
 
         /**
@@ -75,7 +84,7 @@ public class RoutingAllocation {
          * @param metaData the {@link MetaData} this Result references
          * @param explanations Explanation for the reroute actions
          */
-        public Result(boolean changed, RoutingTable routingTable, MetaData metaData, RoutingExplanations explanations) {
+        private Result(boolean changed, RoutingTable routingTable, MetaData metaData, RoutingExplanations explanations) {
             this.changed = changed;
             this.routingTable = routingTable;
             this.metaData = metaData;
@@ -141,6 +150,12 @@ public class RoutingAllocation {
     private boolean hasPendingAsyncFetch = false;
 
     private final long currentNanoTime;
+
+    private final IndexMetaDataUpdater indexMetaDataUpdater = new IndexMetaDataUpdater();
+    private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
+    private final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
+        nodesChangedObserver, indexMetaDataUpdater
+    );
 
 
     /**
@@ -280,6 +295,27 @@ public class RoutingAllocation {
             return emptySet();
         }
         return unmodifiableSet(new HashSet<>(ignore));
+    }
+
+    /**
+     * Returns observer to use for changes made to the routing nodes
+     */
+    public RoutingChangesObserver changes() {
+        return routingChangesObserver;
+    }
+
+    /**
+     * Returns updated {@link MetaData} based on the changes that were made to the routing nodes
+     */
+    public MetaData updateMetaDataWithRoutingChanges() {
+        return indexMetaDataUpdater.applyChanges(metaData);
+    }
+
+    /**
+     * Returns true iff changes were made to the routing nodes
+     */
+    public boolean routingNodesChanged() {
+        return nodesChangedObserver.isChanged();
     }
 
     /**

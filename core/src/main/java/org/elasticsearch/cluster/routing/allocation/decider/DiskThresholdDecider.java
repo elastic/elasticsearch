@@ -67,7 +67,7 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     public static final String NAME = "disk_threshold";
 
-    private DiskThresholdSettings diskThresholdSettings;
+    private final DiskThresholdSettings diskThresholdSettings;
 
     @Inject
     public DiskThresholdDecider(Settings settings, ClusterSettings clusterSettings) {

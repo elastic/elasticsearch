@@ -15,18 +15,21 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class WatcherScriptTests extends ESTestCase {
 
     public void testParseScript() throws IOException {
+        final Map<String, Object> params =
+                randomFrom(Collections.<String, Object>emptyMap(), Collections.singletonMap("foo", (Object)"bar"), null);
+
         WatcherScript script = new WatcherScript(randomAsciiOfLengthBetween(1, 5),
                                                 randomFrom(ScriptType.values()),
-                                                randomBoolean() ? null : randomFrom("custom", "mustache"),
-                                                randomBoolean() ? null : randomFrom(emptyMap(), singletonMap("foo", "bar")));
+                                                randomFrom("custom", "mustache", null),
+                                                params);
 
         try (XContentParser parser = createParser(script)) {
             assertThat(WatcherScript.parse(parser), equalTo(script));

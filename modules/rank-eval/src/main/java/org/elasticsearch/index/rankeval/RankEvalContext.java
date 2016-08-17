@@ -23,30 +23,28 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 
 public class RankEvalContext implements ParseFieldMatcherSupplier {
 
+    private final SearchRequestParsers searchRequestParsers;
     private final ParseFieldMatcher parseFieldMatcher;
-    private final AggregatorParsers aggs;
-    private final Suggesters suggesters;
     private final QueryParseContext parseContext;
 
-    public RankEvalContext(ParseFieldMatcher parseFieldMatcher, QueryParseContext parseContext, AggregatorParsers aggs,
-            Suggesters suggesters) {
+    public RankEvalContext(ParseFieldMatcher parseFieldMatcher, QueryParseContext parseContext, SearchRequestParsers searchRequestParsers) {
         this.parseFieldMatcher = parseFieldMatcher;
-        this.aggs = aggs;
-        this.suggesters = suggesters;
+        this.searchRequestParsers = searchRequestParsers;
         this.parseContext = parseContext;
     }
 
     public Suggesters getSuggesters() {
-        return this.suggesters;
+        return searchRequestParsers.suggesters;
     }
 
     public AggregatorParsers getAggs() {
-        return this.aggs;
+        return searchRequestParsers.aggParsers;
     }
 
     @Override

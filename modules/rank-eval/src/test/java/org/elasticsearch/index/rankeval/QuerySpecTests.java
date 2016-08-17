@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.test.ESTestCase;
@@ -40,28 +41,26 @@ import static java.util.Collections.emptyList;
 
 public class QuerySpecTests extends ESTestCase {
 
-    private static IndicesQueriesRegistry queriesRegistry;
     private static SearchModule searchModule;
-    private static Suggesters suggesters;
-    private static AggregatorParsers aggsParsers;
+    private static SearchRequestParsers searchRequestParsers;
 
     /**
     * setup for the whole base test class
     */
     @BeforeClass
     public static void init() throws IOException {
-        aggsParsers = new AggregatorParsers(new ParseFieldRegistry<>("aggregation"), new ParseFieldRegistry<>("aggregation_pipes"));
+        AggregatorParsers aggsParsers = new AggregatorParsers(new ParseFieldRegistry<>("aggregation"),
+                new ParseFieldRegistry<>("aggregation_pipes"));
         searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
-        queriesRegistry = searchModule.getQueryParserRegistry();
-        suggesters = searchModule.getSuggesters();
+        IndicesQueriesRegistry queriesRegistry = searchModule.getQueryParserRegistry();
+        Suggesters suggesters = searchModule.getSuggesters();
+        searchRequestParsers = new SearchRequestParsers(queriesRegistry, aggsParsers, suggesters);
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
-        queriesRegistry = null;
         searchModule = null;
-        suggesters = null;
-        aggsParsers = null;
+        searchRequestParsers = null;
     }
 
     // TODO add some sort of roundtrip testing like we have now for queries?
@@ -85,9 +84,9 @@ public class QuerySpecTests extends ESTestCase {
          + "        {\"key\": {\"index\": \"test\", \"type\": \"testtype\", \"doc_id\": \"3\"}, \"rating\" : 1 }]\n"
          + "}";
         XContentParser parser = XContentFactory.xContent(querySpecString).createParser(querySpecString);
-        QueryParseContext queryContext = new QueryParseContext(queriesRegistry, parser, ParseFieldMatcher.STRICT);
+        QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, parser, ParseFieldMatcher.STRICT);
         RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,
-                aggsParsers, suggesters);
+                searchRequestParsers);
         QuerySpec specification = QuerySpec.fromXContent(parser, rankContext);
         assertEquals("my_qa_query", specification.getSpecId());
         assertNotNull(specification.getTestRequest());

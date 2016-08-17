@@ -30,15 +30,13 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.suggest.Suggesters;
+import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -165,17 +163,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * */
 public class RestRankEvalAction extends BaseRestHandler {
 
-    private IndicesQueriesRegistry queryRegistry;
-    private AggregatorParsers aggregators;
-    private Suggesters suggesters;
+    private SearchRequestParsers searchRequestParsers;
 
     @Inject
-    public RestRankEvalAction(Settings settings, RestController controller, IndicesQueriesRegistry queryRegistry,
-            AggregatorParsers aggParsers, Suggesters suggesters) {
+    public RestRankEvalAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers) {
         super(settings);
-        this.queryRegistry = queryRegistry;
-        this.aggregators = aggParsers;
-        this.suggesters = suggesters;
+        this.searchRequestParsers = searchRequestParsers;
         controller.registerHandler(GET, "/_rank_eval", this);
         controller.registerHandler(POST, "/_rank_eval", this);
         controller.registerHandler(GET, "/{index}/_rank_eval", this);
@@ -189,11 +182,11 @@ public class RestRankEvalAction extends BaseRestHandler {
         RankEvalRequest rankEvalRequest = new RankEvalRequest();
         BytesReference restContent = RestActions.hasBodyContent(request) ? RestActions.getRestContent(request) : null;
         try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-            QueryParseContext parseContext = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
+            QueryParseContext parseContext = new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
             if (restContent != null) {
                 parseRankEvalRequest(rankEvalRequest, request,
                         // TODO can we get rid of aggregators parsers and suggesters?
-                        new RankEvalContext(parseFieldMatcher, parseContext, aggregators, suggesters));
+                        new RankEvalContext(parseFieldMatcher, parseContext, searchRequestParsers));
             }
         }
         client.execute(RankEvalAction.INSTANCE, rankEvalRequest, new RestToXContentListener<RankEvalResponse>(channel));

@@ -48,7 +48,7 @@ public class RatedDocumentTests extends ESTestCase {
         XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
         itemParser.nextToken();
 
-        RankEvalContext context = new RankEvalContext(ParseFieldMatcher.STRICT, null, null, null);
+        RankEvalContext context = new RankEvalContext(ParseFieldMatcher.STRICT, null, null);
         RatedDocument parsedItem = RatedDocument.fromXContent(itemParser, context);
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);

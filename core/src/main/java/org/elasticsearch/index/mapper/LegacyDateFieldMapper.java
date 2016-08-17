@@ -36,7 +36,6 @@ import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -116,9 +115,8 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
             }
             setupFieldType(context);
             fieldType.setNullValue(nullValue);
-            LegacyDateFieldMapper fieldMapper = new LegacyDateFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return (LegacyDateFieldMapper) fieldMapper.includeInAll(includeInAll);
+            return new LegacyDateFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
+                coerce(context), includeInAll, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
 
         @Override
@@ -467,8 +465,8 @@ public class LegacyDateFieldMapper extends LegacyNumberFieldMapper {
     }
 
     protected LegacyDateFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Explicit<Boolean> ignoreMalformed,Explicit<Boolean> coerce,
-                              Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);
+                              Boolean includeInAll, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, includeInAll, indexSettings, multiFields, copyTo);
     }
 
     @Override

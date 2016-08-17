@@ -65,7 +65,7 @@ import java.util.Map;
 
 /** A {@link FieldMapper} for scaled floats. Values are internally multiplied
  *  by a scaling factor and rounded to the closest long. */
-public class ScaledFloatFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
+public class ScaledFloatFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "scaled_float";
     // use the same default as numbers
@@ -124,10 +124,8 @@ public class ScaledFloatFieldMapper extends FieldMapper implements AllFieldMappe
                 throw new IllegalArgumentException("Field [" + name + "] misses required parameter [scaling_factor]");
             }
             setupFieldType(context);
-            ScaledFloatFieldMapper fieldMapper =
-                new ScaledFloatFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                    coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return (ScaledFloatFieldMapper) fieldMapper.includeInAll(includeInAll);
+            return new ScaledFloatFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
+                    coerce(context), includeInAll, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -336,6 +334,7 @@ public class ScaledFloatFieldMapper extends FieldMapper implements AllFieldMappe
             MappedFieldType defaultFieldType,
             Explicit<Boolean> ignoreMalformed,
             Explicit<Boolean> coerce,
+            Boolean includeInAll,
             Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo) {
@@ -346,6 +345,7 @@ public class ScaledFloatFieldMapper extends FieldMapper implements AllFieldMappe
         }
         this.ignoreMalformed = ignoreMalformed;
         this.coerce = coerce;
+        this.includeInAll = includeInAll;
     }
 
     @Override
@@ -361,39 +361,6 @@ public class ScaledFloatFieldMapper extends FieldMapper implements AllFieldMappe
     @Override
     protected ScaledFloatFieldMapper clone() {
         return (ScaledFloatFieldMapper) super.clone();
-    }
-
-    @Override
-    public Mapper includeInAll(Boolean includeInAll) {
-        if (includeInAll != null) {
-            ScaledFloatFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public Mapper includeInAllIfNotSet(Boolean includeInAll) {
-        if (includeInAll != null && this.includeInAll == null) {
-            ScaledFloatFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public Mapper unsetIncludeInAll() {
-        if (includeInAll != null) {
-            ScaledFloatFieldMapper clone = clone();
-            clone.includeInAll = null;
-            return clone;
-        } else {
-            return this;
-        }
     }
 
     @Override

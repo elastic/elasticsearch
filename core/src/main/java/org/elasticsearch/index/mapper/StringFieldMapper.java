@@ -49,7 +49,7 @@ import java.util.Set;
 import static org.apache.lucene.index.IndexOptions.NONE;
 import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
-public class StringFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
+public class StringFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "string";
     private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
@@ -177,10 +177,9 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                 fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(), positionIncrementGap));
             }
             setupFieldType(context);
-            StringFieldMapper fieldMapper = new StringFieldMapper(
-                    name, fieldType(), defaultFieldType, positionIncrementGap, ignoreAbove,
+            return new StringFieldMapper(
+                    name, fieldType(), defaultFieldType, positionIncrementGap, ignoreAbove, includeInAll,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return fieldMapper.includeInAll(includeInAll);
         }
     }
 
@@ -488,7 +487,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
     private int ignoreAbove;
 
     protected StringFieldMapper(String simpleName, StringFieldType fieldType, MappedFieldType defaultFieldType,
-                                int positionIncrementGap, int ignoreAbove,
+                                int positionIncrementGap, int ignoreAbove, Boolean includeInAll,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         if (Version.indexCreated(indexSettings).onOrAfter(Version.V_5_0_0_alpha1)) {
@@ -506,44 +505,12 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         }
         this.positionIncrementGap = positionIncrementGap;
         this.ignoreAbove = ignoreAbove;
+        this.includeInAll = includeInAll;
     }
 
     @Override
     protected StringFieldMapper clone() {
         return (StringFieldMapper) super.clone();
-    }
-
-    @Override
-    public StringFieldMapper includeInAll(Boolean includeInAll) {
-        if (includeInAll != null) {
-            StringFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public StringFieldMapper includeInAllIfNotSet(Boolean includeInAll) {
-        if (includeInAll != null && this.includeInAll == null) {
-            StringFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public StringFieldMapper unsetIncludeInAll() {
-        if (includeInAll != null) {
-            StringFieldMapper clone = clone();
-            clone.includeInAll = null;
-            return clone;
-        } else {
-            return this;
-        }
     }
 
     @Override

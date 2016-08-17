@@ -25,7 +25,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -47,7 +46,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenien
 /**
  *
  */
-public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll, Cloneable {
+public class ObjectMapper extends Mapper implements Cloneable {
 
     public static final String CONTENT_TYPE = "object";
     public static final String NESTED_CONTENT_TYPE = "nested";
@@ -154,14 +153,15 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
             }
             context.path().remove();
 
-            ObjectMapper objectMapper = createMapper(name, context.path().pathAsText(name), enabled, nested, dynamic, mappers, context.indexSettings());
-            objectMapper = objectMapper.includeInAllIfNotSet(includeInAll);
+            ObjectMapper objectMapper = createMapper(name, context.path().pathAsText(name), enabled, nested, dynamic,
+                    includeInAll, mappers, context.indexSettings());
 
             return (Y) objectMapper;
         }
 
-        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, Map<String, Mapper> mappers, @Nullable Settings settings) {
-            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, mappers);
+        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic,
+                Boolean includeInAll, Map<String, Mapper> mappers, @Nullable Settings settings) {
+            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, includeInAll, mappers);
         }
     }
 
@@ -322,12 +322,14 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
 
     private volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
-    ObjectMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, Map<String, Mapper> mappers) {
+    ObjectMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic,
+            Boolean includeInAll, Map<String, Mapper> mappers) {
         super(name);
         this.fullPath = fullPath;
         this.enabled = enabled;
         this.nested = nested;
         this.dynamic = dynamic;
+        this.includeInAll = includeInAll;
         if (mappers == null) {
             this.mappers = new CopyOnWriteHashMap<>();
         } else {
@@ -373,58 +375,12 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
         return mappers.get(field);
     }
 
-    @Override
-    public ObjectMapper includeInAll(Boolean includeInAll) {
-        if (includeInAll == null) {
-            return this;
-        }
-
-        ObjectMapper clone = clone();
-        clone.includeInAll = includeInAll;
-        // when called from outside, apply this on all the inner mappers
-        for (Mapper mapper : clone.mappers.values()) {
-            if (mapper instanceof AllFieldMapper.IncludeInAll) {
-                clone.putMapper(((AllFieldMapper.IncludeInAll) mapper).includeInAll(includeInAll));
-            }
-        }
-        return clone;
-    }
-
-    @Override
-    public ObjectMapper includeInAllIfNotSet(Boolean includeInAll) {
-        if (includeInAll == null || this.includeInAll != null) {
-            return this;
-        }
-
-        ObjectMapper clone = clone();
-        clone.includeInAll = includeInAll;
-        // when called from outside, apply this on all the inner mappers
-        for (Mapper mapper : clone.mappers.values()) {
-            if (mapper instanceof AllFieldMapper.IncludeInAll) {
-                clone.putMapper(((AllFieldMapper.IncludeInAll) mapper).includeInAllIfNotSet(includeInAll));
-            }
-        }
-        return clone;
-    }
-
-    @Override
-    public ObjectMapper unsetIncludeInAll() {
-        if (includeInAll == null) {
-            return this;
-        }
-        ObjectMapper clone = clone();
-        clone.includeInAll = null;
-        // when called from outside, apply this on all the inner mappers
-        for (Mapper mapper : mappers.values()) {
-            if (mapper instanceof AllFieldMapper.IncludeInAll) {
-                clone.putMapper(((AllFieldMapper.IncludeInAll) mapper).unsetIncludeInAll());
-            }
-        }
-        return clone;
-    }
-
     public Nested nested() {
         return this.nested;
+    }
+
+    public Boolean includeInAll() {
+        return includeInAll;
     }
 
     public Query nestedTypeFilter() {
@@ -432,9 +388,6 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
     }
 
     protected void putMapper(Mapper mapper) {
-        if (mapper instanceof AllFieldMapper.IncludeInAll) {
-            mapper = ((AllFieldMapper.IncludeInAll) mapper).includeInAllIfNotSet(includeInAll);
-        }
         mappers = mappers.copyAndPut(mapper.simpleName(), mapper);
     }
 

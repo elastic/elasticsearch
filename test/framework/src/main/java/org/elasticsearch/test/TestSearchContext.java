@@ -18,10 +18,6 @@
  */
 package org.elasticsearch.test;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
@@ -40,6 +36,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -64,6 +61,10 @@ import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class TestSearchContext extends SearchContext {
 
@@ -430,17 +431,28 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFieldNames() {
+    public boolean hasStoredFields() {
         return false;
     }
 
     @Override
-    public List<String> fieldNames() {
+    public boolean hasStoredFieldsContext() {
+        return false;
+    }
+
+    @Override
+    public boolean storedFieldsRequested() {
+        return false;
+    }
+
+    @Override
+    public StoredFieldsContext storedFieldsContext() {
         return null;
     }
 
     @Override
-    public void emptyFieldNames() {
+    public SearchContext storedFieldsContext(StoredFieldsContext storedFieldsContext) {
+        return null;
     }
 
     @Override

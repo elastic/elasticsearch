@@ -580,7 +580,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                         topHits("hits").size(1)
                                             .highlighter(new HighlightBuilder().field("text"))
                                             .explain(true)
-                                            .field("text")
+                                            .storedField("text")
                                             .fieldDataField("field1")
                                             .scriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap()))
                                             .fetchSource("text", null)
@@ -955,5 +955,42 @@ public class TopHitsIT extends ESIntegTestCase {
                 )
                 .get();
         assertNoFailures(response);
+    }
+
+    public void testNoStoredFields() throws Exception {
+        SearchResponse response = client()
+            .prepareSearch("idx")
+            .setTypes("type")
+            .addAggregation(terms("terms")
+                .executionHint(randomExecutionHint())
+                .field(TERMS_AGGS_FIELD)
+                .subAggregation(
+                    topHits("hits").storedField("_none_")
+                )
+            )
+            .get();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(5));
+
+        for (int i = 0; i < 5; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("val" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("val" + i));
+            assertThat(bucket.getDocCount(), equalTo(10L));
+            TopHits topHits = bucket.getAggregations().get("hits");
+            SearchHits hits = topHits.getHits();
+            assertThat(hits.totalHits(), equalTo(10L));
+            assertThat(hits.getHits().length, equalTo(3));
+            for (SearchHit hit : hits) {
+                assertThat(hit.source(), nullValue());
+                assertThat(hit.id(), nullValue());
+                assertThat(hit.type(), nullValue());
+            }
+        }
     }
 }

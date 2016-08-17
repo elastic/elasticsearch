@@ -180,13 +180,22 @@ public class MigrateIndexRequest extends AcknowledgedRequest<MigrateIndexRequest
                 + ",parentTask=" + getParentTask() + "]";
     }
 
+    /**
+     * Can this request be coalesced with the provided request? This compares a subset of the things compared in {@link #equals(Object)},
+     * and, like {@linkplain #equals(Object)}, this is <i>reflexive</i>, <i>symmetric</i>, <i>transitive</i>, and <i>consistent</i>.
+     */
+    public boolean canCoalesceWith(MigrateIndexRequest other) {
+        // Different timeouts and parent tasksIds really shouldn't prevent coalescing.
+        return Objects.equals(sourceIndex, other.sourceIndex)
+                && Objects.equals(createIndexRequest, other.createIndexRequest)
+                && Objects.equals(script, other.script);
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (getClass() != obj.getClass()) return false;
         MigrateIndexRequest other = (MigrateIndexRequest) obj;
-        return Objects.equals(sourceIndex, other.sourceIndex)
-                && Objects.equals(createIndexRequest, other.createIndexRequest)
-                && Objects.equals(script, other.script)
+        return canCoalesceWith(other) 
                 && Objects.equals(timeout, other.timeout)
                 && Objects.equals(masterNodeTimeout, other.masterNodeTimeout)
                 && Objects.equals(getParentTask(), other.getParentTask());

@@ -23,14 +23,18 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.apache.lucene.spatial.geopoint.search.GeoPointDistanceQuery;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 
@@ -47,6 +51,9 @@ import java.io.IOException;
 public class GeoDistanceQueryParser implements QueryParser {
 
     public static final String NAME = "geo_distance";
+
+    public static final ParseField OPTIMIZE_BBOX_FIELD = new ParseField("optimize_bbox", "optimizeBbox")
+        .withAllDeprecated("no replacement: `optimize_bbox` is no longer supported due to recent improvements");
 
     @Inject
     public GeoDistanceQueryParser() {
@@ -73,6 +80,7 @@ public class GeoDistanceQueryParser implements QueryParser {
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         String optimizeBbox = "memory";
         final boolean indexCreatedBeforeV2_0 = parseContext.indexVersionCreated().before(Version.V_2_0_0);
+        final boolean indexCreatedBeforeV2_2 = parseContext.indexVersionCreated().before(Version.V_2_2_0);
         boolean coerce = false;
         boolean ignoreMalformed = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -121,8 +129,10 @@ public class GeoDistanceQueryParser implements QueryParser {
                     fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.LON_SUFFIX.length());
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
-                } else if ("optimize_bbox".equals(currentFieldName) || "optimizeBbox".equals(currentFieldName)) {
-                    optimizeBbox = parser.textOrNull();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, OPTIMIZE_BBOX_FIELD)) {
+                    if (indexCreatedBeforeV2_2) {
+                        optimizeBbox = parser.textOrNull();
+                    }
                 } else if ("coerce".equals(currentFieldName) || (indexCreatedBeforeV2_0 && "normalize".equals(currentFieldName))) {
                     coerce = parser.booleanValue();
                     if (coerce == true) {

@@ -787,7 +787,7 @@ public class ExceptionSerializationTests extends ESTestCase {
                 reverse.put(entry.getValue(), entry.getKey());
             }
         }
-        
+
         for (Map.Entry<Integer, Constructor<? extends ElasticsearchException>> entry : ElasticsearchException.ID_TO_SUPPLIER.entrySet()) {
             assertNotNull(Integer.toString(entry.getKey()), reverse.get(entry.getValue().getDeclaringClass()));
             assertEquals(reverse.get(entry.getValue().getDeclaringClass()), entry.getKey());

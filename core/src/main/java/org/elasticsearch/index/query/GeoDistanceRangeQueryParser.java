@@ -29,10 +29,13 @@ import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 
@@ -51,6 +54,7 @@ import static org.apache.lucene.spatial.util.GeoEncodingUtils.TOLERANCE;
 public class GeoDistanceRangeQueryParser implements QueryParser {
 
     public static final String NAME = "geo_distance_range";
+    protected static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(BaseGeoPointFieldMapper.class));
 
     @Inject
     public GeoDistanceRangeQueryParser() {
@@ -156,8 +160,12 @@ public class GeoDistanceRangeQueryParser implements QueryParser {
                     point.resetLon(parser.doubleValue());
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
-                } else if ("optimize_bbox".equals(currentFieldName) || "optimizeBbox".equals(currentFieldName)) {
-                    optimizeBbox = parser.textOrNull();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, GeoDistanceQueryParser.OPTIMIZE_BBOX_FIELD)) {
+                    if (indexCreatedBeforeV2_2) {
+                        optimizeBbox = parser.textOrNull();
+                    } else {
+                        deprecationLogger.deprecated(NAME + " parameter [{}] is deprecated", GeoDistanceQueryParser.OPTIMIZE_BBOX_FIELD);
+                    }
                 } else if ("coerce".equals(currentFieldName) || (indexCreatedBeforeV2_0 && "normalize".equals(currentFieldName))) {
                     coerce = parser.booleanValue();
                     if (coerce == true) {

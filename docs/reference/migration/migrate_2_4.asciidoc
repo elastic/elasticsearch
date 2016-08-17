@@ -9,3 +9,8 @@ The setting `bootstrap.mlockall` has been renamed to
 <<bootstrap.memory_lock,`bootstrap.memory_lock`>>. Future versions of
 Elasticsearch will refuse to start if `bootstrap.mlockall` is set. You
 can switch to the new setting now.
+
+=== Query DSL
+
+The `optimize_bbox` parameter for `geo_distance` and `geo_distance_range` queries
+has been deprecated when querying indexes created after 2.1.

@@ -18,6 +18,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
@@ -26,6 +27,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
@@ -49,7 +51,6 @@ import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.Wid;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
-import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
@@ -247,7 +248,8 @@ public final class WatcherTestUtils {
                 .put("script.indexed", "true")
                 .put("path.home", createTempDir())
                 .build();
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.singletonList(WatcherScript.CTX_PLUGIN));
+        ScriptContextRegistry scriptContextRegistry =
+                new ScriptContextRegistry(Collections.singletonList(new ScriptContext.Plugin("xpack", "watch")));
 
         ScriptEngineRegistry scriptEngineRegistry =
                 new ScriptEngineRegistry(Collections.emptyList());

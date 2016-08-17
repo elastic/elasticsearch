@@ -17,9 +17,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.watcher.support.WatcherUtils.responseToData;
 
-/**
- *
- */
 public interface Payload extends ToXContent {
 
     Simple EMPTY = new Simple(Collections.<String, Object>emptyMap());

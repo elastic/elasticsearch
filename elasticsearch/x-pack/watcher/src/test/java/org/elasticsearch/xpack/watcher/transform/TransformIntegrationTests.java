@@ -13,7 +13,9 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
-import org.elasticsearch.xpack.watcher.support.WatcherScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
@@ -104,15 +106,15 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
 
         @Override
         public String pluginScriptLang() {
-            return WatcherScript.DEFAULT_LANG;
+            return WATCHER_LANG;
         }
     }
 
     public void testScriptTransform() throws Exception {
-        final WatcherScript script;
+        final Script script;
         if (randomBoolean()) {
             logger.info("testing script transform with an inline script");
-            script = WatcherScript.inline("return [key3 : ctx.payload.key1 + ctx.payload.key2]").lang("groovy").build();
+            script = new Script("return [key3 : ctx.payload.key1 + ctx.payload.key2]");
         } else if (randomBoolean()) {
             logger.info("testing script transform with an indexed script");
             assertAcked(client().admin().cluster().preparePutStoredScript()
@@ -120,10 +122,10 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
                     .setScriptLang("groovy")
                     .setSource(new BytesArray("{\"script\" : \"return [key3 : ctx.payload.key1 + ctx.payload.key2]\"}"))
                     .get());
-            script = WatcherScript.indexed("my-script").lang("groovy").build();
+            script = new Script("my-script", ScriptService.ScriptType.STORED, "groovy", null);
         } else {
             logger.info("testing script transform with a file script");
-            script = WatcherScript.file("my-script").lang("groovy").build();
+            script = new Script("my-script", ScriptService.ScriptType.FILE, "groovy", null);
         }
 
         // put a watch that has watch level transform:
@@ -217,8 +219,8 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
     }
 
     public void testChainTransform() throws Exception {
-        final WatcherScript script1 = WatcherScript.inline("return [key3 : ctx.payload.key1 + ctx.payload.key2]").lang("groovy").build();
-        final WatcherScript script2 = WatcherScript.inline("return [key4 : ctx.payload.key3 + 10]").lang("groovy").build();
+        Script script1 = new Script("return [key3 : ctx.payload.key1 + ctx.payload.key2]");
+        Script script2 = new Script("return [key4 : ctx.payload.key3 + 10]");
         // put a watch that has watch level transform:
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id1")
                 .setSource(watchBuilder()

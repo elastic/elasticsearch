@@ -8,9 +8,10 @@ package org.elasticsearch.xpack.watcher.transform.script;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
@@ -22,9 +23,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.invalidScript;
 import static org.elasticsearch.xpack.watcher.support.Variables.createCtxModel;
 
-/**
- *
- */
 public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransform, ScriptTransform.Result> {
 
     private final ScriptService scriptService;
@@ -33,12 +31,11 @@ public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransfo
     public ExecutableScriptTransform(ScriptTransform transform, ESLogger logger, ScriptService scriptService) {
         super(transform, logger);
         this.scriptService = scriptService;
-        WatcherScript script = transform.getScript();
+        Script script = transform.getScript();
         try {
-            compiledScript = scriptService.compile(script.toScript(), WatcherScript.CTX, Collections.emptyMap());
+            compiledScript = scriptService.compile(script, Watcher.SCRIPT_CONTEXT, Collections.emptyMap());
         } catch (Exception e) {
-            throw invalidScript("failed to compile script [{}] with lang [{}] of type [{}]", e, script.script(), script.lang(),
-                    script.type(), e);
+            throw invalidScript("failed to compile script [{}]", e, script, e);
         }
     }
 
@@ -54,9 +51,11 @@ public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransfo
 
 
     ScriptTransform.Result doExecute(WatchExecutionContext ctx, Payload payload) throws IOException {
-        WatcherScript script = transform.getScript();
+        Script script = transform.getScript();
         Map<String, Object> model = new HashMap<>();
-        model.putAll(script.params());
+        if (script.getParams() != null) {
+            model.putAll(script.getParams());
+        }
         model.putAll(createCtxModel(ctx, payload));
         ExecutableScript executable = scriptService.executable(compiledScript, model);
         Object value = executable.run();

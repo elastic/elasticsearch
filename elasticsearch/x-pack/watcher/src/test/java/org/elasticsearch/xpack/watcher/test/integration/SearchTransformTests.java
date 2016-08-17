@@ -19,12 +19,14 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
 import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
@@ -32,7 +34,6 @@ import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
-import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
@@ -230,7 +231,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         }
         if (templateName != null) {
             assertThat(executable.transform().getRequest().getTemplate(),
-                    equalTo(WatcherScript.file("template1").lang("mustache").build()));
+                    equalTo(new Script("template1", ScriptService.ScriptType.FILE, "mustache", null)));
         }
         assertThat(executable.transform().getRequest().getSearchSource().utf8ToString(), equalTo("{\"query\":{\"match_all\":{}}}"));
         assertThat(executable.transform().getTimeout(), equalTo(readTimeout));
@@ -301,7 +302,7 @@ public class SearchTransformTests extends ESIntegTestCase {
 
         @Override
         public ScriptContext.Plugin getCustomScriptContexts() {
-            return WatcherScript.CTX_PLUGIN;
+            return new ScriptContext.Plugin("xpack", "watch");
         }
     }
 }

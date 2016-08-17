@@ -10,6 +10,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
@@ -17,9 +18,9 @@ import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.common.text.TextTemplate;
-import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -43,7 +44,7 @@ public class WatcherTemplateIT extends ESTestCase {
         Settings setting = Settings.builder().put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, true).build();
         Environment environment = Mockito.mock(Environment.class);
         ResourceWatcherService resourceWatcherService = Mockito.mock(ResourceWatcherService.class);
-        ScriptContextRegistry registry = new ScriptContextRegistry(Collections.singletonList(WatcherScript.CTX_PLUGIN));
+        ScriptContextRegistry registry = new ScriptContextRegistry(Collections.singletonList(new ScriptContext.Plugin("xpack", "watch")));
 
         ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(
                 Collections.singleton(new MustacheScriptEngineService(setting))

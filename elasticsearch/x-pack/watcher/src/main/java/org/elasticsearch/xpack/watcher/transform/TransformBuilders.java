@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.transform;
 
-import org.elasticsearch.xpack.watcher.support.WatcherScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.transform.chain.ChainTransform;
 import org.elasticsearch.xpack.watcher.transform.script.ScriptTransform;
@@ -21,14 +21,10 @@ public final class TransformBuilders {
     }
 
     public static ScriptTransform.Builder scriptTransform(String script) {
-        return scriptTransform(WatcherScript.inline(script));
+        return scriptTransform(new Script(script));
     }
 
-    public static ScriptTransform.Builder scriptTransform(WatcherScript.Builder script) {
-        return scriptTransform(script.build());
-    }
-
-    public static ScriptTransform.Builder scriptTransform(WatcherScript script) {
+    public static ScriptTransform.Builder scriptTransform(Script script) {
         return ScriptTransform.builder(script);
     }
 

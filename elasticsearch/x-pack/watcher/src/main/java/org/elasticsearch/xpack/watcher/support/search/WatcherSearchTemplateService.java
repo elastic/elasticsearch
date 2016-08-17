@@ -15,12 +15,13 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
-import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;
@@ -44,7 +45,7 @@ public class WatcherSearchTemplateService extends AbstractComponent {
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
     }
 
-    public BytesReference renderTemplate(WatcherScript templatePrototype,
+    public BytesReference renderTemplate(Script source,
                                          WatchExecutionContext ctx,
                                          Payload payload) throws IOException {
         // Due the inconsistency with templates in ES 1.x, we maintain our own template format.
@@ -52,22 +53,13 @@ public class WatcherSearchTemplateService extends AbstractComponent {
         Map<String, Object> watcherContextParams = Variables.createCtxModel(ctx, payload);
         // Here we convert watcher template into a ES core templates. Due to the different format we use, we
         // convert to the template format used in ES core
-        if (templatePrototype.params() != null) {
-            watcherContextParams.putAll(templatePrototype.params());
+        if (source.getParams() != null) {
+            watcherContextParams.putAll(source.getParams());
         }
-        WatcherScript.Builder builder;
-        if (templatePrototype.type() == ScriptService.ScriptType.INLINE) {
-            builder = WatcherScript.inline(templatePrototype.script());
-        } else if (templatePrototype.type() == ScriptService.ScriptType.FILE) {
-            builder = WatcherScript.file(templatePrototype.script());
-        } else if (templatePrototype.type() == ScriptService.ScriptType.STORED) {
-            builder = WatcherScript.indexed(templatePrototype.script());
-        } else {
-            builder = WatcherScript.defaultType(templatePrototype.script());
-        }
-        WatcherScript template = builder.lang(templatePrototype.lang()).params(watcherContextParams).build();
-        CompiledScript compiledScript = scriptService.compile(template.toScript(), WatcherScript.CTX, Collections.emptyMap());
-        return (BytesReference) scriptService.executable(compiledScript, template.params()).run();
+        Script template = new Script(source.getScript(), source.getType(), source.getLang(), watcherContextParams,
+                source.getContentType());
+        CompiledScript compiledScript = scriptService.compile(template, Watcher.SCRIPT_CONTEXT, Collections.emptyMap());
+        return (BytesReference) scriptService.executable(compiledScript, template.getParams()).run();
     }
 
     public SearchRequest toSearchRequest(WatcherSearchTemplateRequest request) throws IOException {

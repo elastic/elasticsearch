@@ -35,9 +35,9 @@ public class WatcherSearchTemplateRequestTests extends ESTestCase {
 
             WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, randomFrom(SearchType.values()));
             assertNotNull(result.getTemplate());
-            assertThat(result.getTemplate().script(), equalTo(expectedScript));
-            assertThat(result.getTemplate().lang(), equalTo(expectedLang));
-            assertThat(result.getTemplate().params(), equalTo(expectedParams));
+            assertThat(result.getTemplate().getScript(), equalTo(expectedScript));
+            assertThat(result.getTemplate().getLang(), equalTo(expectedLang));
+            assertThat(result.getTemplate().getParams(), equalTo(expectedParams));
         } catch (IOException e) {
             fail("Failed to parse watch search request: " + e.getMessage());
         }

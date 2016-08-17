@@ -5,16 +5,13 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
+import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.xpack.watcher.condition.compare.array.ArrayCompareCondition;
 import org.elasticsearch.xpack.watcher.condition.never.NeverCondition;
 import org.elasticsearch.xpack.watcher.condition.script.ScriptCondition;
-import org.elasticsearch.xpack.watcher.support.WatcherScript;
 
-/**
- *
- */
 public final class ConditionBuilders {
 
     private ConditionBuilders() {
@@ -29,14 +26,10 @@ public final class ConditionBuilders {
     }
 
     public static ScriptCondition.Builder scriptCondition(String script) {
-        return scriptCondition(WatcherScript.inline(script));
+        return scriptCondition(new Script(script));
     }
 
-    public static ScriptCondition.Builder scriptCondition(WatcherScript.Builder script) {
-        return scriptCondition(script.build());
-    }
-
-    public static ScriptCondition.Builder scriptCondition(WatcherScript script) {
+    public static ScriptCondition.Builder scriptCondition(Script script) {
         return ScriptCondition.builder(script);
     }
 

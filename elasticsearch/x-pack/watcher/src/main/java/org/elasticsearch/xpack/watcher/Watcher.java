@@ -21,7 +21,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -80,7 +82,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 
-public class Watcher implements ActionPlugin {
+public class Watcher implements ActionPlugin, ScriptPlugin {
 
     public static final Setting<String> INDEX_WATCHER_VERSION_SETTING =
             new Setting<>("index.xpack.watcher.plugin.version", "", Function.identity(), Setting.Property.IndexScope);
@@ -90,6 +92,9 @@ public class Watcher implements ActionPlugin {
             Setting.boolSetting("xpack.watcher.encrypt_sensitive_data", false, Setting.Property.NodeScope);
     public static final Setting<TimeValue> MAX_STOP_TIMEOUT_SETTING =
         Setting.timeSetting("xpack.watcher.stop.timeout", TimeValue.timeValueSeconds(30), Setting.Property.NodeScope);
+
+    private static final ScriptContext.Plugin SCRIPT_PLUGIN = new ScriptContext.Plugin("xpack", "watch");
+    public static final ScriptContext SCRIPT_CONTEXT = SCRIPT_PLUGIN::getKey;
 
     private static final ESLogger logger = Loggers.getLogger(XPackPlugin.class);
 
@@ -201,6 +206,11 @@ public class Watcher implements ActionPlugin {
                 RestActivateWatchAction.class,
                 RestExecuteWatchAction.class,
                 RestHijackOperationAction.class);
+    }
+
+    @Override
+    public ScriptContext.Plugin getCustomScriptContexts() {
+        return SCRIPT_PLUGIN;
     }
 
     static void validAutoCreateIndex(Settings settings) {

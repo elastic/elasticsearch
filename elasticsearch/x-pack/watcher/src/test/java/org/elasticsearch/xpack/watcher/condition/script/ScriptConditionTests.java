@@ -17,6 +17,8 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.MockScriptEngine;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptEngineService;
@@ -26,8 +28,9 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.support.WatcherScript;
+import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -66,7 +69,7 @@ public class ScriptConditionTests extends ESTestCase {
 
         scripts.put("null.foo", s -> {
             throw new ScriptException("Error evaluating null.foo", new IllegalArgumentException(), emptyList(),
-                    "null.foo", WatcherScript.DEFAULT_LANG);
+                    "null.foo", AbstractWatcherIntegrationTestCase.WATCHER_LANG);
         });
 
         scripts.put("ctx.payload.hits.total > 1", vars -> {
@@ -80,10 +83,10 @@ public class ScriptConditionTests extends ESTestCase {
             return total > threshold;
         });
 
-        ScriptEngineService engine = new MockScriptEngine(WatcherScript.DEFAULT_LANG, scripts);
+        ScriptEngineService engine = new MockScriptEngine(AbstractWatcherIntegrationTestCase.WATCHER_LANG, scripts);
 
         ScriptEngineRegistry registry = new ScriptEngineRegistry(singleton(engine));
-        ScriptContextRegistry contextRegistry = new ScriptContextRegistry(singleton(WatcherScript.CTX_PLUGIN));
+        ScriptContextRegistry contextRegistry = new ScriptContextRegistry(singleton(new ScriptContext.Plugin("xpack", "watch")));
         ScriptSettings scriptSettings = new ScriptSettings(registry, contextRegistry);
 
         Settings settings = Settings.builder()
@@ -96,15 +99,14 @@ public class ScriptConditionTests extends ESTestCase {
 
     public void testExecute() throws Exception {
         ExecutableScriptCondition condition = new ExecutableScriptCondition(
-                new ScriptCondition(WatcherScript.inline("ctx.payload.hits.total > 1").build()), logger, scriptService);
+                new ScriptCondition(new Script("ctx.payload.hits.total > 1")), logger, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500L, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         assertFalse(condition.execute(ctx).met());
     }
 
     public void testExecuteMergedParams() throws Exception {
-        WatcherScript script = WatcherScript.inline("ctx.payload.hits.total > threshold")
-                .lang(WatcherScript.DEFAULT_LANG).params(singletonMap("threshold", 1)).build();
+        Script script = new Script("ctx.payload.hits.total > threshold", ScriptType.INLINE, null, singletonMap("threshold", 1));
         ExecutableScriptCondition executable = new ExecutableScriptCondition(new ScriptCondition(script), logger, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500L, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
@@ -188,7 +190,7 @@ public class ScriptConditionTests extends ESTestCase {
 
     public void testScriptConditionThrowException() throws Exception {
         ExecutableScriptCondition condition = new ExecutableScriptCondition(
-                new ScriptCondition(WatcherScript.inline("null.foo").build()), logger, scriptService);
+                new ScriptCondition(new Script("null.foo")), logger, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500L, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         ScriptException exception = expectThrows(ScriptException.class, () -> condition.execute(ctx));
@@ -197,7 +199,7 @@ public class ScriptConditionTests extends ESTestCase {
 
     public void testScriptConditionReturnObjectThrowsException() throws Exception {
         ExecutableScriptCondition condition = new ExecutableScriptCondition(
-                new ScriptCondition(WatcherScript.inline("return new Object()").build()), logger, scriptService);
+                new ScriptCondition(new Script("return new Object()")), logger, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500L, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         Exception exception = expectThrows(GeneralScriptException.class, () -> condition.execute(ctx));
@@ -207,7 +209,7 @@ public class ScriptConditionTests extends ESTestCase {
 
     public void testScriptConditionAccessCtx() throws Exception {
         ExecutableScriptCondition condition = new ExecutableScriptCondition(
-                new ScriptCondition(WatcherScript.inline("ctx.trigger.scheduled_time.getMillis() < new Date().time").build()),
+                new ScriptCondition(new Script("ctx.trigger.scheduled_time.getMillis() < new Date().time")),
                 logger, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500L, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new DateTime(DateTimeZone.UTC), new Payload.XContent(response));

@@ -12,9 +12,6 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
-/**
- *
- */
 public class Exceptions {
 
     private Exceptions() {

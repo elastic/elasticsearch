@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.watcher.history;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
-import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
@@ -59,7 +59,7 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
 
         @Override
         public String pluginScriptLang() {
-            return WatcherScript.DEFAULT_LANG;
+            return WATCHER_LANG;
         }
     }
 

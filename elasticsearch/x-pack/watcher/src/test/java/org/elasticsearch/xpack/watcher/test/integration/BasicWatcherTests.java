@@ -10,12 +10,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
-import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -256,7 +257,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject().bytes())
                 .get());
 
-        WatcherScript template = WatcherScript.indexed("my-template").lang("mustache").build();
+        Script template = new Script("my-template", ScriptService.ScriptType.STORED, "mustache", null);
         WatcherSearchTemplateRequest searchRequest = new WatcherSearchTemplateRequest(new String[]{"events"}, new String[0],
                 SearchType.DEFAULT, WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS, template);
         testConditionSearch(searchRequest);

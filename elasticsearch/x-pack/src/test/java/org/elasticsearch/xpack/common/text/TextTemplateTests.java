@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.common.text;
 
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -18,7 +17,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.watcher.support.WatcherScript;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -60,7 +59,7 @@ public class TextTemplateTests extends ESTestCase {
         ScriptType type = randomFrom(ScriptType.values());
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(new Script(templateText, type, lang, merged), WatcherScript.CTX,
+        when(service.compile(new Script(templateText, type, lang, merged), Watcher.SCRIPT_CONTEXT,
             Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
         when(service.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
@@ -76,7 +75,7 @@ public class TextTemplateTests extends ESTestCase {
         ScriptType scriptType = randomFrom(ScriptType.values());
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(new Script(templateText, scriptType, lang, model), WatcherScript.CTX,
+        when(service.compile(new Script(templateText, scriptType, lang, model), Watcher.SCRIPT_CONTEXT,
             Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
         when(service.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
@@ -90,7 +89,7 @@ public class TextTemplateTests extends ESTestCase {
         Map<String, Object> model = singletonMap("key", "model_val");
 
         CompiledScript compiledScript = mock(CompiledScript.class);
-        when(service.compile(new Script(templateText, ScriptType.INLINE, lang, model), WatcherScript.CTX,
+        when(service.compile(new Script(templateText, ScriptType.INLINE, lang, model), Watcher.SCRIPT_CONTEXT,
             Collections.singletonMap("content_type", "text/plain"))).thenReturn(compiledScript);
         when(service.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");

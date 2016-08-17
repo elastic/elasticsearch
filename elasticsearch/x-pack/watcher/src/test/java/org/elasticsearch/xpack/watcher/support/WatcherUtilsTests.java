@@ -16,6 +16,8 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.support.clock.SystemClock;
@@ -94,7 +96,7 @@ public class WatcherUtilsTests extends ESTestCase {
         SearchType expectedSearchType = getRandomSupportedSearchType();
 
         BytesReference expectedSource = null;
-        WatcherScript expectedTemplate = null;
+        Script expectedTemplate = null;
         WatcherSearchTemplateRequest request;
         if (randomBoolean()) {
             Map<String, Object> params = new HashMap<>();
@@ -105,10 +107,8 @@ public class WatcherUtilsTests extends ESTestCase {
                 }
             }
             String text = randomAsciiOfLengthBetween(1, 5);
-            expectedTemplate = randomFrom(WatcherScript.inline(text), WatcherScript.file(text), WatcherScript.indexed(text))
-                    .lang(randomBoolean() ? null : "mustache")
-                    .params(params)
-                    .build();
+            ScriptService.ScriptType scriptType = randomFrom(ScriptService.ScriptType.values());
+            expectedTemplate = new Script(text, scriptType, randomBoolean() ? null : "mustache", params);
             request = new WatcherSearchTemplateRequest(expectedIndices, expectedTypes, expectedSearchType,
                     expectedIndicesOptions, expectedTemplate);
         } else {
@@ -132,14 +132,14 @@ public class WatcherUtilsTests extends ESTestCase {
         assertThat(result.getSearchType(), equalTo(expectedSearchType));
 
         assertNotNull(result.getTemplate());
-        assertThat(result.getTemplate().lang(), equalTo("mustache"));
+        assertThat(result.getTemplate().getLang(), equalTo("mustache"));
         if (expectedSource == null) {
-            assertThat(result.getTemplate().script(), equalTo(expectedTemplate.script()));
-            assertThat(result.getTemplate().type(), equalTo(expectedTemplate.type()));
-            assertThat(result.getTemplate().params(), equalTo(expectedTemplate.params()));
+            assertThat(result.getTemplate().getScript(), equalTo(expectedTemplate.getScript()));
+            assertThat(result.getTemplate().getType(), equalTo(expectedTemplate.getType()));
+            assertThat(result.getTemplate().getParams(), equalTo(expectedTemplate.getParams()));
         } else {
-            assertThat(result.getTemplate().script(), equalTo(expectedSource.utf8ToString()));
-            assertThat(result.getTemplate().type(), equalTo(ScriptType.INLINE));
+            assertThat(result.getTemplate().getScript(), equalTo(expectedSource.utf8ToString()));
+            assertThat(result.getTemplate().getType(), equalTo(ScriptType.INLINE));
         }
     }
 
@@ -195,7 +195,7 @@ public class WatcherUtilsTests extends ESTestCase {
             source = searchSourceBuilder.buildAsBytes(XContentType.JSON);
             builder.rawField("body", source);
         }
-        WatcherScript template = null;
+        Script template = null;
         if (randomBoolean()) {
             Map<String, Object> params = new HashMap<>();
             if (randomBoolean()) {
@@ -205,10 +205,8 @@ public class WatcherUtilsTests extends ESTestCase {
                 }
             }
             String text = randomAsciiOfLengthBetween(1, 5);
-            template = randomFrom(WatcherScript.inline(text), WatcherScript.file(text), WatcherScript.indexed(text))
-                    .lang(randomBoolean() ? null : "mustache")
-                    .params(params)
-                    .build();
+            ScriptService.ScriptType scriptType = randomFrom(ScriptService.ScriptType.values());
+            template = new Script(text, scriptType, randomBoolean() ? null : "mustache", params);
             builder.field("template", template);
         }
         builder.endObject();
@@ -229,10 +227,10 @@ public class WatcherUtilsTests extends ESTestCase {
         if (template == null) {
             assertThat(result.getTemplate(), nullValue());
         } else {
-            assertThat(result.getTemplate().script(), equalTo(template.script()));
-            assertThat(result.getTemplate().type(), equalTo(template.type()));
-            assertThat(result.getTemplate().params(), equalTo(template.params()));
-            assertThat(result.getTemplate().lang(), equalTo("mustache"));
+            assertThat(result.getTemplate().getScript(), equalTo(template.getScript()));
+            assertThat(result.getTemplate().getType(), equalTo(template.getType()));
+            assertThat(result.getTemplate().getParams(), equalTo(template.getParams()));
+            assertThat(result.getTemplate().getLang(), equalTo("mustache"));
         }
     }
 

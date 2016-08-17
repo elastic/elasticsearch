@@ -7,14 +7,13 @@ package org.elasticsearch.xpack.common.text;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.xpack.watcher.support.WatcherScript;
+import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -29,6 +28,7 @@ public class TextTemplateEngine extends AbstractComponent {
         this.service = service;
     }
 
+    // TODO: move over to use o.e.script.Script instead
     public String render(TextTemplate template, Map<String, Object> model) {
         if (template == null) {
             return null;
@@ -38,7 +38,8 @@ public class TextTemplateEngine extends AbstractComponent {
         Map<String, String> compileParams = compileParams(contentType);
         template = trimContentType(template);
 
-        CompiledScript compiledScript = service.compile(convert(template, model), WatcherScript.CTX, compileParams);
+        CompiledScript compiledScript = service.compile(convert(template, model), Watcher.SCRIPT_CONTEXT,
+                compileParams);
         ExecutableScript executable = service.executable(compiledScript, model);
         Object result = executable.run();
         if (result instanceof BytesReference) {

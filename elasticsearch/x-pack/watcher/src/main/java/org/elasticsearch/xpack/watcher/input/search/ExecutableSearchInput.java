@@ -14,10 +14,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
-import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
@@ -51,7 +51,7 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
     public SearchInput.Result execute(WatchExecutionContext ctx, Payload payload) {
         WatcherSearchTemplateRequest request = null;
         try {
-            WatcherScript template = input.getRequest().getOrCreateTemplate();
+            Script template = input.getRequest().getOrCreateTemplate();
             BytesReference renderedTemplate = searchTemplateService.renderTemplate(template, ctx, payload);
             // We need to make a copy, so that we don't modify the original instance that we keep around in a watch:
             request = new WatcherSearchTemplateRequest(input.getRequest(), renderedTemplate);

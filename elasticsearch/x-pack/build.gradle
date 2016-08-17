@@ -100,16 +100,6 @@ processResources {
   from licenseKeyPath
 }
 
-processTestResources {
-  from(sourceSets.test.resources.srcDirs) {
-    exclude '**/*.key'
-    exclude '**/*.jks'
-    exclude '**/*.p12'
-    inputs.properties(expansions)
-    MavenFilteringHack.filter(it, expansions)
-  }
-}
-
 forbiddenPatterns {
   exclude '**/*.key'
   exclude '**/*.p12'

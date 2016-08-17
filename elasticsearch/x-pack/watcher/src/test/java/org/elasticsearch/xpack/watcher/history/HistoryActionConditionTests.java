@@ -10,6 +10,8 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
@@ -17,7 +19,6 @@ import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.input.Input;
-import org.elasticsearch.xpack.watcher.support.WatcherScript;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
@@ -265,11 +266,8 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
      * @return Never {@code null}
      */
     private static Condition.Builder mockScriptCondition(String inlineScript) {
-        WatcherScript.Builder builder = new WatcherScript.Builder.Inline(inlineScript);
-
-        builder.lang(MockScriptPlugin.NAME);
-
-        return scriptCondition(builder);
+        Script script = new Script(inlineScript, ScriptService.ScriptType.INLINE, MockScriptPlugin.NAME, null, null);
+        return scriptCondition(script);
     }
 
 }

@@ -13,9 +13,6 @@ teardown:
 
 ---
 "Test put watch api with action level condition":
-  -skip:
-      version: "all"
-      reason: awaits fix bug URL https://github.com/elastic/x-plugins/issues/3137
   - do:
       xpack.watcher.put_watch:
         id: "my_watch1"
@@ -31,9 +28,7 @@ teardown:
             },
             "input": {
               "simple": {
-                "payload": {
-                  "value": 15
-                }
+                "value": 15
               }
             },
             "condition": {
@@ -42,8 +37,10 @@ teardown:
             "actions": {
               "test_index": {
                 "condition": {
-                  "ctx.payload.value": {
-                    "gt": 10
+                  "compare": {
+                    "ctx.payload.value": {
+                      "lt": 10
+                    }
                   }
                 },
                 "index": {
@@ -60,4 +57,4 @@ teardown:
         id: "my_watch1"
   - match: { found : true}
   - match: { _id: "my_watch1" }
-  - match: { watch.actions.test_index.condition.ctx.payload.value.gt: 10 }
+  - match: { watch.actions.test_index.condition.compare: { "ctx.payload.value": { lt: 10 } } }

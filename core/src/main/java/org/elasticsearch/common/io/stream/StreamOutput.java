@@ -32,6 +32,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.text.Text;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
@@ -413,23 +414,26 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a map of strings to string lists.
+     * Write a {@link Map} of {@code K}-type keys to {@code V}-type {@link List}s.
+     * <pre><code>
+     * Map&lt;String, List&lt;String&gt;&gt; map = ...;
+     * out.writeMapOfLists(map, StreamOutput::writeString, StreamOutput::writeString);
+     * </code></pre>
+     *
+     * @param keyWriter The key writer
+     * @param valueWriter The value writer
      */
-    public void writeMapOfLists(Map<String, List<String>> map) throws IOException {
+    public <K, V> void writeMapOfLists(final Map<K, List<V>> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
+            throws IOException {
         writeVInt(map.size());
 
-        for (Map.Entry<String, List<String>> entry : map.entrySet()) {
-            writeString(entry.getKey());
+        for (final Map.Entry<K, List<V>> entry : map.entrySet()) {
+            keyWriter.write(this, entry.getKey());
             writeVInt(entry.getValue().size());
-            for (String v : entry.getValue()) {
-                writeString(v);
+            for (final V value : entry.getValue()) {
+                valueWriter.write(this, value);
             }
         }
-    }
-
-    @FunctionalInterface
-    interface Writer {
-        void write(StreamOutput o, Object value) throws IOException;
     }
 
     private static final Map<Class<?>, Writer> WRITERS;

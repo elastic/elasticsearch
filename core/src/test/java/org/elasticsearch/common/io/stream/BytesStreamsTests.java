@@ -30,7 +30,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -42,7 +41,6 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests for {@link BytesStreamOutput} paging behaviour.
@@ -462,11 +460,11 @@ public class BytesStreamsTests extends ESTestCase {
         }
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.writeMapOfLists(expected);
+        out.writeMapOfLists(expected, StreamOutput::writeString, StreamOutput::writeString);
 
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
 
-        final Map<String, List<String>> loaded = in.readMapOfLists();
+        final Map<String, List<String>> loaded = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
 
         assertThat(loaded.size(), equalTo(expected.size()));
 

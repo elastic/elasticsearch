@@ -211,7 +211,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         });
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, false, Version.CURRENT, "allocId1");
         testAllocator.allocateUnassigned(allocation);
-        assertThat(allocation.changes().isChanged(), equalTo(true));
+        assertThat(allocation.routingNodesChanged(), equalTo(true));
         assertTrue(allocation.routingNodes().unassigned().ignored().isEmpty());
         assertEquals(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), 1);
         assertEquals(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(), node1.getId());
@@ -234,7 +234,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         });
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, false, Version.CURRENT, "allocId1");
         testAllocator.allocateUnassigned(allocation);
-        assertThat(allocation.changes().isChanged(), equalTo(true));
+        assertThat(allocation.routingNodesChanged(), equalTo(true));
         List<ShardRouting> ignored = allocation.routingNodes().unassigned().ignored();
         assertEquals(ignored.size(), 1);
         assertEquals(ignored.get(0).unassignedInfo().getLastAllocationStatus(),
@@ -258,7 +258,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         });
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, false, Version.CURRENT, "allocId1");
         testAllocator.allocateUnassigned(allocation);
-        assertThat(allocation.changes().isChanged(), equalTo(true));
+        assertThat(allocation.routingNodesChanged(), equalTo(true));
         List<ShardRouting> ignored = allocation.routingNodes().unassigned().ignored();
         assertEquals(ignored.size(), 1);
         assertEquals(ignored.get(0).unassignedInfo().getLastAllocationStatus(), AllocationStatus.DECIDERS_THROTTLED);

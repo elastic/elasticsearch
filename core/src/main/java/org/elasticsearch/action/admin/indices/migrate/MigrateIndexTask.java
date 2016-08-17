@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.migrate;
 
 import org.elasticsearch.action.admin.indices.migrate.TransportMigrateIndexAction.Operation;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
@@ -27,6 +28,9 @@ import org.elasticsearch.tasks.TaskId;
  * Task subclass that supports getting information about the currently running migration.
  */
 public class MigrateIndexTask extends Task {
+    static enum State {
+        STARTING, CREATING_NEW_INDEX, SUCCESS, FAILED;
+    }
     private volatile Operation operation;
 
     public MigrateIndexTask(long id, String type, String action, String description, TaskId parentTask) {
@@ -46,5 +50,16 @@ public class MigrateIndexTask extends Task {
      */
     Operation getOperation() {
         return operation;
+    }
+
+    /**
+     * The state that the migration is currently in.
+     */
+    @Nullable
+    public State getState() {
+        if (operation == null) {
+            return null;
+        }
+        return operation.getActingOperation().state;
     }
 }

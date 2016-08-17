@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.migrate.MigrateIndexTask.State;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -119,12 +120,6 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
                 request.indicesOptions().expandWildcardsClosed());
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
                 indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request.indices()));
-    }
-
-    void withRunningOperation(String destinationIndex, Consumer<ActingOperation> consumer) {
-        synchronized (runningOperations) {
-            consumer.accept(runningOperations.get(destinationIndex));
-        }
     }
 
     @Override
@@ -263,7 +258,21 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
         return ((AliasOrIndex.Index)sourceAliasOrIndex).getIndex();
     }
 
+    /**
+     * Start the migration. Called on the {@link ThreadPool.Names#GENERIC} thread pool for the first concurrent migration for an index.
+     */
+    void start(ActingOperation operation) {
+        operation.createNewIndex();
+    }
+
     abstract class Operation {
+        /**
+         * The operation that is actually performing the migration.
+         */
+        abstract ActingOperation getActingOperation();
+        /**
+         * Start the migration if this operation isn't just observing the operation.
+         */
         abstract void start();
     }
 
@@ -271,7 +280,7 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
         /**
          * The operation that is actually running the request. We'll be notified when it completes.
          */
-        final ActingOperation waitingFor;
+        private final ActingOperation waitingFor;
         /**
          * The listener for responses of this operation. 
          */
@@ -280,6 +289,11 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
         public ObservingOperation(ActingOperation waitingFor, ActionListener<MigrateIndexResponse> listener) {
             this.listener = listener;
             this.waitingFor = waitingFor;
+        }
+
+        @Override
+        ActingOperation getActingOperation() {
+            return waitingFor;
         }
 
         @Override
@@ -312,6 +326,8 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
          */
         final ActionListener<MigrateIndexResponse> listener;
 
+        volatile State state = State.STARTING;
+
         /**
          * Build the operation, coalescing it into any currently running operation against the same index.
          */
@@ -323,21 +339,34 @@ public class TransportMigrateIndexAction extends TransportMasterNodeAction<Migra
             this.listener = new ActionListener<MigrateIndexResponse>() {
                 @Override
                 public void onResponse(MigrateIndexResponse response) {
+                    state = State.SUCCESS;
                     sendResponse(listenerForThisRequest, l -> l.onResponse(response));
                 }
 
                 @Override
                 public void onFailure(Exception e) {
+                    state = State.FAILED;
                     sendResponse(listenerForThisRequest, l -> l.onFailure(e));
                 }
             };
         }
 
+        @Override
+        ActingOperation getActingOperation() {
+            return this;
+        }
+
+        @Override
+        void start() {
+            // Delegate to the transport action so we can short circuit the process in tests.
+            TransportMigrateIndexAction.this.start(this);
+        }
+
         /**
          * Called on the {@linkplain ThreadPool.Names#GENERIC} thread pool if this is the first migration for this index.
          */
-        @Override
-        void start() {
+        void createNewIndex() {
+            state = State.CREATING_NEW_INDEX;
             /* We can't just use the CreateIndexRequest the user provided because it contains aliases and we need to handle them specially.
              * So instead we create a copy and load it up. */
             CreateIndexRequest template = request.getCreateIndexRequest();

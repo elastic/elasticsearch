@@ -16,7 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test;
+
+package org.elasticsearch.cluster;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -47,11 +48,13 @@ import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.ReplicaShardAllocator;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -100,29 +103,10 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static AllocationDeciders randomAllocationDeciders(Settings settings, ClusterSettings clusterSettings, Random random) {
-        final List<Class<? extends AllocationDecider>> defaultAllocationDeciders = ClusterModule.DEFAULT_ALLOCATION_DECIDERS;
-        final List<AllocationDecider> list = new ArrayList<>();
-        for (Class<? extends AllocationDecider> deciderClass : ClusterModule.DEFAULT_ALLOCATION_DECIDERS) {
-            try {
-                try {
-                    Constructor<? extends AllocationDecider> constructor = deciderClass.getConstructor(Settings.class, ClusterSettings.class);
-                    list.add(constructor.newInstance(settings, clusterSettings));
-                } catch (NoSuchMethodException e) {
-                    Constructor<? extends AllocationDecider> constructor = null;
-                    constructor = deciderClass.getConstructor(Settings.class);
-                    list.add(constructor.newInstance(settings));
-                }
-            } catch (Exception ex) {
-                throw new RuntimeException(ex);
-            }
-        }
-        assertThat(list.size(), equalTo(defaultAllocationDeciders.size()));
-        for (AllocationDecider d : list) {
-            assertThat(defaultAllocationDeciders.contains(d.getClass()), is(true));
-        }
-        Randomness.shuffle(list);
-        return new AllocationDeciders(settings, list.toArray(new AllocationDecider[list.size()]));
-
+        List<AllocationDecider> deciders = new ArrayList<>(
+            ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList()));
+        Collections.shuffle(deciders, random);
+        return new AllocationDeciders(settings, deciders);
     }
 
     protected static Set<DiscoveryNode.Role> MASTER_DATA_ROLES =
@@ -158,17 +142,19 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     protected static AllocationDeciders yesAllocationDeciders() {
-        return new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new TestAllocateDecision(Decision.YES),
-            new SameShardAllocationDecider(Settings.EMPTY)});
+        return new AllocationDeciders(Settings.EMPTY, Arrays.asList(
+            new TestAllocateDecision(Decision.YES),
+            new SameShardAllocationDecider(Settings.EMPTY)));
     }
 
     protected static AllocationDeciders noAllocationDeciders() {
-        return new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new TestAllocateDecision(Decision.NO)});
+        return new AllocationDeciders(Settings.EMPTY, Collections.singleton(new TestAllocateDecision(Decision.NO)));
     }
 
     protected static AllocationDeciders throttleAllocationDeciders() {
-        return new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new TestAllocateDecision(Decision.THROTTLE),
-            new SameShardAllocationDecider(Settings.EMPTY)});
+        return new AllocationDeciders(Settings.EMPTY, Arrays.asList(
+            new TestAllocateDecision(Decision.THROTTLE),
+            new SameShardAllocationDecider(Settings.EMPTY)));
     }
 
     public static class TestAllocateDecision extends AllocationDecider {

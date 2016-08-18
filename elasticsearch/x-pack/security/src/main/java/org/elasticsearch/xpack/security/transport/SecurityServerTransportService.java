@@ -29,6 +29,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
+import org.elasticsearch.xpack.security.user.SystemUser;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,7 +47,6 @@ public class SecurityServerTransportService extends TransportService {
     protected final AuthenticationService authcService;
     protected final AuthorizationService authzService;
     protected final SecurityActionMapper actionMapper;
-    protected final ClientTransportFilter clientFilter;
     protected final XPackLicenseState licenseState;
 
     protected final Map<String, ServerTransportFilter> profileFilters;
@@ -56,13 +56,11 @@ public class SecurityServerTransportService extends TransportService {
                                           AuthenticationService authcService,
                                           AuthorizationService authzService,
                                           SecurityActionMapper actionMapper,
-                                          ClientTransportFilter clientTransportFilter,
                                           XPackLicenseState licenseState) {
         super(settings, transport, threadPool);
         this.authcService = authcService;
         this.authzService = authzService;
         this.actionMapper = actionMapper;
-        this.clientFilter = clientTransportFilter;
         this.licenseState = licenseState;
         this.profileFilters = initializeProfileFilters();
     }
@@ -72,24 +70,26 @@ public class SecurityServerTransportService extends TransportService {
                                                           TransportRequestOptions options, TransportResponseHandler<T> handler) {
         // Sometimes a system action gets executed like a internal create index request or update mappings request
         // which means that the user is copied over to system actions so we need to change the user
-        if ((clientFilter instanceof ClientTransportFilter.Node) &&
-                AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
-            final ThreadContext.StoredContext original = threadPool.getThreadContext().newStoredContext();
+        if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
             try (ThreadContext.StoredContext ctx = threadPool.getThreadContext().stashContext()) {
-                try {
-                    clientFilter.outbound(action, request);
-                    super.sendRequest(node, action, request, options, new ContextRestoreResponseHandler<>(original, handler));
-                } catch (Exception e) {
-                    handler.handleException(new TransportException("failed sending request", e));
-                }
+                final ThreadContext.StoredContext original = threadPool.getThreadContext().newStoredContext();
+                sendWithSystemUser(node, action, request, options, new ContextRestoreResponseHandler<>(original, handler));
             }
         } else {
-            try {
-                clientFilter.outbound(action, request);
-                super.sendRequest(node, action, request, options, handler);
-            } catch (Exception e) {
-                handler.handleException(new TransportException("failed sending request", e));
-            }
+            sendWithSystemUser(node, action, request, options, handler);
+        }
+    }
+
+    private <T extends TransportResponse> void sendWithSystemUser(DiscoveryNode node, String action, TransportRequest request,
+                                                                  TransportRequestOptions options, TransportResponseHandler<T> handler) {
+        try {
+            // this will check if there's a user associated with the request. If there isn't,
+            // the system user will be attached. There cannot be a request outgoing from this
+            // node that is not associated with a user.
+            authcService.attachUserIfMissing(SystemUser.INSTANCE);
+            super.sendRequest(node, action, request, options, handler);
+        } catch (Exception e) {
+            handler.handleException(new TransportException("failed sending request", e));
         }
     }
 

@@ -113,9 +113,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.security.ssl.SSLService;
 import org.elasticsearch.xpack.security.support.OptionalSettings;
-import org.elasticsearch.xpack.security.transport.SecurityClientTransportService;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportService;
-import org.elasticsearch.xpack.security.transport.SecurityTransportModule;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
@@ -172,12 +170,14 @@ public class Security implements ActionPlugin, IngestPlugin {
 
     public Collection<Module> nodeModules() {
         List<Module> modules = new ArrayList<>();
+        if (enabled == false || transportClientMode) {
+            modules.add(b -> b.bind(IPFilter.class).toProvider(Providers.of(null)));
+        }
 
         if (transportClientMode) {
             if (enabled == false) {
                 return modules;
             }
-            modules.add(new SecurityTransportModule(settings));
             modules.add(b -> {
                 // for transport client we still must inject these ssl classes with guice
                 b.bind(SSLService.class).toInstance(new SSLService(settings, null));
@@ -186,6 +186,7 @@ public class Security implements ActionPlugin, IngestPlugin {
             return modules;
         }
         modules.add(b -> XPackPlugin.bindFeatureSet(b, SecurityFeatureSet.class));
+
         
         if (enabled == false) {
             modules.add(b -> {
@@ -195,7 +196,6 @@ public class Security implements ActionPlugin, IngestPlugin {
                 b.bind(AuditTrailService.class)
                     .toInstance(new AuditTrailService(settings, Collections.emptyList(), licenseState));
             });
-            modules.add(new SecurityTransportModule(settings));
             return modules;
         }
 
@@ -210,7 +210,6 @@ public class Security implements ActionPlugin, IngestPlugin {
         });
         modules.add(new SecurityRestModule(settings));
         modules.add(new SecurityActionModule(settings));
-        modules.add(new SecurityTransportModule(settings));
         return modules;
     }
 
@@ -317,6 +316,10 @@ public class Security implements ActionPlugin, IngestPlugin {
         components.add(new SecurityLifecycleService(settings, clusterService, threadPool, indexAuditTrail,
             nativeUsersStore, nativeRolesStore, client));
 
+        if (IPFilter.IP_FILTER_ENABLED_SETTING.get(settings)) {
+            components.add(new IPFilter(settings, auditTrailService, clusterService.getClusterSettings(), licenseState));
+        }
+
         return components;
     }
 
@@ -325,11 +328,11 @@ public class Security implements ActionPlugin, IngestPlugin {
             return Settings.EMPTY;
         }
 
-        return additionalSettings(settings);
+        return additionalSettings(settings, transportClientMode);
     }
 
     // visible for tests
-    static Settings additionalSettings(Settings settings) {
+    static Settings additionalSettings(Settings settings, boolean transportClientMode) {
         final Settings.Builder settingsBuilder = Settings.builder();
 
         if (NetworkModule.TRANSPORT_TYPE_SETTING.exists(settings)) {
@@ -359,13 +362,15 @@ public class Security implements ActionPlugin, IngestPlugin {
             SecurityNetty4HttpServerTransport.overrideSettings(settingsBuilder, settings);
         }
 
-        settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, XPackPlugin.SECURITY);
+        if (transportClientMode == false) {
+            settingsBuilder.put(NetworkModule.TRANSPORT_SERVICE_TYPE_KEY, XPackPlugin.SECURITY);
+        }
         addUserSettings(settings, settingsBuilder);
         addTribeSettings(settings, settingsBuilder);
         return settingsBuilder.build();
     }
 
-    public List<Setting<?>> getSettings() {
+    public static List<Setting<?>> getSettings(boolean transportClientMode) {
         List<Setting<?>> settingsList = new ArrayList<>();
         // always register for both client and node modes
         settingsList.add(USER_SETTING);
@@ -510,7 +515,6 @@ public class Security implements ActionPlugin, IngestPlugin {
             if (enabled) {
                 module.registerTransport(Security.NAME3, SecurityNetty3Transport.class);
                 module.registerTransport(Security.NAME4, SecurityNetty4Transport.class);
-                module.registerTransportService(XPackPlugin.SECURITY, SecurityClientTransportService.class);
             }
             return;
         }

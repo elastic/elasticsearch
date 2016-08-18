@@ -285,7 +285,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     @Override
     public List<Setting<?>> getSettings() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
-        settings.addAll(security.getSettings());
+        settings.addAll(Security.getSettings(transportClientMode));
         settings.addAll(MonitoringSettings.getSettings());
         settings.addAll(watcher.getSettings());
         settings.addAll(licensing.getSettings());

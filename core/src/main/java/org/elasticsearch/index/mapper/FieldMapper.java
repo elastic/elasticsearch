@@ -537,11 +537,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             ImmutableOpenMap.Builder<String, FieldMapper> builder = new ImmutableOpenMap.Builder<>();
             // we disable the all in multi-field mappers
             for (ObjectObjectCursor<String, FieldMapper> cursor : mappers) {
-                FieldMapper mapper = cursor.value;
-                if (mapper instanceof AllFieldMapper.IncludeInAll) {
-                    mapper = (FieldMapper) ((AllFieldMapper.IncludeInAll) mapper).unsetIncludeInAll();
-                }
-                builder.put(cursor.key, mapper);
+                builder.put(cursor.key, cursor.value);
             }
             this.mappers = builder.build();
         }
@@ -568,10 +564,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 FieldMapper mergeWithMapper = cursor.value;
                 FieldMapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
                 if (mergeIntoMapper == null) {
-                    // we disable the all in multi-field mappers
-                    if (mergeWithMapper instanceof AllFieldMapper.IncludeInAll) {
-                        mergeWithMapper = (FieldMapper) ((AllFieldMapper.IncludeInAll) mergeWithMapper).unsetIncludeInAll();
-                    }
                     newMappersBuilder.put(mergeWithMapper.simpleName(), mergeWithMapper);
                 } else {
                     FieldMapper merged = mergeIntoMapper.merge(mergeWithMapper, false);

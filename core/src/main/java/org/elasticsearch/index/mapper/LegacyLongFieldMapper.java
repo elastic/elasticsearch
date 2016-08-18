@@ -81,9 +81,9 @@ public class LegacyLongFieldMapper extends LegacyNumberFieldMapper {
                 throw new IllegalStateException("Cannot use legacy numeric types after 5.0");
             }
             setupFieldType(context);
-            LegacyLongFieldMapper fieldMapper = new LegacyLongFieldMapper(name, fieldType, defaultFieldType,
-                    ignoreMalformed(context), coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return (LegacyLongFieldMapper) fieldMapper.includeInAll(includeInAll);
+            return new LegacyLongFieldMapper(name, fieldType, defaultFieldType,
+                    ignoreMalformed(context), coerce(context), includeInAll, context.indexSettings(),
+                    multiFieldsBuilder.build(this, context), copyTo);
         }
 
         @Override
@@ -175,9 +175,9 @@ public class LegacyLongFieldMapper extends LegacyNumberFieldMapper {
     }
 
     protected LegacyLongFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                              Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+                              Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Boolean includeInAll,
                               Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, includeInAll, indexSettings, multiFields, copyTo);
     }
 
     @Override

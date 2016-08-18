@@ -191,7 +191,9 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
         validateIndexName("index#name", "must not contain '#'");
 
-        validateIndexName("_indexname", "must not start with '_'");
+        validateIndexName("_indexname", "must not start with '_', '-', or '+'");
+        validateIndexName("-indexname", "must not start with '_', '-', or '+'");
+        validateIndexName("+indexname", "must not start with '_', '-', or '+'");
 
         validateIndexName("INDEXNAME", "must be lowercase");
 
@@ -201,7 +203,7 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
 
     private void validateIndexName(String indexName, String errorMessage) {
         InvalidIndexNameException e = expectThrows(InvalidIndexNameException.class,
-            () -> getCreateIndexService().validateIndexName(indexName, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
+            () -> MetaDataCreateIndexService.validateIndexName(indexName, ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING
                 .getDefault(Settings.EMPTY)).build()));
         assertThat(e.getMessage(), endsWith(errorMessage));
     }

@@ -117,9 +117,8 @@ public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
                 throw new IllegalStateException("Cannot use legacy numeric types after 5.0");
             }
             setupFieldType(context);
-            LegacyIpFieldMapper fieldMapper = new LegacyIpFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                    coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return (LegacyIpFieldMapper) fieldMapper.includeInAll(includeInAll);
+            return new LegacyIpFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
+                    coerce(context), includeInAll, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
 
         @Override
@@ -267,9 +266,9 @@ public class LegacyIpFieldMapper extends LegacyNumberFieldMapper {
     }
 
     protected LegacyIpFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                            Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
+                            Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Boolean includeInAll,
                             Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, includeInAll, indexSettings, multiFields, copyTo);
     }
 
     private static long parseValue(Object value) {

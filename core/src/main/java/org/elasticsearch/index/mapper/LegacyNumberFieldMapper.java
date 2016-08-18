@@ -40,7 +40,7 @@ import org.joda.time.DateTimeZone;
 /**
  *
  */
-public abstract class LegacyNumberFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
+public abstract class LegacyNumberFieldMapper extends FieldMapper {
     // this is private since it has a different default
     private static final Setting<Boolean> COERCE_SETTING =
         Setting.boolSetting("index.mapping.coerce", true, Property.IndexScope);
@@ -158,50 +158,18 @@ public abstract class LegacyNumberFieldMapper extends FieldMapper implements All
     protected Explicit<Boolean> coerce;
 
     protected LegacyNumberFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Settings indexSettings,
-                                MultiFields multiFields, CopyTo copyTo) {
+                                Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Boolean includeInAll,
+                                Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.tokenized() == false;
         this.ignoreMalformed = ignoreMalformed;
         this.coerce = coerce;
+        this.includeInAll = includeInAll;
     }
 
     @Override
     protected LegacyNumberFieldMapper clone() {
         return (LegacyNumberFieldMapper) super.clone();
-    }
-
-    @Override
-    public Mapper includeInAll(Boolean includeInAll) {
-        if (includeInAll != null) {
-            LegacyNumberFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public Mapper includeInAllIfNotSet(Boolean includeInAll) {
-        if (includeInAll != null && this.includeInAll == null) {
-            LegacyNumberFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public Mapper unsetIncludeInAll() {
-        if (includeInAll != null) {
-            LegacyNumberFieldMapper clone = clone();
-            clone.includeInAll = null;
-            return clone;
-        } else {
-            return this;
-        }
     }
 
     @Override

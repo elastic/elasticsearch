@@ -41,6 +41,7 @@ For example, if you have a file named `config/scripts/template_gender.mustache` 
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 Define your template query:
 
@@ -86,4 +87,3 @@ QueryBuilder qb = new TemplateQueryBuilder(
 <1> template name
 <2> template stored in the cluster state
 <3> parameters
-

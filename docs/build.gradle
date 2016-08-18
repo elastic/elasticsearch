@@ -105,3 +105,38 @@ buildRestTests.setups['host'] = '''
   - is_true: nodes.$master.http.publish_address
   - set: {nodes.$master.http.publish_address: host}
 '''
+
+// Used by pipeline aggregation docs
+buildRestTests.setups['sales'] = '''
+  - do:
+    indices.create:
+      index: sales
+      body:
+        settings:
+          number_of_shards: 2
+          number_of_replicas: 1
+        mappings:
+          sale:
+            properties:
+              type:
+                type: keyword
+  - do:
+    bulk:
+      index: sales
+      type: sale
+      refresh: true
+      body: |
+        {"index":{}}
+        {"date": "2015/01/01 00:00:00", "price": 200, "type": "hat"}
+        {"index":{}}
+        {"date": "2015/01/01 00:00:00", "price": 200, "type": "t-shirt"}
+        {"index":{}}
+        {"date": "2015/01/01 00:00:00", "price": 150, "type": "bag"}
+        {"index":{}}
+        {"date": "2015/02/01 00:00:00", "price": 50, "type": "hat"}
+        {"index":{}}
+        {"date": "2015/02/01 00:00:00", "price": 10, "type": "t-shirt"}
+        {"index":{}}
+        {"date": "2015/03/01 00:00:00", "price": 200, "type": "hat"}
+        {"index":{}}
+        {"date": "2015/03/01 00:00:00", "price": 175, "type": "t-shirt"}'''

@@ -60,7 +60,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
-public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
+public class NumberFieldMapper extends FieldMapper {
 
     // this is private since it has a different default
     static final Setting<Boolean> COERCE_SETTING =
@@ -114,10 +114,8 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         @Override
         public NumberFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            NumberFieldMapper fieldMapper =
-                new NumberFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
-                    coerce(context), context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return (NumberFieldMapper) fieldMapper.includeInAll(includeInAll);
+            return new NumberFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context),
+                    coerce(context), includeInAll, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -871,12 +869,14 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             MappedFieldType defaultFieldType,
             Explicit<Boolean> ignoreMalformed,
             Explicit<Boolean> coerce,
+            Boolean includeInAll,
             Settings indexSettings,
             MultiFields multiFields,
             CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.ignoreMalformed = ignoreMalformed;
         this.coerce = coerce;
+        this.includeInAll = includeInAll;
     }
 
     @Override
@@ -892,39 +892,6 @@ public class NumberFieldMapper extends FieldMapper implements AllFieldMapper.Inc
     @Override
     protected NumberFieldMapper clone() {
         return (NumberFieldMapper) super.clone();
-    }
-
-    @Override
-    public Mapper includeInAll(Boolean includeInAll) {
-        if (includeInAll != null) {
-            NumberFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public Mapper includeInAllIfNotSet(Boolean includeInAll) {
-        if (includeInAll != null && this.includeInAll == null) {
-            NumberFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public Mapper unsetIncludeInAll() {
-        if (includeInAll != null) {
-            NumberFieldMapper clone = clone();
-            clone.includeInAll = null;
-            return clone;
-        } else {
-            return this;
-        }
     }
 
     @Override

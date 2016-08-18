@@ -326,8 +326,8 @@ Ordering the buckets by multi value metrics sub-aggregation (identified by the a
 }
 --------------------------------------------------
 
+[NOTE]
 .Pipeline aggs cannot be used for sorting
-[INFO]
 =======================================
 
 <<search-aggregations-pipeline,Pipeline aggregations>> are run during the

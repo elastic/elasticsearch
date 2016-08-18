@@ -109,7 +109,6 @@ public class IPFilter {
     private final SetOnce<BoundTransportAddress> boundHttpTransportAddress = new SetOnce<>();
     private final SetOnce<Map<String, BoundTransportAddress>> profileBoundAddress = new SetOnce<>();
 
-    @Inject
     public IPFilter(final Settings settings, AuditTrailService auditTrail, ClusterSettings clusterSettings,
                     XPackLicenseState licenseState) {
         this.logger = Loggers.getLogger(getClass(), settings);

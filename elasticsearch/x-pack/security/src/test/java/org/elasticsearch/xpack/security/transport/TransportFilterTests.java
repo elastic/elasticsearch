@@ -32,6 +32,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.security.user.SystemUser;
 import org.mockito.InOrder;
 
 import java.io.IOException;
@@ -100,13 +101,13 @@ public class TransportFilterTests extends ESIntegTestCase {
         ServerTransportFilter targetServerFilter =
                 ((InternalPluginServerTransportService) targetService).transportFilter(TransportSettings.DEFAULT_PROFILE);
 
-        ClientTransportFilter sourceClientFilter = internalCluster().getInstance(ClientTransportFilter.class, source);
-        ClientTransportFilter targetClientFilter = internalCluster().getInstance(ClientTransportFilter.class, target);
+        AuthenticationService sourceAuth = internalCluster().getInstance(AuthenticationService.class, source);
+        AuthenticationService targetAuth = internalCluster().getInstance(AuthenticationService.class, target);
 
-        InOrder inOrder = inOrder(sourceClientFilter, targetServerFilter, targetClientFilter, sourceServerFilter);
-        inOrder.verify(sourceClientFilter).outbound("_action", new Request("src_to_trgt"));
+        InOrder inOrder = inOrder(sourceAuth, targetServerFilter, targetAuth, sourceServerFilter);
+        inOrder.verify(sourceAuth).attachUserIfMissing(SystemUser.INSTANCE);
         inOrder.verify(targetServerFilter).inbound(eq("_action"), eq(new Request("src_to_trgt")), isA(TransportChannel.class));
-        inOrder.verify(targetClientFilter).outbound("_action", new Request("trgt_to_src"));
+        inOrder.verify(targetAuth).attachUserIfMissing(SystemUser.INSTANCE);
         inOrder.verify(sourceServerFilter).inbound(eq("_action"), eq(new Request("trgt_to_src")), isA(TransportChannel.class));
     }
 
@@ -120,7 +121,6 @@ public class TransportFilterTests extends ESIntegTestCase {
     public static class TestTransportFilterModule extends AbstractModule {
         @Override
         protected void configure() {
-            bind(ClientTransportFilter.class).toInstance(mock(ClientTransportFilter.class));
             bind(AuthenticationService.class).toInstance(mock(AuthenticationService.class));
             bind(AuthorizationService.class).toInstance(mock(AuthorizationService.class));
         }
@@ -286,9 +286,8 @@ public class TransportFilterTests extends ESIntegTestCase {
         @Inject
         public InternalPluginServerTransportService(Settings settings, Transport transport, ThreadPool threadPool,
                                                     AuthenticationService authcService, AuthorizationService authzService,
-                                                    SecurityActionMapper actionMapper, ClientTransportFilter clientTransportFilter) {
-            super(settings, transport, threadPool, authcService, authzService, actionMapper, clientTransportFilter,
-                    mock(XPackLicenseState.class));
+                                                    SecurityActionMapper actionMapper) {
+            super(settings, transport, threadPool, authcService, authzService, actionMapper, mock(XPackLicenseState.class));
             when(licenseState.isAuthAllowed()).thenReturn(true);
         }
 

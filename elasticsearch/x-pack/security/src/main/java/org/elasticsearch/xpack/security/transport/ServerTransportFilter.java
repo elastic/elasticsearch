@@ -70,10 +70,9 @@ public interface ServerTransportFilter {
             /*
              here we don't have a fallback user, as all incoming request are
              expected to have a user attached (either in headers or in context)
-             We can make this assumption because in nodes we also have the
-             {@link ClientTransportFilter.Node} that makes sure all outgoing requsts
-             from all the nodes are attached with a user (either a serialize user
-             an authentication token
+             We can make this assumption because in nodes we make sure all outgoing
+             requests from all the nodes are attached with a user (either a serialize
+             user an authentication token
              */
             String securityAction = actionMapper.action(action, request);
 

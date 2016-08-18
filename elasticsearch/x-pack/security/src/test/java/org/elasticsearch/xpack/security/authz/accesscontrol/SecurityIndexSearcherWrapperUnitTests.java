@@ -28,6 +28,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Accountable;
@@ -35,6 +36,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -49,11 +51,23 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.BoostingQueryBuilder;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.GeoShapeQueryBuilder;
+import org.elasticsearch.index.query.HasChildQueryBuilder;
+import org.elasticsearch.index.query.HasParentQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -620,5 +634,56 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         // make sure scorers are created only once, see #1725
         assertEquals(1, searcher.count(new CreateScorerOnceQuery(new MatchAllDocsQuery())));
         IOUtils.close(reader, w, dir);
+    }
+
+    public void testVerifyRoleQuery() throws Exception {
+        QueryBuilder queryBuilder1 = new TermsQueryBuilder("field", "val1", "val2");
+        SecurityIndexSearcherWrapper.verifyRoleQuery(queryBuilder1);
+
+        QueryBuilder queryBuilder2 = new TermsQueryBuilder("field", new TermsLookup("_index", "_type", "_id", "_path"));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> SecurityIndexSearcherWrapper.verifyRoleQuery(queryBuilder2));
+        assertThat(e.getMessage(), equalTo("terms query with terms lookup isn't supported as part of a role query"));
+
+        QueryBuilder queryBuilder3 = new GeoShapeQueryBuilder("field", "_id", "_type");
+        e = expectThrows(IllegalArgumentException.class, () -> SecurityIndexSearcherWrapper.verifyRoleQuery(queryBuilder3));
+        assertThat(e.getMessage(), equalTo("geoshape query referring to indexed shapes isn't support as part of a role query"));
+
+        QueryBuilder queryBuilder4 = new HasChildQueryBuilder("_type", new MatchAllQueryBuilder(), ScoreMode.None);
+        e = expectThrows(IllegalArgumentException.class, () -> SecurityIndexSearcherWrapper.verifyRoleQuery(queryBuilder4));
+        assertThat(e.getMessage(), equalTo("has_child query isn't support as part of a role query"));
+
+        QueryBuilder queryBuilder5 = new HasParentQueryBuilder("_type", new MatchAllQueryBuilder(), false);
+        e = expectThrows(IllegalArgumentException.class, () -> SecurityIndexSearcherWrapper.verifyRoleQuery(queryBuilder5));
+        assertThat(e.getMessage(), equalTo("has_parent query isn't support as part of a role query"));
+
+        QueryBuilder queryBuilder6 = new BoolQueryBuilder().must(new GeoShapeQueryBuilder("field", "_id", "_type"));
+        e = expectThrows(IllegalArgumentException.class, () -> SecurityIndexSearcherWrapper.verifyRoleQuery(queryBuilder6));
+        assertThat(e.getMessage(), equalTo("geoshape query referring to indexed shapes isn't support as part of a role query"));
+
+        QueryBuilder queryBuilder7 = new ConstantScoreQueryBuilder(new GeoShapeQueryBuilder("field", "_id", "_type"));
+        e = expectThrows(IllegalArgumentException.class, () -> SecurityIndexSearcherWrapper.verifyRoleQuery(queryBuilder7));
+        assertThat(e.getMessage(), equalTo("geoshape query referring to indexed shapes isn't support as part of a role query"));
+
+        QueryBuilder queryBuilder8 = new FunctionScoreQueryBuilder(new GeoShapeQueryBuilder("field", "_id", "_type"));
+        e = expectThrows(IllegalArgumentException.class, () -> SecurityIndexSearcherWrapper.verifyRoleQuery(queryBuilder8));
+        assertThat(e.getMessage(), equalTo("geoshape query referring to indexed shapes isn't support as part of a role query"));
+
+        QueryBuilder queryBuilder9 = new BoostingQueryBuilder(new GeoShapeQueryBuilder("field", "_id", "_type"),
+                new MatchAllQueryBuilder());
+        e = expectThrows(IllegalArgumentException.class, () -> SecurityIndexSearcherWrapper.verifyRoleQuery(queryBuilder9));
+        assertThat(e.getMessage(), equalTo("geoshape query referring to indexed shapes isn't support as part of a role query"));
+    }
+
+    public void testFailIfQueryUsesClient() throws Exception {
+        Client client = mock(Client.class);
+        when(client.settings()).thenReturn(Settings.EMPTY);
+        QueryRewriteContext context = new QueryRewriteContext(null, mapperService, scriptService, null, client, null, null);
+        QueryBuilder queryBuilder1 = new TermsQueryBuilder("field", "val1", "val2");
+        SecurityIndexSearcherWrapper.failIfQueryUsesClient(queryBuilder1, context);
+
+        QueryBuilder queryBuilder2 = new TermsQueryBuilder("field", new TermsLookup("_index", "_type", "_id", "_path"));
+        Exception e = expectThrows(IllegalStateException.class,
+                () -> SecurityIndexSearcherWrapper.failIfQueryUsesClient(queryBuilder2, context));
+        assertThat(e.getMessage(), equalTo("role queries are not allowed to execute additional requests"));
     }
 }

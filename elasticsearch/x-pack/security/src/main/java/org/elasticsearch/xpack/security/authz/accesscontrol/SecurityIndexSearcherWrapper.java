@@ -24,6 +24,13 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
@@ -39,9 +46,18 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.BoostingQueryBuilder;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.GeoShapeQueryBuilder;
+import org.elasticsearch.index.query.HasChildQueryBuilder;
+import org.elasticsearch.index.query.HasParentQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -57,6 +73,7 @@ import org.elasticsearch.xpack.security.support.Exceptions;
 import org.elasticsearch.xpack.security.user.User;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -141,6 +158,8 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                     try (XContentParser parser = XContentFactory.xContent(bytesReference).createParser(bytesReference)) {
                         Optional<QueryBuilder> queryBuilder = queryShardContext.newParseContext(parser).parseInnerQueryBuilder();
                         if (queryBuilder.isPresent()) {
+                            verifyRoleQuery(queryBuilder.get());
+                            failIfQueryUsesClient(queryBuilder.get(), queryShardContext);
                             ParsedQuery parsedQuery = queryShardContext.toQuery(queryBuilder.get());
                             filter.add(parsedQuery.query(), SHOULD);
                         }
@@ -326,5 +345,69 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
     protected User getUser(){
         Authentication authentication = Authentication.getAuthentication(threadContext);
         return authentication.getUser();
+    }
+
+    /**
+     * Checks whether the role query contains queries we know can't be used as DLS role query.
+     */
+    static void verifyRoleQuery(QueryBuilder queryBuilder) throws IOException {
+        if (queryBuilder instanceof TermsQueryBuilder) {
+            TermsQueryBuilder termsQueryBuilder = (TermsQueryBuilder) queryBuilder;
+            if (termsQueryBuilder.termsLookup() != null) {
+                throw new IllegalArgumentException("terms query with terms lookup isn't supported as part of a role query");
+            }
+        } else if (queryBuilder instanceof GeoShapeQueryBuilder) {
+            GeoShapeQueryBuilder geoShapeQueryBuilder = (GeoShapeQueryBuilder) queryBuilder;
+            if (geoShapeQueryBuilder.shape() == null) {
+                throw new IllegalArgumentException("geoshape query referring to indexed shapes isn't support as part of a role query");
+            }
+        } else if (queryBuilder.getName().equals("percolate")) {
+            // actually only if percolate query is referring to an existing document then this is problematic,
+            // a normal percolate query does work. However we can't check that here as this query builder is inside
+            // another module. So we don't allow the entire percolate query. I don't think users would ever use
+            // a percolate query as role query, so this restriction shouldn't prohibit anyone from using dls.
+            throw new IllegalArgumentException("percolate query isn't support as part of a role query");
+        } else if (queryBuilder instanceof HasChildQueryBuilder) {
+            throw new IllegalArgumentException("has_child query isn't support as part of a role query");
+        } else if (queryBuilder instanceof HasParentQueryBuilder) {
+            throw new IllegalArgumentException("has_parent query isn't support as part of a role query");
+        } else if (queryBuilder instanceof BoolQueryBuilder) {
+            BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) queryBuilder;
+            List<QueryBuilder> clauses = new ArrayList<>();
+            clauses.addAll(boolQueryBuilder.filter());
+            clauses.addAll(boolQueryBuilder.must());
+            clauses.addAll(boolQueryBuilder.mustNot());
+            clauses.addAll(boolQueryBuilder.should());
+            for (QueryBuilder clause : clauses) {
+                verifyRoleQuery(clause);
+            }
+        } else if (queryBuilder instanceof ConstantScoreQueryBuilder) {
+            verifyRoleQuery(((ConstantScoreQueryBuilder) queryBuilder).innerQuery());
+        } else if (queryBuilder instanceof FunctionScoreQueryBuilder) {
+            verifyRoleQuery(((FunctionScoreQueryBuilder) queryBuilder).query());
+        } else if (queryBuilder instanceof BoostingQueryBuilder) {
+            verifyRoleQuery(((BoostingQueryBuilder) queryBuilder).negativeQuery());
+            verifyRoleQuery(((BoostingQueryBuilder) queryBuilder).positiveQuery());
+        }
+    }
+
+    /**
+     * Fall back validation that verifies that queries during rewrite don't use the client to make
+     * remote calls. In the case of DLS this can cause a dead lock if DLS is also applied on these remote calls.
+     * For example in the case of terms query with lookup, this can cause recursive execution of the
+     * DLS query until the get thread pool has been exhausted: https://github.com/elastic/x-plugins/issues/3145
+     */
+    static void failIfQueryUsesClient(QueryBuilder queryBuilder, QueryRewriteContext original) throws IOException {
+        Client client = new FilterClient(original.getClient()) {
+            @Override
+            protected <Request extends ActionRequest<Request>, Response extends ActionResponse,
+                    RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>>
+            void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener) {
+                throw new IllegalStateException("role queries are not allowed to execute additional requests");
+            }
+        };
+        QueryRewriteContext copy = new QueryRewriteContext(original.getIndexSettings(), original.getMapperService(),
+                original.getScriptService(), null, client, original.getIndexReader(), original.getClusterState());
+        queryBuilder.rewrite(copy);
     }
 }

@@ -20,11 +20,13 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.MapperService;
@@ -33,11 +35,14 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.mockito.internal.matchers.Any;
 
 import java.util.Collections;
 import java.util.Optional;
@@ -49,6 +54,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
@@ -65,7 +71,12 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, null,
                 singleton(new BytesArray("{\"match_all\" : {}}")));
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
+        IndicesQueriesRegistry indicesQueriesRegistry = mock(IndicesQueriesRegistry.class);
+        Client client = mock(Client.class);
+        when(client.settings()).thenReturn(Settings.EMPTY);
+        QueryShardContext realQueryShardContext = new QueryShardContext(indexSettings, null, null, mapperService, null,
+                null, indicesQueriesRegistry, client, null, null);
+        QueryShardContext queryShardContext = spy(realQueryShardContext);
         QueryParseContext queryParseContext = mock(QueryParseContext.class);
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {
@@ -140,10 +151,10 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), shardId);
         for (int i = 0; i < numValues; i++) {
             ParsedQuery parsedQuery = new ParsedQuery(new TermQuery(new Term("field", values[i])));
-            when(queryShardContext.newParseContext(any(XContentParser.class))).thenReturn(queryParseContext);
+            when(queryShardContext.newParseContext(anyParser())).thenReturn(queryParseContext);
             when(queryParseContext.parseInnerQueryBuilder())
                     .thenReturn(Optional.of(new TermQueryBuilder("field", values[i])));
-            when(queryShardContext.toQuery(any(QueryBuilder.class))).thenReturn(parsedQuery);
+            when(queryShardContext.toQuery(new TermsQueryBuilder("field", values[i]))).thenReturn(parsedQuery);
             DirectoryReader wrappedDirectoryReader = wrapper.wrap(directoryReader);
             IndexSearcher indexSearcher = wrapper.wrap(new IndexSearcher(wrappedDirectoryReader));
 
@@ -158,6 +169,16 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
         bitsetFilterCache.close();
         directoryReader.close();
         directory.close();
+    }
+
+    /*
+        QueryShardContext is spied (not mocked!) and because of that when we report a matcher can't pass in null to
+        queryShardContext.newParseContext(...), so we pass in a dummy parser instances. This allows us to report a
+        matcher and queryShardContext.newParseContext(...) fail with NPE.
+     */
+    private static XContentParser anyParser() {
+        any(XContentParser.class);
+        return new JsonXContentParser(null);
     }
 
 }

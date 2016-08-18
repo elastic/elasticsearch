@@ -18,12 +18,16 @@
  */
 package org.elasticsearch.search;
 
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -31,8 +35,10 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -73,6 +79,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -80,6 +87,7 @@ import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 public class SearchModuleTests extends ModuleTestCase {
 
@@ -91,7 +99,9 @@ public class SearchModuleTests extends ModuleTestCase {
             }
         };
         expectThrows(IllegalArgumentException.class,
-                () -> new SearchModule(Settings.EMPTY, false, singletonList(registersDupeHighlighter)));
+                () -> new SearchModule(Settings.EMPTY, false, singletonList(registersDupeHighlighter),
+                    new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()),
+                    newTestScriptModule().getScriptService(), mock(ClusterService.class)));
 
         SearchPlugin registersDupeSuggester = new SearchPlugin() {
             @Override
@@ -100,7 +110,9 @@ public class SearchModuleTests extends ModuleTestCase {
             }
         };
         expectThrows(IllegalArgumentException.class,
-                () -> new SearchModule(Settings.EMPTY, false, singletonList(registersDupeSuggester)));
+                () -> new SearchModule(Settings.EMPTY, false, singletonList(registersDupeSuggester),
+                    new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()),
+                    newTestScriptModule().getScriptService(), mock(ClusterService.class)));
 
         SearchPlugin registersDupeScoreFunction = new SearchPlugin() {
             @Override
@@ -110,7 +122,9 @@ public class SearchModuleTests extends ModuleTestCase {
             }
         };
         expectThrows(IllegalArgumentException.class,
-                () -> new SearchModule(Settings.EMPTY, false, singletonList(registersDupeScoreFunction)));
+                () -> new SearchModule(Settings.EMPTY, false, singletonList(registersDupeScoreFunction),
+                    new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()),
+                    newTestScriptModule().getScriptService(), mock(ClusterService.class)));
 
         SearchPlugin registersDupeSignificanceHeuristic = new SearchPlugin() {
             @Override
@@ -119,7 +133,9 @@ public class SearchModuleTests extends ModuleTestCase {
             }
         };
         expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false,
-                singletonList(registersDupeSignificanceHeuristic)));
+                singletonList(registersDupeSignificanceHeuristic),
+            new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()),
+            newTestScriptModule().getScriptService(), mock(ClusterService.class)));
 
         SearchPlugin registersDupeMovAvgModel = new SearchPlugin() {
             @Override
@@ -128,7 +144,9 @@ public class SearchModuleTests extends ModuleTestCase {
             }
         };
         expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false,
-                singletonList(registersDupeMovAvgModel)));
+                singletonList(registersDupeMovAvgModel),
+            new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()),
+            newTestScriptModule().getScriptService(), mock(ClusterService.class)));
 
         SearchPlugin registersDupeFetchSubPhase = new SearchPlugin() {
             @Override
@@ -137,7 +155,9 @@ public class SearchModuleTests extends ModuleTestCase {
             }
         };
         expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false,
-                singletonList(registersDupeFetchSubPhase)));
+                singletonList(registersDupeFetchSubPhase),
+            new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()),
+            newTestScriptModule().getScriptService(), mock(ClusterService.class)));
 
         SearchPlugin registersDupeQuery = new SearchPlugin() {
             public List<SearchPlugin.QuerySpec<?>> getQueries() {
@@ -145,7 +165,9 @@ public class SearchModuleTests extends ModuleTestCase {
             }
         };
         expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false,
-                singletonList(registersDupeQuery)));
+                singletonList(registersDupeQuery),
+            new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()),
+            newTestScriptModule().getScriptService(), mock(ClusterService.class)));
 
         SearchPlugin registersDupeAggregation = new SearchPlugin() {
             public List<AggregationSpec> getAggregations() {
@@ -153,7 +175,9 @@ public class SearchModuleTests extends ModuleTestCase {
             }
         };
         expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false,
-                singletonList(registersDupeAggregation)));
+                singletonList(registersDupeAggregation),
+            new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()),
+            newTestScriptModule().getScriptService(), mock(ClusterService.class)));
 
         SearchPlugin registersDupePipelineAggregation = new SearchPlugin() {
             public List<PipelineAggregationSpec> getPipelineAggregations() {
@@ -166,7 +190,9 @@ public class SearchModuleTests extends ModuleTestCase {
             }
         };
         expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false,
-                singletonList(registersDupePipelineAggregation)));
+                singletonList(registersDupePipelineAggregation),
+            new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()),
+            newTestScriptModule().getScriptService(), mock(ClusterService.class)));
     }
 
     public void testRegisterSuggester() {
@@ -175,7 +201,9 @@ public class SearchModuleTests extends ModuleTestCase {
             public Map<String, Suggester<?>> getSuggesters() {
                 return singletonMap("custom", CustomSuggester.INSTANCE);
             }
-        }));
+        }),
+            new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()),
+            newTestScriptModule().getScriptService(), mock(ClusterService.class));
         assertSame(TermSuggester.INSTANCE, module.getSuggesters().getSuggester("term"));
         assertSame(PhraseSuggester.INSTANCE, module.getSuggesters().getSuggester("phrase"));
         assertSame(CompletionSuggester.INSTANCE, module.getSuggesters().getSuggester("completion"));
@@ -189,7 +217,9 @@ public class SearchModuleTests extends ModuleTestCase {
             public Map<String, Highlighter> getHighlighters() {
                 return singletonMap("custom", customHighlighter);
             }
-        }));
+        }),
+            new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()),
+            newTestScriptModule().getScriptService(), mock(ClusterService.class));
 
         Map<String, Highlighter> highlighters = module.getHighlighters();
         assertEquals(FastVectorHighlighter.class, highlighters.get("fvh").getClass());
@@ -199,7 +229,9 @@ public class SearchModuleTests extends ModuleTestCase {
     }
 
     public void testRegisteredQueries() throws IOException {
-        SearchModule module = new SearchModule(Settings.EMPTY, false, emptyList());
+        SearchModule module = new SearchModule(Settings.EMPTY, false, emptyList(),
+            new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()),
+            mock(ScriptService.class), mock(ClusterService.class));
         List<String> allSupportedQueries = new ArrayList<>();
         Collections.addAll(allSupportedQueries, NON_DEPRECATED_QUERIES);
         Collections.addAll(allSupportedQueries, DEPRECATED_QUERIES);
@@ -231,7 +263,9 @@ public class SearchModuleTests extends ModuleTestCase {
             public List<AggregationSpec> getAggregations() {
                 return singletonList(new AggregationSpec("test", TestAggregationBuilder::new, TestAggregationBuilder::fromXContent));
             }
-        }));
+        }),
+            new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()),
+            newTestScriptModule().getScriptService(), mock(ClusterService.class));
 
         assertNotNull(module.getAggregatorParsers().parser("test", ParseFieldMatcher.STRICT));
     }
@@ -242,9 +276,28 @@ public class SearchModuleTests extends ModuleTestCase {
                 return singletonList(new PipelineAggregationSpec("test",
                         TestPipelineAggregationBuilder::new, TestPipelineAggregator::new, TestPipelineAggregationBuilder::fromXContent));
             }
-        }));
+        }),
+            new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()),
+            newTestScriptModule().getScriptService(), mock(ClusterService.class));
 
         assertNotNull(module.getAggregatorParsers().pipelineParser("test", ParseFieldMatcher.STRICT));
+    }
+
+    public void testRegisterSearchResponseListener() {
+
+        SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+            public List<BiConsumer<SearchRequest, SearchResponse>> getSearchResponseListeners() {
+                return singletonList((BiConsumer<SearchRequest, SearchResponse>) (searchRequest, response) -> {
+
+                });
+            }
+        }),
+            new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()),
+            newTestScriptModule().getScriptService(), mock(ClusterService.class));
+
+        List<BiConsumer<SearchRequest, SearchResponse>> listeners = module.getSearchResponseListners();
+        assertNotNull(listeners);
+        assertEquals(listeners.size(), 1);
     }
 
     private static final String[] NON_DEPRECATED_QUERIES = new String[] {

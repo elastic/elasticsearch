@@ -20,6 +20,8 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -48,6 +50,7 @@ import org.elasticsearch.search.suggest.Suggester;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -110,6 +113,12 @@ public interface SearchPlugin {
      * The new {@link PipelineAggregator}s added by this plugin.
      */
     default List<PipelineAggregationSpec> getPipelineAggregations() {
+        return emptyList();
+    }
+    /**
+     * The search listeners (in the form of BiConsumers) added by this plugin
+     */
+    default List<BiConsumer<SearchRequest, SearchResponse>> getSearchResponseListeners() {
         return emptyList();
     }
 

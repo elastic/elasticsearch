@@ -23,14 +23,18 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchRequestTests;
 import org.elasticsearch.snapshots.Snapshot;
@@ -45,6 +49,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.mockito.Mockito.mock;
 
 public class ShardSearchTransportRequestTests extends ESTestCase {
 
@@ -58,7 +63,9 @@ public class ShardSearchTransportRequestTests extends ESTestCase {
                 bindMapperExtension();
             }
         };
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList()) {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList(),
+            new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()),
+            newTestScriptModule().getScriptService(), mock(ClusterService.class)) {
             @Override
             protected void configureSearch() {
                 // Skip me

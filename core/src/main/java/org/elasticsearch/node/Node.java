@@ -325,7 +325,13 @@ public class Node implements Closeable {
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             modules.add(indicesModule);
-            SearchModule searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class));
+            CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
+                settingsModule.getClusterSettings());
+            resourcesToClose.add(circuitBreakerService);
+            BigArrays bigArrays = createBigArrays(settings, circuitBreakerService);
+            resourcesToClose.add(bigArrays);
+            SearchModule searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class),
+                bigArrays, scriptModule.getScriptService(), clusterService);
             modules.add(searchModule);
             modules.add(new ActionModule(DiscoveryNode.isIngestNode(settings), false, settings,
                 clusterModule.getIndexNameExpressionResolver(), settingsModule.getClusterSettings(),
@@ -333,11 +339,6 @@ public class Node implements Closeable {
             modules.add(new GatewayModule());
             modules.add(new RepositoriesModule(this.environment, pluginsService.filterPlugins(RepositoryPlugin.class)));
             pluginsService.processModules(modules);
-            CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
-                settingsModule.getClusterSettings());
-            resourcesToClose.add(circuitBreakerService);
-            BigArrays bigArrays = createBigArrays(settings, circuitBreakerService);
-            resourcesToClose.add(bigArrays);
             modules.add(settingsModule);
             List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
                 networkModule.getNamedWriteables().stream(),

@@ -22,13 +22,17 @@ package org.elasticsearch.search;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -40,6 +44,7 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.search.builder.SearchSourceBuilderTests.createSearchSourceBuilder;
+import static org.mockito.Mockito.mock;
 
 public class SearchRequestTests extends ESTestCase {
 
@@ -53,7 +58,9 @@ public class SearchRequestTests extends ESTestCase {
                 bindMapperExtension();
             }
         };
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList()) {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList(),
+            new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService()),
+            newTestScriptModule().getScriptService(), mock(ClusterService.class)) {
             @Override
             protected void configureSearch() {
                 // Skip me

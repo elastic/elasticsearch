@@ -30,10 +30,11 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -67,7 +68,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -92,13 +93,16 @@ public class SearchPhaseController extends AbstractComponent {
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
     private final ClusterService clusterService;
+    private final List<BiConsumer<SearchRequest, SearchResponse>> searchResponseListeners;
 
-    @Inject
-    public SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService, ClusterService clusterService) {
+    public SearchPhaseController(Settings settings, BigArrays bigArrays, ScriptService scriptService,
+                                 ClusterService clusterService,
+                                 List<BiConsumer<SearchRequest, SearchResponse>> searchResponseListeners) {
         super(settings);
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
+        this.searchResponseListeners = searchResponseListeners;
     }
 
     public AggregatedDfs aggregateDfs(AtomicArray<DfsSearchResult> results) {
@@ -523,6 +527,10 @@ public class SearchPhaseController extends AbstractComponent {
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);
 
         return new InternalSearchResponse(searchHits, aggregations, suggest, shardResults, timedOut, terminatedEarly);
+    }
+
+    public List<BiConsumer<SearchRequest, SearchResponse>> getSearchResponseListeners() {
+        return searchResponseListeners;
     }
 
     /**

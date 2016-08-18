@@ -36,8 +36,10 @@ import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.action.search.SearchType.QUERY_AND_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
@@ -93,7 +95,27 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             logger.debug("failed to optimize search type, continue as normal", e);
         }
 
-        searchAsyncAction(searchRequest, listener).start();
+        ActionListener<SearchResponse> wrapper = listener;
+        // If a plugin has registered listeners for the search response, wrap the ActionListener
+        // and call each listener in turn.
+        if (!searchPhaseController.getSearchResponseListeners().isEmpty()) {
+            wrapper = new ActionListener<SearchResponse>() {
+                @Override
+                public void onResponse(SearchResponse response) {
+                    for (BiConsumer<SearchRequest, SearchResponse> srl : searchPhaseController.getSearchResponseListeners()) {
+                        srl.accept(searchRequest, response);
+                    }
+                    listener.onResponse(response);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            };
+        }
+
+        searchAsyncAction(searchRequest, wrapper).start();
     }
 
     private AbstractSearchAsyncAction searchAsyncAction(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {

@@ -20,6 +20,9 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
@@ -28,6 +31,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -94,6 +98,7 @@ import org.elasticsearch.plugins.SearchPlugin.PipelineAggregationSpec;
 import org.elasticsearch.plugins.SearchPlugin.QuerySpec;
 import org.elasticsearch.plugins.SearchPlugin.ScoreFunctionSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtensionSpec;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -278,6 +283,7 @@ import org.elasticsearch.search.suggest.term.TermSuggester;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -310,12 +316,21 @@ public class SearchModule extends AbstractModule {
     private final Settings settings;
     private final List<Entry> namedWriteables = new ArrayList<>();
     private final SearchRequestParsers searchRequestParsers;
+    private final List<BiConsumer<SearchRequest, SearchResponse>> searchResponseListeners;
+    private final BigArrays bigArrays;
+    private final ScriptService scriptService;
+    private final ClusterService clusterService;
 
-    public SearchModule(Settings settings, boolean transportClient, List<SearchPlugin> plugins) {
+    public SearchModule(Settings settings, boolean transportClient, List<SearchPlugin> plugins,
+                        BigArrays bigArrays, ScriptService scriptService, ClusterService clusterService) {
         this.settings = settings;
         this.transportClient = transportClient;
+        this.bigArrays = bigArrays;
+        this.scriptService = scriptService;
+        this.clusterService = clusterService;
         suggesters = setupSuggesters(plugins);
         highlighters = setupHighlighters(settings, plugins);
+        searchResponseListeners = registerSearchResponseListeners(plugins);
         registerScoreFunctions(plugins);
         registerQueryParsers(plugins);
         registerRescorers();
@@ -372,6 +387,13 @@ public class SearchModule extends AbstractModule {
      */
     public AggregatorParsers getAggregatorParsers() {
         return aggregatorParsers;
+    }
+
+    /**
+     * The list of search response biconsumers that are called after a search response is completed
+     */
+    public List<BiConsumer<SearchRequest, SearchResponse>> getSearchResponseListners() {
+        return searchResponseListeners;
     }
 
 
@@ -572,7 +594,11 @@ public class SearchModule extends AbstractModule {
 
     protected void configureSearch() {
         // configure search private classes...
-        bind(SearchPhaseController.class).asEagerSingleton();
+        if (!transportClient) {
+            SearchPhaseController controller = new SearchPhaseController(settings, bigArrays,
+                scriptService, clusterService, searchResponseListeners);
+            bind(SearchPhaseController.class).toInstance(controller);
+        }
         bind(FetchPhase.class).toInstance(new FetchPhase(fetchSubPhases));
         bind(SearchTransportService.class).asEagerSingleton();
     }
@@ -803,5 +829,13 @@ public class SearchModule extends AbstractModule {
     private void registerQuery(QuerySpec<?> spec) {
         queryParserRegistry.register(spec.getParser(), spec.getName());
         namedWriteables.add(new Entry(QueryBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
+    }
+
+    private List<BiConsumer<SearchRequest, SearchResponse>> registerSearchResponseListeners(List<SearchPlugin> plugins) {
+        List<BiConsumer<SearchRequest, SearchResponse>> listeners = new ArrayList<>();
+        for (SearchPlugin plugin : plugins) {
+            listeners.addAll(plugin.getSearchResponseListeners());
+        }
+        return listeners;
     }
 }

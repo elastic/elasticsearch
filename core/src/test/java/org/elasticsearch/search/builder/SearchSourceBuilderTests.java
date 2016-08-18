@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -135,7 +136,9 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 bindMapperExtension();
             }
         };
-        SearchModule searchModule = new SearchModule(settings, false, emptyList()) {
+        SearchModule searchModule = new SearchModule(settings, false, emptyList(),
+            new MockBigArrays(settings, new NoneCircuitBreakerService()),
+            scriptModule.getScriptService(), clusterService) {
             @Override
             protected void configureSearch() {
                 // Skip me
@@ -545,14 +548,14 @@ public class SearchSourceBuilderTests extends ESTestCase {
 
     public void testAggsParsing() throws IOException {
         {
-            String restContent = "{\n" + "    " + 
-                    "\"aggs\": {" + 
-                    "        \"test_agg\": {\n" + 
-                    "            " + "\"terms\" : {\n" + 
-                    "                \"field\": \"foo\"\n" + 
-                    "            }\n" + 
-                    "        }\n" + 
-                    "    }\n" + 
+            String restContent = "{\n" + "    " +
+                    "\"aggs\": {" +
+                    "        \"test_agg\": {\n" +
+                    "            " + "\"terms\" : {\n" +
+                    "                \"field\": \"foo\"\n" +
+                    "            }\n" +
+                    "        }\n" +
+                    "    }\n" +
                     "}\n";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
@@ -561,14 +564,14 @@ public class SearchSourceBuilderTests extends ESTestCase {
             }
         }
         {
-            String restContent = "{\n" + 
-                    "    \"aggregations\": {" + 
-                    "        \"test_agg\": {\n" + 
-                    "            \"terms\" : {\n" + 
-                    "                \"field\": \"foo\"\n" + 
-                    "            }\n" + 
-                    "        }\n" + 
-                    "    }\n" + 
+            String restContent = "{\n" +
+                    "    \"aggregations\": {" +
+                    "        \"test_agg\": {\n" +
+                    "            \"terms\" : {\n" +
+                    "                \"field\": \"foo\"\n" +
+                    "            }\n" +
+                    "        }\n" +
+                    "    }\n" +
                     "}\n";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),

@@ -46,6 +46,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -55,7 +56,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.Suggest;
@@ -79,6 +84,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static org.apache.lucene.util.LuceneTestCase.random;
+import static org.elasticsearch.test.ESTestCase.newTestScriptModule;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -96,6 +102,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.mockito.Mockito.mock;
 
 public class ElasticsearchAssertions {
 
@@ -639,7 +646,10 @@ public class ElasticsearchAssertions {
         if (ESIntegTestCase.isInternalCluster()) {
             registry = ESIntegTestCase.internalCluster().getInstance(NamedWriteableRegistry.class);
         } else {
-            SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+            BigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
+            ScriptService scriptService = newTestScriptModule().getScriptService();
+            ClusterService clusterService = mock(ClusterService.class);
+            SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList(), bigArrays, scriptService, clusterService);
             registry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
         }
         assertVersionSerializable(version, streamable, registry);

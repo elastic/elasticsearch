@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -71,6 +72,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.mock;
 
 public class AggregatorParsingTests extends ESTestCase {
 
@@ -119,7 +121,9 @@ public class AggregatorParsingTests extends ESTestCase {
                 bindMapperExtension();
             }
         };
-        SearchModule searchModule = new SearchModule(settings, false, emptyList()) {
+        SearchModule searchModule = new SearchModule(settings, false, emptyList(),
+            new MockBigArrays(settings, new NoneCircuitBreakerService()),
+            scriptModule.getScriptService(), clusterService) {
             @Override
             protected void configureSearch() {
                 // Skip me

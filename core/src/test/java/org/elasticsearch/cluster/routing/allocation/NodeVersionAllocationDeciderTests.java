@@ -50,11 +50,13 @@ import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.test.ESAllocationTestCase;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyMap;
@@ -335,7 +337,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             .metaData(metaData)
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(newNode).add(oldNode1).add(oldNode2)).build();
-        AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {new NodeVersionAllocationDecider(Settings.EMPTY)});
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY, Collections.singleton(new NodeVersionAllocationDecider(Settings.EMPTY)));
         AllocationService strategy = new MockAllocationService(Settings.EMPTY,
             allocationDeciders,
             NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);
@@ -366,9 +368,9 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 new RestoreSource(new Snapshot("rep1", new SnapshotId("snp1", UUIDs.randomBase64UUID())),
                 Version.CURRENT, "test")).build())
             .nodes(DiscoveryNodes.builder().add(newNode).add(oldNode1).add(oldNode2)).build();
-        AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[]{
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY, Arrays.asList(
             new ReplicaAfterPrimaryActiveAllocationDecider(Settings.EMPTY),
-            new NodeVersionAllocationDecider(Settings.EMPTY)});
+            new NodeVersionAllocationDecider(Settings.EMPTY)));
         AllocationService strategy = new MockAllocationService(Settings.EMPTY,
             allocationDeciders,
             NoopGatewayAllocator.INSTANCE, new BalancedShardsAllocator(Settings.EMPTY), EmptyClusterInfoService.INSTANCE);

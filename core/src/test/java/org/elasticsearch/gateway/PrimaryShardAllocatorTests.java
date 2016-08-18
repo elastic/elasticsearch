@@ -48,9 +48,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardStateMetaData;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.test.ESAllocationTestCase;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -204,11 +205,11 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testForceAllocatePrimary() {
         testAllocator.addData(node1, ShardStateMetaData.NO_VERSION, "allocId1", randomBoolean());
-        AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {
+        AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, Arrays.asList(
             // since the deciders return a NO decision for allocating a shard (due to the guaranteed NO decision from the second decider),
             // the allocator will see if it can force assign the primary, where the decision will be YES
             new TestAllocateDecision(randomBoolean() ? Decision.YES : Decision.NO), getNoDeciderThatAllowsForceAllocate()
-        });
+        ));
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, false, Version.CURRENT, "allocId1");
         testAllocator.allocateUnassigned(allocation);
         assertThat(allocation.routingNodesChanged(), equalTo(true));
@@ -225,13 +226,13 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     public void testDontAllocateOnNoOrThrottleForceAllocationDecision() {
         testAllocator.addData(node1, ShardStateMetaData.NO_VERSION, "allocId1", randomBoolean());
         boolean forceDecisionNo = randomBoolean();
-        AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {
+        AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, Arrays.asList(
             // since both deciders here return a NO decision for allocating a shard,
             // the allocator will see if it can force assign the primary, where the decision will be either NO or THROTTLE,
             // so the shard will remain un-initialized
             new TestAllocateDecision(Decision.NO), forceDecisionNo ? getNoDeciderThatDeniesForceAllocate() :
                                                                      getNoDeciderThatThrottlesForceAllocate()
-        });
+        ));
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, false, Version.CURRENT, "allocId1");
         testAllocator.allocateUnassigned(allocation);
         assertThat(allocation.routingNodesChanged(), equalTo(true));
@@ -248,14 +249,14 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testDontForceAllocateOnThrottleDecision() {
         testAllocator.addData(node1, ShardStateMetaData.NO_VERSION, "allocId1", randomBoolean());
-        AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[] {
+        AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, Arrays.asList(
             // since we have a NO decision for allocating a shard (because the second decider returns a NO decision),
             // the allocator will see if it can force assign the primary, and in this case,
             // the TestAllocateDecision's decision for force allocating is to THROTTLE (using
             // the default behavior) so despite the other decider's decision to return YES for
             // force allocating the shard, we still THROTTLE due to the decision from TestAllocateDecision
             new TestAllocateDecision(Decision.THROTTLE), getNoDeciderThatAllowsForceAllocate()
-        });
+        ));
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(deciders, false, Version.CURRENT, "allocId1");
         testAllocator.allocateUnassigned(allocation);
         assertThat(allocation.routingNodesChanged(), equalTo(true));

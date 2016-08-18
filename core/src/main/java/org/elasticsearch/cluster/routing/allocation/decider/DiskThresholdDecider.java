@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -69,7 +68,6 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     private final DiskThresholdSettings diskThresholdSettings;
 
-    @Inject
     public DiskThresholdDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);

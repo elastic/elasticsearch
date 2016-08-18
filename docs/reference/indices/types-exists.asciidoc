@@ -5,8 +5,10 @@ Used to check if a type/types exists in an index/indices.
 
 [source,js]
 --------------------------------------------------
-curl -XHEAD -i 'http://localhost:9200/twitter/tweet'
+HEAD twitter/_mapping/tweet
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 The HTTP status code indicates if the type exists or not. A `404` means
 it does not exist, and `200` means it does.

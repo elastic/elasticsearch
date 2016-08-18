@@ -46,7 +46,9 @@ public class RestTypesExistsAction extends BaseRestHandler {
     @Inject
     public RestTypesExistsAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(HEAD, "/{index}/{type}", this);
+        controller.registerWithDeprecatedHandler(
+                HEAD, "/{index}/_mapping/{type}", this,
+                HEAD, "/{index}/{type}", deprecationLogger);
     }
 
     @Override

@@ -20,6 +20,13 @@ The `GET` HTTP verb for `/_forcemerge` is no longer supported, please use the
 It used to be possible to create an index by either calling `PUT index_name`
 or `POST index_name`. Only the former is now supported.
 
+==== `HEAD {index}/{type}` replaced with `HEAD {index}/_mapping/{type}`
+
+The endpoint for checking whether a type exists has been changed from
+`{index}/{type}` to `{index}/_mapping/{type}` in order to prepare for the
+removal of types when `HEAD {index}/{id}` will be used to check whether a
+document exists in an index. The old endpoint will keep working until 6.0.
+
 ==== Removed `mem` section from `/_cluster/stats` response
 
 The `mem` section contained only one value, the total memory available

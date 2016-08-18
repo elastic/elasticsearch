@@ -73,15 +73,15 @@ public class SecurityServerTransportService extends TransportService {
         if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
             try (ThreadContext.StoredContext ctx = threadPool.getThreadContext().stashContext()) {
                 final ThreadContext.StoredContext original = threadPool.getThreadContext().newStoredContext();
-                sendWithSystemUser(node, action, request, options, new ContextRestoreResponseHandler<>(original, handler));
+                sendWithUser(node, action, request, options, new ContextRestoreResponseHandler<>(original, handler));
             }
         } else {
-            sendWithSystemUser(node, action, request, options, handler);
+            sendWithUser(node, action, request, options, handler);
         }
     }
 
-    private <T extends TransportResponse> void sendWithSystemUser(DiscoveryNode node, String action, TransportRequest request,
-                                                                  TransportRequestOptions options, TransportResponseHandler<T> handler) {
+    private <T extends TransportResponse> void sendWithUser(DiscoveryNode node, String action, TransportRequest request,
+                                                            TransportRequestOptions options, TransportResponseHandler<T> handler) {
         try {
             // this will check if there's a user associated with the request. If there isn't,
             // the system user will be attached. There cannot be a request outgoing from this

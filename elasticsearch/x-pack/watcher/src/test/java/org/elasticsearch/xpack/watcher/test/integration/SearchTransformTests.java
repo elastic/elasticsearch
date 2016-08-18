@@ -16,16 +16,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchRequestParsers;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.common.text.TextTemplate;
@@ -183,7 +180,6 @@ public class SearchTransformTests extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/3135")
     public void testParser() throws Exception {
         String[] indices = rarely() ? null : randomBoolean() ? new String[] { "idx" } : new String[] { "idx1", "idx2" };
         SearchType searchType = getRandomSupportedSearchType();
@@ -234,7 +230,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         }
         if (templateName != null) {
             assertThat(executable.transform().getRequest().getTemplate(),
-                    equalTo(WatcherScript.file("template1").build()));
+                    equalTo(WatcherScript.file("template1").lang("mustache").build()));
         }
         assertThat(executable.transform().getRequest().getSearchSource().utf8ToString(), equalTo("{\"query\":{\"match_all\":{}}}"));
         assertThat(executable.transform().getTimeout(), equalTo(readTimeout));

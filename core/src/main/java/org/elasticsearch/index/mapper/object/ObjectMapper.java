@@ -403,6 +403,11 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
         return mappers.get(field);
     }
 
+    // pkg-private for testing
+    Boolean includeInAll() {
+        return includeInAll;
+    }
+
     @Override
     public ObjectMapper includeInAll(Boolean includeInAll) {
         if (includeInAll == null) {
@@ -492,6 +497,7 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
         }
         ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
         ObjectMapper merged = clone();
+        merged = merged.includeInAllIfNotSet(mergeWithObject.includeInAll);
         merged.doMerge(mergeWithObject, updateAllTypes);
         return merged;
     }

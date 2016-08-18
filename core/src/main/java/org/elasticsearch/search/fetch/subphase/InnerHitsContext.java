@@ -80,7 +80,7 @@ public final class InnerHitsContext {
     public void addInnerHitDefinition(BaseInnerHits innerHit) {
         if (innerHits.containsKey(innerHit.getName())) {
             throw new IllegalArgumentException("inner_hit definition with the name [" + innerHit.getName() +
-                    "] already exists. Use a different inner_hit name");
+                    "] already exists. Use a different inner_hit name or define one explicitly");
         }
 
         innerHits.put(innerHit.getName(), innerHit);

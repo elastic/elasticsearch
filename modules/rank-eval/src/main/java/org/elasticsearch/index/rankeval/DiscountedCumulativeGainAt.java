@@ -24,6 +24,7 @@ import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 
@@ -179,5 +180,17 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
 
     public static DiscountedCumulativeGainAt fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {
         return PARSER.apply(parser, matcher);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(NAME);
+        builder.field(SIZE_FIELD.getPreferredName(), this.position);
+        builder.field(NORMALIZE_FIELD.getPreferredName(), this.normalize);
+        if (unknownDocRating != null) {
+            builder.field(UNKNOWN_DOC_RATING_FIELD.getPreferredName(), this.unknownDocRating);
+        }
+        builder.endObject();
+        return builder;
     }
 }

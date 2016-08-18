@@ -19,12 +19,14 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -38,7 +40,7 @@ import java.util.List;
  *
  * The resulting document lists can then be compared against what was specified in the set of rated documents as part of a QAQuery.
  * */
-public class QuerySpec implements Writeable {
+public class QuerySpec extends ToXContentToBytes implements Writeable {
 
     private String specId;
     private SearchSourceBuilder testRequest;
@@ -65,12 +67,12 @@ public class QuerySpec implements Writeable {
         this.specId = in.readString();
         testRequest = new SearchSourceBuilder(in);
         int indicesSize = in.readInt();
-        indices = new ArrayList<String>(indicesSize);
+        indices = new ArrayList<>(indicesSize);
         for (int i = 0; i < indicesSize; i++) {
             this.indices.add(in.readString());
         }
         int typesSize = in.readInt();
-        types = new ArrayList<String>(typesSize);
+        types = new ArrayList<>(typesSize);
         for (int i = 0; i < typesSize; i++) {
             this.types.add(in.readString());
         }
@@ -188,5 +190,19 @@ public class QuerySpec implements Writeable {
      */
     public static QuerySpec fromXContent(XContentParser parser, RankEvalContext context) throws IOException {
         return PARSER.parse(parser, context);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(ID_FIELD.getPreferredName(), this.specId);
+        builder.field(REQUEST_FIELD.getPreferredName(), this.testRequest);
+        builder.startArray(RATINGS_FIELD.getPreferredName());
+        for (RatedDocument doc : this.ratedDocs) {
+            doc.toXContent(builder, params);
+        }
+        builder.endArray();
+        builder.endObject();
+        return builder;
     }
 }

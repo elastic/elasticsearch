@@ -24,6 +24,7 @@ import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
 
@@ -148,6 +149,14 @@ public class PrecisionAtN extends RankedListQualityMetric {
             }
             return Rating.IRRELEVANT;
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(NAME);
+        builder.field(SIZE_FIELD.getPreferredName(), this.n);
+        builder.endObject();
+        return builder;
     }
 
 }

@@ -1504,12 +1504,15 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> checking that _current no longer returns the snapshot");
         assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("_current").execute().actionGet().getSnapshots().isEmpty(), equalTo(true));
 
-        try {
-            client.admin().cluster().prepareSnapshotStatus("test-repo").addSnapshots("test-snap-doesnt-exist").execute().actionGet();
-            fail();
-        } catch (SnapshotMissingException ex) {
-            // Expected
-        }
+        // test that getting an unavailable snapshot status throws an exception if ignoreUnavailable is false on the request
+        expectThrows(SnapshotMissingException.class, () ->
+            client.admin().cluster().prepareSnapshotStatus("test-repo").addSnapshots("test-snap-doesnt-exist").get());
+        // test that getting an unavailable snapshot status does not throw an exception if ignoreUnavailable is true on the request
+        response = client.admin().cluster().prepareSnapshotStatus("test-repo")
+                       .addSnapshots("test-snap-doesnt-exist")
+                       .setIgnoreUnavailable(true)
+                       .get();
+        assertTrue(response.getSnapshots().isEmpty());
     }
 
     public void testSnapshotRelocatingPrimary() throws Exception {

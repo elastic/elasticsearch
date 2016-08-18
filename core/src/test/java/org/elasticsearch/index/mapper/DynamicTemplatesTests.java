@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -81,7 +80,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
-        assertThat(f.binaryValue(), equalTo(new BytesRef("some name")));
+        assertThat(f.stringValue(), equalTo("some name"));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
@@ -99,7 +98,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
 
         f = doc.getField("multi1.org");
         assertThat(f.name(), equalTo("multi1.org"));
-        assertThat(f.binaryValue(), equalTo(new BytesRef("multi 1")));
+        assertThat(f.stringValue(), equalTo("multi 1"));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
@@ -117,7 +116,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
 
         f = doc.getField("multi2.org");
         assertThat(f.name(), equalTo("multi2.org"));
-        assertThat(f.binaryValue(), equalTo(new BytesRef("multi 2")));
+        assertThat(f.stringValue(), equalTo("multi 2"));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
@@ -138,7 +137,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
-        assertThat(f.binaryValue(), equalTo(new BytesRef("some name")));
+        assertThat(f.stringValue(), equalTo("some name"));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
@@ -156,7 +155,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
 
         f = doc.getField("multi1.org");
         assertThat(f.name(), equalTo("multi1.org"));
-        assertThat(f.binaryValue(), equalTo(new BytesRef("multi 1")));
+        assertThat(f.stringValue(), equalTo("multi 1"));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
@@ -174,7 +173,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
 
         f = doc.getField("multi2.org");
         assertThat(f.name(), equalTo("multi2.org"));
-        assertThat(f.binaryValue(), equalTo(new BytesRef("multi 2")));
+        assertThat(f.stringValue(), equalTo("multi 2"));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 

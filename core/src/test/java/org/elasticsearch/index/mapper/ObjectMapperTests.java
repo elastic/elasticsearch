@@ -24,7 +24,11 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -154,5 +158,28 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
                                         .endObject()
                                         .string();
         createIndex("test").mapperService().documentMapperParser().parse("tweet", new CompressedXContent(mapping));
+    }
+
+    public void testMerge() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("foo")
+                            .field("type", "keyword")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+        MapperService mapperService = createIndex("test").mapperService();
+        DocumentMapper mapper = mapperService.merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false);
+        assertNull(mapper.root().includeInAll());
+        assertNull(mapper.root().dynamic());
+        String update = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .field("include_in_all", false)
+                    .field("dynamic", "strict")
+                .endObject().endObject().string();
+        mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.MAPPING_UPDATE, false);
+        assertFalse(mapper.root().includeInAll());
+        assertEquals(Dynamic.STRICT, mapper.root().dynamic());
     }
 }

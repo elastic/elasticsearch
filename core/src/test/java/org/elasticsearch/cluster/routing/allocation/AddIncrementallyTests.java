@@ -111,50 +111,44 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         nodes.add(newNode("node2"));
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        RoutingAllocation.Result routingResult = service.reroute(clusterState, "reroute");
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
         assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(INITIALIZING).size(), Matchers.equalTo(2));
         assertThat(clusterState.getRoutingNodes().node("node0").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
 
-        RoutingTable prev = routingTable;
-        logger.error(clusterState.prettyPrint());
-        routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        routingResult = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
         routingNodes = clusterState.getRoutingNodes();
-        assertThat(prev, Matchers.not(Matchers.sameInstance(routingTable)));
+        assertTrue(routingResult.changed());
         assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(STARTED).size(), Matchers.equalTo(2));
         assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(INITIALIZING).size(), Matchers.equalTo(2));
         assertThat(clusterState.getRoutingNodes().node("node0").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
-        assertThat(prev, Matchers.not(Matchers.sameInstance(routingTable)));
 
-        prev = routingTable;
-        routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        routingResult = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
         routingNodes = clusterState.getRoutingNodes();
         assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(STARTED).size(), Matchers.equalTo(4));
         assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(INITIALIZING).size(), Matchers.equalTo(2));
         assertThat(clusterState.getRoutingNodes().node("node0").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
-        assertThat(prev, Matchers.not(Matchers.sameInstance(routingTable)));
+        assertTrue(routingResult.changed());
 
-        prev = routingTable;
-        routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        routingResult = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
         routingNodes = clusterState.getRoutingNodes();
         assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(STARTED).size(), Matchers.equalTo(6));
         assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node0").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
-        assertThat(prev, Matchers.not(Matchers.sameInstance(routingTable)));
+        assertTrue(routingResult.changed());
 
-        prev = routingTable;
-        routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        assertThat(prev, Matchers.sameInstance(routingTable));
+        routingResult = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
+        assertFalse(routingResult.changed());
         assertNumIndexShardsPerNode(clusterState, Matchers.equalTo(2));
         logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
     }
@@ -181,50 +175,44 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         nodes.add(newNode("node2"));
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        RoutingAllocation.Result routingResult = service.reroute(clusterState, "reroute");
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
         assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(INITIALIZING).size(), Matchers.equalTo(2));
         assertThat(clusterState.getRoutingNodes().node("node0").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
 
-        RoutingTable prev = routingTable;
-        routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        routingResult = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
         routingNodes = clusterState.getRoutingNodes();
-        assertThat(prev, Matchers.not(Matchers.sameInstance(routingTable)));
+        assertTrue(routingResult.changed());
         assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(STARTED).size(), Matchers.equalTo(2));
         assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(INITIALIZING).size(), Matchers.equalTo(2));
         assertThat(clusterState.getRoutingNodes().node("node0").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
-        assertThat(prev, Matchers.not(Matchers.sameInstance(routingTable)));
 
-        prev = routingTable;
-        routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        routingResult = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
         routingNodes = clusterState.getRoutingNodes();
         assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(STARTED).size(), Matchers.equalTo(4));
         assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(INITIALIZING).size(), Matchers.equalTo(2));
         assertThat(clusterState.getRoutingNodes().node("node0").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
-        assertThat(prev, Matchers.not(Matchers.sameInstance(routingTable)));
+        assertTrue(routingResult.changed());
 
-        prev = routingTable;
-        routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        routingResult = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
         routingNodes = clusterState.getRoutingNodes();
         assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(STARTED).size(), Matchers.equalTo(6));
         assertThat(clusterState.getRoutingNodes().node("node2").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node0").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(INITIALIZING).size(), Matchers.equalTo(0));
-        assertThat(prev, Matchers.not(Matchers.sameInstance(routingTable)));
+        assertTrue(routingResult.changed());
 
-        prev = routingTable;
-        routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        routingNodes = clusterState.getRoutingNodes();
-        assertThat(prev, Matchers.sameInstance(routingTable));
+        routingResult = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
+        assertFalse(routingResult.changed());
         assertNumIndexShardsPerNode(clusterState, Matchers.equalTo(2));
         logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
     }
@@ -262,24 +250,11 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
 
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
 
-        RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        RoutingNodes routingNodes = clusterState.getRoutingNodes();
+        RoutingAllocation.Result routingResult = service.reroute(clusterState, "reroute");
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
 
         // move initializing to started
-
-        RoutingTable prev = routingTable;
-        while (true) {
-            logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
-            routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-            routingNodes = clusterState.getRoutingNodes();
-            if (routingTable == prev)
-                break;
-            prev = routingTable;
-        }
-
-        return clusterState;
+        return applyStartedShardsUntilNoChange(clusterState, service);
     }
 
     private ClusterState initCluster(AllocationService service, int numberOfNodes, int numberOfIndices, int numberOfShards,
@@ -299,43 +274,30 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
             routingTableBuilder.addAsNew(cursor.value);
         }
 
-        RoutingTable routingTable = routingTableBuilder.build();
+        RoutingTable initialRoutingTable = routingTableBuilder.build();
 
         logger.info("start {} nodes", numberOfNodes);
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         for (int i = 0; i < numberOfNodes; i++) {
             nodes.add(newNode("node" + i));
         }
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
-        routingTable = service.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        RoutingNodes routingNodes = clusterState.getRoutingNodes();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).nodes(nodes).metaData(metaData).routingTable(initialRoutingTable).build();
+        RoutingAllocation.Result routingResult = service.reroute(clusterState, "reroute");
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
 
         logger.info("restart all the primary shards, replicas will start initializing");
-        routingNodes = clusterState.getRoutingNodes();
-        routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        routingNodes = clusterState.getRoutingNodes();
+        RoutingNodes routingNodes = clusterState.getRoutingNodes();
+        routingResult = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
 
         logger.info("start the replica shards");
         routingNodes = clusterState.getRoutingNodes();
-        routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        routingResult = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
         routingNodes = clusterState.getRoutingNodes();
 
         logger.info("complete rebalancing");
-        RoutingTable prev = routingTable;
-        while (true) {
-            logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
-            routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-            routingNodes = clusterState.getRoutingNodes();
-            if (routingTable == prev)
-                break;
-            prev = routingTable;
-        }
-
-        return clusterState;
+        return applyStartedShardsUntilNoChange(clusterState, service);
     }
 
     private ClusterState addIndex(ClusterState clusterState, AllocationService service, int indexOrdinal, int numberOfShards,
@@ -350,37 +312,22 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         routingTableBuilder.addAsNew(imd);
 
         MetaData metaData = metaDataBuilder.build();
-        RoutingTable routingTable = routingTableBuilder.build();
-        clusterState = ClusterState.builder(clusterState).metaData(metaData).routingTable(routingTable).build();
-        routingTable = service.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        RoutingNodes routingNodes = clusterState.getRoutingNodes();
+        clusterState = ClusterState.builder(clusterState).metaData(metaData).routingTable(routingTableBuilder.build()).build();
+        RoutingAllocation.Result routingResult = service.reroute(clusterState, "reroute");
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
 
         logger.info("restart all the primary shards, replicas will start initializing");
-        routingNodes = clusterState.getRoutingNodes();
-        routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        routingNodes = clusterState.getRoutingNodes();
+        RoutingNodes routingNodes = clusterState.getRoutingNodes();
+        routingResult = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
 
         logger.info("start the replica shards");
         routingNodes = clusterState.getRoutingNodes();
-        routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        routingNodes = clusterState.getRoutingNodes();
+        routingResult = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
 
         logger.info("complete rebalancing");
-        RoutingTable prev = routingTable;
-        while (true) {
-            logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
-            routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-            routingNodes = clusterState.getRoutingNodes();
-            if (routingTable == prev)
-                break;
-            prev = routingTable;
-        }
-
-        return clusterState;
+        return applyStartedShardsUntilNoChange(clusterState, service);
     }
 
     private ClusterState removeNodes(ClusterState clusterState, AllocationService service, int numNodes) {
@@ -399,34 +346,23 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
         clusterState = ClusterState.builder(clusterState)
             .routingResult(service.deassociateDeadNodes(clusterState, true, "reroute")).build();
-        RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
         logger.info("start all the primary shards, replicas will start initializing");
-        RoutingTable routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        routingNodes = clusterState.getRoutingNodes();
+        RoutingNodes routingNodes = clusterState.getRoutingNodes();
+        RoutingAllocation.Result routingResult = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
 
         logger.info("start the replica shards");
-        routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
+        routingResult = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
 
         logger.info("rebalancing");
-        routingTable = service.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        routingNodes = clusterState.getRoutingNodes();
+        routingResult = service.reroute(clusterState, "reroute");
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
 
         logger.info("complete rebalancing");
-        RoutingTable prev = routingTable;
-        while (true) {
-            logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
-            routingTable = service.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-            routingNodes = clusterState.getRoutingNodes();
-            if (routingTable == prev)
-                break;
-            prev = routingTable;
-        }
+        clusterState = applyStartedShardsUntilNoChange(clusterState, service);
 
         return clusterState;
     }

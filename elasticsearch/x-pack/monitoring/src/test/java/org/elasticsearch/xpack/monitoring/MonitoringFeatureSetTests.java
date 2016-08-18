@@ -14,10 +14,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackFeatureSet;
-import org.elasticsearch.xpack.monitoring.agent.exporter.Exporter;
-import org.elasticsearch.xpack.monitoring.agent.exporter.Exporters;
-import org.elasticsearch.xpack.monitoring.agent.exporter.http.HttpExporter;
-import org.elasticsearch.xpack.monitoring.agent.exporter.local.LocalExporter;
+import org.elasticsearch.xpack.monitoring.exporter.Exporter;
+import org.elasticsearch.xpack.monitoring.exporter.Exporters;
+import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
+import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.junit.Before;
 

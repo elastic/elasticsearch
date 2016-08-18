@@ -10,7 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.xpack.monitoring.agent.exporter.local.LocalExporter;
+import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.monitoring.cleaner.AbstractIndicesCleanerTestCase;
 import org.joda.time.DateTime;
 

@@ -12,7 +12,6 @@ import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.monitoring.agent.AgentService;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;

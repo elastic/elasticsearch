@@ -18,8 +18,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.monitoring.agent.exporter.Exporter;
-import org.elasticsearch.xpack.monitoring.agent.exporter.Exporters;
+import org.elasticsearch.xpack.monitoring.exporter.Exporter;
+import org.elasticsearch.xpack.monitoring.exporter.Exporters;
 
 /**
  *

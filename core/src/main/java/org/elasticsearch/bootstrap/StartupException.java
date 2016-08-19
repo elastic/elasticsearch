@@ -32,18 +32,18 @@ import java.io.PrintStream;
  */
 //TODO: remove this when guice is removed, and exceptions are cleaned up
 //this is horrible, but its what we must do
-final class StartupError extends RuntimeException {
-    
+final class StartupException extends RuntimeException {
+
     /** maximum length of a stacktrace, before we truncate it */
     static final int STACKTRACE_LIMIT = 30;
     /** all lines from this package are RLE-compressed */
     static final String GUICE_PACKAGE = "org.elasticsearch.common.inject";
-    
-    /** 
-     * Create a new StartupError that will format {@code cause}
+
+    /**
+     * Create a new StartupException that will format {@code cause}
      * to the console on failure.
      */
-    StartupError(Throwable cause) {
+    StartupException(Throwable cause) {
         super(cause);
     }
 
@@ -58,10 +58,10 @@ final class StartupError extends RuntimeException {
         if (cause instanceof CreationException) {
             cause = getFirstGuiceCause((CreationException)cause);
         }
-        
+
         String message = cause.toString();
         s.println(message);
-        
+
         if (cause != null) {
             // walk to the root cause
             while (cause.getCause() != null) {
@@ -82,7 +82,7 @@ final class StartupError extends RuntimeException {
                     break;
                 }
                 String line = stack[i].toString();
-                
+
                 // skip past contiguous runs of this garbage:
                 if (line.startsWith(GUICE_PACKAGE)) {
                     while (i + 1 < stack.length && stack[i + 1].toString().startsWith(GUICE_PACKAGE)) {
@@ -103,8 +103,8 @@ final class StartupError extends RuntimeException {
             s.println("Refer to the log for complete error details.");
         }
     }
-    
-    /** 
+
+    /**
      * Returns first cause from a guice error (it can have multiple).
      */
     static Throwable getFirstGuiceCause(CreationException guice) {

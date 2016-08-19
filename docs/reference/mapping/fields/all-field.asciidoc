@@ -1,14 +1,14 @@
 [[mapping-all-field]]
 === `_all` field
 
-The `_all` field is a special _catch-all_ field which concatenates the values
-of all of the other fields into one big string, using space as a delimiter, which is then
-<<analysis,analyzed>> and indexed, but not stored.  This means that it can be
-searched, but not retrieved.
+The `_all` field is a special _catch-all_ field which concatenates the values of
+all of the other string fields into one big string, using space as a delimiter,
+which is then <<analysis,analyzed>> and indexed, but not stored. This means that
+it can be searched, but not retrieved.
 
-The `_all` field allows you to search for values in documents without knowing
-which field contains the value.  This makes it a useful option when getting
-started with a new dataset. For instance:
+The `_all` field allows you to search for string values in documents without
+knowing which field contains the value. This makes it a useful option when
+getting started with a new dataset. For instance:
 
 [source,js]
 --------------------------------
@@ -16,7 +16,7 @@ PUT my_index/user/1 <1>
 {
   "first_name":    "John",
   "last_name":     "Smith",
-  "date_of_birth": "1970-10-24"
+  "date_of_birth": "Born 1970-10-24"
 }
 
 GET my_index/_search
@@ -29,16 +29,17 @@ GET my_index/_search
 }
 --------------------------------
 // CONSOLE
-<1> The `_all` field will contain the terms: [ `"john"`, `"smith"`, `"1970"`, `"10"`, `"24"` ]
+<1> The `_all` field will contain the terms: [ `"john"`, `"smith"`, `"born"`, `"1970"`, `"10"`, `"24"` ]
 
 [NOTE]
-.All values treated as strings
+.Only string values are added to _all
 =============================================================================
 
-The `date_of_birth` field in the above example is recognised as a `date` field
-and so will index a single term representing `1970-10-24 00:00:00 UTC`. The
-`_all` field, however, treats all values as strings, so the date value is
-indexed as the three string terms: `"1970"`, `"24"`, `"10"`.
+The `date_of_birth` field in the above example is recognised as a `string` field
+and thus will be analyzed as a string, resulting in the terms `"born"`,
+`"1970"`, `"24"`, and `"10"`. If the `date_of_birth` field were an actual date
+type field, it would not be included in the `_all` field, since `_all` only
+contains content from string fields.
 
 It is important to note that the `_all` field combines the original values
 from each field as a string. It does not combine the _terms_ from each field.

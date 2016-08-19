@@ -280,7 +280,8 @@ public class NumberFieldMapperTests extends ESSingleNodeTestCase {
 
     public void doTestIncludeInAll(String type) throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", type).endObject().endObject()
+                .startObject("properties").startObject("field").field("type", type)
+                .field("include_in_all", true).endObject().endObject()
                 .endObject().endObject().string();
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
@@ -298,8 +299,7 @@ public class NumberFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("123", fields[0].stringValue());
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", type)
-                .field("include_in_all", false).endObject().endObject()
+                .startObject("properties").startObject("field").field("type", type).endObject().endObject()
                 .endObject().endObject().string();
 
         mapper = parser.parse("type", new CompressedXContent(mapping));

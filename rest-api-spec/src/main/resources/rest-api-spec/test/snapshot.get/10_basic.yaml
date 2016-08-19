@@ -10,6 +10,13 @@ setup:
             location: "test_repo_get_1_loc"
 
 ---
+teardown:
+
+  - do:
+      snapshot.delete_repository:
+        repository: test_repo_get_1
+
+---
 "Get snapshot info":
 
   - do:
@@ -52,10 +59,3 @@ setup:
         ignore_unavailable: true
 
   - is_true: snapshots
-
----
-teardown:
-
-  - do:
-      snapshot.delete_repository:
-        repository: test_repo_get_1

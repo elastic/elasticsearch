@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
@@ -49,7 +48,6 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
      *
      * @param settings {@link Settings} used by this {@link AllocationDecider}
      */
-    @Inject
     public MaxRetryAllocationDecider(Settings settings) {
         super(settings);
     }

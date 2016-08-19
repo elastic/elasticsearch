@@ -43,7 +43,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESAllocationTestCase;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -161,9 +161,8 @@ public class ShardFailedClusterStateTaskExecutorTests extends ESAllocationTestCa
             allocationService.reroute(stateAfterAddingNode, reason).routingTable();
         ClusterState stateAfterReroute = ClusterState.builder(stateAfterAddingNode).routingTable(afterReroute).build();
         RoutingNodes routingNodes = stateAfterReroute.getRoutingNodes();
-        RoutingTable afterStart =
-            allocationService.applyStartedShards(stateAfterReroute, routingNodes.shardsWithState(ShardRoutingState.INITIALIZING)).routingTable();
-        return ClusterState.builder(stateAfterReroute).routingTable(afterStart).build();
+        RoutingAllocation.Result afterStart = allocationService.applyStartedShards(stateAfterReroute, routingNodes.shardsWithState(ShardRoutingState.INITIALIZING));
+        return ClusterState.builder(stateAfterReroute).routingResult(afterStart).build();
     }
 
     private List<ShardStateAction.ShardEntry> createExistingShards(ClusterState currentState, String reason) {

@@ -41,7 +41,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
  */
-public final class KeywordFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
+public final class KeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "keyword";
 
@@ -94,10 +94,9 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
         @Override
         public KeywordFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            KeywordFieldMapper fieldMapper = new KeywordFieldMapper(
-                    name, fieldType, defaultFieldType, ignoreAbove,
+            return new KeywordFieldMapper(
+                    name, fieldType, defaultFieldType, ignoreAbove, includeInAll,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return fieldMapper.includeInAll(includeInAll);
         }
     }
 
@@ -161,26 +160,17 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder();
         }
-
-        @Override
-        public Object valueForSearch(Object value) {
-            if (value == null) {
-                return null;
-            }
-            // keywords are internally stored as utf8 bytes
-            BytesRef binaryValue = (BytesRef) value;
-            return binaryValue.utf8ToString();
-        }
     }
 
     private Boolean includeInAll;
     private int ignoreAbove;
 
     protected KeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                int ignoreAbove, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+                                int ignoreAbove, Boolean includeInAll, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.ignoreAbove = ignoreAbove;
+        this.includeInAll = includeInAll;
     }
 
     /** Values that have more chars than the return value of this method will
@@ -198,39 +188,6 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
     // pkg-private for testing
     Boolean includeInAll() {
         return includeInAll;
-    }
-
-    @Override
-    public KeywordFieldMapper includeInAll(Boolean includeInAll) {
-        if (includeInAll != null) {
-            KeywordFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public KeywordFieldMapper includeInAllIfNotSet(Boolean includeInAll) {
-        if (includeInAll != null && this.includeInAll == null) {
-            KeywordFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public KeywordFieldMapper unsetIncludeInAll() {
-        if (includeInAll != null) {
-            KeywordFieldMapper clone = clone();
-            clone.includeInAll = null;
-            return clone;
-        } else {
-            return this;
-        }
     }
 
     @Override
@@ -255,14 +212,12 @@ public final class KeywordFieldMapper extends FieldMapper implements AllFieldMap
             context.allEntries().addText(fieldType().name(), value, fieldType().boost());
         }
 
-        // convert to utf8 only once before feeding postings/dv/stored fields
-        final BytesRef binaryValue = new BytesRef(value);
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            Field field = new Field(fieldType().name(), binaryValue, fieldType());
+            Field field = new Field(fieldType().name(), value, fieldType());
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(value)));
         }
     }
 

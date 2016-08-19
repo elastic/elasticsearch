@@ -49,9 +49,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
-import org.elasticsearch.test.ESAllocationTestCase;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -209,7 +210,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testThrottleWhenAllocatingToMatchingNode() {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(new AllocationDeciders(Settings.EMPTY,
-            new AllocationDecider[]{new TestAllocateDecision(Decision.YES), new SameShardAllocationDecider(Settings.EMPTY),
+            Arrays.asList(new TestAllocateDecision(Decision.YES), new SameShardAllocationDecider(Settings.EMPTY),
                 new AllocationDecider(Settings.EMPTY) {
                     @Override
                     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -218,7 +219,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                         }
                         return Decision.YES;
                     }
-                }}));
+                })));
         testAllocator.addData(node1, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"))
                 .addData(node2, "MATCH", new StoreFileMetaData("file1", 10, "MATCH_CHECKSUM"));
         testAllocator.allocateUnassigned(allocation);

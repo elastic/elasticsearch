@@ -243,7 +243,7 @@ public class BucketScriptIT extends ESIntegTestCase {
         }
     }
 
-    public void testInlineScript3() {
+    public void testInlineScriptWithDateRange() {
         SearchResponse response = client()
             .prepareSearch("idx")
             .addAggregation(

@@ -20,13 +20,13 @@
 package org.elasticsearch.search.builder;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -62,6 +62,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.common.collect.Tuple.tuple;
 
 /**
  * A search source builder allowing to easily build search source. Simple
@@ -250,11 +254,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         boolean hasIndexBoost = indexBoost != null;
         out.writeBoolean(hasIndexBoost);
         if (hasIndexBoost) {
-            out.writeVInt(indexBoost.size());
-            for (ObjectCursor<String> key : indexBoost.keys()) {
-                out.writeString(key.value);
-                out.writeFloat(indexBoost.get(key.value));
-            }
+            writeIndexBoost(out);
         }
         out.writeOptionalFloat(minScore);
         out.writeOptionalNamedWriteable(postQueryBuilder);
@@ -301,6 +301,18 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         out.writeBoolean(profile);
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeOptionalWriteable(sliceBuilder);
+    }
+
+    private void writeIndexBoost(StreamOutput out) throws IOException {
+        out.writeVInt(indexBoost.size());
+        List<Tuple<String, Float>> ibs = StreamSupport
+            .stream(indexBoost.spliterator(), false)
+            .map(i -> tuple(i.key, i.value)).sorted((o1, o2) -> o1.v1().compareTo(o2.v1()))
+            .collect(Collectors.toList());
+        for (Tuple<String, Float> ib : ibs) {
+            out.writeString(ib.v1());
+            out.writeFloat(ib.v2());
+        }
     }
 
     /**

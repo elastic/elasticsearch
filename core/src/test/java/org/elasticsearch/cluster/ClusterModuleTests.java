@@ -65,13 +65,6 @@ public class ClusterModuleTests extends ModuleTestCase {
         }
     }
 
-    static class FakeIndexTemplateFilter implements IndexTemplateFilter {
-        @Override
-        public boolean apply(CreateIndexClusterStateUpdateRequest request, IndexTemplateMetaData template) {
-            return false;
-        }
-    }
-
     public void testRegisterClusterDynamicSettingDuplicate() {
         try {
             new SettingsModule(Settings.EMPTY, EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING);
@@ -153,22 +146,5 @@ public class ClusterModuleTests extends ModuleTestCase {
             .put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR).build();
         ClusterModule module = new ClusterModule(settings, clusterService, Collections.emptyList());
         assertBinding(module, ShardsAllocator.class, BalancedShardsAllocator.class);
-    }
-
-    public void testRegisterIndexTemplateFilterDuplicate() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY, clusterService, Collections.emptyList());
-        try {
-            module.registerIndexTemplateFilter(FakeIndexTemplateFilter.class);
-            module.registerIndexTemplateFilter(FakeIndexTemplateFilter.class);
-        } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(),
-                "Can't register the same [index_template_filter] more than once for [" + FakeIndexTemplateFilter.class.getName() + "]");
-        }
-    }
-
-    public void testRegisterIndexTemplateFilter() {
-        ClusterModule module = new ClusterModule(Settings.EMPTY, clusterService, Collections.emptyList());
-        module.registerIndexTemplateFilter(FakeIndexTemplateFilter.class);
-        assertSetMultiBinding(module, IndexTemplateFilter.class, FakeIndexTemplateFilter.class);
     }
 }

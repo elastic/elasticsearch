@@ -83,7 +83,6 @@ public class ClusterModule extends AbstractModule {
 
     private final Settings settings;
     private final ExtensionPoint.SelectedType<ShardsAllocator> shardsAllocators = new ExtensionPoint.SelectedType<>("shards_allocator", ShardsAllocator.class);
-    private final ExtensionPoint.ClassSet<IndexTemplateFilter> indexTemplateFilters = new ExtensionPoint.ClassSet<>("index_template_filter", IndexTemplateFilter.class);
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     // pkg private for tests
@@ -103,10 +102,6 @@ public class ClusterModule extends AbstractModule {
 
     public void registerShardsAllocator(String name, Class<? extends ShardsAllocator> clazz) {
         shardsAllocators.registerExtension(name, clazz);
-    }
-
-    public void registerIndexTemplateFilter(Class<? extends IndexTemplateFilter> indexTemplateFilter) {
-        indexTemplateFilters.registerExtension(indexTemplateFilter);
     }
 
     public IndexNameExpressionResolver getIndexNameExpressionResolver() {
@@ -156,7 +151,6 @@ public class ClusterModule extends AbstractModule {
             final ESLogger logger = Loggers.getLogger(getClass(), settings);
             logger.warn("{} allocator has been removed in 2.0 using {} instead", ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR, ClusterModule.BALANCED_ALLOCATOR);
         }
-        indexTemplateFilters.bind(binder());
 
         bind(ClusterInfoService.class).to(clusterInfoServiceImpl).asEagerSingleton();
         bind(GatewayAllocator.class).asEagerSingleton();

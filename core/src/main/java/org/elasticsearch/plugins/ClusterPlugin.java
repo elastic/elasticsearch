@@ -21,7 +21,10 @@ package org.elasticsearch.plugins;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
+import java.util.function.Supplier;
 
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -40,5 +43,19 @@ public interface ClusterPlugin {
      */
     default Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
         return Collections.emptyList();
+    }
+
+    /**
+     * Return {@link ShardsAllocator} implementations added by this plugin.
+     *
+     * The key of the returned {@link Map} is the name of the allocator, and the value
+     * is a function to construct the allocator.
+     *
+     * @param settings Settings for the node
+     * @param clusterSettings Settings for the cluster
+     * @return A map of allocator implementations
+     */
+    default Map<String, Supplier<ShardsAllocator>> getShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
+        return Collections.emptyMap();
     }
 }

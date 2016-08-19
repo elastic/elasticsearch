@@ -67,6 +67,7 @@ public class BucketScriptIT extends ESIntegTestCase {
     private static int numDocs;
     private static int minNumber;
     private static int maxNumber;
+    private static long date;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -129,6 +130,7 @@ public class BucketScriptIT extends ESIntegTestCase {
         numDocs = randomIntBetween(10, 500);
         minNumber = -200;
         maxNumber = 200;
+        date = randomLong();
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int docs = 0; docs < numDocs; docs++) {
@@ -146,7 +148,7 @@ public class BucketScriptIT extends ESIntegTestCase {
         jsonBuilder.field(FIELD_2_NAME, randomIntBetween(minNumber, maxNumber));
         jsonBuilder.field(FIELD_3_NAME, randomIntBetween(minNumber, maxNumber));
         jsonBuilder.field(FIELD_4_NAME, randomIntBetween(minNumber, maxNumber));
-        jsonBuilder.field(FIELD_5_NAME, DateTime.now());
+        jsonBuilder.field(FIELD_5_NAME, date);
         jsonBuilder.endObject();
         return jsonBuilder;
     }
@@ -249,7 +251,7 @@ public class BucketScriptIT extends ESIntegTestCase {
             .addAggregation(
                 dateRange("range")
                     .field(FIELD_5_NAME)
-                    .addRange("now-1d", "now")
+                    .addUnboundedFrom(date)
                     .subAggregation(sum("field2Sum").field(FIELD_2_NAME))
                     .subAggregation(sum("field3Sum").field(FIELD_3_NAME))
                     .subAggregation(sum("field4Sum").field(FIELD_4_NAME))

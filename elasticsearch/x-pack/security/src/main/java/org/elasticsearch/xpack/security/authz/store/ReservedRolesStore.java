@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.KibanaRole;
 import org.elasticsearch.xpack.security.authz.permission.KibanaUserRole;
+import org.elasticsearch.xpack.security.authz.permission.MonitoringUserRole;
+import org.elasticsearch.xpack.security.authz.permission.RemoteMonitoringAgentRole;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
 import org.elasticsearch.xpack.security.authz.permission.TransportClientRole;
@@ -42,6 +44,10 @@ public class ReservedRolesStore implements RolesStore {
                 return TransportClientRole.INSTANCE;
             case KibanaUserRole.NAME:
                 return KibanaUserRole.INSTANCE;
+            case MonitoringUserRole.NAME:
+                return MonitoringUserRole.INSTANCE;
+            case RemoteMonitoringAgentRole.NAME:
+                return RemoteMonitoringAgentRole.INSTANCE;
             case KibanaRole.NAME:
                 // The only user that should know about this role is the kibana user itself (who has this role). The reason we want to hide
                 // this role is that it was created specifically for kibana, with all the permissions that the kibana user needs.
@@ -68,6 +74,10 @@ public class ReservedRolesStore implements RolesStore {
                 return TransportClientRole.DESCRIPTOR;
             case KibanaUserRole.NAME:
                 return KibanaUserRole.DESCRIPTOR;
+            case MonitoringUserRole.NAME:
+                return MonitoringUserRole.DESCRIPTOR;
+            case RemoteMonitoringAgentRole.NAME:
+                return RemoteMonitoringAgentRole.DESCRIPTOR;
             case KibanaRole.NAME:
                 // The only user that should know about this role is the kibana user itself (who has this role). The reason we want to hide
                 // this role is that it was created specifically for kibana, with all the permissions that the kibana user needs.
@@ -84,13 +94,15 @@ public class ReservedRolesStore implements RolesStore {
     public Collection<RoleDescriptor> roleDescriptors() {
         if (KibanaUser.is(securityContext.getUser())) {
             return Arrays.asList(SuperuserRole.DESCRIPTOR, TransportClientRole.DESCRIPTOR, KibanaUserRole.DESCRIPTOR,
-                    KibanaRole.DESCRIPTOR);
+                    KibanaRole.DESCRIPTOR, MonitoringUserRole.DESCRIPTOR, RemoteMonitoringAgentRole.DESCRIPTOR);
         }
-        return Arrays.asList(SuperuserRole.DESCRIPTOR, TransportClientRole.DESCRIPTOR, KibanaUserRole.DESCRIPTOR);
+        return Arrays.asList(SuperuserRole.DESCRIPTOR, TransportClientRole.DESCRIPTOR, KibanaUserRole.DESCRIPTOR,
+                MonitoringUserRole.DESCRIPTOR, RemoteMonitoringAgentRole.DESCRIPTOR);
     }
 
     public static Set<String> names() {
-        return Sets.newHashSet(SuperuserRole.NAME, KibanaRole.NAME, TransportClientRole.NAME, KibanaUserRole.NAME);
+        return Sets.newHashSet(SuperuserRole.NAME, KibanaRole.NAME, TransportClientRole.NAME, KibanaUserRole.NAME,
+                MonitoringUserRole.NAME, RemoteMonitoringAgentRole.NAME);
     }
 
     public static boolean isReserved(String role) {
@@ -99,6 +111,8 @@ public class ReservedRolesStore implements RolesStore {
             case KibanaRole.NAME:
             case KibanaUserRole.NAME:
             case TransportClientRole.NAME:
+            case MonitoringUserRole.NAME:
+            case RemoteMonitoringAgentRole.NAME:
             case SystemUser.ROLE_NAME:
                 return true;
             default:

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.security.authc.support.RefreshListener;
@@ -20,7 +21,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.XPackPlugin;
 
 import java.io.BufferedWriter;
 import java.io.OutputStream;
@@ -235,11 +235,7 @@ public class FileRolesStoreTests extends ESTestCase {
         Path path = getDataPath("default_roles.yml");
         Map<String, Role> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY);
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(3));
-
-        assertThat(roles, hasKey("logstash"));
-        assertThat(roles, hasKey("monitoring_user"));
-        assertThat(roles, hasKey("remote_monitoring_agent"));
+        assertThat(roles.size(), is(0));
     }
 
     public void testAutoReload() throws Exception {

@@ -32,6 +32,9 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.junit.Before;
 
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -89,14 +92,14 @@ public class RoutingTableTests extends ESAllocationTestCase {
         RoutingAllocation.Result rerouteResult = ALLOCATION_SERVICE.reroute(clusterState, "reroute");
         this.testRoutingTable = rerouteResult.routingTable();
         assertThat(rerouteResult.changed(), is(true));
-        this.clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
+        this.clusterState = ClusterState.builder(clusterState).routingResult(rerouteResult).build();
     }
 
     private void startInitializingShards(String index) {
         this.clusterState = ClusterState.builder(clusterState).routingTable(this.testRoutingTable).build();
         logger.info("start primary shards for index {}", index);
         RoutingAllocation.Result rerouteResult = ALLOCATION_SERVICE.applyStartedShards(this.clusterState, this.clusterState.getRoutingNodes().shardsWithState(index, INITIALIZING));
-        this.clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
+        this.clusterState = ClusterState.builder(clusterState).routingResult(rerouteResult).build();
         this.testRoutingTable = rerouteResult.routingTable();
     }
 
@@ -296,10 +299,11 @@ public class RoutingTableTests extends ESAllocationTestCase {
                                                    .numberOfShards(numShards)
                                                    .numberOfReplicas(numReplicas)
                                                    .build();
-        MetaData metaData = MetaData.builder().put(indexMetaData, true).build();
         final RoutingTableGenerator routingTableGenerator = new RoutingTableGenerator();
         final RoutingTableGenerator.ShardCounter counter = new RoutingTableGenerator.ShardCounter();
         final IndexRoutingTable indexRoutingTable = routingTableGenerator.genIndexRoutingTable(indexMetaData, counter);
+        indexMetaData = updateActiveAllocations(indexRoutingTable, indexMetaData);
+        MetaData metaData = MetaData.builder().put(indexMetaData, true).build();
         // test no validation errors
         assertTrue(indexRoutingTable.validate(metaData));
         // test wrong number of shards causes validation errors
@@ -326,5 +330,16 @@ public class RoutingTableTests extends ESAllocationTestCase {
                                      .build();
         final MetaData metaData4 = MetaData.builder().put(indexMetaData, true).build();
         expectThrows(IllegalStateException.class, () -> indexRoutingTable.validate(metaData4));
+    }
+
+    private IndexMetaData updateActiveAllocations(IndexRoutingTable indexRoutingTable, IndexMetaData indexMetaData) {
+        IndexMetaData.Builder imdBuilder = IndexMetaData.builder(indexMetaData);
+        for (IndexShardRoutingTable shardTable : indexRoutingTable) {
+            for (ShardRouting shardRouting : shardTable) {
+                Set<String> activeAllocations = shardTable.activeShards().stream().map(shr -> shr.allocationId().getId()).collect(Collectors.toSet());
+                imdBuilder.putActiveAllocationIds(shardRouting.id(), activeAllocations);
+            }
+        }
+        return imdBuilder.build();
     }
 }

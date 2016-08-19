@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 
 import java.util.Arrays;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -45,9 +47,11 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
         AllocationService allocation = createAllocationService();
 
         logger.info("--> building initial cluster state");
+        AllocationId allocationId = AllocationId.newRelocation(AllocationId.newInitializing());
         final IndexMetaData indexMetaData = IndexMetaData.builder("test")
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(2).numberOfReplicas(0)
+                .putActiveAllocationIds(1, Collections.singleton(allocationId.getId()))
                 .build();
         final Index index = indexMetaData.getIndex();
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
@@ -55,7 +59,7 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
                 .metaData(MetaData.builder().put(indexMetaData, false));
 
         final ShardRouting initShard = TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.INITIALIZING);
-        final ShardRouting relocatingShard = TestShardRouting.newShardRouting(new ShardId(index, 1), "node1", "node2", true, ShardRoutingState.RELOCATING);
+        final ShardRouting relocatingShard = TestShardRouting.newShardRouting(new ShardId(index, 1), "node1", "node2", true, ShardRoutingState.RELOCATING, allocationId);
         stateBuilder.routingTable(RoutingTable.builder().add(IndexRoutingTable.builder(index)
                 .addIndexShard(new IndexShardRoutingTable.Builder(initShard.shardId()).addShard(initShard).build())
                 .addIndexShard(new IndexShardRoutingTable.Builder(relocatingShard.shardId()).addShard(relocatingShard).build())).build());

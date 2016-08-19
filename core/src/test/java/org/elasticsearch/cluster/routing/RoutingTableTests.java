@@ -332,11 +332,12 @@ public class RoutingTableTests extends ESAllocationTestCase {
         expectThrows(IllegalStateException.class, () -> indexRoutingTable.validate(metaData4));
     }
 
-    private IndexMetaData updateActiveAllocations(IndexRoutingTable indexRoutingTable, IndexMetaData indexMetaData) {
+    public static IndexMetaData updateActiveAllocations(IndexRoutingTable indexRoutingTable, IndexMetaData indexMetaData) {
         IndexMetaData.Builder imdBuilder = IndexMetaData.builder(indexMetaData);
         for (IndexShardRoutingTable shardTable : indexRoutingTable) {
             for (ShardRouting shardRouting : shardTable) {
-                Set<String> activeAllocations = shardTable.activeShards().stream().map(shr -> shr.allocationId().getId()).collect(Collectors.toSet());
+                Set<String> activeAllocations = shardTable.activeShards().stream().map(
+                    shr -> shr.allocationId().getId()).collect(Collectors.toSet());
                 imdBuilder.putActiveAllocationIds(shardRouting.id(), activeAllocations);
             }
         }

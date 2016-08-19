@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.discovery.zen;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -83,7 +82,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
-import static org.elasticsearch.test.ESAllocationTestCase.createAllocationService;
+import static org.elasticsearch.cluster.ESAllocationTestCase.createAllocationService;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;

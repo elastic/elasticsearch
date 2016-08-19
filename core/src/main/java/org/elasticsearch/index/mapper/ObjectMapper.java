@@ -430,6 +430,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
         }
 
+        this.includeInAll = mergeWith.includeInAll;
         if (mergeWith.dynamic != null) {
             this.dynamic = mergeWith.dynamic;
         }

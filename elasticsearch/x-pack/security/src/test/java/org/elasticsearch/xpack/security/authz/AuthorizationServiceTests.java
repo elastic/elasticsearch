@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
@@ -15,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
@@ -64,19 +62,22 @@ import org.elasticsearch.xpack.security.SecurityTemplateService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
-import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-import org.elasticsearch.xpack.security.user.AnonymousUser;
-import org.elasticsearch.xpack.security.user.SystemUser;
-import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.GeneralPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.user.AnonymousUser;
+import org.elasticsearch.xpack.security.user.SystemUser;
+import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.security.user.XPackUser;
 import org.junit.After;
 import org.junit.Before;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthorizationException;
@@ -520,8 +521,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         requests.add(new Tuple<>(GetAction.NAME, new GetRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
         requests.add(new Tuple<>(TermVectorsAction.NAME,
                 new TermVectorsRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(IndicesAliasesAction.NAME, new IndicesAliasesRequest().addAlias("security_alias",
-                SecurityTemplateService.SECURITY_INDEX_NAME)));
+        requests.add(new Tuple<>(IndicesAliasesAction.NAME, new IndicesAliasesRequest()
+                .addAliasAction(AliasActions.add().alias("security_alias").index(SecurityTemplateService.SECURITY_INDEX_NAME))));
         requests.add(
                 new Tuple<>(UpdateSettingsAction.NAME, new UpdateSettingsRequest().indices(SecurityTemplateService.SECURITY_INDEX_NAME)));
 
@@ -603,8 +604,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         requests.add(new Tuple<>(GetAction.NAME, new GetRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
         requests.add(new Tuple<>(TermVectorsAction.NAME,
                 new TermVectorsRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
-        requests.add(new Tuple<>(IndicesAliasesAction.NAME, new IndicesAliasesRequest().addAlias("security_alias",
-                SecurityTemplateService.SECURITY_INDEX_NAME)));
+        requests.add(new Tuple<>(IndicesAliasesAction.NAME, new IndicesAliasesRequest()
+                .addAliasAction(AliasActions.add().alias("security_alias").index(SecurityTemplateService.SECURITY_INDEX_NAME))));
         requests.add(new Tuple<>(ClusterHealthAction.NAME, new ClusterHealthRequest(SecurityTemplateService.SECURITY_INDEX_NAME)));
         requests.add(new Tuple<>(ClusterHealthAction.NAME,
                 new ClusterHealthRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "foo", "bar")));

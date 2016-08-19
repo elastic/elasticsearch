@@ -5,11 +5,10 @@
  */
 package org.elasticsearch.xpack.security.authz.indicesresolver;
 
-import java.util.Set;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
@@ -34,10 +33,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
-import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.security.user.XPackUser;
-import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -45,7 +40,12 @@ import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.security.user.XPackUser;
 import org.junit.Before;
+
+import java.util.Set;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -266,8 +266,8 @@ public class DefaultIndicesResolverTests extends ESTestCase {
 
     public void testResolveIndicesAliasesRequest() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
-        request.addAlias("alias1", "foo", "foofoo");
-        request.addAlias("alias2", "foo", "foobar");
+        request.addAliasAction(AliasActions.add().alias("alias1").indices("foo", "foofoo"));
+        request.addAliasAction(AliasActions.add().alias("alias2").indices("foo", "foobar"));
         Set<String> indices = defaultIndicesResolver.resolve(user, IndicesAliasesAction.NAME, request, metaData);
         //the union of all indices and aliases gets returned
         String[] expectedIndices = new String[]{"alias1", "alias2", "foo", "foofoo", "foobar"};
@@ -281,8 +281,8 @@ public class DefaultIndicesResolverTests extends ESTestCase {
 
     public void testResolveIndicesAliasesRequestExistingAlias() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
-        request.addAlias("alias1", "foo", "foofoo");
-        request.addAlias("foofoobar", "foo", "foobar");
+        request.addAliasAction(AliasActions.add().alias("alias1").indices("foo", "foofoo"));
+        request.addAliasAction(AliasActions.add().alias("foofoobar").indices("foo", "foobar"));
         Set<String> indices = defaultIndicesResolver.resolve(user, IndicesAliasesAction.NAME, request, metaData);
         //the union of all indices and aliases gets returned, foofoobar is an existing alias but that doesn't make any difference
         String[] expectedIndices = new String[]{"alias1", "foofoobar", "foo", "foofoo", "foobar"};
@@ -296,8 +296,8 @@ public class DefaultIndicesResolverTests extends ESTestCase {
 
     public void testResolveIndicesAliasesRequestMissingIndex() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
-        request.addAlias("alias1", "foo", "foofoo");
-        request.addAlias("alias2", "missing");
+        request.addAliasAction(AliasActions.add().alias("alias1").indices("foo", "foofoo"));
+        request.addAliasAction(AliasActions.add().alias("alias2").index("missing"));
         Set<String> indices = defaultIndicesResolver.resolve(user, IndicesAliasesAction.NAME, request, metaData);
         //the union of all indices and aliases gets returned, missing is not an existing index/alias but that doesn't make any difference
         String[] expectedIndices = new String[]{"alias1", "alias2", "foo", "foofoo", "missing"};
@@ -311,8 +311,8 @@ public class DefaultIndicesResolverTests extends ESTestCase {
 
     public void testResolveWildcardsIndicesAliasesRequest() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
-        request.addAlias("alias1", "foo*");
-        request.addAlias("alias2", "bar*");
+        request.addAliasAction(AliasActions.add().alias("alias1").index("foo*"));
+        request.addAliasAction(AliasActions.add().alias("alias2").index("bar*"));
         Set<String> indices = defaultIndicesResolver.resolve(user, IndicesAliasesAction.NAME, request, metaData);
         //the union of all resolved indices and aliases gets returned, based on indices and aliases that user is authorized for
         String[] expectedIndices = new String[]{"alias1", "alias2", "foofoo", "foofoobar", "bar"};
@@ -327,9 +327,9 @@ public class DefaultIndicesResolverTests extends ESTestCase {
 
     public void testResolveWildcardsIndicesAliasesRequestNoMatchingIndices() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
-        request.addAlias("alias1", "foo*");
-        request.addAlias("alias2", "bar*");
-        request.addAlias("alias3", "non_matching_*");
+        request.addAliasAction(AliasActions.add().alias("alias1").index("foo*"));
+        request.addAliasAction(AliasActions.add().alias("alias2").index("bar*"));
+        request.addAliasAction(AliasActions.add().alias("alias3").index("non_matching_*"));
         //if a single operation contains wildcards and ends up being resolved to no indices, it makes the whole request fail
         try {
             defaultIndicesResolver.resolve(user, IndicesAliasesAction.NAME, request, metaData);
@@ -341,8 +341,8 @@ public class DefaultIndicesResolverTests extends ESTestCase {
 
     public void testResolveAllIndicesAliasesRequest() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
-        request.addAlias("alias1", "_all");
-        request.addAlias("alias2", "_all");
+        request.addAliasAction(AliasActions.add().alias("alias1").index("_all"));
+        request.addAliasAction(AliasActions.add().alias("alias2").index("_all"));
         Set<String> indices = defaultIndicesResolver.resolve(user, IndicesAliasesAction.NAME, request, metaData);
         //the union of all resolved indices and aliases gets returned
         String[] expectedIndices = new String[]{"bar", "foofoobar", "foofoo", "alias1", "alias2"};
@@ -358,7 +358,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
 
     public void testResolveAllIndicesAliasesRequestNoAuthorizedIndices() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
-        request.addAlias("alias1", "_all");
+        request.addAliasAction(AliasActions.add().alias("alias1").index("_all"));
         //current user is not authorized for any index, _all resolves to no indices, the request fails
         try {
             defaultIndicesResolver.resolve(userNoIndices, IndicesAliasesAction.NAME, request, metaData);
@@ -370,7 +370,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
 
     public void testResolveWildcardsIndicesAliasesRequestNoAuthorizedIndices() {
         IndicesAliasesRequest request = new IndicesAliasesRequest();
-        request.addAlias("alias1", "foo*");
+        request.addAliasAction(AliasActions.add().alias("alias1").index("foo*"));
         //current user is not authorized for any index, foo* resolves to no indices, the request fails
         try {
             defaultIndicesResolver.resolve(userNoIndices, IndicesAliasesAction.NAME, request, metaData);
@@ -826,7 +826,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(indices, hasItem(SecurityTemplateService.SECURITY_INDEX_NAME));
 
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
-        aliasesRequest.addAlias("security_alias", "*");
+        aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias").index("*"));
         indices = defaultIndicesResolver.resolve(XPackUser.INSTANCE, IndicesAliasesAction.NAME, aliasesRequest, metaData);
         assertThat(indices, hasItem(SecurityTemplateService.SECURITY_INDEX_NAME));
     }
@@ -841,7 +841,7 @@ public class DefaultIndicesResolverTests extends ESTestCase {
         assertThat(indices, not(hasItem(SecurityTemplateService.SECURITY_INDEX_NAME)));
 
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
-        aliasesRequest.addAlias("security_alias1", "*");
+        aliasesRequest.addAliasAction(AliasActions.add().alias("security_alias1").index("*"));
         indices = defaultIndicesResolver.resolve(allAccessUser, IndicesAliasesAction.NAME, aliasesRequest, metaData);
         assertThat(indices, not(hasItem(SecurityTemplateService.SECURITY_INDEX_NAME)));
     }

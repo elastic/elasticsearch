@@ -268,17 +268,17 @@ final class Bootstrap {
             if (INSTANCE.node != null) {
                 logger = Loggers.getLogger(Bootstrap.class, Node.NODE_NAME_SETTING.get(INSTANCE.node.settings()));
             }
-            if (e instanceof CreationException || BootstrapCheck.isBootstrapCheckException(e)) {
-                // for Guice exceptions, we have to do this or we will run users out of disk space
-                // for bootstrap check failures, the full stacktrace is useless for the user
+            // HACK, it sucks to do this, but we will run users out of disk space otherwise
+            if (e instanceof CreationException) {
+                // guice: log the shortened exc to the log file
                 ByteArrayOutputStream os = new ByteArrayOutputStream();
                 PrintStream ps = new PrintStream(os, false, "UTF-8");
-                new StartupException(e).printStackTrace(ps);
+                new StartupError(e).printStackTrace(ps);
                 ps.flush();
-                logger.error("exception during bootstrap: {}", os.toString("UTF-8"));
+                logger.error("Guice Exception: {}", os.toString("UTF-8"));
             } else {
                 // full exception
-                logger.error("exception during bootstrap", e);
+                logger.error("Exception", e);
             }
             // re-enable it if appropriate, so they can see any logging during the shutdown process
             if (foreground) {

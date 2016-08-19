@@ -47,11 +47,11 @@ Fields with the same name in different mapping types in the same index
 Each field has a data `type` which can be:
 
 * a simple type like <<text,`text`>>, <<keyword,`keyword`>>, <<date,`date`>>, <<number,`long`>>,
-  <<number,`double`>>, <<boolean,`boolean`>> or <<ip,`ip`>>.
+  <<number,`double`>>, <<boolean,`boolean`>> or <<binary,`binary`>>.
 * a type which supports the hierarchical nature of JSON such as
   <<object,`object`>> or <<nested,`nested`>>.
 * or a specialised type like <<geo-point,`geo_point`>>,
-  <<geo-shape,`geo_shape`>>, or <<search-suggesters-completion,`completion`>>.
+  <<geo-shape,`geo_shape`>>, or <<ip, `ip`>>, <<search-suggesters-completion,`completion`>>.
 
 It is often useful to index the same field in different ways for different
 purposes. For instance, a `string` field could be <<mapping-index,indexed>> as

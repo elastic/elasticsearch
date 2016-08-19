@@ -95,17 +95,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             logger.debug("failed to optimize search type, continue as normal", e);
         }
 
-        ActionListener<SearchResponse> wrapper = listener;
+        final ActionListener<SearchResponse> wrapper;
         // If a plugin has registered listeners for the search response, wrap the ActionListener
         // and call each listener in turn.
         if (!searchPhaseController.getSearchResponseListeners().isEmpty()) {
             wrapper = new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse response) {
-                    for (BiConsumer<SearchRequest, SearchResponse> srl : searchPhaseController.getSearchResponseListeners()) {
-                        srl.accept(searchRequest, response);
+                    try {
+                        for (BiConsumer<SearchRequest, SearchResponse> srl : searchPhaseController.getSearchResponseListeners()) {
+                            srl.accept(searchRequest, response);
+                        }
+                    } finally {
+                        listener.onResponse(response);
                     }
-                    listener.onResponse(response);
                 }
 
                 @Override
@@ -113,6 +116,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     listener.onFailure(e);
                 }
             };
+        } else {
+            wrapper = listener;
         }
 
         searchAsyncAction(searchRequest, wrapper).start();

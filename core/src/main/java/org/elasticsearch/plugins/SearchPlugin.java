@@ -116,7 +116,10 @@ public interface SearchPlugin {
         return emptyList();
     }
     /**
-     * The search listeners (in the form of BiConsumers) added by this plugin
+     * The search listeners (in the form of BiConsumers) added by this plugin.
+     * The listeners are invoked on the coordinating node, at the very end of the search request.
+     * This provides a convenient location if you wish to inspect the final response (took time, etc).
+     * The BiConsumers are passed the original {@link SearchRequest} and the final {@link SearchResponse}
      */
     default List<BiConsumer<SearchRequest, SearchResponse>> getSearchResponseListeners() {
         return emptyList();

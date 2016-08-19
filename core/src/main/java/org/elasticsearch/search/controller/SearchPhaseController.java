@@ -102,7 +102,7 @@ public class SearchPhaseController extends AbstractComponent {
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
-        this.searchResponseListeners = searchResponseListeners;
+        this.searchResponseListeners = Collections.unmodifiableList(searchResponseListeners);
     }
 
     public AggregatedDfs aggregateDfs(AtomicArray<DfsSearchResult> results) {

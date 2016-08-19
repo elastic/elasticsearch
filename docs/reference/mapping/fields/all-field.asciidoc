@@ -16,30 +16,28 @@ PUT my_index/user/1 <1>
 {
   "first_name":    "John",
   "last_name":     "Smith",
-  "date_of_birth": "Born 1970-10-24"
+  "place_of_birth": "New York City"
 }
 
 GET my_index/_search
 {
   "query": {
     "match": {
-      "_all": "john smith 1970"
+      "_all": "john smith new york"
     }
   }
 }
 --------------------------------
 // CONSOLE
-<1> The `_all` field will contain the terms: [ `"john"`, `"smith"`, `"born"`, `"1970"`, `"10"`, `"24"` ]
+<1> The `_all` field will contain the terms: [ `"john"`, `"smith"`, `"new"`, `"york"`, `"city"` ]
 
 [NOTE]
 .Only string values are added to _all
 =============================================================================
 
-The `date_of_birth` field in the above example is recognised as a `string` field
-and thus will be analyzed as a string, resulting in the terms `"born"`,
-`"1970"`, `"24"`, and `"10"`. If the `date_of_birth` field were an actual date
-type field, it would not be included in the `_all` field, since `_all` only
-contains content from string fields.
+If a `date_of_birth` field mapped as a date were used, or an `age` field that
+was an integer were added, they would not be included in the `_all` field, as
+`_all` only contains content from _string_ fields.
 
 It is important to note that the `_all` field combines the original values
 from each field as a string. It does not combine the _terms_ from each field.
@@ -73,7 +71,7 @@ GET _search
 {
   "query": {
     "query_string": {
-      "query": "john smith 1970"
+      "query": "john smith new york"
     }
   }
 }
@@ -85,7 +83,7 @@ requests>> (which is rewritten to a `query_string` query internally):
 
 [source,js]
 --------------------------------
-GET _search?q=john+smith+1970
+GET _search?q=john+smith+new+york
 --------------------------------
 
 Other queries, such as the <<query-dsl-match-query,`match`>> and

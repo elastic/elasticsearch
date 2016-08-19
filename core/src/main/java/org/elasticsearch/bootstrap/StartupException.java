@@ -23,6 +23,8 @@ import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.io.PrintStream;
+import java.io.PrintWriter;
+import java.util.function.Consumer;
 
 /**
  * Wraps an exception in a special way that it gets formatted
@@ -53,6 +55,15 @@ final class StartupException extends RuntimeException {
      */
     @Override
     public void printStackTrace(PrintStream s) {
+        printStackTrace(s::println);
+    }
+
+    @Override
+    public void printStackTrace(PrintWriter s) {
+        printStackTrace(s::println);
+    }
+
+    private void printStackTrace(Consumer<String> consumer) {
         Throwable originalCause = getCause();
         Throwable cause = originalCause;
         if (cause instanceof CreationException) {
@@ -60,7 +71,7 @@ final class StartupException extends RuntimeException {
         }
 
         String message = cause.toString();
-        s.println(message);
+        consumer.accept(message);
 
         if (cause != null) {
             // walk to the root cause
@@ -70,7 +81,7 @@ final class StartupException extends RuntimeException {
 
             // print the root cause message, only if it differs!
             if (cause != originalCause && (message.equals(cause.toString()) == false)) {
-                s.println("Likely root cause: " + cause);
+                consumer.accept("Likely root cause: " + cause);
             }
 
             // print stacktrace of cause
@@ -78,7 +89,7 @@ final class StartupException extends RuntimeException {
             int linesWritten = 0;
             for (int i = 0; i < stack.length; i++) {
                 if (linesWritten == STACKTRACE_LIMIT) {
-                    s.println("\t<<<truncated>>>");
+                    consumer.accept("\t<<<truncated>>>");
                     break;
                 }
                 String line = stack[i].toString();
@@ -88,19 +99,19 @@ final class StartupException extends RuntimeException {
                     while (i + 1 < stack.length && stack[i + 1].toString().startsWith(GUICE_PACKAGE)) {
                         i++;
                     }
-                    s.println("\tat <<<guice>>>");
+                    consumer.accept("\tat <<<guice>>>");
                     linesWritten++;
                     continue;
                 }
 
-                s.println("\tat " + line.toString());
+                consumer.accept("\tat " + line.toString());
                 linesWritten++;
             }
         }
         // if its a guice exception, the whole thing really will not be in the log, its megabytes.
         // refer to the hack in bootstrap, where we don't log it
         if (originalCause instanceof CreationException == false) {
-            s.println("Refer to the log for complete error details.");
+            consumer.accept("Refer to the log for complete error details.");
         }
     }
 
@@ -116,4 +127,5 @@ final class StartupException extends RuntimeException {
         }
         return guice; // we tried
     }
+
 }

@@ -216,7 +216,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     // neither in the current snapshot entries nor found in the repository
                     if (request.ignoreUnavailable()) {
                         // ignoring unavailable snapshots, so skip over
-                        logger.trace("snapshot status request ignoring snapshot [{}], not found in repository [{}]",
+                        logger.debug("snapshot status request ignoring snapshot [{}], not found in repository [{}]",
                                      snapshotName, repositoryName);
                         continue;
                     } else {

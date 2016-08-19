@@ -53,3 +53,9 @@ setup:
 
   - is_true: snapshots
 
+---
+teardown:
+
+  - do:
+      snapshot.delete_repository:
+        repository: test_repo_status_1

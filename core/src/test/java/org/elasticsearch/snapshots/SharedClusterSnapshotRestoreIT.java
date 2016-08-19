@@ -1505,14 +1505,23 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("_current").execute().actionGet().getSnapshots().isEmpty(), equalTo(true));
 
         // test that getting an unavailable snapshot status throws an exception if ignoreUnavailable is false on the request
-        expectThrows(SnapshotMissingException.class, () ->
+        SnapshotMissingException ex = expectThrows(SnapshotMissingException.class, () ->
             client.admin().cluster().prepareSnapshotStatus("test-repo").addSnapshots("test-snap-doesnt-exist").get());
+        assertEquals("[test-repo:test-snap-doesnt-exist] is missing", ex.getMessage());
         // test that getting an unavailable snapshot status does not throw an exception if ignoreUnavailable is true on the request
         response = client.admin().cluster().prepareSnapshotStatus("test-repo")
                        .addSnapshots("test-snap-doesnt-exist")
                        .setIgnoreUnavailable(true)
                        .get();
         assertTrue(response.getSnapshots().isEmpty());
+        // test getting snapshot status for available and unavailable snapshots where ignoreUnavailable is true
+        // (available one should be returned)
+        response = client.admin().cluster().prepareSnapshotStatus("test-repo")
+                       .addSnapshots("test-snap", "test-snap-doesnt-exist")
+                       .setIgnoreUnavailable(true)
+                       .get();
+        assertEquals(1, response.getSnapshots().size());
+        assertEquals("test-snap", response.getSnapshots().get(0).getSnapshot().getSnapshotId().getName());
     }
 
     public void testSnapshotRelocatingPrimary() throws Exception {

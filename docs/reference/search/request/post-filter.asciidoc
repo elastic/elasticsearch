@@ -72,7 +72,7 @@ curl -XGET localhost:9200/shirts/_search -d '
   "query": {
     "bool": {
       "filter": {
-        { "term": { "brand": "gucci" }} <1>
+        "term": { "brand": "gucci" } <1>
       }
     }
   },

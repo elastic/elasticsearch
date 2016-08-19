@@ -54,7 +54,9 @@ class ClusterConfiguration {
     boolean debug = false
 
     @Input
-    String jvmArgs = System.getProperty('tests.jvm.argline', '')
+    String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
+            " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
+            " " + System.getProperty('tests.jvm.argline', '')
 
     /**
      * The seed nodes port file. In the case the cluster has more than one node we use a seed node

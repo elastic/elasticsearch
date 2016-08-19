@@ -9,6 +9,7 @@ esplugin {
   name 'x-pack'
   description 'Elasticsearch Expanded Pack Plugin'
   classname 'org.elasticsearch.xpack.XPackPlugin'
+  hasClientJar = true
 }
 
 ext.versions = [

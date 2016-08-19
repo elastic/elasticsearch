@@ -105,7 +105,7 @@ public class ClusterModuleTests extends ModuleTestCase {
     public void testRegisterAllocationDeciderDuplicate() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
             new ClusterModule(Settings.EMPTY, clusterService,
-                Collections.singletonList(new ClusterPlugin() {
+                Collections.<ClusterPlugin>singletonList(new ClusterPlugin() {
                     @Override
                     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                         return Collections.singletonList(new EnableAllocationDecider(settings, clusterSettings));

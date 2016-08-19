@@ -22,7 +22,9 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Counter;
+import org.apache.lucene.util.RefCount;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -30,6 +32,8 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -67,7 +71,7 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public abstract class SearchContext implements Releasable {
+public abstract class SearchContext extends AbstractRefCounted implements Releasable {
 
     private static ThreadLocal<SearchContext> current = new ThreadLocal<>();
     public static final int DEFAULT_TERMINATE_AFTER = 0;
@@ -91,6 +95,7 @@ public abstract class SearchContext implements Releasable {
     protected final ParseFieldMatcher parseFieldMatcher;
 
     protected SearchContext(ParseFieldMatcher parseFieldMatcher) {
+        super("search_context");
         this.parseFieldMatcher = parseFieldMatcher;
     }
 
@@ -100,16 +105,26 @@ public abstract class SearchContext implements Releasable {
 
     @Override
     public final void close() {
-        if (closed.compareAndSet(false, true)) { // prevent double release
-            try {
-                clearReleasables(Lifetime.CONTEXT);
-            } finally {
-                doClose();
-            }
+        if (closed.compareAndSet(false, true)) { // prevent double closing
+            decRef();
         }
     }
 
     private boolean nowInMillisUsed;
+
+    @Override
+    protected final void closeInternal() {
+        try {
+            clearReleasables(Lifetime.CONTEXT);
+        } finally {
+            doClose();
+        }
+    }
+
+    @Override
+    protected void alreadyClosed() {
+        throw new IllegalStateException("search context is already closed can't increment refCount current count [" + refCount() + "]");
+    }
 
     protected abstract void doClose();
 

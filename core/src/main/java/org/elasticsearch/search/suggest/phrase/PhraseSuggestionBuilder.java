@@ -174,7 +174,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         } else {
             out.writeBoolean(false);
         }
-        out.writeMap(collateParams);
+        out.writeMapWithConsistentOrder(collateParams);
         out.writeOptionalBoolean(collatePrune);
         out.writeVInt(this.generators.size());
         for (Entry<String, List<CandidateGenerator>> entry : this.generators.entrySet()) {
@@ -418,7 +418,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
      */
     public PhraseSuggestionBuilder collateParams(Map<String, Object> collateParams) {
         Objects.requireNonNull(collateParams, "collate parameters cannot be null.");
-        this.collateParams = new LinkedHashMap<>(collateParams);
+        this.collateParams = new HashMap<>(collateParams);
         return this;
     }
 

@@ -14,8 +14,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -47,36 +47,42 @@ public class SearchSourceBuilderTest extends ESTestCase {
     }
 
     public void testSearchRequestBuilderSerialization() throws Exception {
-        SearchSourceBuilder searchSourceBuilder = createSearchSourceBuilderWithPhraseSuggestionBuilder();
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            searchSourceBuilder.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                SearchSourceBuilder deserializedSearchSourceBuilder = new SearchSourceBuilder(in);
-                BytesStreamOutput deserializedOutput = new BytesStreamOutput();
-                deserializedSearchSourceBuilder.writeTo(deserializedOutput);
-                Iterator<Map.Entry<String, Object>> streamInMap =
-                    ((PhraseSuggestionBuilder) searchSourceBuilder.suggest().getSuggestions().get("suggestion1")).collateParams().entrySet().iterator();
-                Iterator<Map.Entry<String, Object>> streamOutMap =
-                    ((PhraseSuggestionBuilder) deserializedSearchSourceBuilder.suggest().getSuggestions().get("suggestion1")).collateParams().entrySet().iterator();
-                assertMapsOrder(streamInMap, streamOutMap);
-                assertEquals(output.bytes(), deserializedOutput.bytes());
+        Map<String, Object> resizeMap = buildCollateParams();
+        Map<String, Object> subResizeMap = new HashMap<>();
+        subResizeMap.put(randomAsciiOfLength(5), resizeMap);
+
+        List<Map<String, Object>> collateParams = Arrays.asList(resizeMap, subResizeMap);
+
+        for (Map<String, Object> collateParam : collateParams) {
+            SearchSourceBuilder searchSourceBuilder = createSearchSourceBuilderWithPhraseSuggestionBuilder(collateParam);
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                searchSourceBuilder.writeTo(output);
+                try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                    SearchSourceBuilder deserializedSearchSourceBuilder = new SearchSourceBuilder(in);
+                    BytesStreamOutput deserializedOutput = new BytesStreamOutput();
+                    deserializedSearchSourceBuilder.writeTo(deserializedOutput);
+                    Map<String, Object> streamInCollateParams =
+                        ((PhraseSuggestionBuilder) searchSourceBuilder.suggest().getSuggestions().get("suggestion1")).collateParams();
+                    Map<String, Object> streamOutCollateParams =
+                        ((PhraseSuggestionBuilder) deserializedSearchSourceBuilder.suggest().getSuggestions().get("suggestion1")).collateParams();
+                    assertEquals(streamInCollateParams, streamOutCollateParams);
+                    assertEquals(output.bytes(), deserializedOutput.bytes());
+                }
             }
         }
     }
 
-    private void assertMapsOrder(Iterator<Map.Entry<String, Object>> streamInMap, Iterator<Map.Entry<String, Object>> streamOutMap) {
-        while(streamInMap.hasNext()) {
-            assertEquals(streamInMap.next().getKey(), streamOutMap.next().getKey());
-        }
+    private static Map<String, Object> buildCollateParams() {
+        Map<String, Object> collateParams = new HashMap<>();
+        collateParams.put("SMzeI", randomAsciiOfLength(5));
+        collateParams.put("VWsIh", randomAsciiOfLength(5));
+        collateParams.put("QmpIc", randomAsciiOfLength(5));
+        return collateParams;
     }
 
-    private static SearchSourceBuilder createSearchSourceBuilderWithPhraseSuggestionBuilder() throws Exception {
+    private static SearchSourceBuilder createSearchSourceBuilderWithPhraseSuggestionBuilder(Map<String, Object> collateParams) throws Exception {
         PhraseSuggestionBuilder testBuilder = new PhraseSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
         setCommonPropertiesOnRandomBuilder(testBuilder);
-        Map<String, Object> collateParams = new HashMap<>();
-        collateParams.put("SMzeI", "ouOrp");
-        collateParams.put("VWsIh", "FPpbt");
-        collateParams.put("QmpIc", "WfrMs");
         testBuilder.collateParams(collateParams);
 
         SearchSourceBuilder searchSourceBuilder = createSearchSourceBuilder();

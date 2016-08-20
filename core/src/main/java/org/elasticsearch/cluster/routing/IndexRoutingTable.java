@@ -128,6 +128,11 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                     throw new IllegalStateException("shard routing has an index [" + shardRouting.index() + "] that is different " +
                                                     "from the routing table");
                 }
+                if (shardRouting.active() &&
+                    indexMetaData.activeAllocationIds(shardRouting.id()).contains(shardRouting.allocationId().getId()) == false) {
+                        throw new IllegalStateException("active shard routing " + shardRouting + " has no corresponding entry in the " +
+                            "in-sync allocation set " + indexMetaData.activeAllocationIds(shardRouting.id()));
+                    }
             }
         }
         return true;

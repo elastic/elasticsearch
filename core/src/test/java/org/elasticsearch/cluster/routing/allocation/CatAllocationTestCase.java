@@ -96,8 +96,21 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
         MetaData.Builder builder = MetaData.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
         for(Idx idx : indices.values()) {
-            IndexMetaData idxMeta = IndexMetaData.builder(idx.name).settings(settings(Version.CURRENT))
-                .numberOfShards(idx.numShards()).numberOfReplicas(idx.numReplicas()).build();
+            IndexMetaData.Builder idxMetaBuilder = IndexMetaData.builder(idx.name).settings(settings(Version.CURRENT))
+                .numberOfShards(idx.numShards()).numberOfReplicas(idx.numReplicas());
+            for (ShardRouting shardRouting : idx.routing) {
+                if (shardRouting.active()) {
+                    Set<String> allocationIds = idxMetaBuilder.getActiveAllocationIds(shardRouting.id());
+                    if (allocationIds == null) {
+                        allocationIds = new HashSet<>();
+                    } else {
+                        allocationIds = new HashSet<>(allocationIds);
+                    }
+                    allocationIds.add(shardRouting.allocationId().getId());
+                    idxMetaBuilder.putActiveAllocationIds(shardRouting.id(), allocationIds);
+                }
+            }
+            IndexMetaData idxMeta = idxMetaBuilder.build();
             builder.put(idxMeta, false);
             IndexRoutingTable.Builder tableBuilder = new IndexRoutingTable.Builder(idxMeta.getIndex()).initializeAsRecovery(idxMeta);
             Map<Integer, IndexShardRoutingTable> shardIdToRouting = new HashMap<>();
@@ -107,7 +120,6 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
                     refData = new IndexShardRoutingTable.Builder(shardIdToRouting.get(r.getId())).addShard(r).build();
                 }
                 shardIdToRouting.put(r.getId(), refData);
-
             }
             for (IndexShardRoutingTable t: shardIdToRouting.values()) {
                 tableBuilder.addIndexShard(t);
@@ -139,20 +151,18 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
     private ClusterState rebalance(ClusterState clusterState) {
         RoutingTable routingTable;AllocationService strategy = createAllocationService(Settings.builder()
                 .build());
-        RoutingAllocation.Result reroute = strategy.reroute(clusterState, "reroute");
-        routingTable = reroute.routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        routingTable = clusterState.routingTable();
+        RoutingAllocation.Result routingResult = strategy.reroute(clusterState, "reroute");
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
         int numRelocations = 0;
         while (true) {
-            List<ShardRouting> initializing = routingTable.shardsWithState(INITIALIZING);
+            List<ShardRouting> initializing = clusterState.routingTable().shardsWithState(INITIALIZING);
             if (initializing.isEmpty()) {
                 break;
             }
             logger.debug("Initializing shards: {}", initializing);
             numRelocations += initializing.size();
-            routingTable = strategy.applyStartedShards(clusterState, initializing).routingTable();
-            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+            routingResult = strategy.applyStartedShards(clusterState, initializing);
+            clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
         }
         logger.debug("--> num relocations to get balance: {}", numRelocations);
         return clusterState;

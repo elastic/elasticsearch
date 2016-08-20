@@ -51,6 +51,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -417,7 +418,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
      */
     public PhraseSuggestionBuilder collateParams(Map<String, Object> collateParams) {
         Objects.requireNonNull(collateParams, "collate parameters cannot be null.");
-        this.collateParams = new HashMap<>(collateParams);
+        this.collateParams = new LinkedHashMap<>(collateParams);
         return this;
     }
 

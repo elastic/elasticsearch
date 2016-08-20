@@ -83,7 +83,6 @@ public class ClusterModule extends AbstractModule {
         new Setting<>("cluster.routing.allocation.type", BALANCED_ALLOCATOR, Function.identity(), Property.NodeScope);
 
     private final Settings settings;
-    private final ExtensionPoint.ClassSet<IndexTemplateFilter> indexTemplateFilters = new ExtensionPoint.ClassSet<>("index_template_filter", IndexTemplateFilter.class);
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     // pkg private for tests
@@ -99,10 +98,6 @@ public class ClusterModule extends AbstractModule {
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.clusterService = clusterService;
         indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
-    }
-
-    public void registerIndexTemplateFilter(Class<? extends IndexTemplateFilter> indexTemplateFilter) {
-        indexTemplateFilters.registerExtension(indexTemplateFilter);
     }
 
     public IndexNameExpressionResolver getIndexNameExpressionResolver() {
@@ -167,8 +162,6 @@ public class ClusterModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        indexTemplateFilters.bind(binder());
-
         bind(ClusterInfoService.class).to(clusterInfoServiceImpl).asEagerSingleton();
         bind(GatewayAllocator.class).asEagerSingleton();
         bind(AllocationService.class).asEagerSingleton();

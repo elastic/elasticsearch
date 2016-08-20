@@ -191,11 +191,10 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         storedFieldNames = (List<String>) in.readGenericValue();
         from = in.readVInt();
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
-        boolean hasIndexBoost = in.readBoolean();
-        if (hasIndexBoost) {
-            int size = in.readVInt();
-            indexBoost = new ObjectFloatHashMap<>(size);
-            for (int i = 0; i < size; i++) {
+        int indexBoostSize = in.readVInt();
+        if (indexBoostSize > 0) {
+            indexBoost = new ObjectFloatHashMap<>(indexBoostSize);
+            for (int i = 0; i < indexBoostSize; i++) {
                 indexBoost.put(in.readString(), in.readFloat());
             }
         }
@@ -251,9 +250,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         out.writeGenericValue(storedFieldNames);
         out.writeVInt(from);
         out.writeOptionalWriteable(highlightBuilder);
-        boolean hasIndexBoost = indexBoost != null;
-        out.writeBoolean(hasIndexBoost);
-        if (hasIndexBoost) {
+        int indexBoostSize = indexBoost == null ? 0 : indexBoost.size();
+        out.writeVInt(indexBoostSize);
+        if (indexBoostSize > 0) {
             writeIndexBoost(out);
         }
         out.writeOptionalFloat(minScore);
@@ -304,7 +303,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     }
 
     private void writeIndexBoost(StreamOutput out) throws IOException {
-        out.writeVInt(indexBoost.size());
         List<Tuple<String, Float>> ibs = StreamSupport
             .stream(indexBoost.spliterator(), false)
             .map(i -> tuple(i.key, i.value)).sorted((o1, o2) -> o1.v1().compareTo(o2.v1()))

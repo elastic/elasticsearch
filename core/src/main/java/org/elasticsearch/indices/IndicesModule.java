@@ -173,7 +173,6 @@ public class IndicesModule extends AbstractModule {
     protected void configure() {
         bindMapperExtension();
 
-        bind(IndicesService.class).asEagerSingleton();
         bind(RecoverySettings.class).asEagerSingleton();
         bind(RecoveryTargetService.class).asEagerSingleton();
         bind(RecoverySource.class).asEagerSingleton();

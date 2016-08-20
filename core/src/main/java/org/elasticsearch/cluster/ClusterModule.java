@@ -69,25 +69,26 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * Configures classes and services that affect the entire cluster.
  */
 public class ClusterModule extends AbstractModule {
 
-    public static final String EVEN_SHARD_COUNT_ALLOCATOR = "even_shard";
     public static final String BALANCED_ALLOCATOR = "balanced"; // default
     public static final Setting<String> SHARDS_ALLOCATOR_TYPE_SETTING =
         new Setting<>("cluster.routing.allocation.type", BALANCED_ALLOCATOR, Function.identity(), Property.NodeScope);
 
     private final Settings settings;
-    private final ExtensionPoint.SelectedType<ShardsAllocator> shardsAllocators = new ExtensionPoint.SelectedType<>("shards_allocator", ShardsAllocator.class);
     private final ExtensionPoint.ClassSet<IndexTemplateFilter> indexTemplateFilters = new ExtensionPoint.ClassSet<>("index_template_filter", IndexTemplateFilter.class);
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     // pkg private for tests
     final Collection<AllocationDecider> allocationDeciders;
+    final ShardsAllocator shardsAllocator;
 
     // pkg private so tests can mock
     Class<? extends ClusterInfoService> clusterInfoServiceImpl = InternalClusterInfoService.class;
@@ -95,14 +96,9 @@ public class ClusterModule extends AbstractModule {
     public ClusterModule(Settings settings, ClusterService clusterService, List<ClusterPlugin> clusterPlugins) {
         this.settings = settings;
         this.allocationDeciders = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
-        registerShardsAllocator(ClusterModule.BALANCED_ALLOCATOR, BalancedShardsAllocator.class);
-        registerShardsAllocator(ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR, BalancedShardsAllocator.class);
+        this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.clusterService = clusterService;
         indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
-    }
-
-    public void registerShardsAllocator(String name, Class<? extends ShardsAllocator> clazz) {
-        shardsAllocators.registerExtension(name, clazz);
     }
 
     public void registerIndexTemplateFilter(Class<? extends IndexTemplateFilter> indexTemplateFilter) {
@@ -148,14 +144,29 @@ public class ClusterModule extends AbstractModule {
         }
     }
 
+    private static ShardsAllocator createShardsAllocator(Settings settings, ClusterSettings clusterSettings,
+                                                         List<ClusterPlugin> clusterPlugins) {
+        Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
+        allocators.put(BALANCED_ALLOCATOR, () -> new BalancedShardsAllocator(settings, clusterSettings));
+
+        for (ClusterPlugin plugin : clusterPlugins) {
+            plugin.getShardsAllocators(settings, clusterSettings).forEach((k, v) -> {
+                if (allocators.put(k, v) != null) {
+                    throw new IllegalArgumentException("ShardsAllocator [" + k + "] already defined");
+                }
+            });
+        }
+        String allocatorName = SHARDS_ALLOCATOR_TYPE_SETTING.get(settings);
+        Supplier<ShardsAllocator> allocatorSupplier = allocators.get(allocatorName);
+        if (allocatorSupplier == null) {
+            throw new IllegalArgumentException("Unknown ShardsAllocator [" + allocatorName + "]");
+        }
+        return Objects.requireNonNull(allocatorSupplier.get(),
+            "ShardsAllocator factory for [" + allocatorName + "] returned null");
+    }
+
     @Override
     protected void configure() {
-        // bind ShardsAllocator
-        String shardsAllocatorType = shardsAllocators.bindType(binder(), settings, ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), ClusterModule.BALANCED_ALLOCATOR);
-        if (shardsAllocatorType.equals(ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR)) {
-            final ESLogger logger = Loggers.getLogger(getClass(), settings);
-            logger.warn("{} allocator has been removed in 2.0 using {} instead", ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR, ClusterModule.BALANCED_ALLOCATOR);
-        }
         indexTemplateFilters.bind(binder());
 
         bind(ClusterInfoService.class).to(clusterInfoServiceImpl).asEagerSingleton();
@@ -178,5 +189,6 @@ public class ClusterModule extends AbstractModule {
         bind(MappingUpdatedAction.class).asEagerSingleton();
         bind(TaskResultsService.class).asEagerSingleton();
         bind(AllocationDeciders.class).toInstance(new AllocationDeciders(settings, allocationDeciders));
+        bind(ShardsAllocator.class).toInstance(shardsAllocator);
     }
 }

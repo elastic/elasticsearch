@@ -49,3 +49,11 @@ CPU usage can be obtained from `OsStats.Cpu#getPercent`.
 
 Suggest stats exposed through `suggest` in indices stats has been merged
 with `search` stats. `suggest` stats is exposed as part of `search` stats.
+
+==== Creating indices starting with '-' or '+'
+
+Elasticsearch no longer allows indices to be created started with '-' or '+', so
+that the multi-index matching and expansion is not confused. It was previously
+possible (but a really bad idea) to create indices starting with a hyphen or
+plus sign. Any index already existing with these preceding characters will
+continue to work normally.

@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -167,13 +168,13 @@ public class MultiSearchRequestTests extends ESTestCase {
     private MultiSearchRequest parseMultiSearchRequest(String sample) throws IOException {
         byte[] data = StreamsUtils.copyToBytesFromClasspath(sample);
         RestRequest restRequest = new FakeRestRequest.Builder().withContent(new BytesArray(data)).build();
-        return RestMultiSearchAction.parseRequest(restRequest, true, registry(), ParseFieldMatcher.EMPTY, null, null);
+        return RestMultiSearchAction.parseRequest(restRequest, true, parsers(), ParseFieldMatcher.EMPTY);
     }
 
-    private IndicesQueriesRegistry registry() {
+    private SearchRequestParsers parsers() {
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
         QueryParser<MatchAllQueryBuilder> parser = MatchAllQueryBuilder::fromXContent;
         registry.register(parser, MatchAllQueryBuilder.NAME);
-        return registry;
+        return new SearchRequestParsers(registry, null, null);
     }
 }

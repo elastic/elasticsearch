@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -49,7 +48,6 @@ public class SameShardAllocationDecider extends AllocationDecider {
 
     private final boolean sameHost;
 
-    @Inject
     public SameShardAllocationDecider(Settings settings) {
         super(settings);
 

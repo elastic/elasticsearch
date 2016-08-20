@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -73,6 +74,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -92,10 +94,12 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.MetaDataUpgrader;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -108,7 +112,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsService;
-import org.elasticsearch.tasks.TaskPersistenceService;
+import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -134,6 +138,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -318,7 +323,8 @@ public class Node implements Closeable {
             NetworkModule networkModule = new NetworkModule(networkService, settings, false);
             modules.add(networkModule);
             modules.add(new DiscoveryModule(this.settings));
-            ClusterModule clusterModule = new ClusterModule(settings, clusterService);
+            ClusterModule clusterModule = new ClusterModule(settings, clusterService,
+                pluginsService.filterPlugins(ClusterPlugin.class));
             modules.add(clusterModule);
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             modules.add(indicesModule);
@@ -344,11 +350,21 @@ public class Node implements Closeable {
                     .flatMap(p -> p.getNamedWriteables().stream()))
                 .flatMap(Function.identity()).collect(Collectors.toList());
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
+            final MetaStateService metaStateService = new MetaStateService(settings, nodeEnvironment);
+            final IndicesService indicesService = new IndicesService(settings, pluginsService, nodeEnvironment,
+                settingsModule.getClusterSettings(), analysisModule.getAnalysisRegistry(), searchModule.getQueryParserRegistry(),
+                clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
+                threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, metaStateService);
             client = new NodeClient(settings, threadPool);
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
-                                                 scriptModule.getScriptService()).stream())
+                                                 scriptModule.getScriptService(), searchModule.getSearchRequestParsers()).stream())
                 .collect(Collectors.toList());
+            Collection<UnaryOperator<Map<String, MetaData.Custom>>> customMetaDataUpgraders =
+                pluginsService.filterPlugins(Plugin.class).stream()
+                .map(Plugin::getCustomMetaDataUpgrader)
+                .collect(Collectors.toList());
+            final MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(customMetaDataUpgraders);
             modules.add(b -> {
                     b.bind(PluginsService.class).toInstance(pluginsService);
                     b.bind(Client.class).toInstance(client);
@@ -364,7 +380,17 @@ public class Node implements Closeable {
                     b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                     b.bind(IngestService.class).toInstance(ingestService);
                     b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
+                    b.bind(MetaDataUpgrader.class).toInstance(metaDataUpgrader);
+                    b.bind(MetaStateService.class).toInstance(metaStateService);
+                    b.bind(IndicesService.class).toInstance(indicesService);
+                    Class<? extends SearchService> searchServiceImpl = pickSearchServiceImplementation();
+                    if (searchServiceImpl == SearchService.class) {
+                        b.bind(SearchService.class).asEagerSingleton();
+                    } else {
+                        b.bind(SearchService.class).to(searchServiceImpl).asEagerSingleton();
+                    }
                     pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));
+
                 }
             );
             injector = modules.createInjector();
@@ -466,7 +492,7 @@ public class Node implements Closeable {
 
         // Start the transport service now so the publish address will be added to the local disco node in ClusterService
         TransportService transportService = injector.getInstance(TransportService.class);
-        transportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskPersistenceService.class));
+        transportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskResultsService.class));
         transportService.start();
 
         validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress());
@@ -717,6 +743,13 @@ public class Node implements Closeable {
     }
 
     /**
+     * The {@link PluginsService} used to build this node's components.
+     */
+    protected PluginsService getPluginsService() {
+        return pluginsService;
+    }
+
+    /**
      * Creates a new {@link CircuitBreakerService} based on the settings provided.
      * @see #BREAKER_TYPE_KEY
      */
@@ -737,6 +770,13 @@ public class Node implements Closeable {
      */
     BigArrays createBigArrays(Settings settings, CircuitBreakerService circuitBreakerService) {
         return new BigArrays(settings, circuitBreakerService);
+    }
+
+    /**
+     * Select the search service implementation. Overrided by tests.
+     */
+    protected Class<? extends SearchService> pickSearchServiceImplementation() {
+        return SearchService.class;
     }
 
     /**

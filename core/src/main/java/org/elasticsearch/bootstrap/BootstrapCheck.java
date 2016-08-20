@@ -166,7 +166,6 @@ final class BootstrapCheck {
         if (Constants.LINUX || Constants.MAC_OS_X) {
             checks.add(new MaxSizeVirtualMemoryCheck());
         }
-        checks.add(new MinMasterNodesCheck(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(settings)));
         if (Constants.LINUX) {
             checks.add(new MaxMapCountCheck());
         }
@@ -326,32 +325,6 @@ final class BootstrapCheck {
         @Override
         public final boolean isSystemCheck() {
             return true;
-        }
-
-    }
-
-    static class MinMasterNodesCheck implements Check {
-
-        final boolean minMasterNodesIsSet;
-
-        MinMasterNodesCheck(boolean minMasterNodesIsSet) {
-            this.minMasterNodesIsSet = minMasterNodesIsSet;
-        }
-
-        @Override
-        public boolean check() {
-            return minMasterNodesIsSet == false;
-        }
-
-        @Override
-        public String errorMessage() {
-            return "please set [" + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() +
-                "] to a majority of the number of master eligible nodes in your cluster";
-        }
-
-        @Override
-        public final boolean isSystemCheck() {
-            return false;
         }
 
     }

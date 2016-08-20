@@ -32,7 +32,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestResponseListener;
+import org.elasticsearch.rest.action.RestResponseListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -46,7 +46,9 @@ public class RestTypesExistsAction extends BaseRestHandler {
     @Inject
     public RestTypesExistsAction(Settings settings, RestController controller) {
         super(settings);
-        controller.registerHandler(HEAD, "/{index}/{type}", this);
+        controller.registerWithDeprecatedHandler(
+                HEAD, "/{index}/_mapping/{type}", this,
+                HEAD, "/{index}/{type}", deprecationLogger);
     }
 
     @Override

@@ -21,16 +21,14 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 
 import java.io.Closeable;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -151,16 +149,22 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
             throw new IllegalStateException("already registered analyzer with name: " + name);
         }
         analyzers.put(name, analyzer);
-        String strAliases = this.indexSettings.getSettings().get("index.analysis.analyzer." + analyzerFactory.name() + ".alias");
-        Set<String> aliases = new HashSet<>();
-        if (strAliases != null) {
-            aliases.addAll(Strings.commaDelimitedListToSet(strAliases));
-        }
-        aliases.addAll(Arrays.asList(this.indexSettings.getSettings()
-            .getAsArray("index.analysis.analyzer." + analyzerFactory.name() + ".alias")));
-        for (String alias : aliases) {
-            if (analyzerAliases.putIfAbsent(alias, analyzer) != null) {
-                throw new IllegalStateException("alias [" + alias + "] is already used by [" + analyzerAliases.get(alias).name() + "]");
+        // TODO: remove alias support completely when we no longer support pre 5.0 indices
+        final String analyzerAliasKey = "index.analysis.analyzer." + analyzerFactory.name() + ".alias";
+        if (indexSettings.getSettings().get(analyzerAliasKey) != null) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_5_0_0_alpha6)) {
+                // do not allow alias creation if the index was created on or after v5.0 alpha6
+                throw new IllegalArgumentException("setting [" + analyzerAliasKey + "] is not supported");
+            }
+
+            // the setting is now removed but we only support it for loading indices created before v5.0
+            deprecationLogger.deprecated("setting [{}] is only allowed on index [{}] because it was created before 5.x; " +
+                                         "analyzer aliases can no longer be created on new indices.", analyzerAliasKey, index().getName());
+            Set<String> aliases = Sets.newHashSet(indexSettings.getSettings().getAsArray(analyzerAliasKey));
+            for (String alias : aliases) {
+                if (analyzerAliases.putIfAbsent(alias, analyzer) != null) {
+                    throw new IllegalStateException("alias [" + alias + "] is already used by [" + analyzerAliases.get(alias).name() + "]");
+                }
             }
         }
     }
@@ -174,6 +178,9 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                 } catch (NullPointerException e) {
                     // because analyzers are aliased, they might be closed several times
                     // an NPE is thrown in this case, so ignore....
+                    // TODO: Analyzer's can no longer have aliases in indices created in 5.x and beyond,
+                    // so we only allow the aliases for analyzers on indices created pre 5.x for backwards
+                    // compatibility.  Once pre 5.0 indices are no longer supported, this check should be removed.
                 } catch (Exception e) {
                     logger.debug("failed to close analyzer {}", analyzer);
                 }

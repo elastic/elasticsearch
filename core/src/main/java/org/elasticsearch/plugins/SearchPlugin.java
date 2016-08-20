@@ -24,16 +24,21 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -42,6 +47,7 @@ import org.elasticsearch.search.suggest.Suggester;
 
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -94,16 +100,28 @@ public interface SearchPlugin {
     default List<QuerySpec<?>> getQueries() {
         return emptyList();
     }
+    /**
+     * The new {@link Aggregation}s added by this plugin.
+     */
+    default List<AggregationSpec> getAggregations() {
+        return emptyList();
+    }
+    /**
+     * The new {@link PipelineAggregator}s added by this plugin.
+     */
+    default List<PipelineAggregationSpec> getPipelineAggregations() {
+        return emptyList();
+    }
 
     /**
      * Specification of custom {@link ScoreFunction}.
      */
     class ScoreFunctionSpec<T extends ScoreFunctionBuilder<T>> extends SearchExtensionSpec<T, ScoreFunctionParser<T>> {
-        public ScoreFunctionSpec(ParseField name, Reader<T> reader, ScoreFunctionParser<T> parser) {
+        public ScoreFunctionSpec(ParseField name, Writeable.Reader<T> reader, ScoreFunctionParser<T> parser) {
             super(name, reader, parser);
         }
 
-        public ScoreFunctionSpec(String name, Reader<T> reader, ScoreFunctionParser<T> parser) {
+        public ScoreFunctionSpec(String name, Writeable.Reader<T> reader, ScoreFunctionParser<T> parser) {
             super(name, reader, parser);
         }
     }
@@ -122,7 +140,7 @@ public interface SearchPlugin {
          *        {@link StreamInput}
          * @param parser the parser the reads the query builder from xcontent
          */
-        public QuerySpec(ParseField name, Reader<T> reader, QueryParser<T> parser) {
+        public QuerySpec(ParseField name, Writeable.Reader<T> reader, QueryParser<T> parser) {
             super(name, reader, parser);
         }
 
@@ -135,10 +153,143 @@ public interface SearchPlugin {
          *        {@link StreamInput}
          * @param parser the parser the reads the query builder from xcontent
          */
-        public QuerySpec(String name, Reader<T> reader, QueryParser<T> parser) {
+        public QuerySpec(String name, Writeable.Reader<T> reader, QueryParser<T> parser) {
             super(name, reader, parser);
         }
     }
+    /**
+     * Specification for an {@link Aggregation}.
+     */
+    public static class AggregationSpec extends SearchExtensionSpec<AggregationBuilder, Aggregator.Parser> {
+        private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
+
+        /**
+         * Specification for an {@link Aggregation}.
+         *
+         * @param name holds the names by which this aggregation might be parsed. The {@link ParseField#getPreferredName()} is special as it
+         *        is the name by under which the reader is registered. So it is the name that the {@link AggregationBuilder} should return
+         *        from {@link NamedWriteable#getWriteableName()}.
+         * @param reader the reader registered for this aggregation's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the aggregation builder from xcontent
+         */
+        public AggregationSpec(ParseField name, Writeable.Reader<? extends AggregationBuilder> reader, Aggregator.Parser parser) {
+            super(name, reader, parser);
+        }
+
+        /**
+         * Specification for an {@link Aggregation}.
+         *
+         * @param name the name by which this aggregation might be parsed or deserialized. Make sure that the {@link AggregationBuilder}
+         *        returns this from {@link NamedWriteable#getWriteableName()}.
+         * @param reader the reader registered for this aggregation's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the aggregation builder from xcontent
+         */
+        public AggregationSpec(String name, Writeable.Reader<? extends AggregationBuilder> reader, Aggregator.Parser parser) {
+            super(name, reader, parser);
+        }
+
+        /**
+         * Add a reader for the shard level results of the aggregation with {@linkplain #getName}'s {@link ParseField#getPreferredName()} as
+         * the {@link NamedWriteable#getWriteableName()}.
+         */
+        public AggregationSpec addResultReader(Writeable.Reader<? extends InternalAggregation> resultReader) {
+            return addResultReader(getName().getPreferredName(), resultReader);
+        }
+
+        /**
+         * Add a reader for the shard level results of the aggregation.
+         */
+        public AggregationSpec addResultReader(String writeableName, Writeable.Reader<? extends InternalAggregation> resultReader) {
+            resultReaders.put(writeableName, resultReader);
+            return this;
+        }
+
+        /**
+         * Get the readers that must be registered for this aggregation's results.
+         */
+        public Map<String, Writeable.Reader<? extends InternalAggregation>> getResultReaders() {
+            return resultReaders;
+        }
+    }
+
+    /**
+     * Specification for a {@link PipelineAggregator}.
+     */
+    public static class PipelineAggregationSpec extends SearchExtensionSpec<PipelineAggregationBuilder, PipelineAggregator.Parser> {
+        private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
+        private final Writeable.Reader<? extends PipelineAggregator> aggregatorReader;
+
+        /**
+         * Specification of a {@link PipelineAggregator}.
+         *
+         * @param name holds the names by which this aggregation might be parsed. The {@link ParseField#getPreferredName()} is special as it
+         *        is the name by under which the readers are registered. So it is the name that the {@link PipelineAggregationBuilder} and
+         *        {@link PipelineAggregator} should return from {@link NamedWriteable#getWriteableName()}.
+         * @param builderReader the reader registered for this aggregation's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param aggregatorReader reads the {@link PipelineAggregator} from a stream
+         * @param parser reads the aggregation builder from XContent
+         */
+        public PipelineAggregationSpec(ParseField name,
+                Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
+                Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
+                PipelineAggregator.Parser parser) {
+            super(name, builderReader, parser);
+            this.aggregatorReader = aggregatorReader;
+        }
+
+        /**
+         * Specification of a {@link PipelineAggregator}.
+         *
+         * @param name name by which this aggregation might be parsed or deserialized. Make sure it is the name that the
+         *        {@link PipelineAggregationBuilder} and {@link PipelineAggregator} should return from
+         *        {@link NamedWriteable#getWriteableName()}.
+         * @param builderReader the reader registered for this aggregation's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param aggregatorReader reads the {@link PipelineAggregator} from a stream
+         * @param parser reads the aggregation builder from XContent
+         */
+        public PipelineAggregationSpec(String name,
+                Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
+                Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
+                PipelineAggregator.Parser parser) {
+            super(name, builderReader, parser);
+            this.aggregatorReader = aggregatorReader;
+        }
+
+        /**
+         * Add a reader for the shard level results of the aggregation with {@linkplain #getName()}'s {@link ParseField#getPreferredName()}
+         * as the {@link NamedWriteable#getWriteableName()}.
+         */
+        public PipelineAggregationSpec addResultReader(Writeable.Reader<? extends InternalAggregation> resultReader) {
+            return addResultReader(getName().getPreferredName(), resultReader);
+        }
+
+        /**
+         * Add a reader for the shard level results of the aggregation.
+         */
+        public PipelineAggregationSpec addResultReader(String writeableName, Writeable.Reader<? extends InternalAggregation> resultReader) {
+            resultReaders.put(writeableName, resultReader);
+            return this;
+        }
+
+        /**
+         * The reader for the {@link PipelineAggregator}.
+         */
+        public Writeable.Reader<? extends PipelineAggregator> getAggregatorReader() {
+            return aggregatorReader;
+        }
+
+        /**
+         * Get the readers that must be registered for this aggregation's results.
+         */
+        public Map<String, Writeable.Reader<? extends InternalAggregation>> getResultReaders() {
+            return resultReaders;
+        }
+    }
+
 
     /**
      * Specification of search time behavior extension like a custom {@link MovAvgModel} or {@link ScoreFunction}.
@@ -150,7 +301,7 @@ public interface SearchPlugin {
      */
     class SearchExtensionSpec<W extends NamedWriteable, P> {
         private final ParseField name;
-        private final Writeable.Reader<W> reader;
+        private final Writeable.Reader<? extends W> reader;
         private final P parser;
 
         /**
@@ -162,7 +313,7 @@ public interface SearchPlugin {
          * @param reader reader that reads the behavior from the internode protocol
          * @param parser parser that read the behavior from a REST request
          */
-        public SearchExtensionSpec(ParseField name, Writeable.Reader<W> reader, P parser) {
+        public SearchExtensionSpec(ParseField name, Writeable.Reader<? extends W> reader, P parser) {
             this.name = name;
             this.reader = reader;
             this.parser = parser;
@@ -176,7 +327,7 @@ public interface SearchPlugin {
          * @param reader reader that reads the behavior from the internode protocol
          * @param parser parser that read the behavior from a REST request
          */
-        public SearchExtensionSpec(String name, Writeable.Reader<W> reader, P parser) {
+        public SearchExtensionSpec(String name, Writeable.Reader<? extends W> reader, P parser) {
             this(new ParseField(name), reader, parser);
         }
 
@@ -190,7 +341,7 @@ public interface SearchPlugin {
         /**
          * The reader responsible for reading the behavior from the internode protocol.
          */
-        public Writeable.Reader<W> getReader() {
+        public Writeable.Reader<? extends W> getReader() {
             return reader;
         }
 

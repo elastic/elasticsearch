@@ -45,7 +45,7 @@ Create a property mapping using the new type `attachment`:
 
 [source,js]
 --------------------------
-POST /trying-out-mapper-attachments
+PUT /trying-out-mapper-attachments
 {
   "mappings": {
     "person": {

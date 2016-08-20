@@ -22,13 +22,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -40,7 +36,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -54,7 +49,7 @@ import java.util.Set;
 import static org.apache.lucene.index.IndexOptions.NONE;
 import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
-public class StringFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
+public class StringFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "string";
     private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
@@ -71,7 +66,8 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             "type",
             // common text parameters, for which the upgrade is straightforward
             "index", "store", "doc_values", "omit_norms", "norms", "fields", "copy_to",
-            "fielddata", "include_in_all", "analyzer", "search_analyzer", "search_quote_analyzer"));
+            "fielddata", "include_in_all", "analyzer", "search_analyzer", "search_quote_analyzer",
+            "index_options", "position_increment_gap"));
 
     public static class Defaults {
         public static double FIELDDATA_MIN_FREQUENCY = 0;
@@ -181,10 +177,9 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                 fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(), positionIncrementGap));
             }
             setupFieldType(context);
-            StringFieldMapper fieldMapper = new StringFieldMapper(
-                    name, fieldType(), defaultFieldType, positionIncrementGap, ignoreAbove,
+            return new StringFieldMapper(
+                    name, fieldType(), defaultFieldType, positionIncrementGap, ignoreAbove, includeInAll,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return fieldMapper.includeInAll(includeInAll);
         }
     }
 
@@ -259,7 +254,10 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                     }
 
                 }
-                throw new IllegalArgumentException("The [string] type is removed in 5.0. You should now use either a [text] "
+                Set<String> unsupportedParameters = new HashSet<>(node.keySet());
+                unsupportedParameters.removeAll(autoUpgradeParameters);
+                throw new IllegalArgumentException("The [string] type is removed in 5.0 and automatic upgrade failed because parameters "
+                        + unsupportedParameters + " are not supported for automatic upgrades. You should now use either a [text] "
                         + "or [keyword] field instead for field [" + fieldName + "]");
             }
 
@@ -489,7 +487,7 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
     private int ignoreAbove;
 
     protected StringFieldMapper(String simpleName, StringFieldType fieldType, MappedFieldType defaultFieldType,
-                                int positionIncrementGap, int ignoreAbove,
+                                int positionIncrementGap, int ignoreAbove, Boolean includeInAll,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         if (Version.indexCreated(indexSettings).onOrAfter(Version.V_5_0_0_alpha1)) {
@@ -507,44 +505,12 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         }
         this.positionIncrementGap = positionIncrementGap;
         this.ignoreAbove = ignoreAbove;
+        this.includeInAll = includeInAll;
     }
 
     @Override
     protected StringFieldMapper clone() {
         return (StringFieldMapper) super.clone();
-    }
-
-    @Override
-    public StringFieldMapper includeInAll(Boolean includeInAll) {
-        if (includeInAll != null) {
-            StringFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public StringFieldMapper includeInAllIfNotSet(Boolean includeInAll) {
-        if (includeInAll != null && this.includeInAll == null) {
-            StringFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public StringFieldMapper unsetIncludeInAll() {
-        if (includeInAll != null) {
-            StringFieldMapper clone = clone();
-            clone.includeInAll = null;
-            return clone;
-        } else {
-            return this;
-        }
     }
 
     @Override

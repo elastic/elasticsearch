@@ -273,7 +273,7 @@ final class Bootstrap {
                 // guice: log the shortened exc to the log file
                 ByteArrayOutputStream os = new ByteArrayOutputStream();
                 PrintStream ps = new PrintStream(os, false, "UTF-8");
-                new StartupError(e).printStackTrace(ps);
+                new StartupException(e).printStackTrace(ps);
                 ps.flush();
                 logger.error("Guice Exception: {}", os.toString("UTF-8"));
             } else {

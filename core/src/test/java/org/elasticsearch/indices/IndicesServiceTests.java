@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
 import org.elasticsearch.gateway.MetaStateService;
@@ -172,7 +173,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         try {
             indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
             fail("can't get lock");
-        } catch (LockObtainFailedException ex) {
+        } catch (ShardLockObtainFailedException ex) {
 
         }
         assertTrue(path.exists());

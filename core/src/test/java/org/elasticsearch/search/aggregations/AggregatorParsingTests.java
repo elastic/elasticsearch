@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.IndicesModule;
@@ -144,7 +145,7 @@ public class AggregatorParsingTests extends ESTestCase {
                     bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                 }
             }).createInjector();
-        aggParsers = injector.getInstance(AggregatorParsers.class);
+        aggParsers = injector.getInstance(SearchRequestParsers.class).aggParsers;
         // create some random type with some default field, those types will
         // stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];

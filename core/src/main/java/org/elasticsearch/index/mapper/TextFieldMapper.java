@@ -38,7 +38,7 @@ import java.util.Objects;
 import static org.elasticsearch.index.mapper.TypeParsers.parseTextField;
 
 /** A {@link FieldMapper} for full-text fields. */
-public class TextFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
+public class TextFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "text";
     private static final int POSITION_INCREMENT_GAP_USE_ANALYZER = -1;
@@ -120,10 +120,9 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
                 fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(), positionIncrementGap));
             }
             setupFieldType(context);
-            TextFieldMapper fieldMapper = new TextFieldMapper(
-                    name, fieldType, defaultFieldType, positionIncrementGap,
+            return new TextFieldMapper(
+                    name, fieldType, defaultFieldType, positionIncrementGap, includeInAll,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return fieldMapper.includeInAll(includeInAll);
         }
     }
 
@@ -297,7 +296,7 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
     private int positionIncrementGap;
 
     protected TextFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                int positionIncrementGap,
+                                int positionIncrementGap, Boolean includeInAll,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.tokenized();
@@ -306,6 +305,7 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
             throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + name() + "]");
         }
         this.positionIncrementGap = positionIncrementGap;
+        this.includeInAll = includeInAll;
     }
 
     @Override
@@ -316,39 +316,6 @@ public class TextFieldMapper extends FieldMapper implements AllFieldMapper.Inclu
     // pkg-private for testing
     Boolean includeInAll() {
         return includeInAll;
-    }
-
-    @Override
-    public TextFieldMapper includeInAll(Boolean includeInAll) {
-        if (includeInAll != null) {
-            TextFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public TextFieldMapper includeInAllIfNotSet(Boolean includeInAll) {
-        if (includeInAll != null && this.includeInAll == null) {
-            TextFieldMapper clone = clone();
-            clone.includeInAll = includeInAll;
-            return clone;
-        } else {
-            return this;
-        }
-    }
-
-    @Override
-    public TextFieldMapper unsetIncludeInAll() {
-        if (includeInAll != null) {
-            TextFieldMapper clone = clone();
-            clone.includeInAll = null;
-            return clone;
-        } else {
-            return this;
-        }
     }
 
     public int getPositionIncrementGap() {

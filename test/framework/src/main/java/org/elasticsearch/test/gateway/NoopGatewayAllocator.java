@@ -47,7 +47,7 @@ public class NoopGatewayAllocator extends GatewayAllocator {
     }
 
     @Override
-    public boolean allocateUnassigned(RoutingAllocation allocation) {
-        return false;
+    public void allocateUnassigned(RoutingAllocation allocation) {
+        // noop
     }
 }

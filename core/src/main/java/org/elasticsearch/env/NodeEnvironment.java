@@ -433,7 +433,7 @@ public final class NodeEnvironment  implements Closeable {
      * @param shardId the id of the shard to delete to delete
      * @throws IOException if an IOException occurs
      */
-    public void deleteShardDirectorySafe(ShardId shardId, IndexSettings indexSettings) throws IOException {
+    public void deleteShardDirectorySafe(ShardId shardId, IndexSettings indexSettings) throws IOException, ShardLockObtainFailedException {
         final Path[] paths = availableShardPaths(shardId);
         logger.trace("deleting shard {} directory, paths: [{}]", shardId, paths);
         try (ShardLock lock = shardLock(shardId)) {
@@ -462,7 +462,7 @@ public final class NodeEnvironment  implements Closeable {
                     locks[i] = dirs[i].obtainLock(IndexWriter.WRITE_LOCK_NAME);
                 } catch (IOException ex) {
                     throw new LockObtainFailedException("unable to acquire " +
-                            IndexWriter.WRITE_LOCK_NAME + " for " + p);
+                                    IndexWriter.WRITE_LOCK_NAME + " for " + p, ex);
                 }
             }
         } finally {
@@ -504,7 +504,7 @@ public final class NodeEnvironment  implements Closeable {
         try {
             shardLock(id, 0).close();
             return false;
-        } catch (IOException ex) {
+        } catch (ShardLockObtainFailedException ex) {
             return true;
         }
     }
@@ -519,7 +519,8 @@ public final class NodeEnvironment  implements Closeable {
      * @param indexSettings settings for the index being deleted
      * @throws IOException if any of the shards data directories can't be locked or deleted
      */
-    public void deleteIndexDirectorySafe(Index index, long lockTimeoutMS, IndexSettings indexSettings) throws IOException {
+    public void deleteIndexDirectorySafe(Index index, long lockTimeoutMS, IndexSettings indexSettings)
+            throws IOException, ShardLockObtainFailedException {
         final List<ShardLock> locks = lockAllForIndex(index, indexSettings, lockTimeoutMS);
         try {
             deleteIndexDirectoryUnderLock(index, indexSettings);
@@ -549,14 +550,15 @@ public final class NodeEnvironment  implements Closeable {
 
     /**
      * Tries to lock all local shards for the given index. If any of the shard locks can't be acquired
-     * an {@link LockObtainFailedException} is thrown and all previously acquired locks are released.
+     * a {@link ShardLockObtainFailedException} is thrown and all previously acquired locks are released.
      *
      * @param index the index to lock shards for
      * @param lockTimeoutMS how long to wait for acquiring the indices shard locks
      * @return the {@link ShardLock} instances for this index.
      * @throws IOException if an IOException occurs.
      */
-    public List<ShardLock> lockAllForIndex(Index index, IndexSettings settings, long lockTimeoutMS) throws IOException {
+    public List<ShardLock> lockAllForIndex(Index index, IndexSettings settings, long lockTimeoutMS)
+            throws IOException, ShardLockObtainFailedException {
         final int numShards = settings.getNumberOfShards();
         if (numShards <= 0) {
             throw new IllegalArgumentException("settings must contain a non-null > 0 number of shards");
@@ -584,15 +586,14 @@ public final class NodeEnvironment  implements Closeable {
      * Tries to lock the given shards ID. A shard lock is required to perform any kind of
      * write operation on a shards data directory like deleting files, creating a new index writer
      * or recover from a different shard instance into it. If the shard lock can not be acquired
-     * an {@link LockObtainFailedException} is thrown.
+     * a {@link ShardLockObtainFailedException} is thrown.
      *
      * Note: this method will return immediately if the lock can't be acquired.
      *
      * @param id the shard ID to lock
      * @return the shard lock. Call {@link ShardLock#close()} to release the lock
-     * @throws IOException if an IOException occurs.
      */
-    public ShardLock shardLock(ShardId id) throws IOException {
+    public ShardLock shardLock(ShardId id) throws ShardLockObtainFailedException {
         return shardLock(id, 0);
     }
 
@@ -600,13 +601,12 @@ public final class NodeEnvironment  implements Closeable {
      * Tries to lock the given shards ID. A shard lock is required to perform any kind of
      * write operation on a shards data directory like deleting files, creating a new index writer
      * or recover from a different shard instance into it. If the shard lock can not be acquired
-     * an {@link org.apache.lucene.store.LockObtainFailedException} is thrown
+     * a {@link ShardLockObtainFailedException} is thrown
      * @param shardId the shard ID to lock
      * @param lockTimeoutMS the lock timeout in milliseconds
      * @return the shard lock. Call {@link ShardLock#close()} to release the lock
-     * @throws IOException if an IOException occurs.
      */
-    public ShardLock shardLock(final ShardId shardId, long lockTimeoutMS) throws IOException {
+    public ShardLock shardLock(final ShardId shardId, long lockTimeoutMS) throws ShardLockObtainFailedException {
         logger.trace("acquiring node shardlock on [{}], timeout [{}]", shardId, lockTimeoutMS);
         final InternalShardLock shardLock;
         final boolean acquired;
@@ -647,8 +647,7 @@ public final class NodeEnvironment  implements Closeable {
      */
     @FunctionalInterface
     public interface ShardLocker {
-
-        ShardLock lock(ShardId shardId, long lockTimeoutMS) throws IOException;
+        ShardLock lock(ShardId shardId, long lockTimeoutMS) throws ShardLockObtainFailedException;
     }
 
     /**
@@ -703,14 +702,15 @@ public final class NodeEnvironment  implements Closeable {
             }
         }
 
-        void acquire(long timeoutInMillis) throws LockObtainFailedException{
+        void acquire(long timeoutInMillis) throws ShardLockObtainFailedException {
             try {
                 if (mutex.tryAcquire(timeoutInMillis, TimeUnit.MILLISECONDS) == false) {
-                    throw new LockObtainFailedException("Can't lock shard " + shardId + ", timed out after " + timeoutInMillis + "ms");
+                    throw new ShardLockObtainFailedException(shardId,
+                            "obtaining shard lock timed out after " + timeoutInMillis + "ms");
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new LockObtainFailedException("Can't lock shard " + shardId + ", interrupted", e);
+                throw new ShardLockObtainFailedException(shardId, "thread interrupted while trying to obtain shard lock", e);
             }
         }
     }

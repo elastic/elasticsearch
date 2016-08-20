@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -77,7 +78,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
         index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
         injector = BaseAggregationTestCase.buildInjector(index);
         namedWriteableRegistry = injector.getInstance(NamedWriteableRegistry.class);
-        aggParsers = injector.getInstance(AggregatorParsers.class);
+        aggParsers = injector.getInstance(SearchRequestParsers.class).aggParsers;
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < currentTypes.length; i++) {

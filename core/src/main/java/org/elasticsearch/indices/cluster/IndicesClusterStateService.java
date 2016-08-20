@@ -42,6 +42,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexComponent;
@@ -835,6 +836,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             return null;
         }
 
-        void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeValue) throws IOException, InterruptedException;
+        void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeValue)
+                throws IOException, InterruptedException, ShardLockObtainFailedException;
     }
 }

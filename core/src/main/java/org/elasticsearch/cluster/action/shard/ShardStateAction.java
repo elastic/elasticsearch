@@ -126,17 +126,21 @@ public class ShardStateAction extends AbstractComponent {
         return ExceptionsHelper.unwrap(exp, MASTER_CHANNEL_EXCEPTIONS) != null;
     }
 
+    /**
+     * Convenience method for {@link #remoteShardFailed(ShardId, String, long, String, Exception, Listener)}.
+     */
     public void remoteShardFailed(final ShardRouting shardRouting, long primaryTerm, final String message, @Nullable final Exception failure, Listener listener) {
         shardFailed(shardRouting.shardId(), shardRouting.allocationId().getId(), primaryTerm, message, failure, listener);
     }
 
     /**
-     * Send a shard failed request to the master node to update the cluster state with the failure of a shard on another node. If the shard
-     * does not exist anymore, remove its allocation id from the in-sync set.
+     * Send a shard failed request to the master node to update the cluster state with the failure of a shard on another node. This means
+     * that the shard should be failed because a write made it into the primary but was not replicated to this shard copy. If the shard
+     * does not exist anymore but still has an entry in the in-sync set, remove its allocation id from the in-sync set.
      *
      * @param shardId            shard id of the shard to fail
      * @param allocationId       allocation id of the shard to fail
-     * @param primaryTerm        the primary term associated with the primary shard that is failing the shard.
+     * @param primaryTerm        the primary term associated with the primary shard that is failing the shard. Must be strictly positive.
      * @param message            the reason for the failure
      * @param failure            the underlying cause of the failure
      * @param listener           callback upon completion of the request

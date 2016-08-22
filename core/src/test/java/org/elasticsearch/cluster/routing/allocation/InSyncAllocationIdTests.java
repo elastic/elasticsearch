@@ -205,6 +205,12 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
         assertThat(clusterState.metaData().index("test").inSyncAllocationIds(0),
             equalTo(Collections.singleton(primaryShard.allocationId().getId())));
+
+        // resend shard failures to check if they are ignored
+        clusterState = failedClusterStateTaskExecutor.execute(clusterState, failureEntries).resultingState;
+
+        assertThat(clusterState.metaData().index("test").inSyncAllocationIds(0),
+            equalTo(Collections.singleton(primaryShard.allocationId().getId())));
     }
 
     /**

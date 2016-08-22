@@ -30,7 +30,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
+import org.elasticsearch.rest.action.AcknowledgedRestListener;
 
 import java.io.IOException;
 
@@ -43,7 +43,6 @@ public class RestCreateIndexAction extends BaseRestHandler {
     public RestCreateIndexAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.PUT, "/{index}", this);
-        controller.registerHandler(RestRequest.Method.POST, "/{index}", this);
     }
 
     @SuppressWarnings({"unchecked"})

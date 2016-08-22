@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,7 +37,6 @@ import java.util.Objects;
 
 public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, DiversifiedAggregationBuilder> {
     public static final String NAME = "diversified_sampler";
-    public static final ParseField AGGREGATION_NAME_FIELD = new ParseField(NAME);
     public static final Type TYPE = new Type(NAME);
 
     public static final int MAX_DOCS_PER_VALUE_DEFAULT = 1;

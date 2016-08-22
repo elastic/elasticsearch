@@ -19,6 +19,7 @@ This plugin can be installed using the plugin manager:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin install mapper-attachments
 ----------------------------------------------------------------
+// NOTCONSOLE
 
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
@@ -33,6 +34,7 @@ The plugin can be removed with the following command:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin remove mapper-attachments
 ----------------------------------------------------------------
+// NOTCONSOLE
 
 The node must be stopped before removing the plugin.
 
@@ -43,7 +45,7 @@ Create a property mapping using the new type `attachment`:
 
 [source,js]
 --------------------------
-POST /trying-out-mapper-attachments
+PUT /trying-out-mapper-attachments
 {
   "mappings": {
     "person": {
@@ -88,10 +90,10 @@ If you get a hit for your indexed document, the plugin should be installed and w
   "took": 53,
   "hits": {
     "total": 1,
-    "max_score": 0.25811607,
+    "max_score": 0.28582606,
     "hits": [
       {
-        "_score": 0.25811607,
+        "_score": 0.28582606,
         "_index": "trying-out-mapper-attachments",
         "_type": "person",
         "_id": "1",

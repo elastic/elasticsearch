@@ -158,6 +158,18 @@ of the 4 bytes used previously. While this will make the index much more
 space-efficient, it also means that index time boosts will be less accurately
 encoded.
 
+==== `include_in_all` default changed to false for numeric/date/ip/geo types
+
+The default unset value for numeric types for the `include_in_all` mapping
+option has been changed from true to false.
+
+This includes:
+
+- All regular numeric types such as int, long, float, scaled-float, double
+- IP addresses
+- Dates
+- Geopoints and Geoshapes
+
 ==== `_ttl` and `_timestamp` cannot be created
 
 You can no longer create indexes with `_ttl` or `_timestamp` enabled. Indexes

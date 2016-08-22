@@ -37,15 +37,15 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestBuilderListener;
+import org.elasticsearch.rest.action.RestActions;
+import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
+import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
 /**
  *

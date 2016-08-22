@@ -62,6 +62,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.index.Index;
@@ -167,7 +168,6 @@ public class IndicesService extends AbstractLifecycleComponent
         threadPool.schedule(this.cleanInterval, ThreadPool.Names.SAME, this.cacheCleaner);
     }
 
-    @Inject
     public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv,
                           ClusterSettings clusterSettings, AnalysisRegistry analysisRegistry,
                           IndicesQueriesRegistry indicesQueriesRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
@@ -676,7 +676,8 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param clusterState . This is required to access the indexes settings etc.
      * @throws IOException if an IOException occurs
      */
-    public void deleteShardStore(String reason, ShardId shardId, ClusterState clusterState) throws IOException {
+    public void deleteShardStore(String reason, ShardId shardId, ClusterState clusterState)
+            throws IOException, ShardLockObtainFailedException {
         final IndexMetaData metaData = clusterState.getMetaData().indices().get(shardId.getIndexName());
 
         final IndexSettings indexSettings = buildIndexSettings(metaData);
@@ -891,7 +892,8 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param timeout the timeout used for processing pending deletes
      */
     @Override
-    public void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeout) throws IOException, InterruptedException {
+    public void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeout)
+            throws IOException, InterruptedException, ShardLockObtainFailedException {
         logger.debug("{} processing pending deletes", index);
         final long startTimeNS = System.nanoTime();
         final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, timeout.millis());

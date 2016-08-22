@@ -78,9 +78,8 @@ public class LegacyDoubleFieldMapper extends LegacyNumberFieldMapper {
                 throw new IllegalStateException("Cannot use legacy numeric types after 5.0");
             }
             setupFieldType(context);
-            LegacyDoubleFieldMapper fieldMapper = new LegacyDoubleFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
-                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
-            return (LegacyDoubleFieldMapper) fieldMapper.includeInAll(includeInAll);
+            return new LegacyDoubleFieldMapper(name, fieldType, defaultFieldType, ignoreMalformed(context), coerce(context),
+                    includeInAll, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
 
         @Override
@@ -187,8 +186,8 @@ public class LegacyDoubleFieldMapper extends LegacyNumberFieldMapper {
     }
 
     protected LegacyDoubleFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Explicit<Boolean> ignoreMalformed,
-                                Explicit<Boolean> coerce, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, indexSettings, multiFields, copyTo);
+                                Explicit<Boolean> coerce, Boolean includeInAll, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(simpleName, fieldType, defaultFieldType, ignoreMalformed, coerce, includeInAll, indexSettings, multiFields, copyTo);
     }
 
     @Override

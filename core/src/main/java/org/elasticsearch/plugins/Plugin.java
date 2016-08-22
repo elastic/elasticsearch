@@ -22,16 +22,15 @@ package org.elasticsearch.plugins;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -39,9 +38,14 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+
+import java.util.Map;
+import java.util.function.UnaryOperator;
 
 /**
  * An extension point allowing to plug in custom functionality.
@@ -84,9 +88,11 @@ public abstract class Plugin {
      * @param threadPool A service to allow retrieving an executor to run an async action
      * @param resourceWatcherService A service to watch for changes to node local files
      * @param scriptService A service to allow running scripts on the local node
+     * @param searchRequestParsers Parsers for search requests which may be used to templatize search requests
      */
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService) {
+                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
+                                               SearchRequestParsers searchRequestParsers) {
         return Collections.emptyList();
     }
 
@@ -121,6 +127,18 @@ public abstract class Plugin {
      * Returns a list of additional settings filter for this plugin
      */
     public List<String> getSettingsFilter() { return Collections.emptyList(); }
+
+    /**
+     * Provides a function to modify global custom meta data on startup.
+     * <p>
+     * Plugins should return the input custom map via {@link UnaryOperator#identity()} if no upgrade is required.
+     * @return Never {@code null}. The same or upgraded {@code MetaData.Custom} map.
+     * @throws IllegalStateException if the node should not start because at least one {@code MetaData.Custom}
+     *         is unsupported
+     */
+    public UnaryOperator<Map<String, MetaData.Custom>> getCustomMetaDataUpgrader() {
+        return UnaryOperator.identity();
+    }
 
     /**
      * Old-style guice index level extension point.
@@ -162,6 +180,14 @@ public abstract class Plugin {
      */
     @Deprecated
     public final void onModule(ActionModule module) {}
+
+    /**
+     * Old-style action extension point.
+     *
+     * @deprecated implement {@link SearchPlugin} instead
+     */
+    @Deprecated
+    public final void onModule(SearchModule module) {}
 
     /**
      * Provides the list of this plugin's custom thread pools, empty if

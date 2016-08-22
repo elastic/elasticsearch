@@ -38,7 +38,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.highlight.HighlightField;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.internal.InternalSearchHits.StreamContext.ShardTargetType;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -55,7 +55,7 @@ import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.Lucene.readExplanation;
 import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
-import static org.elasticsearch.search.highlight.HighlightField.readHighlightField;
+import static org.elasticsearch.search.fetch.subphase.highlight.HighlightField.readHighlightField;
 import static org.elasticsearch.search.internal.InternalSearchHitField.readSearchHitField;
 
 /**

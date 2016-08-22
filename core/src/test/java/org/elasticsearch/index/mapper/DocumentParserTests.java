@@ -19,14 +19,20 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
@@ -1153,5 +1159,49 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("type.test1"), equalTo("value1"));
         assertThat(doc.rootDoc().get("type.test2"), equalTo("value2"));
         assertThat(doc.rootDoc().get("type.inner.inner_field"), equalTo("inner_value"));
+    }
+
+    public void testIncludeInAllPropagation() throws IOException {
+        String defaultMapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .field("dynamic", "strict")
+                    .startObject("properties")
+                        .startObject("a")
+                            .field("type", "keyword")
+                        .endObject()
+                        .startObject("o")
+                            .field("include_in_all", false)
+                            .startObject("properties")
+                                .startObject("a")
+                                    .field("type", "keyword")
+                                .endObject()
+                                .startObject("o")
+                                    .field("include_in_all", true)
+                                    .startObject("properties")
+                                        .startObject("a")
+                                            .field("type", "keyword")
+                                        .endObject()
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
+        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("a", "b")
+                    .startObject("o")
+                        .field("a", "c")
+                        .startObject("o")
+                            .field("a", "d")
+                        .endObject()
+                    .endObject()
+                .endObject().bytes());
+        Set<String> values = new HashSet<>();
+        for (IndexableField f : doc.rootDoc().getFields("_all")) {
+            values.add(f.stringValue());
+        }
+        assertEquals(new HashSet<>(Arrays.asList("b", "d")), values);
     }
 }

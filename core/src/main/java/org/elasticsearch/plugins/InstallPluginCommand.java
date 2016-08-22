@@ -143,8 +143,8 @@ class InstallPluginCommand extends SettingCommand {
     private final OptionSpec<String> arguments;
 
 
-    public static final Set<PosixFilePermission> DIR_AND_EXECUTABLE_PERMS;
-    public static final Set<PosixFilePermission> FILE_PERMS;
+    static final Set<PosixFilePermission> DIR_AND_EXECUTABLE_PERMS;
+    static final Set<PosixFilePermission> FILE_PERMS;
 
     static {
         Set<PosixFilePermission> dirAndExecutablePerms = new HashSet<>(7);
@@ -211,18 +211,13 @@ class InstallPluginCommand extends SettingCommand {
             final String url;
             final String stagingHash = System.getProperty(PROPERTY_STAGING_ID);
             if (stagingHash != null) {
-                url = String.format(
-                        Locale.ROOT,
-                        "https://download.elastic.co/elasticsearch/staging/%1$s-%2$s/org/elasticsearch/plugin/%3$s/%1$s/%3$s-%1$s.zip",
-                        version,
-                        stagingHash,
-                        pluginId);
+                url = String.format(Locale.ROOT,
+                    "https://staging.elastic.co/%3$s-%1$s/download/elasticsearch-plugins/%2$s/%2$s-%3$s.zip",
+                    stagingHash, pluginId, version);
             } else {
-                url = String.format(
-                        Locale.ROOT,
-                        "https://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%1$s/%2$s/%1$s-%2$s.zip",
-                        pluginId,
-                        version);
+                url = String.format(Locale.ROOT,
+                    "https://artifacts.elastic.co/download/elasticsearch-plugins/%1$s/%1$s-%2$s.zip",
+                    pluginId, version);
             }
             terminal.println("-> Downloading " + pluginId + " from elastic");
             return downloadZipAndChecksum(terminal, url, tmpDir);

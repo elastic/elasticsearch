@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -460,6 +460,11 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         return null;
     }
 
+    /** Returns true iff existing index has the same {@link IndexMetaData} instance */
+    public boolean hasIndexMetaData(final IndexMetaData indexMetaData) {
+        return indices.get(indexMetaData.getIndex().getName()) == indexMetaData;
+    }
+
     /**
      * Returns the {@link IndexMetaData} for this index.
      * @throws IndexNotFoundException if no metadata for this index is found
@@ -745,7 +750,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                                     RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.getKey(),
                                     RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(),
                                     RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.getKey(),
-                                    DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(),
+                                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(),
                                     InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(),
                                     InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(),
                                     DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(),

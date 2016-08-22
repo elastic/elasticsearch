@@ -106,6 +106,32 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         assertEquals(IndexOptions.NONE, field.fieldType().indexOptions());
     }
 
+    public void testUpgradeIndexOptions() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string")
+                .field("index_options", "offsets").endObject().endObject()
+                .endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        FieldMapper field = mapper.mappers().getMapper("field");
+        assertThat(field, instanceOf(TextFieldMapper.class));
+        assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS, field.fieldType().indexOptions());
+    }
+
+    public void testUpgradePositionGap() throws IOException {
+        IndexService indexService = createIndex("test");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string")
+                .field("position_increment_gap", 42).endObject().endObject()
+                .endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        FieldMapper field = mapper.mappers().getMapper("field");
+        assertThat(field, instanceOf(TextFieldMapper.class));
+        assertEquals(42, field.fieldType().indexAnalyzer().getPositionIncrementGap("field"));
+    }
+
     public void testIllegalIndexValue() throws IOException {
         IndexService indexService = createIndex("test");
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
@@ -297,7 +323,11 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         }
         if (randomBoolean()) {
             // this option is not upgraded automatically
-            mapping.field("index_options", "docs");
+            if (keyword) {
+                mapping.field("index_options", "docs");
+            } else {
+                mapping.field("ignore_above", 30);
+            }
             shouldUpgrade = false;
         }
         mapping.endObject().endObject().endObject().endObject();

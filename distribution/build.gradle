@@ -479,6 +479,8 @@ task run(type: RunTask) {
  * </dl>
  */
 Map<String, String> expansionsForDistribution(distributionType) {
+  final String defaultHeapSize = "2g"
+
   String footer = "# Built for ${project.name}-${project.version} " +
       "(${distributionType})"
   Map<String, Object> expansions = [
@@ -498,8 +500,8 @@ Map<String, String> expansionsForDistribution(distributionType) {
       'def': '',
     ],
 
-    'heap.min': "256m",
-    'heap.max': "2g",
+    'heap.min': defaultHeapSize,
+    'heap.max': defaultHeapSize,
 
     'stopping.timeout': [
       'rpm': 86400,

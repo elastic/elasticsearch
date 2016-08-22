@@ -14,6 +14,7 @@ This plugin can be installed through the plugin manager:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin install repository-hdfs
 ----------------------------------------------------------------
+// NOTCONSOLE
 
 The plugin must be installed on _every_ node in the cluster, and each node must
 be restarted after installation.
@@ -28,6 +29,7 @@ The plugin can be removed by specifying the _installed_ package:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin remove repository-hdfs
 ----------------------------------------------------------------
+// NOTCONSOLE
 
 The node must be stopped before removing the plugin.
 

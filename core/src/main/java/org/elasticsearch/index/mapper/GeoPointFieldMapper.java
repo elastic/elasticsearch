@@ -73,7 +73,7 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
         @Override
         public GeoPointFieldMapper build(BuilderContext context, String simpleName, MappedFieldType fieldType,
                                          MappedFieldType defaultFieldType, Settings indexSettings, FieldMapper latMapper,
-                                         FieldMapper lonMapper, FieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                                         FieldMapper lonMapper, KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                          CopyTo copyTo) {
             fieldType.setTokenized(false);
             if (context.indexCreatedVersion().before(Version.V_2_3_0)) {
@@ -104,13 +104,16 @@ public class GeoPointFieldMapper extends BaseGeoPointFieldMapper  {
 
     public GeoPointFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings,
                                FieldMapper latMapper, FieldMapper lonMapper,
-                               FieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo) {
+                               KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, latMapper, lonMapper, geoHashMapper, multiFields,
                 ignoreMalformed, copyTo);
     }
 
     @Override
-    protected void parse(ParseContext context, GeoPoint point, String geoHash) throws IOException {
+    protected void parse(ParseContext originalContext, GeoPoint point, String geoHash) throws IOException {
+        // Geopoint fields, by default, will not be included in _all
+        final ParseContext context = originalContext.setIncludeInAllDefault(false);
+
         if (ignoreMalformed.value() == false) {
             if (point.lat() > 90.0 || point.lat() < -90.0) {
                 throw new IllegalArgumentException("illegal latitude value [" + point.lat() + "] for " + name());

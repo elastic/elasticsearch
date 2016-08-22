@@ -91,9 +91,13 @@ public class RoundTripTests extends ESTestCase {
     public void testUpdateByQueryRequest() throws IOException {
         UpdateByQueryRequest update = new UpdateByQueryRequest(new SearchRequest());
         randomRequest(update);
+        if (randomBoolean()) {
+            update.setPipeline(randomAsciiOfLength(5));
+        }
         UpdateByQueryRequest tripped = new UpdateByQueryRequest();
         roundTrip(update, tripped);
         assertRequestEquals(update, tripped);
+        assertEquals(update.getPipeline(), tripped.getPipeline());
     }
 
     private void randomRequest(AbstractBulkIndexByScrollRequest<?> request) {

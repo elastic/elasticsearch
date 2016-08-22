@@ -78,7 +78,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
         
-        assertEquals(new BytesRef("1234"), fields[0].binaryValue());
+        assertEquals("1234", fields[0].stringValue());
         IndexableFieldType fieldType = fields[0].fieldType();
         assertThat(fieldType.omitNorms(), equalTo(true));
         assertFalse(fieldType.tokenized());
@@ -163,7 +163,7 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
 
         fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
-        assertEquals(new BytesRef("uri"), fields[0].binaryValue());
+        assertEquals("uri", fields[0].stringValue());
     }
 
     public void testEnableStore() throws IOException {

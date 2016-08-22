@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuild
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
@@ -218,5 +219,33 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
         logger.info("--> checking that index still gets allocated with only 1 shard copy being available");
         ensureYellow("test");
         assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 1L);
+    }
+
+    /**
+     * This test ensures that for an unassigned primary shard that has a valid shard copy on at least one node,
+     * we will force allocate the primary shard to one of those nodes, even if the allocation deciders all return
+     * a NO decision to allocate.
+     */
+    public void testForceAllocatePrimaryOnNoDecision() throws Exception {
+        logger.info("--> starting 1 node");
+        final String node = internalCluster().startNodeAsync().get();
+        logger.info("--> creating index with 1 primary and 0 replicas");
+        final String indexName = "test-idx";
+        assertAcked(client().admin().indices()
+                        .prepareCreate(indexName)
+                        .setSettings(Settings.builder().put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                         .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0))
+                        .get());
+        logger.info("--> update the settings to prevent allocation to the data node");
+        assertTrue(client().admin().indices().prepareUpdateSettings(indexName)
+                       .setSettings(Settings.builder().put(IndexMetaData.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", node))
+                       .get()
+                       .isAcknowledged());
+        logger.info("--> full cluster restart");
+        internalCluster().fullRestart();
+        logger.info("--> checking that the primary shard is force allocated to the data node despite being blocked by the exclude filter");
+        ensureGreen(indexName);
+        assertEquals(1, client().admin().cluster().prepareState().get().getState()
+                            .routingTable().index(indexName).shardsWithState(ShardRoutingState.STARTED).size());
     }
 }

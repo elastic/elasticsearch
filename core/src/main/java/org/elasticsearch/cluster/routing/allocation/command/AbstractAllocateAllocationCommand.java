@@ -207,9 +207,9 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
                 continue;
             }
             if (unassignedInfo != null) {
-                unassigned = it.updateUnassignedInfo(unassignedInfo);
+                unassigned = it.updateUnassignedInfo(unassignedInfo, allocation.changes());
             }
-            it.initialize(routingNode.nodeId(), null, allocation.clusterInfo().getShardSize(unassigned, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
+            it.initialize(routingNode.nodeId(), null, allocation.clusterInfo().getShardSize(unassigned, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
             return;
         }
         assert false : "shard to initialize not found in list of unassigned shards";

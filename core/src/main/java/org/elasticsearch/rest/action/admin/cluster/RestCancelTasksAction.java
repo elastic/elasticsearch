@@ -19,9 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -31,11 +29,10 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.support.RestToXContentListener;
 import org.elasticsearch.tasks.TaskId;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.nodeSettingListener;
+import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
 
 
 public class RestCancelTasksAction extends BaseRestHandler {
@@ -61,8 +58,7 @@ public class RestCancelTasksAction extends BaseRestHandler {
         cancelTasksRequest.setNodesIds(nodesIds);
         cancelTasksRequest.setActions(actions);
         cancelTasksRequest.setParentTaskId(parentTaskId);
-        ActionListener<CancelTasksResponse> listener = nodeSettingListener(clusterService, new RestToXContentListener<>(channel));
-        client.admin().cluster().cancelTasks(cancelTasksRequest, listener);
+        client.admin().cluster().cancelTasks(cancelTasksRequest, listTasksResponseListener(clusterService, channel));
     }
 
     @Override

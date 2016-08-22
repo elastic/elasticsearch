@@ -43,7 +43,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode.Role;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -67,6 +67,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -315,8 +316,8 @@ public final class InternalTestCluster extends TestCluster {
         }
         // Default the watermarks to absurdly low to prevent the tests
         // from failing on nodes without enough disk space
-        builder.put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b");
-        builder.put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b");
+        builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b");
+        builder.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b");
         // Some tests make use of scripting quite a bit, so increase the limit for integration tests
         builder.put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 1000);
         if (TEST_NIGHTLY) {
@@ -863,7 +864,7 @@ public final class InternalTestCluster extends TestCluster {
         private void createNewNode(final Settings newSettings) {
             final long newIdSeed = NodeEnvironment.NODE_ID_SEED_SETTING.get(node.settings()) + 1; // use a new seed to make sure we have new node id
             Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), newIdSeed).build();
-            Collection<Class<? extends Plugin>> plugins = node.getPlugins();
+            Collection<Class<? extends Plugin>> plugins = node.getClasspathPlugins();
             node = new MockNode(finalSettings, plugins);
             markNodeDataDirsAsNotEligableForWipe(node);
         }
@@ -1912,7 +1913,7 @@ public final class InternalTestCluster extends TestCluster {
             for (ShardId id : shardIds) {
                 try {
                     env.shardLock(id, TimeUnit.SECONDS.toMillis(5)).close();
-                } catch (IOException ex) {
+                } catch (ShardLockObtainFailedException ex) {
                     fail("Shard " + id + " is still locked after 5 sec waiting");
                 }
             }

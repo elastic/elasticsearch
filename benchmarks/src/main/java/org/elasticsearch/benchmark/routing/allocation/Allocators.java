@@ -38,6 +38,8 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -60,8 +62,8 @@ public final class Allocators {
         }
 
         @Override
-        public boolean allocateUnassigned(RoutingAllocation allocation) {
-            return false;
+        public void allocateUnassigned(RoutingAllocation allocation) {
+            // noop
         }
     }
 
@@ -72,7 +74,7 @@ public final class Allocators {
 
     public static AllocationService createAllocationService(Settings settings) throws NoSuchMethodException, InstantiationException,
         IllegalAccessException, InvocationTargetException {
-        return createAllocationService(settings, new ClusterSettings(Settings.Builder.EMPTY_SETTINGS, ClusterSettings
+        return createAllocationService(settings, new ClusterSettings(Settings.EMPTY, ClusterSettings
             .BUILT_IN_CLUSTER_SETTINGS));
     }
 
@@ -85,19 +87,9 @@ public final class Allocators {
 
     public static AllocationDeciders defaultAllocationDeciders(Settings settings, ClusterSettings clusterSettings) throws
         IllegalAccessException, InvocationTargetException, InstantiationException, NoSuchMethodException {
-        List<AllocationDecider> list = new ArrayList<>();
-        // Keep a deterministic order of allocation deciders for the benchmark
-        for (Class<? extends AllocationDecider> deciderClass : ClusterModule.DEFAULT_ALLOCATION_DECIDERS) {
-            try {
-                Constructor<? extends AllocationDecider> constructor = deciderClass.getConstructor(Settings.class, ClusterSettings
-                    .class);
-                list.add(constructor.newInstance(settings, clusterSettings));
-            } catch (NoSuchMethodException e) {
-                Constructor<? extends AllocationDecider> constructor = deciderClass.getConstructor(Settings.class);
-                list.add(constructor.newInstance(settings));
-            }
-        }
-        return new AllocationDeciders(settings, list.toArray(new AllocationDecider[0]));
+        Collection<AllocationDecider> deciders =
+            ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList());
+        return new AllocationDeciders(settings, deciders);
 
     }
 

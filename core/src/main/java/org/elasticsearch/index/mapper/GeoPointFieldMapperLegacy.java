@@ -25,6 +25,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -100,7 +101,7 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
         @Override
         public GeoPointFieldMapperLegacy build(BuilderContext context, String simpleName, MappedFieldType fieldType,
                                                MappedFieldType defaultFieldType, Settings indexSettings, FieldMapper latMapper,
-                                               FieldMapper lonMapper, FieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                                               FieldMapper lonMapper, KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                                CopyTo copyTo) {
             fieldType.setTokenized(false);
             setupFieldType(context);
@@ -258,7 +259,7 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
 
     public GeoPointFieldMapperLegacy(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings,
                                      FieldMapper latMapper, FieldMapper lonMapper,
-                                     FieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                                     KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                      Explicit<Boolean> coerce, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, latMapper, lonMapper, geoHashMapper, multiFields,
                 ignoreMalformed, copyTo);

@@ -14,5 +14,5 @@ the cluster:
 `indices.queries.cache.size`::
 
     Controls the memory size for the filter cache , defaults to `10%`. Accepts
-    either a percentage value, like `5%`, or an exact value, like `512mb`.
+    either a percentage of the heap size, like `5%`, or an exact value, like `512mb`.
 

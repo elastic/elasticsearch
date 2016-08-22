@@ -227,8 +227,8 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         // Check that we can get doc 1 and 2, because we are doing realtime
         // gets and getting from the primary
-        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setRealtime(true).setFields("foo").get();
-        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setRealtime(true).setFields("foo").get();
+        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
+        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
         assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
         assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
 

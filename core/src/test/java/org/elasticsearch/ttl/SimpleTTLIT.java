@@ -287,7 +287,7 @@ public class SimpleTTLIT extends ESIntegTestCase {
     }
 
     private long getTtl(String type, Object id) {
-        GetResponse getResponse = client().prepareGet("test", type, id.toString()).setFields("_ttl").setRealtime(true).execute()
+        GetResponse getResponse = client().prepareGet("test", type, id.toString()).setFields("_ttl").execute()
                 .actionGet();
         return ((Number) getResponse.getField("_ttl").getValue()).longValue();
     }

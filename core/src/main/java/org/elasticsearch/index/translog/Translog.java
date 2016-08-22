@@ -393,7 +393,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * the current or from the currently committing translog file. If the location is in a file that has already
      * been closed or even removed the method will return <code>null</code> instead.
      */
-    public Translog.Operation read(Location location) {
+    Translog.Operation read(Location location) { // TODO this is only here for testing - we can remove it?
         try (ReleasableLock lock = readLock.acquire()) {
             final BaseTranslogReader reader;
             final long currentGeneration = current.getGeneration();

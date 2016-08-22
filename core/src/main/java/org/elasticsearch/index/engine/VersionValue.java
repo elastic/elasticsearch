@@ -29,11 +29,9 @@ import java.util.Collections;
 class VersionValue implements Accountable {
 
     private final long version;
-    private final Translog.Location translogLocation;
 
-    public VersionValue(long version, Translog.Location translogLocation) {
+    public VersionValue(long version) {
         this.version = version;
-        this.translogLocation = translogLocation;
     }
 
     public long time() {
@@ -48,14 +46,10 @@ class VersionValue implements Accountable {
         return false;
     }
 
-    public Translog.Location translogLocation() {
-        return this.translogLocation;
-    }
 
     @Override
     public long ramBytesUsed() {
-        return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Long.BYTES + RamUsageEstimator.NUM_BYTES_OBJECT_REF +
-            (translogLocation != null ? translogLocation.size : 0);
+        return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Long.BYTES + RamUsageEstimator.NUM_BYTES_OBJECT_REF;
     }
 
     @Override

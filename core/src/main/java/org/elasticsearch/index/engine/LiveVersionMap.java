@@ -42,7 +42,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
         // Used while refresh is running, and to hold adds/deletes until refresh finishes.  We read from both current and old on lookup:
         final Map<BytesRef,VersionValue> old;
-      
+
         public Maps(Map<BytesRef,VersionValue> current, Map<BytesRef,VersionValue> old) {
            this.current = current;
            this.old = old;
@@ -66,7 +66,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
      *  NUM_BYTES_OBJECT_HEADER + 2*NUM_BYTES_INT + NUM_BYTES_OBJECT_REF + NUM_BYTES_ARRAY_HEADER [ + bytes.length] */
     private static final int BASE_BYTES_PER_BYTESREF = RamUsageEstimator.NUM_BYTES_OBJECT_HEADER +
         2*Integer.BYTES +
-        RamUsageEstimator.NUM_BYTES_OBJECT_REF + 
+        RamUsageEstimator.NUM_BYTES_OBJECT_REF +
         RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
 
     /** Bytes used by having CHM point to a key/value:

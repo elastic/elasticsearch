@@ -726,17 +726,17 @@ public class InternalEngineTests extends ESTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
         searchResult.close();
 
-        // but, we can still get it (in realtime)
-        Engine.GetResult getResult = engine.get(new Engine.Get(true, newUid("1")));
-        assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source().source, equalTo(B_1));
-        assertThat(getResult.docIdAndVersion(), nullValue());
-        getResult.release();
-
         // but, not there non realtime
-        getResult = engine.get(new Engine.Get(false, newUid("1")));
+        Engine.GetResult getResult = engine.get(new Engine.Get(false, newUid("1")));
         assertThat(getResult.exists(), equalTo(false));
         getResult.release();
+
+        // but, we can still get it (in realtime)
+        getResult = engine.get(new Engine.Get(true, newUid("1")));
+        assertThat(getResult.exists(), equalTo(true));
+        assertThat(getResult.docIdAndVersion(), notNullValue());
+        getResult.release();
+
         // refresh and it should be there
         engine.refresh("test");
 
@@ -769,8 +769,7 @@ public class InternalEngineTests extends ESTestCase {
         // but, we can still get it (in realtime)
         getResult = engine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source().source, equalTo(B_2));
-        assertThat(getResult.docIdAndVersion(), nullValue());
+        assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
 
         // refresh and it should be updated
@@ -835,7 +834,6 @@ public class InternalEngineTests extends ESTestCase {
         // and, verify get (in real time)
         getResult = engine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source(), nullValue());
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
 

@@ -1000,32 +1000,23 @@ public abstract class Engine implements Closeable {
     public static class GetResult implements Releasable {
         private final boolean exists;
         private final long version;
-        private final Translog.Source source;
         private final Versions.DocIdAndVersion docIdAndVersion;
         private final Searcher searcher;
 
-        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null);
+        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null);
 
-        /**
-         * Build a realtime get result from the translog.
-         */
-        public GetResult(boolean exists, long version, @Nullable Translog.Source source) {
-            this.source = source;
+        private GetResult(boolean exists, long version, Versions.DocIdAndVersion docIdAndVersion, Searcher searcher) {
             this.exists = exists;
             this.version = version;
-            this.docIdAndVersion = null;
-            this.searcher = null;
+            this.docIdAndVersion = docIdAndVersion;
+            this.searcher = searcher;
         }
 
         /**
          * Build a non-realtime get result from the searcher.
          */
         public GetResult(Searcher searcher, Versions.DocIdAndVersion docIdAndVersion) {
-            this.exists = true;
-            this.source = null;
-            this.version = docIdAndVersion.version;
-            this.docIdAndVersion = docIdAndVersion;
-            this.searcher = searcher;
+            this(true, docIdAndVersion.version, docIdAndVersion, searcher);
         }
 
         public boolean exists() {
@@ -1034,11 +1025,6 @@ public abstract class Engine implements Closeable {
 
         public long version() {
             return this.version;
-        }
-
-        @Nullable
-        public Translog.Source source() {
-            return source;
         }
 
         public Searcher searcher() {
@@ -1055,9 +1041,7 @@ public abstract class Engine implements Closeable {
         }
 
         public void release() {
-            if (searcher != null) {
-                searcher.close();
-            }
+            Releasables.close(searcher);
         }
     }
 

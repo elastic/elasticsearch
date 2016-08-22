@@ -26,8 +26,8 @@ import org.elasticsearch.index.translog.Translog;
 class DeleteVersionValue extends VersionValue {
     private final long time;
 
-    public DeleteVersionValue(long version, long time, Translog.Location translogLocation) {
-        super(version, translogLocation);
+    public DeleteVersionValue(long version, long time) {
+        super(version);
         this.time = time;
     }
 

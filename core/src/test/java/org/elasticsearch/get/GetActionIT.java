@@ -71,6 +71,10 @@ public class GetActionIT extends ESIntegTestCase {
         logger.info("--> index doc 1");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
 
+        logger.info("--> non realtime get 1");
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setRealtime(false).get();
+        assertThat(response.isExists(), equalTo(false));
+
         logger.info("--> realtime get 1");
         response = client().prepareGet(indexOrAlias(), "type1", "1").get();
         assertThat(response.isExists(), equalTo(true));
@@ -102,10 +106,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2"));
-
-        logger.info("--> non realtime get 1");
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setRealtime(false).get();
-        assertThat(response.isExists(), equalTo(false));
 
         logger.info("--> realtime fetch of field (requires fetching parsing source)");
         response = client().prepareGet(indexOrAlias(), "type1", "1").setFields("field1").get();
@@ -827,12 +827,6 @@ public class GetActionIT extends ESIntegTestCase {
         indexSingleDocumentWithStringFieldsGeneratedFromText(true, randomBoolean());
         String[] fieldsList = {"_all"};
         String[] alwaysNotStoredFieldsList = {"_field_names"};
-        // before refresh - document is only in translog
-        assertGetFieldsNull(indexOrAlias(), "doc", "1", fieldsList);
-        assertGetFieldsException(indexOrAlias(), "doc", "1", fieldsList);
-        assertGetFieldsNull(indexOrAlias(), "doc", "1", alwaysNotStoredFieldsList);
-        refresh();
-        //after refresh - document is in translog and also indexed
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
         assertGetFieldsNull(indexOrAlias(), "doc", "1", alwaysNotStoredFieldsList);
         flush();
@@ -882,11 +876,6 @@ public class GetActionIT extends ESIntegTestCase {
     public void testGeneratedNumberFieldsStored() throws IOException {
         indexSingleDocumentWithNumericFieldsGeneratedFromText(true, randomBoolean());
         String[] fieldsList = {"token_count", "text.token_count"};
-        // before refresh - document is only in translog
-        assertGetFieldsNull(indexOrAlias(), "doc", "1", fieldsList);
-        assertGetFieldsException(indexOrAlias(), "doc", "1", fieldsList);
-        refresh();
-        //after refresh - document is in translog and also indexed
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
         flush();
         //after flush - document is in not anymore translog - only indexed

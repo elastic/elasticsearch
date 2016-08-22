@@ -18,11 +18,29 @@
  */
 package org.elasticsearch.search;
 
-
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import com.carrotsearch.hppc.IntArrayList;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.search.query.QuerySearchResultProvider;
+
+import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
@@ -70,4 +88,77 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertAcked(client().admin().indices().prepareDelete("index"));
         assertEquals(0, service.getActiveContexts());
     }
+
+    public void testSearchWhileContextIsFreed() throws IOException, InterruptedException {
+        createIndex("index");
+        client().prepareIndex("index", "type", "1").setSource("field", "value").setRefresh(true).get();
+
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe("index");
+        final IndexShard indexShard = indexService.shard(0);
+        final AtomicBoolean running = new AtomicBoolean(true);
+        final CountDownLatch startGun = new CountDownLatch(1);
+        final Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
+        final AtomicLong contextId = new AtomicLong(0);
+        final Thread thread = new Thread() {
+            @Override
+            public void run() {
+                startGun.countDown();
+                while(running.get()) {
+                    service.freeContext(contextId.get());
+                    if (randomBoolean()) {
+                        // here we trigger some refreshes to ensure the IR go out of scope such that we hit ACE if we access a search
+                        // context in a non-sane way.
+                        try {
+                            semaphore.acquire();
+                        } catch (InterruptedException e) {
+                            throw new AssertionError(e);
+                        }
+                        client().prepareIndex("index", "type").setSource("field", "value")
+                            .setRefresh(randomBoolean()).execute(new ActionListener<IndexResponse>() {
+                            @Override
+                            public void onResponse(IndexResponse indexResponse) {
+                                semaphore.release();
+                            }
+
+                            @Override
+                            public void onFailure(Throwable e) {
+                                semaphore.release();
+                            }
+                        });
+                    }
+                }
+            }
+        };
+        thread.start();
+        startGun.await();
+        try {
+            final int rounds = scaledRandomIntBetween(100, 10000);
+            for (int i = 0; i < rounds; i++) {
+                try {
+                    QuerySearchResultProvider querySearchResultProvider = service.executeQueryPhase(
+                        new ShardSearchLocalRequest(indexShard.shardId(), 1, SearchType.DEFAULT,
+                            new BytesArray(""), new String[0], false));
+                    contextId.set(querySearchResultProvider.id());
+                    IntArrayList intCursors = new IntArrayList(1);
+                    intCursors.add(0);
+                    ShardFetchSearchRequest req = new ShardFetchSearchRequest(new SearchRequest()
+                        ,querySearchResultProvider.id(), intCursors, null /* not a scroll */);
+                    service.executeFetchPhase(req);
+                } catch (AlreadyClosedException ex) {
+                    throw ex;
+                } catch (IllegalStateException ex) {
+                    assertEquals("search context is already closed can't increment refCount current count [0]", ex.getMessage());
+                } catch (SearchContextMissingException ex) {
+                    // that's fine
+                }
+            }
+        } finally {
+            running.set(false);
+            thread.join();
+            semaphore.acquire(Integer.MAX_VALUE);
+        }
+    }
+
 }

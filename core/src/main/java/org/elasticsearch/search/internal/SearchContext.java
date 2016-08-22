@@ -35,6 +35,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -69,8 +70,20 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
-public abstract class SearchContext extends DelegatingHasContextAndHeaders implements Releasable {
+/**
+ * This class encapsulates the state needed to execute a search. It holds a reference to the
+ * shards point in time snapshot (IndexReader / ContextIndexSearcher) and allows passing on
+ * state from one query / fetch phase to another.
+ *
+ * This class also implements {@link RefCounted} since in some situations like in {@link org.elasticsearch.search.SearchService}
+ * a SearchContext can be closed concurrently due to independent events ie. when an index gets removed. To prevent accessing closed
+ * IndexReader / IndexSearcher instances the SearchContext can be guarded by a reference count and fail if it's been closed by
+ * an external event.
+ */
+// For reference why we use RefCounted here see #20095
+public abstract class SearchContext extends DelegatingHasContextAndHeaders implements Releasable, RefCounted {
 
     private static ThreadLocal<SearchContext> current = new ThreadLocal<>();
     public final static int DEFAULT_TERMINATE_AFTER = 0;
@@ -106,12 +119,8 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
 
     @Override
     public final void close() {
-        if (closed.compareAndSet(false, true)) { // prevent double release
-            try {
-                clearReleasables(Lifetime.CONTEXT);
-            } finally {
-                doClose();
-            }
+        if (closed.compareAndSet(false, true)) { // prevent double closing
+            decRef();
         }
     }
 
@@ -378,4 +387,55 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
          */
         CONTEXT
     }
+
+    // copied from AbstractRefCounted since this class subclasses already DelegatingHasContextAndHeaders
+    // 5.x doesn't have this problem
+    private final AtomicInteger refCount = new AtomicInteger(1);
+
+    @Override
+    public final void incRef() {
+        if (tryIncRef() == false) {
+            alreadyClosed();
+        }
+    }
+
+    @Override
+    public final boolean tryIncRef() {
+        do {
+            int i = refCount.get();
+            if (i > 0) {
+                if (refCount.compareAndSet(i, i + 1)) {
+                    return true;
+                }
+            } else {
+                return false;
+            }
+        } while (true);
+    }
+
+    @Override
+    public final void decRef() {
+        int i = refCount.decrementAndGet();
+        assert i >= 0;
+        if (i == 0) {
+            try {
+                clearReleasables(Lifetime.CONTEXT);
+            } finally {
+                doClose();
+            }
+        }
+
+    }
+
+    protected void alreadyClosed() {
+        throw new IllegalStateException("search context is already closed can't increment refCount current count [" + refCount() + "]");
+    }
+
+    /**
+     * Returns the current reference count.
+     */
+    public int refCount() {
+        return this.refCount.get();
+    }
+    // end copy from AbstractRefCounted
 }

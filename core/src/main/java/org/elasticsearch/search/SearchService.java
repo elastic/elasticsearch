@@ -262,6 +262,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     public DfsSearchResult executeDfsPhase(ShardSearchRequest request) {
         final SearchContext context = createAndPutContext(request);
+        context.incRef();
         try {
             contextProcessing(context);
             dfsPhase.execute(context);
@@ -281,6 +282,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         final SearchContext context = createAndPutContext(request);
         final int originalSize = context.size();
         deprecationLogger.deprecated("[search_type=scan] is deprecated, please use a regular scroll that sorts on [_doc] instead");
+        context.incRef();
         try {
             if (context.aggregations() != null) {
                 throw new IllegalArgumentException("aggregations are not supported with search_type=scan");
@@ -304,8 +306,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             processFailure(context, e);
             throw ExceptionsHelper.convertToRuntime(e);
         } finally {
-            context.size(originalSize);
-            cleanContext(context);
+            try {
+                context.size(originalSize);
+            } finally {
+                cleanContext(context);
+            }
         }
     }
 
@@ -313,6 +318,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         final SearchContext context = findContext(request.id());
         ShardSearchStats shardSearchStats = context.indexShard().searchService();
         contextProcessing(context);
+        context.incRef();
         try {
             processScroll(request, context);
             shardSearchStats.onPreQueryPhase(context);
@@ -370,6 +376,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     public QuerySearchResultProvider executeQueryPhase(ShardSearchRequest request) {
         final SearchContext context = createAndPutContext(request);
         final ShardSearchStats shardSearchStats = context.indexShard().searchService();
+        context.incRef();
         try {
             shardSearchStats.onPreQueryPhase(context);
             long time = System.nanoTime();
@@ -402,6 +409,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     public ScrollQuerySearchResult executeQueryPhase(InternalScrollSearchRequest request) {
         final SearchContext context = findContext(request.id());
         ShardSearchStats shardSearchStats = context.indexShard().searchService();
+        context.incRef();
         try {
             shardSearchStats.onPreQueryPhase(context);
             long time = System.nanoTime();
@@ -427,6 +435,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         context.searcher().setAggregatedDfs(request.dfs());
         IndexShard indexShard = context.indexShard();
         ShardSearchStats shardSearchStats = indexShard.searchService();
+        context.incRef();
         try {
             shardSearchStats.onPreQueryPhase(context);
             long time = System.nanoTime();
@@ -462,6 +471,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     public QueryFetchSearchResult executeFetchPhase(ShardSearchRequest request) {
         final SearchContext context = createAndPutContext(request);
         contextProcessing(context);
+        context.incRef();
         try {
             ShardSearchStats shardSearchStats = context.indexShard().searchService();
             shardSearchStats.onPreQueryPhase(context);
@@ -502,6 +512,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         final SearchContext context = findContext(request.id());
         contextProcessing(context);
         context.searcher().setAggregatedDfs(request.dfs());
+        context.incRef();
         try {
             ShardSearchStats shardSearchStats = context.indexShard().searchService();
             shardSearchStats.onPreQueryPhase(context);
@@ -541,6 +552,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     public ScrollQueryFetchSearchResult executeFetchPhase(InternalScrollSearchRequest request) {
         final SearchContext context = findContext(request.id());
         contextProcessing(context);
+        context.incRef();
         try {
             ShardSearchStats shardSearchStats = context.indexShard().searchService();
             processScroll(request, context);
@@ -582,6 +594,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         final SearchContext context = findContext(request.id());
         contextProcessing(context);
         final ShardSearchStats shardSearchStats = context.indexShard().searchService();
+        context.incRef();
         try {
             if (request.lastEmittedDoc() != null) {
                 context.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
@@ -703,6 +716,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     public boolean freeContext(long id) {
         final SearchContext context = removeContext(id);
         if (context != null) {
+            assert context.refCount() > 0 : " refCount must be > 0: " + context.refCount();
             try {
                 context.indexShard().searchService().onFreeContext(context);
                 if (context.scrollContext() != null) {
@@ -734,9 +748,13 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     }
 
     private void cleanContext(SearchContext context) {
-        assert context == SearchContext.current();
-        context.clearReleasables(Lifetime.PHASE);
-        SearchContext.removeCurrent();
+        try {
+            assert context == SearchContext.current();
+            context.clearReleasables(Lifetime.PHASE);
+            SearchContext.removeCurrent();
+        } finally {
+            context.decRef();
+        }
     }
 
     private void processFailure(SearchContext context, Throwable t) {
@@ -1153,6 +1171,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                             ShardSearchRequest request = new ShardSearchLocalRequest(indexShard.shardId(), indexMetaData.getNumberOfShards(),
                                     SearchType.QUERY_THEN_FETCH, entry.source(), entry.types(), entry.requestCache());
                             context = createContext(request, warmerContext.searcher());
+                            context.incRef();
                             // if we use sort, we need to do query to sort on it and load relevant field data
                             // if not, we might as well set size=0 (and cache if needed)
                             if (context.sort() == null) {
@@ -1174,8 +1193,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                         } finally {
                             try {
                                 if (context != null) {
-                                    freeContext(context.id());
-                                    cleanContext(context);
+                                    try {
+                                        freeContext(context.id());
+                                    } finally {
+                                        cleanContext(context);
+                                    }
                                 }
                             } finally {
                                 latch.countDown();

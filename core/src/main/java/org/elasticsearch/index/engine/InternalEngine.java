@@ -901,7 +901,9 @@ public class InternalEngine extends Engine {
         if (shouldFail) {
             return true;
         }
-        // Check for AlreadyClosedException
+        // Check for AlreadyClosedException -- ACE is a very special
+        // exception that should only be thrown in a tragic event. we pass on the checks to failOnTragicEvent which will
+        // throw and AssertionError if the tragic event condition is not met.
         if (e instanceof AlreadyClosedException) {
             failOnTragicEvent((AlreadyClosedException)e);
             return true;

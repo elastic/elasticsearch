@@ -1,6 +1,9 @@
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import org.elasticsearch.gradle.MavenFilteringHack
 import org.elasticsearch.gradle.test.NodeInfo
-import java.nio.charset.StandardCharsets
 
 group 'org.elasticsearch.plugin'
 
@@ -9,6 +12,7 @@ esplugin {
   name 'x-pack'
   description 'Elasticsearch Expanded Pack Plugin'
   classname 'org.elasticsearch.xpack.XPackPlugin'
+  hasClientJar = true
 }
 
 ext.versions = [
@@ -125,6 +129,37 @@ bundlePlugin {
   }
   from('watcher/bin/x-pack') {
     into 'bin'
+  }
+}
+
+// add api jar for extension authors to compile against
+// note this is just the normal x-pack jar for now, with a different name
+project.afterEvaluate {
+  task apiJar {
+    dependsOn('generatePomFileForApijarPublication', project.jar)
+    doFirst {
+      Path jarFile = project.jar.outputs.files.singleFile.toPath()
+      String apiFileName = jarFile.fileName.toString().replace(project.version, "api-${project.version}")
+      Files.copy(jarFile, jarFile.resolveSibling(apiFileName), StandardCopyOption.REPLACE_EXISTING)      
+
+      String pomFileName = jarFile.fileName.toString().replace('.jar', '.pom')
+      String apiPomFileName = apiFileName.replace('.jar', '.pom')
+      Files.copy(jarFile.resolveSibling(pomFileName), jarFile.resolveSibling(apiPomFileName),
+                 StandardCopyOption.REPLACE_EXISTING)
+    }
+  }
+  project.publishing {
+    publications {
+      apijar(MavenPublication) {
+        from project.components.java
+        artifactId = artifactId + '-api'
+        pom.withXml { XmlProvider xml ->
+          Node root = xml.asNode()
+          root.appendNode('name', project.pluginProperties.extension.name)
+          root.appendNode('description', project.pluginProperties.extension.description)
+        }
+      }
+    }
   }
 }
 

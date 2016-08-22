@@ -21,7 +21,6 @@ package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -107,9 +106,6 @@ import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
-/**
- *
- */
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
 
     // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
@@ -233,6 +229,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public DfsSearchResult executeDfsPhase(ShardSearchRequest request) throws IOException {
         final SearchContext context = createAndPutContext(request);
+        context.incRef();
         try {
             contextProcessing(context);
             dfsPhase.execute(context);
@@ -262,6 +259,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public QuerySearchResultProvider executeQueryPhase(ShardSearchRequest request) throws IOException {
         final SearchContext context = createAndPutContext(request);
         final SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
+        context.incRef();
         try {
             operationListener.onPreQueryPhase(context);
             long time = System.nanoTime();
@@ -295,6 +293,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public ScrollQuerySearchResult executeQueryPhase(InternalScrollSearchRequest request) {
         final SearchContext context = findContext(request.id());
         SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
+        context.incRef();
         try {
             operationListener.onPreQueryPhase(context);
             long time = System.nanoTime();
@@ -316,11 +315,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public QuerySearchResult executeQueryPhase(QuerySearchRequest request) {
         final SearchContext context = findContext(request.id());
-        contextProcessing(context);
-        context.searcher().setAggregatedDfs(request.dfs());
         IndexShard indexShard = context.indexShard();
         SearchOperationListener operationListener = indexShard.getSearchOperationListener();
+        context.incRef();
         try {
+            contextProcessing(context);
+            context.searcher().setAggregatedDfs(request.dfs());
+
             operationListener.onPreQueryPhase(context);
             long time = System.nanoTime();
             queryPhase.execute(context);
@@ -354,8 +355,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public QueryFetchSearchResult executeFetchPhase(ShardSearchRequest request) throws IOException {
         final SearchContext context = createAndPutContext(request);
-        contextProcessing(context);
+        context.incRef();
         try {
+            contextProcessing(context);
             SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
             operationListener.onPreQueryPhase(context);
             long time = System.nanoTime();
@@ -393,9 +395,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public QueryFetchSearchResult executeFetchPhase(QuerySearchRequest request) {
         final SearchContext context = findContext(request.id());
-        contextProcessing(context);
-        context.searcher().setAggregatedDfs(request.dfs());
+        context.incRef();
         try {
+            contextProcessing(context);
+            context.searcher().setAggregatedDfs(request.dfs());
             SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
             operationListener.onPreQueryPhase(context);
             long time = System.nanoTime();
@@ -433,8 +436,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public ScrollQueryFetchSearchResult executeFetchPhase(InternalScrollSearchRequest request) {
         final SearchContext context = findContext(request.id());
-        contextProcessing(context);
+        context.incRef();
         try {
+            contextProcessing(context);
             SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
             processScroll(request, context);
             operationListener.onPreQueryPhase(context);
@@ -473,9 +477,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public FetchSearchResult executeFetchPhase(ShardFetchRequest request) {
         final SearchContext context = findContext(request.id());
-        contextProcessing(context);
         final SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
+        context.incRef();
         try {
+            contextProcessing(context);
             if (request.lastEmittedDoc() != null) {
                 context.scrollContext().lastEmittedDoc = request.lastEmittedDoc();
             }
@@ -593,6 +598,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public boolean freeContext(long id) {
         final SearchContext context = removeContext(id);
         if (context != null) {
+            assert context.refCount() > 0 : " refCount must be > 0: " + context.refCount();
             try {
                 context.indexShard().getSearchOperationListener().onFreeContext(context);
                 if (context.scrollContext() != null) {
@@ -624,9 +630,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private void cleanContext(SearchContext context) {
-        assert context == SearchContext.current();
-        context.clearReleasables(Lifetime.PHASE);
-        SearchContext.removeCurrent();
+        try {
+            assert context == SearchContext.current();
+            context.clearReleasables(Lifetime.PHASE);
+            SearchContext.removeCurrent();
+        } finally {
+            context.decRef();
+        }
     }
 
     private void processFailure(SearchContext context, Exception e) {

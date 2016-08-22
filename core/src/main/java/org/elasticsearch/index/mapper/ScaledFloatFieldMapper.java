@@ -364,7 +364,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext originalContext, List<Field> fields) throws IOException {
+        // Numeric fields, by default, will not be included in _all
+        final ParseContext context = originalContext.setIncludeInAllDefault(false);
+
         XContentParser parser = context.parser();
         Object value;
         Number numericValue = null;

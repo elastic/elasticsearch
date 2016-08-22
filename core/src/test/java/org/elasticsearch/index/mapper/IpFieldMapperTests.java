@@ -186,7 +186,8 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testIncludeInAll() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "ip").endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "ip")
+                .field("include_in_all", true).endObject().endObject()
                 .endObject().endObject().string();
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
@@ -204,8 +205,7 @@ public class IpFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("::1", fields[0].stringValue());
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "ip")
-                .field("include_in_all", false).endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "ip").endObject().endObject()
                 .endObject().endObject().string();
 
         mapper = parser.parse("type", new CompressedXContent(mapping));

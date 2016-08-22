@@ -71,6 +71,17 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * This class encapsulates the state needed to execute a search. It holds a reference to the
+ * shards point in time snapshot (IndexReader / ContextIndexSearcher) and allows passing on
+ * state from one query / fetch phase to another.
+ *
+ * This class also implements {@link RefCounted} since in some situations like in {@link org.elasticsearch.search.SearchService}
+ * a SearchContext can be closed concurrently due to independent events ie. when an index gets removed. To prevent accessing closed
+ * IndexReader / IndexSearcher instances the SearchContext can be guarded by a reference count and fail if it's been closed by
+ * an external event.
+ */
+// For reference why we use RefCounted here see #20095
 public abstract class SearchContext extends AbstractRefCounted implements Releasable {
 
     private static ThreadLocal<SearchContext> current = new ThreadLocal<>();

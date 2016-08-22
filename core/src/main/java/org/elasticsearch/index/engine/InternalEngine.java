@@ -835,6 +835,14 @@ public class InternalEngine extends Engine {
             } finally {
                 store.decRef();
             }
+        } catch (AlreadyClosedException ex) {
+            /* in this case we first check if the engine is still open. If so this exception is just fine
+             * and expected. We don't hold any locks while we block on forceMerge otherwise it would block
+             * closing the engine as well. If we are not closed we pass it on to failOnTragicEvent which ensures
+             * we are handling a tragic even exception here */
+            ensureOpen();
+            failOnTragicEvent(ex);
+            throw ex;
         } catch (Exception e) {
             try {
                 maybeFailEngine("force merge", e);

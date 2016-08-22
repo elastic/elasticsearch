@@ -103,7 +103,8 @@ public class NoopBulkRequestBuilder extends ActionRequestBuilder<BulkRequest, Bu
     /**
      * Adds a framed data in binary format
      */
-    public NoopBulkRequestBuilder add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
+    public NoopBulkRequestBuilder add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType)
+        throws Exception {
         request.add(data, from, length, defaultIndex, defaultType);
         return this;
     }

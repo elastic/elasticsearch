@@ -32,3 +32,5 @@ compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-u
 
 // no unit tests
 test.enabled = false
+integTest.enabled = false
+

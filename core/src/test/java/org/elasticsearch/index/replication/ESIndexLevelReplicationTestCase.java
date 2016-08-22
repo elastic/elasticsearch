@@ -425,6 +425,12 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
         }
 
         @Override
+        protected Set<String> getInSyncAllocationIds(ShardId shardId, ClusterState clusterState) {
+            return replicationGroup.shardRoutings().stream().filter(ShardRouting::active)
+                .map(shr -> shr.allocationId().getId()).collect(Collectors.toSet());
+        }
+
+        @Override
         protected String checkActiveShardCount() {
             return null;
         }

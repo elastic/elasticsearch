@@ -19,8 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -36,7 +35,7 @@ import java.io.IOException;
 public class BulkItemRequest implements Streamable {
 
     private int id;
-    private ActionRequest request;
+    private DocumentRequest<?> request;
     private volatile BulkItemResponse primaryResponse;
     private volatile boolean ignoreOnReplica;
 
@@ -44,8 +43,7 @@ public class BulkItemRequest implements Streamable {
 
     }
 
-    public BulkItemRequest(int id, ActionRequest request) {
-        assert request instanceof IndicesRequest;
+    public BulkItemRequest(int id, DocumentRequest<?> request) {
         this.id = id;
         this.request = request;
     }
@@ -54,14 +52,13 @@ public class BulkItemRequest implements Streamable {
         return id;
     }
 
-    public ActionRequest request() {
+    public DocumentRequest<?> request() {
         return request;
     }
 
     public String index() {
-        IndicesRequest indicesRequest = (IndicesRequest) request;
-        assert indicesRequest.indices().length == 1;
-        return indicesRequest.indices()[0];
+        assert request.indices().length == 1;
+        return request.indices()[0];
     }
 
     BulkItemResponse getPrimaryResponse() {
@@ -94,13 +91,18 @@ public class BulkItemRequest implements Streamable {
         id = in.readVInt();
         byte type = in.readByte();
         if (type == 0) {
-            request = new IndexRequest();
+            IndexRequest indexRequest = new IndexRequest();
+            indexRequest.readFrom(in);
+            request = indexRequest;
         } else if (type == 1) {
-            request = new DeleteRequest();
+            DeleteRequest deleteRequest = new DeleteRequest();
+            deleteRequest.readFrom(in);
+            request = deleteRequest;
         } else if (type == 2) {
-            request = new UpdateRequest();
+            UpdateRequest updateRequest = new UpdateRequest();
+            updateRequest.readFrom(in);
+            request = updateRequest;
         }
-        request.readFrom(in);
         if (in.readBoolean()) {
             primaryResponse = BulkItemResponse.readBulkItem(in);
         }
@@ -112,12 +114,14 @@ public class BulkItemRequest implements Streamable {
         out.writeVInt(id);
         if (request instanceof IndexRequest) {
             out.writeByte((byte) 0);
+            ((IndexRequest) request).writeTo(out);
         } else if (request instanceof DeleteRequest) {
             out.writeByte((byte) 1);
+            ((DeleteRequest) request).writeTo(out);
         } else if (request instanceof UpdateRequest) {
             out.writeByte((byte) 2);
+            ((UpdateRequest) request).writeTo(out);
         }
-        request.writeTo(out);
         out.writeOptionalStreamable(primaryResponse);
         out.writeBoolean(ignoreOnReplica);
     }

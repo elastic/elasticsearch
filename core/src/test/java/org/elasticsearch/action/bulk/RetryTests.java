@@ -20,7 +20,12 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.DocumentRequest;
+import org.elasticsearch.action.DocumentRequest.OpType;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.unit.TimeValue;
@@ -212,11 +217,11 @@ public class RetryTests extends ESTestCase {
         }
 
         private BulkItemResponse successfulResponse() {
-            return new BulkItemResponse(1, "update", new DeleteResponse());
+            return new BulkItemResponse(1, OpType.DELETE, new DeleteResponse());
         }
 
         private BulkItemResponse failedResponse() {
-            return new BulkItemResponse(1, "update", new BulkItemResponse.Failure("test", "test", "1", new EsRejectedExecutionException("pool full")));
+            return new BulkItemResponse(1, OpType.INDEX, new BulkItemResponse.Failure("test", "test", "1", new EsRejectedExecutionException("pool full")));
         }
     }
 }

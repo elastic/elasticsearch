@@ -164,26 +164,31 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> impleme
         return this.routing;
     }
 
-    /**
-     * Sets the version, which will cause the delete operation to only be performed if a matching
-     * version exists and no changes happened on the doc since then.
-     */
+    @Override
     public DeleteRequest version(long version) {
         this.version = version;
         return this;
     }
 
+    @Override
     public long version() {
         return this.version;
     }
 
+    @Override
     public DeleteRequest versionType(VersionType versionType) {
         this.versionType = versionType;
         return this;
     }
 
+    @Override
     public VersionType versionType() {
         return this.versionType;
+    }
+
+    @Override
+    public OpType opType() {
+        return OpType.DELETE;
     }
 
     @Override

@@ -71,9 +71,6 @@ import static org.elasticsearch.action.support.replication.ReplicationOperation.
  */
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardResponse> {
 
-    private static final String OP_TYPE_UPDATE = "update";
-    private static final String OP_TYPE_DELETE = "delete";
-
     public static final String ACTION_NAME = BulkAction.NAME + "[s]";
 
     private final UpdateHelper updateHelper;
@@ -157,7 +154,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             location = locationToSync(location, result.getLocation());
             // add the response
             IndexResponse indexResponse = result.getResponse();
-            setResponse(item, new BulkItemResponse(item.id(), indexRequest.opType().lowercase(), indexResponse));
+            setResponse(item, new BulkItemResponse(item.id(), indexRequest.opType(), indexResponse));
         } catch (Exception e) {
             // rethrow the failure if we are going to retry on primary and let parent failure to handle it
             if (retryPrimaryException(e)) {
@@ -174,7 +171,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             if (item.getPrimaryResponse() != null && isConflictException(e)) {
                 setResponse(item, item.getPrimaryResponse());
             } else {
-                setResponse(item, new BulkItemResponse(item.id(), indexRequest.opType().lowercase(),
+                setResponse(item, new BulkItemResponse(item.id(), indexRequest.opType(),
                         new BulkItemResponse.Failure(request.index(), indexRequest.type(), indexRequest.id(), e)));
             }
         }
@@ -199,7 +196,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             final WriteResult<DeleteResponse> writeResult = TransportDeleteAction.executeDeleteRequestOnPrimary(deleteRequest, indexShard);
             DeleteResponse deleteResponse = writeResult.getResponse();
             location = locationToSync(location, writeResult.getLocation());
-            setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_DELETE, deleteResponse));
+            setResponse(item, new BulkItemResponse(item.id(), deleteRequest.opType(), deleteResponse));
         } catch (Exception e) {
             // rethrow the failure if we are going to retry on primary and let parent failure to handle it
             if (retryPrimaryException(e)) {
@@ -216,7 +213,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             if (item.getPrimaryResponse() != null && isConflictException(e)) {
                 setResponse(item, item.getPrimaryResponse());
             } else {
-                setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_DELETE,
+                setResponse(item, new BulkItemResponse(item.id(), deleteRequest.opType(),
                         new BulkItemResponse.Failure(request.index(), deleteRequest.type(), deleteRequest.id(), e)));
             }
         }
@@ -254,7 +251,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                             updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, request.index(), indexResponse.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
                         }
                         item = request.items()[requestIndex] = new BulkItemRequest(request.items()[requestIndex].id(), indexRequest);
-                        setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_UPDATE, updateResponse));
+                        setResponse(item, new BulkItemResponse(item.id(), updateRequest.opType(), updateResponse));
                         break;
                     case DELETED:
                         @SuppressWarnings("unchecked")
@@ -265,10 +262,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, request.index(), response.getVersion(), updateResult.result.updatedSourceAsMap(), updateResult.result.updateSourceContentType(), null));
                         // Replace the update request to the translated delete request to execute on the replica.
                         item = request.items()[requestIndex] = new BulkItemRequest(request.items()[requestIndex].id(), deleteRequest);
-                        setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_UPDATE, updateResponse));
+                        setResponse(item, new BulkItemResponse(item.id(), updateRequest.opType(), updateResponse));
                         break;
                     case NOOP:
-                        setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_UPDATE, updateResult.noopResult));
+                        setResponse(item, new BulkItemResponse(item.id(), updateRequest.opType(), updateResult.noopResult));
                         item.setIgnoreOnReplica(); // no need to go to the replica
                         break;
                     default:
@@ -281,7 +278,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 if (updateResult.retry) {
                     // updateAttemptCount is 0 based and marks current attempt, if it's equal to retryOnConflict we are going out of the iteration
                     if (updateAttemptsCount >= updateRequest.retryOnConflict()) {
-                        setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_UPDATE,
+                        setResponse(item, new BulkItemResponse(item.id(), updateRequest.opType(),
                             new BulkItemResponse.Failure(request.index(), updateRequest.type(), updateRequest.id(), e)));
                     }
                 } else {
@@ -299,20 +296,20 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     if (item.getPrimaryResponse() != null && isConflictException(e)) {
                         setResponse(item, item.getPrimaryResponse());
                     } else if (updateResult.result == null) {
-                        setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_UPDATE, new BulkItemResponse.Failure(request.index(), updateRequest.type(), updateRequest.id(), e)));
+                        setResponse(item, new BulkItemResponse(item.id(), updateRequest.opType(), new BulkItemResponse.Failure(request.index(), updateRequest.type(), updateRequest.id(), e)));
                     } else {
                         switch (updateResult.result.getResponseResult()) {
                             case CREATED:
                             case UPDATED:
                                 IndexRequest indexRequest = updateResult.request();
                                 logFailure(e, "index", request.shardId(), indexRequest);
-                                setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_UPDATE,
+                                setResponse(item, new BulkItemResponse(item.id(), updateRequest.opType(),
                                     new BulkItemResponse.Failure(request.index(), indexRequest.type(), indexRequest.id(), e)));
                                 break;
                             case DELETED:
                                 DeleteRequest deleteRequest = updateResult.request();
                                 logFailure(e, "delete", request.shardId(), deleteRequest);
-                                setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_DELETE,
+                                setResponse(item, new BulkItemResponse(item.id(), deleteRequest.opType(),
                                     new BulkItemResponse.Failure(request.index(), deleteRequest.type(), deleteRequest.id(), e)));
                                 break;
                             default:

@@ -22,6 +22,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -46,6 +47,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -65,7 +67,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
      * {@link WriteRequest}s to this but java doesn't support syntax to declare that everything in the array has both types so we declare
      * the one with the least casts.
      */
-    final List<ActionRequest<?>> requests = new ArrayList<>();
+    final List<DocumentRequest<?>> requests = new ArrayList<>();
     List<Object> payloads = null;
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
@@ -80,14 +82,14 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     /**
      * Adds a list of requests to be executed. Either index or delete requests.
      */
-    public BulkRequest add(ActionRequest<?>... requests) {
-        for (ActionRequest<?> request : requests) {
+    public BulkRequest add(DocumentRequest<?>... requests) {
+        for (DocumentRequest<?> request : requests) {
             add(request, null);
         }
         return this;
     }
 
-    public BulkRequest add(ActionRequest<?> request) {
+    public BulkRequest add(DocumentRequest<?> request) {
         return add(request, null);
     }
 
@@ -97,7 +99,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
      * @param payload Optional payload
      * @return the current bulk request
      */
-    public BulkRequest add(ActionRequest<?> request, @Nullable Object payload) {
+    public BulkRequest add(DocumentRequest<?> request, @Nullable Object payload) {
         if (request instanceof IndexRequest) {
             add((IndexRequest) request, payload);
         } else if (request instanceof DeleteRequest) {
@@ -113,8 +115,8 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     /**
      * Adds a list of requests to be executed. Either index or delete requests.
      */
-    public BulkRequest add(Iterable<ActionRequest<?>> requests) {
-        for (ActionRequest<?> request : requests) {
+    public BulkRequest add(Iterable<DocumentRequest<?>> requests) {
+        for (DocumentRequest<?> request : requests) {
             add(request);
         }
         return this;
@@ -200,18 +202,13 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     /**
      * The list of requests in this bulk request.
      */
-    public List<ActionRequest<?>> requests() {
+    public List<DocumentRequest<?>> requests() {
         return this.requests;
     }
 
     @Override
     public List<? extends IndicesRequest> subRequests() {
-        List<IndicesRequest> indicesRequests = new ArrayList<>();
-        for (ActionRequest<?> request : requests) {
-            assert request instanceof IndicesRequest;
-            indicesRequests.add((IndicesRequest) request);
-        }
-        return indicesRequests;
+        return requests.stream().collect(Collectors.toList());
     }
 
     /**
@@ -497,7 +494,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
      * @return Whether this bulk request contains index request with an ingest pipeline enabled.
      */
     public boolean hasIndexRequestsWithPipelines() {
-        for (ActionRequest<?> actionRequest : requests) {
+        for (DocumentRequest<?> actionRequest : requests) {
             if (actionRequest instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) actionRequest;
                 if (Strings.hasText(indexRequest.getPipeline())) {
@@ -515,13 +512,13 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         if (requests.isEmpty()) {
             validationException = addValidationError("no requests added", validationException);
         }
-        for (ActionRequest<?> request : requests) {
+        for (DocumentRequest<?> request : requests) {
             // We first check if refresh has been set
             if (((WriteRequest<?>) request).getRefreshPolicy() != RefreshPolicy.NONE) {
                 validationException = addValidationError(
                         "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead.", validationException);
             }
-            ActionRequestValidationException ex = request.validate();
+            ActionRequestValidationException ex = ((WriteRequest<?>) request).validate();
             if (ex != null) {
                 if (validationException == null) {
                     validationException = new ActionRequestValidationException();
@@ -563,15 +560,17 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         super.writeTo(out);
         waitForActiveShards.writeTo(out);
         out.writeVInt(requests.size());
-        for (ActionRequest<?> request : requests) {
+        for (DocumentRequest<?> request : requests) {
             if (request instanceof IndexRequest) {
                 out.writeByte((byte) 0);
+                ((IndexRequest) request).writeTo(out);
             } else if (request instanceof DeleteRequest) {
                 out.writeByte((byte) 1);
+                ((DeleteRequest) request).writeTo(out);
             } else if (request instanceof UpdateRequest) {
                 out.writeByte((byte) 2);
+                ((UpdateRequest) request).writeTo(out);
             }
-            request.writeTo(out);
         }
         refreshPolicy.writeTo(out);
         timeout.writeTo(out);

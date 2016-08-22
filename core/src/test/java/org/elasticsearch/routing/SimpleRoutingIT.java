@@ -20,6 +20,8 @@
 package org.elasticsearch.routing;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -259,7 +261,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
             for (BulkItemResponse bulkItemResponse : bulkResponse) {
                 assertThat(bulkItemResponse.isFailed(), equalTo(true));
-                assertThat(bulkItemResponse.getOpType(), equalTo("index"));
+                assertThat(bulkItemResponse.getOpType(), equalTo(DocumentRequest.OpType.INDEX));
                 assertThat(bulkItemResponse.getFailure().getStatus(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(bulkItemResponse.getFailure().getCause(), instanceOf(RoutingMissingException.class));
                 assertThat(bulkItemResponse.getFailureMessage(), containsString("routing is required for [test]/[type1]/[1]"));
@@ -280,7 +282,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
             for (BulkItemResponse bulkItemResponse : bulkResponse) {
                 assertThat(bulkItemResponse.isFailed(), equalTo(true));
-                assertThat(bulkItemResponse.getOpType(), equalTo("update"));
+                assertThat(bulkItemResponse.getOpType(), equalTo(DocumentRequest.OpType.UPDATE));
                 assertThat(bulkItemResponse.getFailure().getStatus(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(bulkItemResponse.getFailure().getCause(), instanceOf(RoutingMissingException.class));
                 assertThat(bulkItemResponse.getFailureMessage(), containsString("routing is required for [test]/[type1]/[1]"));
@@ -301,7 +303,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
 
             for (BulkItemResponse bulkItemResponse : bulkResponse) {
                 assertThat(bulkItemResponse.isFailed(), equalTo(true));
-                assertThat(bulkItemResponse.getOpType(), equalTo("delete"));
+                assertThat(bulkItemResponse.getOpType(), equalTo(DocumentRequest.OpType.DELETE));
                 assertThat(bulkItemResponse.getFailure().getStatus(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(bulkItemResponse.getFailure().getCause(), instanceOf(RoutingMissingException.class));
                 assertThat(bulkItemResponse.getFailureMessage(), containsString("routing is required for [test]/[type1]/[1]"));

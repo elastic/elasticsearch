@@ -19,11 +19,13 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.index.VersionType;
+
+import java.util.Locale;
 
 /**
- * Generic interface to group ActionRequest, which work on single document level
- *
- * Forces this class return index/type/id getters
+ * Generic interface to group ActionRequest, which perform writes to a single document
+ * Action requests implementing this can be part of {@link org.elasticsearch.action.bulk.BulkRequest}
  */
 public interface DocumentRequest<T> extends IndicesRequest {
 
@@ -70,4 +72,78 @@ public interface DocumentRequest<T> extends IndicesRequest {
      */
     String parent();
 
+    /**
+     * Get the document version for this request
+     * @return the document version
+     */
+    long version();
+
+    /**
+     * Sets the version, which will perform the operation only if a matching
+     * version exists and no changes happened on the doc since then.
+     */
+    T version(long version);
+
+    /**
+     * Get the document version type for this request
+     * @return the document version type
+     */
+    VersionType versionType();
+
+    /**
+     * Sets the versioning type. Defaults to {@link VersionType#INTERNAL}.
+     */
+    T versionType(VersionType versionType);
+
+    /**
+     * Get the requested document operation type of the request
+     * @return the operation type {@link OpType}
+     */
+    OpType opType();
+
+    /**
+     * Requested operation type to perform on the document
+     */
+    enum OpType {
+        /**
+         * Creates the resource. Simply adds it to the index, if there is an existing
+         * document with the id, then it won't be removed.
+         */
+        CREATE(0),
+        /**
+         * Index the source. If there an existing document with the id, it will
+         * be replaced.
+         */
+        INDEX(1),
+        /** Updates a document */
+        UPDATE(2),
+        /** Deletes a document */
+        DELETE(3);
+
+        private final byte op;
+        private final String lowercase;
+
+        OpType(int op) {
+            this.op = (byte) op;
+            this.lowercase = this.toString().toLowerCase(Locale.ENGLISH);
+        }
+
+        public byte getId() {
+            return op;
+        }
+
+        public String getLowercase() {
+            return lowercase;
+        }
+
+        public static OpType fromId(byte id) {
+            switch (id) {
+                case 0: return CREATE;
+                case 1: return INDEX;
+                case 2: return UPDATE;
+                case 3: return DELETE;
+                default: throw new IllegalArgumentException("Unknown opType: [" + id + "]");
+            }
+        }
+    }
 }

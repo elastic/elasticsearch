@@ -22,6 +22,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.DocumentRequest.OpType;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -50,7 +51,7 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(opType);
+        builder.startObject(opType.getLowercase());
         if (failure == null) {
             response.toXContent(builder, params);
             builder.field(Fields.STATUS, response.status().getStatus());
@@ -183,7 +184,7 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
 
     private int id;
 
-    private String opType;
+    private OpType opType;
 
     private DocWriteResponse response;
 
@@ -193,13 +194,13 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
 
     }
 
-    public BulkItemResponse(int id, String opType, DocWriteResponse response) {
+    public BulkItemResponse(int id, OpType opType, DocWriteResponse response) {
         this.id = id;
-        this.opType = opType;
         this.response = response;
+        this.opType = opType;
     }
 
-    public BulkItemResponse(int id, String opType, Failure failure) {
+    public BulkItemResponse(int id, OpType opType, Failure failure) {
         this.id = id;
         this.opType = opType;
         this.failure = failure;
@@ -215,7 +216,7 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
     /**
      * The operation type ("index", "create" or "delete").
      */
-    public String getOpType() {
+    public OpType getOpType() {
         return this.opType;
     }
 
@@ -300,7 +301,7 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         id = in.readVInt();
-        opType = in.readString();
+        opType = OpType.fromId(in.readByte());
 
         byte type = in.readByte();
         if (type == 0) {
@@ -322,7 +323,7 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
-        out.writeString(opType);
+        out.writeByte(opType.getId());
 
         if (response == null) {
             out.writeByte((byte) 2);

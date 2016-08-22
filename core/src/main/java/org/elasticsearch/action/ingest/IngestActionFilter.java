@@ -22,6 +22,7 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -132,7 +133,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         return Integer.MAX_VALUE;
     }
 
-    static final class BulkRequestModifier implements Iterator<ActionRequest<?>> {
+    static final class BulkRequestModifier implements Iterator<DocumentRequest<?>> {
 
         final BulkRequest bulkRequest;
         final Set<Integer> failedSlots;
@@ -148,7 +149,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         }
 
         @Override
-        public ActionRequest next() {
+        public DocumentRequest<?> next() {
             return bulkRequest.requests().get(++currentSlot);
         }
 
@@ -169,7 +170,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
                 int slot = 0;
                 originalSlots = new int[bulkRequest.requests().size() - failedSlots.size()];
                 for (int i = 0; i < bulkRequest.requests().size(); i++) {
-                    ActionRequest request = bulkRequest.requests().get(i);
+                    DocumentRequest<?> request = bulkRequest.requests().get(i);
                     if (failedSlots.contains(i) == false) {
                         modifiedBulkRequest.add(request);
                         originalSlots[slot++] = i;
@@ -205,7 +206,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
             // 3) Continue with the next request in the bulk.
             failedSlots.add(currentSlot);
             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), e);
-            itemResponses.add(new BulkItemResponse(currentSlot, indexRequest.opType().lowercase(), failure));
+            itemResponses.add(new BulkItemResponse(currentSlot, indexRequest.opType(), failure));
         }
 
     }

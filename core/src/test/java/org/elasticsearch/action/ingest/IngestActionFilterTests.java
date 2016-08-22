@@ -20,7 +20,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -174,7 +174,7 @@ public class IngestActionFilterTests extends ESTestCase {
         int numRequest = scaledRandomIntBetween(8, 64);
         for (int i = 0; i < numRequest; i++) {
             if (rarely()) {
-                ActionRequest request;
+                DocumentRequest request;
                 if (randomBoolean()) {
                     request = new DeleteRequest("_index", "_type", "_id");
                 } else {
@@ -196,7 +196,7 @@ public class IngestActionFilterTests extends ESTestCase {
         verifyZeroInteractions(actionListener);
 
         int assertedRequests = 0;
-        for (ActionRequest actionRequest : bulkRequest.requests()) {
+        for (DocumentRequest actionRequest : bulkRequest.requests()) {
             if (actionRequest instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) actionRequest;
                 assertThat(indexRequest.sourceAsMap().size(), equalTo(2));

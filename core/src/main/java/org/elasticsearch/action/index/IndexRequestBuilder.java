@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.index;
 
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -200,17 +201,17 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the type of operation to perform.
      */
-    public IndexRequestBuilder setOpType(IndexRequest.OpType opType) {
+    public IndexRequestBuilder setOpType(DocumentRequest.OpType opType) {
         request.opType(opType);
         return this;
     }
 
     /**
-     * Sets a string representation of the {@link #setOpType(org.elasticsearch.action.index.IndexRequest.OpType)}. Can
+     * Sets a string representation of the {@link #setOpType(DocumentRequest.OpType)}. Can
      * be either "index" or "create".
      */
     public IndexRequestBuilder setOpType(String opType) {
-        request.opType(IndexRequest.OpType.fromString(opType));
+        request.opType(opType);
         return this;
     }
 

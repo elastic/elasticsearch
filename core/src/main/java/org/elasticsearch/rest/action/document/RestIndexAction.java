@@ -86,7 +86,7 @@ public class RestIndexAction extends BaseRestHandler {
         String sOpType = request.param("op_type");
         if (sOpType != null) {
             try {
-                indexRequest.opType(IndexRequest.OpType.fromString(sOpType));
+                indexRequest.opType(sOpType);
             } catch (IllegalArgumentException eia){
                 try {
                     XContentBuilder builder = channel.newErrorBuilder();

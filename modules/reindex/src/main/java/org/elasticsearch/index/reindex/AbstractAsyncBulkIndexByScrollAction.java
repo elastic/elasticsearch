@@ -20,7 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -154,9 +154,9 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
     }
 
     /**
-     * Wrapper for the {@link ActionRequest} that are used in this action class.
+     * Wrapper for the {@link DocumentRequest} that are used in this action class.
      */
-    interface RequestWrapper<Self extends ActionRequest<Self>> {
+    interface RequestWrapper<Self extends DocumentRequest<Self>> {
 
         void setIndex(String index);
 

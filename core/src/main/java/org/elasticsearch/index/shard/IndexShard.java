@@ -266,7 +266,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.get(settings)) {
             cachingPolicy = QueryCachingPolicy.ALWAYS_CACHE;
         } else {
-            cachingPolicy = new UsageTrackingQueryCachingPolicy();
+            // track the 1024 most recently seen filters, this requires about
+            // 22kb of memory
+            cachingPolicy = new UsageTrackingQueryCachingPolicy(1024);
         }
         indexShardOperationsLock = new IndexShardOperationsLock(shardId, logger, threadPool);
         searcherWrapper = indexSearcherWrapper;

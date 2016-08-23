@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -22,7 +23,6 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.net.InetSocketAddress;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -83,12 +83,9 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
 
     @Before
     public void enableExporter() throws Exception {
-        InetSocketAddress httpAddress = randomFrom(httpAddresses());
-        URI uri = new URI("https", null, httpAddress.getHostString(), httpAddress.getPort(), "/", null, null);
-
         Settings exporterSettings = Settings.builder()
                 .put("xpack.monitoring.exporters._http.enabled", true)
-                .put("xpack.monitoring.exporters._http.host", uri.toString())
+                .put("xpack.monitoring.exporters._http.host", "https://" + NetworkAddress.format(randomFrom(httpAddresses())))
                 .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
     }

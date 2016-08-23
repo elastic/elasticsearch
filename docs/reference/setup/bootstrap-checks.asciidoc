@@ -74,36 +74,6 @@ have `memlock unlimited`). The memory lock check verifies that *if* the
 able to lock the heap. To pass the memory lock check, you might have to
 configure <<mlockall,`mlockall`>>.
 
-=== Minimum master nodes check
-
-Elasticsearch uses a single master for managing cluster state but
-enables there to be multiple master-eligible nodes for
-high-availability. In the case of a partition, master-eligible nodes on
-each side of the partition might be elected as the acting master without
-knowing that there is a master on the side of the partition. This can
-lead to divergent cluster states potentially leading to data loss when
-the partition is healed. This is the notion of a split brain and it is
-the worst thing that can happen to an Elasticsearch cluster. But by
-configuring
-<<minimum_master_nodes,`discovery.zen.minimum_master_nodes`>> to be
-equal to a quorum of master-eligible nodes, it is not possible for the
-cluster to suffer from split brain because during a network partition
-there can be at most one side of the partition that contains a quorum of
-master nodes. The minimum master nodes check enforces that you've set
-<<minimum_master_nodes,`discovery.zen.minimum_master_nodes`>>. To pass
-the minimum master nodes check, you must configure
-<<minimum_master_nodes,`discovery.zen.minimum_master_nodes`>>.
-
-NOTE: The minimum master nodes check does not enforce that you've
-configured <<minimum_master_nodes,`discovery.zen.minimum_master_nodes`>>
-correctly, only that you have it configured. Elasticsearch does log a
-warning message if it detects that
-<<minimum_master_nodes,`discovery.zen.minimum_master_nodes`>> is
-incorrectly configured based on the number of master-eligible nodes
-visible in the cluster state. Future versions of Elasticsearch will
-contain stricter enforcement of
-<<minimum_master_nodes,`discovery.zen.minimum_master_nodes`>>.
-
 === Maximum number of threads check
 
 Elasticsearch executes requests by breaking the request down into stages

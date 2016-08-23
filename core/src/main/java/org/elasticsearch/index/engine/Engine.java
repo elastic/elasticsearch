@@ -591,7 +591,7 @@ public abstract class Engine implements Closeable {
               the store is closed so we need to make sure we increment it here
              */
             try {
-                return !getSearcherManager().isSearcherCurrent();
+                return getSearcherManager().isSearcherCurrent() == false;
             } catch (IOException e) {
                 logger.error("failed to access searcher manager", e);
                 failEngine("failed to access searcher manager", e);

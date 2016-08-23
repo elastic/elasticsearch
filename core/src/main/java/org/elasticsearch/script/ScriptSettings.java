@@ -32,7 +32,7 @@ import java.util.function.Function;
 
 public class ScriptSettings {
 
-    public static final String DEFAULT_LANG = "groovy";
+    public static final String DEFAULT_LANG = "painless";
 
     private static final Map<ScriptService.ScriptType, Setting<Boolean>> SCRIPT_TYPE_SETTING_MAP;
 
@@ -59,7 +59,7 @@ public class ScriptSettings {
         this.scriptLanguageSettings = Collections.unmodifiableList(scriptLanguageSettings);
 
         this.defaultScriptLanguageSetting = new Setting<>("script.default_lang", DEFAULT_LANG, setting -> {
-            if (!"groovy".equals(setting) && !scriptEngineRegistry.getRegisteredLanguages().containsKey(setting)) {
+            if (!DEFAULT_LANG.equals(setting) && !scriptEngineRegistry.getRegisteredLanguages().containsKey(setting)) {
                 throw new IllegalArgumentException("unregistered default language [" + setting + "]");
             }
             return setting;

@@ -40,15 +40,32 @@ automatically or explicitly.
 [float]
 === Disabling automatic type creation
 
-Automatic type creation can be disabled by setting the `index.mapper.dynamic`
-setting to `false`, either by setting the default value in the
-`config/elasticsearch.yml` file, or per-index as an index setting:
+Automatic type creation can be disabled per-index by setting the `index.mapper.dynamic`
+setting to `false` in the index settings:
 
 [source,js]
 --------------------------------------------------
-PUT data/_settings <1>
+PUT data/_settings
 {
-  "index.mapper.dynamic":false
+  "index.mapper.dynamic":false <1>
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> Disable automatic type creation for the index named "data".
+
+Automatic type creation can also be disabled for all indices by setting an index template:
+
+[source,js]
+--------------------------------------------------
+PUT _template/template_all
+{
+  "template": "*",
+  "order":0,
+  "settings": {
+    "index.mapper.dynamic": false <1>
+  }
 }
 --------------------------------------------------
 // CONSOLE

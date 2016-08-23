@@ -64,6 +64,14 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
             return Double.isInfinite(((Number) to).doubleValue()) ? null : new DateTime(((Number) to).longValue(), DateTimeZone.UTC);
         }
 
+        private Double internalGetFrom() {
+            return from;
+        }
+
+        private Double internalGetTo() {
+            return to;
+        }
+
         @Override
         protected InternalRange.Factory<Bucket, ?> getFactory() {
             return FACTORY;
@@ -109,8 +117,8 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
 
         @Override
         public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
-            return new Bucket(prototype.getKey(), ((Number) prototype.getFrom()).doubleValue(), ((Number) prototype.getTo()).doubleValue(),
-                    prototype.getDocCount(), aggregations, prototype.getKeyed(), prototype.getFormat());
+            return new Bucket(prototype.getKey(), prototype.internalGetFrom(), prototype.internalGetTo(),
+                prototype.getDocCount(), aggregations, prototype.getKeyed(), prototype.getFormat());
         }
     }
 

@@ -59,9 +59,8 @@ public class EngineSearcher extends Engine.Searcher {
         } catch (IOException e) {
             throw new IllegalStateException("Cannot close", e);
         } catch (AlreadyClosedException e) {
-                /* this one can happen if we already closed the
-                 * underlying store / directory and we call into the
-                 * IndexWriter to free up pending files. */
+            // This means there's a bug somewhere: don't suppress it
+            throw new AssertionError(e);
         } finally {
             store.decRef();
         }

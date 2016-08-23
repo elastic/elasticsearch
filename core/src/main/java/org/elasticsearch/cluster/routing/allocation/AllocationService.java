@@ -134,7 +134,8 @@ public class AllocationService extends AbstractComponent {
 
     /**
      * Applies the failed shards. Note, only assigned ShardRouting instances that exist in the routing table should be
-     * provided as parameter.
+     * provided as parameter. Also applies a list of allocation ids to remove from the in-sync set for shard copies for which there
+     * are no routing entries in the routing table.
      *
      * <p>
      * If the same instance of the routing table is returned, then no change has been made.</p>

@@ -52,14 +52,15 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
     private final Map<ShardId, Updates> shardChanges = new HashMap<>();
 
     @Override
-    public void shardInitialized(ShardRouting unassignedShard, ShardRouting initializingShard) {
-        if (initializingShard.primary()) {
-            increasePrimaryTerm(initializingShard.shardId());
+    public void shardInitialized(ShardRouting unassignedShard, ShardRouting initializedShard) {
+        assert initializedShard.isRelocationTarget() == false : "shardInitialized is not called on relocation target: " + initializedShard;
+        if (initializedShard.primary()) {
+            increasePrimaryTerm(initializedShard.shardId());
 
-            Updates updates = changes(initializingShard.shardId());
+            Updates updates = changes(initializedShard.shardId());
             assert updates.initializedPrimary == null : "Primary cannot be initialized more than once in same allocation round: " +
-                "(previous: " + updates.initializedPrimary + ", next: " + initializingShard + ")";
-            updates.initializedPrimary = initializingShard;
+                "(previous: " + updates.initializedPrimary + ", next: " + initializedShard + ")";
+            updates.initializedPrimary = initializedShard;
         }
     }
 
@@ -223,6 +224,7 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
      */
     public static ClusterState removeStaleIdsWithoutRoutings(ClusterState clusterState, List<StaleShard> staleShards) {
         MetaData oldMetaData = clusterState.metaData();
+        RoutingTable oldRoutingTable = clusterState.routingTable();
         MetaData.Builder metaDataBuilder = null;
         // group staleShards entries by index
         for (Map.Entry<Index, List<StaleShard>> indexEntry : staleShards.stream().collect(
@@ -235,6 +237,8 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
                 int shardNumber = shardEntry.getKey().getId();
                 Set<String> oldInSyncAllocations = oldIndexMetaData.inSyncAllocationIds(shardNumber);
                 Set<String> idsToRemove = shardEntry.getValue().stream().map(e -> e.allocationId).collect(Collectors.toSet());
+                assert idsToRemove.stream().allMatch(id -> oldRoutingTable.getByAllocationId(shardEntry.getKey(), id) == null) :
+                    "removing stale ids: " + idsToRemove + ", some of which have still a routing entry: " + oldRoutingTable.prettyPrint();
                 Set<String> remainingInSyncAllocations = Sets.difference(oldInSyncAllocations, idsToRemove);
                 assert remainingInSyncAllocations.isEmpty() == false : "Set of in-sync ids cannot become empty for shard " +
                     shardEntry.getKey() + " (before: " + oldInSyncAllocations + ", ids to remove: " + idsToRemove + ")";

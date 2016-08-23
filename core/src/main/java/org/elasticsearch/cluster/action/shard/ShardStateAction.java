@@ -127,13 +127,6 @@ public class ShardStateAction extends AbstractComponent {
     }
 
     /**
-     * Convenience method for {@link #remoteShardFailed(ShardId, String, long, String, Exception, Listener)}.
-     */
-    public void remoteShardFailed(final ShardRouting shardRouting, long primaryTerm, final String message, @Nullable final Exception failure, Listener listener) {
-        shardFailed(shardRouting.shardId(), shardRouting.allocationId().getId(), primaryTerm, message, failure, listener);
-    }
-
-    /**
      * Send a shard failed request to the master node to update the cluster state with the failure of a shard on another node. This means
      * that the shard should be failed because a write made it into the primary but was not replicated to this shard copy. If the shard
      * does not exist anymore but still has an entry in the in-sync set, remove its allocation id from the in-sync set.
@@ -263,11 +256,18 @@ public class ShardStateAction extends AbstractComponent {
             for (ShardEntry task : tasks) {
                 IndexMetaData indexMetaData = currentState.metaData().index(task.shardId.getIndex());
                 if (indexMetaData == null) {
-                    // tasks that correspond to non-existent shards are marked as successful
+                    // tasks that correspond to non-existent indices are marked as successful
                     logger.debug("{} ignoring shard failed task [{}] (unknown index {})", task.shardId, task, task.shardId.getIndex());
                     batchResultBuilder.success(task);
                 } else {
-                    // non-local requests
+                    // The primary term is 0 if the shard failed itself. It is > 0 if a write was done on a primary but was failed to be
+                    // replicated to the shard copy with the provided allocation id. In case where the shard failed itself, it's ok to just
+                    // remove the corresponding routing entry from the routing table. In case where a write could not be replicated,
+                    // however, it is important to ensure that the shard copy with the missing write is considered as stale from that point
+                    // on, which is implemented by removing the allocation id of the shard copy from the in-sync allocations set.
+                    // We check here that the primary to which the write happened was not already failed in an earlier cluster state update.
+                    // This prevents situations where a new primary has already been selected and replication failures from an old stale
+                    // primary unnecessarily fail currently active shards.
                     if (task.primaryTerm > 0) {
                         long currentPrimaryTerm = indexMetaData.primaryTerm(task.shardId.id());
                         if (currentPrimaryTerm != task.primaryTerm) {
@@ -285,10 +285,10 @@ public class ShardStateAction extends AbstractComponent {
                     ShardRouting matched = currentState.getRoutingTable().getByAllocationId(task.shardId, task.allocationId);
                     if (matched == null) {
                         Set<String> inSyncAllocationIds = indexMetaData.inSyncAllocationIds(task.shardId.id());
+                        // mark shard copies without routing entries that are in in-sync allocations set only as stale if the reason why
+                        // they were failed is because a write made it into the primary but not to this copy (which corresponds to
+                        // the check "primaryTerm > 0").
                         if (task.primaryTerm > 0 && inSyncAllocationIds.contains(task.allocationId)) {
-                            // marking allocation id without shard routing as stale only allowed if primary term is provided
-                            // otherwise we might remove the allocation id of a primary that was failed in an earlier cluster update task
-                            // when no more active shards are available now.
                             logger.debug("{} marking shard {} as stale (shard failed task: [{}])", task.shardId, task.allocationId, task);
                             tasksToBeApplied.add(task);
                             staleShardsToBeApplied.add(new FailedRerouteAllocation.StaleShard(task.shardId, task.allocationId));
@@ -298,7 +298,7 @@ public class ShardStateAction extends AbstractComponent {
                             batchResultBuilder.success(task);
                         }
                     } else {
-                        // failing shard also marks it as stale
+                        // failing a shard also possibly marks it as stale (see IndexMetaDataUpdater)
                         logger.debug("{} failing shard {} (shard failed task: [{}])", task.shardId, matched, task);
                         tasksToBeApplied.add(task);
                         shardRoutingsToBeApplied.add(new FailedRerouteAllocation.FailedShard(matched, task.message, task.failure));

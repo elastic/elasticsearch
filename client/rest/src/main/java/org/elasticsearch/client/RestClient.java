@@ -77,7 +77,7 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * Requests can be traced by enabling trace logging for "tracer". The trace logger outputs requests and responses in curl format.
  */
-public final class RestClient implements Closeable {
+public class RestClient implements Closeable {
 
     private static final Log logger = LogFactory.getLog(RestClient.class);
 

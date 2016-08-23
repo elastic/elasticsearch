@@ -168,7 +168,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            ObjectMapper.Builder builder = createBuilder(name);
+            ObjectMapper.Builder builder = new Builder(name);
             parseNested(name, node, builder);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -300,9 +300,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         }
 
-        protected Builder createBuilder(String name) {
-            return new Builder(name);
-        }
     }
 
     private final String fullPath;

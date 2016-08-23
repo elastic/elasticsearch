@@ -1,7 +1,7 @@
 ### Steps to execute the benchmark
 
-1. Build the `noop plugin` with `gradle :client:noop-plugin:assemble`
-2. Install it on the target host with `bin/elasticsearch-plugin install file:///full/path/to/noop-plugin.zip`
+1. Build `client-benchmark-noop-api-plugin` with `gradle :client:client-benchmark-noop-api-plugin:assemble`
+2. Install it on the target host with `bin/elasticsearch-plugin install file:///full/path/to/client-benchmark-noop-api-plugin.zip`
 3. Start Elasticsearch on the target host (ideally *not* on the same machine)
 4. Build an uberjar with `gradle :client:benchmark:shadowJar` and execute it.
 

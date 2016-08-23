@@ -28,14 +28,14 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiReader;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.LegacyDateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
@@ -101,8 +101,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     public void testIsFieldWithinQuery() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
-        long instant1 = LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-12").getMillis();
-        long instant2 = LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime("2016-04-03").getMillis();
+        long instant1 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-12").getMillis();
+        long instant2 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-04-03").getMillis();
         Document doc = new Document();
         LongPoint field = new LongPoint("my_date", instant1);
         doc.add(field);
@@ -112,7 +112,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         DirectoryReader reader = DirectoryReader.open(w);
         DateFieldType ft = new DateFieldType();
         ft.setName("my_date");
-        DateMathParser alternateFormat = new DateMathParser(LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER);
+        DateMathParser alternateFormat = new DateMathParser(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
         doTestIsFieldWithinQuery(ft, reader, null, null);
         doTestIsFieldWithinQuery(ft, reader, null, alternateFormat);
         doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, null);
@@ -127,7 +127,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     public void testValueFormat() {
         MappedFieldType ft = createDefaultFieldType();
-        long instant = LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-12T14:10:55").getMillis();
+        long instant = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-12T14:10:55").getMillis();
         assertEquals("2015-10-12T14:10:55.000Z",
                 ft.docValueFormat(null, DateTimeZone.UTC).format(instant));
         assertEquals("2015-10-12T15:10:55.000+01:00",
@@ -138,14 +138,14 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 ft.docValueFormat(null, DateTimeZone.UTC).parseLong("2015-10-12T14:10:55", false, null));
         assertEquals(instant,
                 ft.docValueFormat(null, DateTimeZone.UTC).parseLong("2015-10-12T14:10:55", true, null));
-        assertEquals(LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-13").getMillis() - 1,
+        assertEquals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-13").getMillis() - 1,
                 ft.docValueFormat(null, DateTimeZone.UTC).parseLong("2015-10-12||/d", true, null));
     }
 
     public void testValueForSearch() {
         MappedFieldType ft = createDefaultFieldType();
         String date = "2015-10-12T12:09:55.000Z";
-        long instant = LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date).getMillis();
+        long instant = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date).getMillis();
         assertEquals(date, ft.valueForSearch(instant));
     }
 
@@ -153,7 +153,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         String date = "2015-10-12T14:10:55";
-        long instant = LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date).getMillis();
+        long instant = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date).getMillis();
         ft.setIndexOptions(IndexOptions.DOCS);
         assertEquals(LongPoint.newExactQuery("field", instant), ft.termQuery(date, null));
 
@@ -168,15 +168,89 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         ft.setName("field");
         String date1 = "2015-10-12T14:10:55";
         String date2 = "2016-04-28T11:33:52";
-        long instant1 = LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date1).getMillis();
-        long instant2 = LegacyDateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date2).getMillis();
+        long instant1 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date1).getMillis();
+        long instant2 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date2).getMillis();
         ft.setIndexOptions(IndexOptions.DOCS);
-        assertEquals(LongPoint.newRangeQuery("field", instant1, instant2),
+        assertEquals(DateFieldType.newCacheableRangeQuery("field", instant1, instant2),
                 ft.rangeQuery(date1, date2, true, true).rewrite(new MultiReader()));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> ft.rangeQuery(date1, date2, true, true));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+    }
+
+    public void testCacheableRangeQuery() {
+        // common case
+        long l = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-12T14:10:55").getMillis();
+        long u = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-04-28T11:33:52").getMillis();
+        long l1 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-12T15:00:00").getMillis();
+        long u1 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-04-28T11:00:00").getMillis() - 1;
+        assertEquals(new ConstantScoreQuery(new BooleanQuery.Builder()
+                .add(LongPoint.newRangeQuery("field", l, l1-1), Occur.SHOULD)
+                .add(LongPoint.newRangeQuery("field", l1, u1), Occur.SHOULD)
+                .add(LongPoint.newRangeQuery("field", u1+1, u), Occur.SHOULD)
+                .build()), DateFieldType.newCacheableRangeQuery("field", l, u));
+
+        // short range
+        l = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-08-23T11:18:13").getMillis();
+        u = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-08-23T11:33:52").getMillis();
+        assertEquals(LongPoint.newRangeQuery("field", l, u), DateFieldType.newCacheableRangeQuery("field", l, u));
+
+        // short range across 2 hours
+        l = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-08-23T10:11:40").getMillis();
+        u = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-08-23T11:33:52").getMillis();
+        assertEquals(LongPoint.newRangeQuery("field", l, u), DateFieldType.newCacheableRangeQuery("field", l, u));
+
+        // already rounded
+        l = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-08-21T23:00:00").getMillis();
+        u = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-08-23T11:00:00").getMillis() - 1;
+        assertEquals(LongPoint.newRangeQuery("field", l, u), DateFieldType.newCacheableRangeQuery("field", l, u));
+
+        // lower bound is already rounded
+        l = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-08-21T23:00:00").getMillis();
+        u = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-08-23T11:52:03").getMillis();
+        u1 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-08-23T11:00:00").getMillis() - 1;
+        assertEquals(new ConstantScoreQuery(new BooleanQuery.Builder()
+                .add(LongPoint.newRangeQuery("field", l, u1), Occur.SHOULD)
+                .add(LongPoint.newRangeQuery("field", u1+1, u), Occur.SHOULD)
+                .build()), DateFieldType.newCacheableRangeQuery("field", l, u));
+
+        // upper bound is already rounded
+        l = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-08-21T23:12:59").getMillis();
+        u = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-08-23T11:00:00").getMillis() - 1;
+        l1 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-08-22T00:00:00").getMillis();
+        assertEquals(new ConstantScoreQuery(new BooleanQuery.Builder()
+                .add(LongPoint.newRangeQuery("field", l, l1-1), Occur.SHOULD)
+                .add(LongPoint.newRangeQuery("field", l1, u), Occur.SHOULD)
+                .build()), DateFieldType.newCacheableRangeQuery("field", l, u));
+
+        // half-open in the low values
+        l = Long.MIN_VALUE;
+        u = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-04-28T11:33:52").getMillis();
+        u1 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-04-28T11:00:00").getMillis() - 1;
+        assertEquals(new ConstantScoreQuery(new BooleanQuery.Builder()
+                .add(LongPoint.newRangeQuery("field", l, u1), Occur.SHOULD)
+                .add(LongPoint.newRangeQuery("field", u1+1, u), Occur.SHOULD)
+                .build()), DateFieldType.newCacheableRangeQuery("field", l, u));
+
+        // half-open in the high values
+        l = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-04-28T11:33:52").getMillis();
+        l1 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-04-28T12:00:00").getMillis();
+        u = Long.MAX_VALUE;
+        assertEquals(new ConstantScoreQuery(new BooleanQuery.Builder()
+                .add(LongPoint.newRangeQuery("field", l, l1-1), Occur.SHOULD)
+                .add(LongPoint.newRangeQuery("field", l1, u), Occur.SHOULD)
+                .build()), DateFieldType.newCacheableRangeQuery("field", l, u));
+
+        // fully open
+        l = Long.MIN_VALUE;
+        u = Long.MAX_VALUE;
+        assertEquals(LongPoint.newRangeQuery("field", l, u), DateFieldType.newCacheableRangeQuery("field", l, u));
+
+        // backwards
+        l = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2016-04-28T11:33:52").getMillis();
+        u = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime("2015-10-12T14:10:55").getMillis();
+        assertEquals(LongPoint.newRangeQuery("field", l, u), DateFieldType.newCacheableRangeQuery("field", l, u));
     }
 }

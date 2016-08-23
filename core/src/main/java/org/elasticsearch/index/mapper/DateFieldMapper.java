@@ -26,8 +26,11 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.XPointValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
@@ -46,7 +49,9 @@ import org.elasticsearch.index.mapper.LegacyNumberFieldMapper.Defaults;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.internal.SearchContext;
+import org.joda.time.DateTimeField;
 import org.joda.time.DateTimeZone;
+import org.joda.time.chrono.ISOChronology;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -343,7 +348,41 @@ public class DateFieldMapper extends FieldMapper {
                     --u;
                 }
             }
-            return LongPoint.newRangeQuery(name(), l, u);
+            return newCacheableRangeQuery(name(), l, u);
+        }
+
+        static Query newCacheableRangeQuery(String field, long l, long u) {
+            // By default we split date ranges into a large static part that is
+            // likely to be reused, and smaller parts that will not be cached
+            // but should execute quickly since they match few docs
+            // for instance [NOW-1M TO NOW] would be rewritten to
+            // [NOW-1M TO NOW-1M+1H/H] OR [NOW-1M+1H/H TO NOW/H] OR [NOW/H TO NOW]
+            // This way, the middle query can be reused for one hour
+            DateTimeField hour = ISOChronology.getInstanceUTC().hourOfDay();
+            long l1 = l;
+            if (l != Long.MIN_VALUE) {
+                l1 = hour.roundCeiling(l);
+            }
+            assert l1 >= l;
+            long u1 = u;
+            if (u != Long.MAX_VALUE) {
+                u1 = hour.roundFloor(u + 1) - 1;
+            }
+            assert u1 <= u;
+            if (l1 >= u1 || (l1 == l && u1 == u)) {
+                // the range is shorter than one hour or already rounded
+                return LongPoint.newRangeQuery(field, l, u);
+            } else {
+                BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                if (l1 > l) {
+                    builder.add(LongPoint.newRangeQuery(field, l, l1 - 1), Occur.SHOULD);
+                }
+                builder.add(LongPoint.newRangeQuery(field, l1, u1), Occur.SHOULD);
+                if (u > u1) {
+                    builder.add(LongPoint.newRangeQuery(field, u1 + 1, u), Occur.SHOULD);
+                }
+                return new ConstantScoreQuery(builder.build());
+            }
         }
 
         public long parseToMilliseconds(Object value, boolean roundUp,

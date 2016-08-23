@@ -10,7 +10,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
-import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ChangeListener;
+import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
@@ -21,9 +21,12 @@ import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.User;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A realm for predefined users. These users can only be modified in terms of changing their passwords; no other modifications are allowed.
@@ -32,40 +35,35 @@ import java.util.List;
 public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public static final String TYPE = "reserved";
-    private static final char[] DEFAULT_PASSWORD_HASH = Hasher.BCRYPT.hash(new SecuredString("changeme".toCharArray()));
+    static final char[] DEFAULT_PASSWORD_HASH = Hasher.BCRYPT.hash(new SecuredString("changeme".toCharArray()));
+    private static final ReservedUserInfo DEFAULT_USER_INFO = new ReservedUserInfo(DEFAULT_PASSWORD_HASH, true);
 
     private final NativeUsersStore nativeUsersStore;
+    private final AnonymousUser anonymousUser;
+    private final boolean anonymousEnabled;
 
-    public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore) {
+    public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser) {
         super(TYPE, new RealmConfig(TYPE, Settings.EMPTY, settings, env));
         this.nativeUsersStore = nativeUsersStore;
-        nativeUsersStore.addListener(new ChangeListener() {
-            @Override
-            public void onUsersChanged(List<String> changedUsers) {
-                changedUsers.stream()
-                        .filter(ReservedRealm::isReserved)
-                        .forEach(ReservedRealm.this::expire);
-            }
-        });
-
+        this.anonymousUser = anonymousUser;
+        this.anonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
     }
 
     @Override
     protected User doAuthenticate(UsernamePasswordToken token) {
-        final User user = getUser(token.principal());
-        if (user == null) {
+        if (isReserved(token.principal(), config.globalSettings()) == false) {
             return null;
         }
 
-        final char[] passwordHash = getPasswordHash(user.principal());
-        if (passwordHash != null) {
+        final ReservedUserInfo userInfo = getUserInfo(token.principal());
+        if (userInfo != null) {
             try {
-                if (Hasher.BCRYPT.verify(token.credentials(), passwordHash)) {
-                    return user;
+                if (Hasher.BCRYPT.verify(token.credentials(), userInfo.passwordHash)) {
+                    return getUser(token.principal(), userInfo);
                 }
             } finally {
-                if (passwordHash != DEFAULT_PASSWORD_HASH) {
-                    Arrays.fill(passwordHash, (char) 0);
+                if (userInfo.passwordHash != DEFAULT_PASSWORD_HASH) {
+                    Arrays.fill(userInfo.passwordHash, (char) 0);
                 }
             }
         }
@@ -75,7 +73,20 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     @Override
     protected User doLookupUser(String username) {
-        return getUser(username);
+        if (isReserved(username, config.globalSettings()) == false) {
+            return null;
+        }
+
+        if (AnonymousUser.isAnonymousUsername(username, config.globalSettings())) {
+            return anonymousEnabled ? anonymousUser : null;
+        }
+
+        final ReservedUserInfo userInfo = getUserInfo(username);
+        if (userInfo != null) {
+            return getUser(username, userInfo);
+        }
+        // this was a reserved username - don't allow this to go to another realm...
+        throw Exceptions.authenticationError("failed to lookup user [{}]", username);
     }
 
     @Override
@@ -83,54 +94,71 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         return true;
     }
 
-    public static boolean isReserved(String username) {
+    public static boolean isReserved(String username, Settings settings) {
         assert username != null;
         switch (username) {
             case ElasticUser.NAME:
             case KibanaUser.NAME:
                 return true;
             default:
-                return AnonymousUser.isAnonymousUsername(username);
+                return AnonymousUser.isAnonymousUsername(username, settings);
         }
     }
 
-    public static User getUser(String username) {
+    User getUser(String username, ReservedUserInfo userInfo) {
         assert username != null;
         switch (username) {
             case ElasticUser.NAME:
-                return ElasticUser.INSTANCE;
+                return new ElasticUser(userInfo.enabled);
             case KibanaUser.NAME:
-                return KibanaUser.INSTANCE;
+                return new KibanaUser(userInfo.enabled);
             default:
-                if (AnonymousUser.enabled() && AnonymousUser.isAnonymousUsername(username)) {
-                    return AnonymousUser.INSTANCE;
+                if (anonymousEnabled && anonymousUser.principal().equals(username)) {
+                    return anonymousUser;
                 }
                 return null;
         }
     }
 
-    public static Collection<User> users() {
-        if (AnonymousUser.enabled()) {
-            return Arrays.asList(ElasticUser.INSTANCE, KibanaUser.INSTANCE, AnonymousUser.INSTANCE);
+    public Collection<User> users() {
+        if (nativeUsersStore.started() == false) {
+            return anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList();
         }
-        return Arrays.asList(ElasticUser.INSTANCE, KibanaUser.INSTANCE);
+
+        List<User> users = new ArrayList<>(3);
+        try {
+            Map<String, ReservedUserInfo> reservedUserInfos = nativeUsersStore.getAllReservedUserInfo();
+            ReservedUserInfo userInfo = reservedUserInfos.get(ElasticUser.NAME);
+            users.add(new ElasticUser(userInfo == null || userInfo.enabled));
+            userInfo = reservedUserInfos.get(KibanaUser.NAME);
+            users.add(new KibanaUser(userInfo == null || userInfo.enabled));
+            if (anonymousEnabled) {
+                users.add(anonymousUser);
+            }
+        } catch (Exception e) {
+            logger.error("failed to retrieve reserved users", e);
+            return anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList();
+        }
+
+        return users;
     }
 
-    private char[] getPasswordHash(final String username) {
+    private ReservedUserInfo getUserInfo(final String username) {
         if (nativeUsersStore.started() == false) {
             // we need to be able to check for the user store being started...
             return null;
         }
 
         if (nativeUsersStore.securityIndexExists() == false) {
-            return DEFAULT_PASSWORD_HASH;
+            return DEFAULT_USER_INFO;
         }
+
         try {
-            char[] passwordHash = nativeUsersStore.reservedUserPassword(username);
-            if (passwordHash == null) {
-                return DEFAULT_PASSWORD_HASH;
+            ReservedUserInfo userInfo = nativeUsersStore.getReservedUserInfo(username);
+            if (userInfo == null) {
+                return DEFAULT_USER_INFO;
             }
-            return passwordHash;
+            return userInfo;
         } catch (Exception e) {
             logger.error(
                     (Supplier<?>) () -> new ParameterizedMessage("failed to retrieve password hash for reserved user [{}]", username), e);

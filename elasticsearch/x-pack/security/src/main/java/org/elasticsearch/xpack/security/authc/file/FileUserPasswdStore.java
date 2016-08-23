@@ -10,6 +10,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -43,7 +44,8 @@ public class FileUserPasswdStore {
     private final Logger logger;
 
     private final Path file;
-    final Hasher hasher = Hasher.BCRYPT;
+    private final Hasher hasher = Hasher.BCRYPT;
+    private final Settings settings;
 
     private volatile Map<String, char[]> users;
 
@@ -56,7 +58,8 @@ public class FileUserPasswdStore {
     FileUserPasswdStore(RealmConfig config, ResourceWatcherService watcherService, RefreshListener listener) {
         logger = config.logger(FileUserPasswdStore.class);
         file = resolveFile(config.env());
-        users = parseFileLenient(file, logger);
+        settings = config.globalSettings();
+        users = parseFileLenient(file, logger, settings);
         FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileListener());
         try {
@@ -96,9 +99,9 @@ public class FileUserPasswdStore {
      * Internally in this class, we try to load the file, but if for some reason we can't, we're being more lenient by
      * logging the error and skipping all users. This is aligned with how we handle other auto-loaded files in security.
      */
-    static Map<String, char[]> parseFileLenient(Path path, Logger logger) {
+    static Map<String, char[]> parseFileLenient(Path path, Logger logger, Settings settings) {
         try {
-            return parseFile(path, logger);
+            return parseFile(path, logger, settings);
         } catch (Exception e) {
             logger.error(
                     (Supplier<?>) () -> new ParameterizedMessage(
@@ -111,7 +114,7 @@ public class FileUserPasswdStore {
      * parses the users file. Should never return {@code null}, if the file doesn't exist an
      * empty map is returned
      */
-    public static Map<String, char[]> parseFile(Path path, @Nullable Logger logger) {
+    public static Map<String, char[]> parseFile(Path path, @Nullable Logger logger, Settings settings) {
         if (logger == null) {
             logger = NoOpLogger.INSTANCE;
         }
@@ -146,7 +149,7 @@ public class FileUserPasswdStore {
                 continue;
             }
             String username = line.substring(0, i);
-            Validation.Error validationError = Users.validateUsername(username);
+            Validation.Error validationError = Users.validateUsername(username, false, settings);
             if (validationError != null) {
                 logger.error("invalid username [{}] in users file [{}], skipping... ({})", username, path.toAbsolutePath(),
                         validationError);
@@ -191,7 +194,7 @@ public class FileUserPasswdStore {
         public void onFileChanged(Path file) {
             if (file.equals(FileUserPasswdStore.this.file)) {
                 logger.info("users file [{}] changed. updating users... )", file.toAbsolutePath());
-                users = parseFileLenient(file, logger);
+                users = parseFileLenient(file, logger, settings);
                 notifyRefresh();
             }
         }

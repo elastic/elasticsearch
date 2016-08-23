@@ -77,11 +77,13 @@ public class AuthorizationService extends AbstractComponent {
     private final IndicesAndAliasesResolver[] indicesAndAliasesResolvers;
     private final AuthenticationFailureHandler authcFailureHandler;
     private final ThreadContext threadContext;
+    private final AnonymousUser anonymousUser;
+    private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
 
     public AuthorizationService(Settings settings, CompositeRolesStore rolesStore, ClusterService clusterService,
                                 AuditTrailService auditTrail, AuthenticationFailureHandler authcFailureHandler,
-                                ThreadPool threadPool) {
+                                ThreadPool threadPool, AnonymousUser anonymousUser) {
         super(settings);
         this.rolesStore = rolesStore;
         this.clusterService = clusterService;
@@ -91,6 +93,8 @@ public class AuthorizationService extends AbstractComponent {
         };
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
+        this.anonymousUser = anonymousUser;
+        this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.anonymousAuthzExceptionEnabled = ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.get(settings);
     }
 
@@ -101,7 +105,7 @@ public class AuthorizationService extends AbstractComponent {
      * @param action    The action
      */
     public List<String> authorizedIndicesAndAliases(User user, String action) {
-        final String[] anonymousRoles = AnonymousUser.enabled() ? AnonymousUser.getRoles() : Strings.EMPTY_ARRAY;
+        final String[] anonymousRoles = isAnonymousEnabled ? anonymousUser.roles() : Strings.EMPTY_ARRAY;
         String[] rolesNames = user.roles();
         if (rolesNames.length == 0 && anonymousRoles.length == 0) {
             return Collections.emptyList();
@@ -114,7 +118,7 @@ public class AuthorizationService extends AbstractComponent {
                 predicates.add(role.indices().allowedIndicesMatcher(action));
             }
         }
-        if (AnonymousUser.is(user) == false) {
+        if (anonymousUser.equals(user) == false) {
             for (String roleName : anonymousRoles) {
                 Role role = rolesStore.role(roleName);
                 if (role != null) {
@@ -360,7 +364,7 @@ public class AuthorizationService extends AbstractComponent {
     private ElasticsearchSecurityException denialException(Authentication authentication, String action) {
         final User user = authentication.getUser();
         // Special case for anonymous user
-        if (AnonymousUser.enabled() && AnonymousUser.is(user)) {
+        if (isAnonymousEnabled && anonymousUser.equals(user)) {
             if (anonymousAuthzExceptionEnabled == false) {
                 throw authcFailureHandler.authenticationRequired(action, threadContext);
             }

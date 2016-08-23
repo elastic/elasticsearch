@@ -74,4 +74,35 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
                 .get();
         assertThat(healthResponse.getClusterName(), is(cluster().getClusterName()));
     }
+
+    public void testDisablingUser() throws Exception {
+        // validate the user works
+        ClusterHealthResponse response = client()
+                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, DEFAULT_PASSWORD)))
+                .admin()
+                .cluster()
+                .prepareHealth()
+                .get();
+        assertThat(response.getClusterName(), is(cluster().getClusterName()));
+
+        // disable user
+        securityClient().prepareSetEnabled(ElasticUser.NAME, false).get();
+        ElasticsearchSecurityException elasticsearchSecurityException = expectThrows(ElasticsearchSecurityException.class, () -> client()
+                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, DEFAULT_PASSWORD)))
+                .admin()
+                .cluster()
+                .prepareHealth()
+                .get());
+        assertThat(elasticsearchSecurityException.getMessage(), containsString("authenticate"));
+
+        //enable
+        securityClient().prepareSetEnabled(ElasticUser.NAME, true).get();
+        response = client()
+                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, DEFAULT_PASSWORD)))
+                .admin()
+                .cluster()
+                .prepareHealth()
+                .get();
+        assertThat(response.getClusterName(), is(cluster().getClusterName()));
+    }
 }

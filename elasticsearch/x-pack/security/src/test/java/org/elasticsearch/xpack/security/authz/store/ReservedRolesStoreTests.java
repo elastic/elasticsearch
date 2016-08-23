@@ -45,7 +45,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
     public void testRetrievingReservedRolesNonKibanaUser() {
         if (randomBoolean()) {
-            when(securityContext.getUser()).thenReturn(ElasticUser.INSTANCE);
+            when(securityContext.getUser()).thenReturn(new ElasticUser(true));
         }
 
         assertThat(reservedRolesStore.role(SuperuserRole.NAME), sameInstance(SuperuserRole.INSTANCE));
@@ -77,7 +77,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
     }
 
     public void testRetrievingReservedRoleKibanaUser() {
-        when(securityContext.getUser()).thenReturn(KibanaUser.INSTANCE);
+        when(securityContext.getUser()).thenReturn(new KibanaUser(true));
         assertThat(reservedRolesStore.role(SuperuserRole.NAME), sameInstance(SuperuserRole.INSTANCE));
         assertThat(reservedRolesStore.roleDescriptor(SuperuserRole.NAME), sameInstance(SuperuserRole.DESCRIPTOR));
 

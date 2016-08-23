@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.action.role;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -17,12 +18,23 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request delete a role from the security index
  */
-public class DeleteRoleRequest extends ActionRequest<DeleteRoleRequest> {
+public class DeleteRoleRequest extends ActionRequest<DeleteRoleRequest> implements WriteRequest<DeleteRoleRequest> {
 
     private String name;
-    private boolean refresh = true;
+    private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
     public DeleteRoleRequest() {
+    }
+
+    @Override
+    public DeleteRoleRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {
+        this.refreshPolicy = refreshPolicy;
+        return this;
+    }
+
+    @Override
+    public RefreshPolicy getRefreshPolicy() {
+        return refreshPolicy;
     }
 
     @Override
@@ -42,25 +54,17 @@ public class DeleteRoleRequest extends ActionRequest<DeleteRoleRequest> {
         return name;
     }
 
-    public void refresh(boolean refresh) {
-        this.refresh = refresh;
-    }
-
-    public boolean refresh() {
-        return refresh;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         name = in.readString();
-        refresh = in.readBoolean();
+        refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(name);
-        out.writeBoolean(refresh);
+        refreshPolicy.writeTo(out);
     }
 }

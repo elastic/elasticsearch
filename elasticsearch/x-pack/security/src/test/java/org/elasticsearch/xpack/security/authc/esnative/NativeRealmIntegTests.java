@@ -599,4 +599,27 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(usage.get("fls"), is(fls));
         assertThat(usage.get("dls"), is(dls));
     }
+
+    public void testSetEnabled() throws Exception {
+        securityClient().preparePutUser("joe", "s3krit".toCharArray(), SecuritySettingsSource.DEFAULT_ROLE).get();
+        final String token = basicAuthHeaderValue("joe", new SecuredString("s3krit".toCharArray()));
+        ClusterHealthResponse response = client().filterWithHeader(Collections.singletonMap("Authorization", token))
+                .admin().cluster().prepareHealth().get();
+        assertThat(response.isTimedOut(), is(false));
+
+        securityClient(client()).prepareSetEnabled("joe", false).get();
+
+        ElasticsearchSecurityException expected = expectThrows(ElasticsearchSecurityException.class,
+                () -> client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get());
+        assertThat(expected.status(), is(RestStatus.UNAUTHORIZED));
+
+        securityClient(client()).prepareSetEnabled("joe", true).get();
+
+        response = client().filterWithHeader(Collections.singletonMap("Authorization", token)).admin().cluster().prepareHealth().get();
+        assertThat(response.isTimedOut(), is(false));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> securityClient(client()).prepareSetEnabled("not_a_real_user", false).get());
+        assertThat(e.getMessage(), containsString("only existing users can be disabled"));
+    }
 }

@@ -73,7 +73,6 @@ import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
-import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -109,12 +108,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
         authorizationService = new AuthorizationService(Settings.EMPTY, rolesStore, clusterService,
-                auditTrail, new DefaultAuthenticationFailureHandler(), threadPool);
-    }
-
-    @After
-    public void resetAnonymous() {
-        AnonymousUser.initialize(Settings.EMPTY);
+                auditTrail, new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(Settings.EMPTY));
     }
 
     public void testActionsSystemUserIsAuthorized() {
@@ -352,21 +346,22 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testDenialForAnonymousUser() {
         TransportRequest request = new IndicesExistsRequest("b");
         ClusterState state = mock(ClusterState.class);
-        AnonymousUser.initialize(Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "a_all").build());
-        authorizationService = new AuthorizationService(Settings.EMPTY, rolesStore, clusterService, auditTrail,
-                new DefaultAuthenticationFailureHandler(), threadPool);
+        Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "a_all").build();
+        final AnonymousUser anonymousUser = new AnonymousUser(settings);
+        authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
+                new DefaultAuthenticationFailureHandler(), threadPool, anonymousUser);
 
         when(rolesStore.role("a_all")).thenReturn(Role.builder("a_all").add(IndexPrivilege.ALL, "a").build());
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
 
         try {
-            authorizationService.authorize(createAuthentication(AnonymousUser.INSTANCE), "indices:a", request);
+            authorizationService.authorize(createAuthentication(anonymousUser), "indices:a", request);
             fail("indices request for b should be denied since there is no such index");
         } catch (ElasticsearchSecurityException e) {
             assertAuthorizationException(e,
-                    containsString("action [indices:a] is unauthorized for user [" + AnonymousUser.INSTANCE.principal() + "]"));
-            verify(auditTrail).accessDenied(AnonymousUser.INSTANCE, "indices:a", request);
+                    containsString("action [indices:a] is unauthorized for user [" + anonymousUser.principal() + "]"));
+            verify(auditTrail).accessDenied(anonymousUser, "indices:a", request);
             verifyNoMoreInteractions(auditTrail);
             verify(clusterService, times(2)).state();
             verify(state, times(3)).metaData();
@@ -376,14 +371,13 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void testDenialForAnonymousUserAuthorizationExceptionDisabled() {
         TransportRequest request = new IndicesExistsRequest("b");
         ClusterState state = mock(ClusterState.class);
-        AnonymousUser.initialize(Settings.builder()
+        Settings settings = Settings.builder()
                 .put(AnonymousUser.ROLES_SETTING.getKey(), "a_all")
                 .put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false)
-                .build());
-        User anonymousUser = AnonymousUser.INSTANCE;
-        authorizationService = new AuthorizationService(
-                Settings.builder().put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false).build(),
-                rolesStore, clusterService, auditTrail, new DefaultAuthenticationFailureHandler(), threadPool);
+                .build();
+        final AnonymousUser anonymousUser = new AnonymousUser(settings);
+        authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrail,
+                new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(settings));
 
         when(rolesStore.role("a_all")).thenReturn(Role.builder("a_all").add(IndexPrivilege.ALL, "a").build());
         when(clusterService.state()).thenReturn(state);

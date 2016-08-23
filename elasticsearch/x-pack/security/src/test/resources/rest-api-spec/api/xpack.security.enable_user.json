@@ -1,15 +1,15 @@
 {
-  "xpack.security.delete_role": {
-    "documentation": "https://www.elastic.co/guide/en/x-pack/master/security-api-roles.html#security-api-delete-role",
-    "methods": [ "DELETE" ],
+  "xpack.security.enable_user": {
+    "documentation": "https://www.elastic.co/guide/en/x-pack/master/security-api-enable-user.html",
+    "methods": [ "PUT", "POST" ],
     "url": {
-      "path": "/_xpack/security/role/{name}",
-      "paths": [ "/_xpack/security/role/{name}" ],
+      "path": "/_xpack/security/user/{username}/_enable",
+      "paths": [ "/_xpack/security/user/{username}/_enable" ],
       "parts": {
-        "name": {
+        "username": {
           "type" : "string",
-          "description" : "Role name",
-          "required" : true
+          "description" : "The username of the user to enable",
+          "required" : false
         }
       },
       "params": {

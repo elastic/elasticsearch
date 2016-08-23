@@ -94,7 +94,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         Map<String, Object> auditUsage = auditUsage(auditTrailService);
         Map<String, Object> ipFilterUsage = ipFilterUsage(ipFilter);
         Map<String, Object> systemKeyUsage = systemKeyUsage(cryptoService);
-        Map<String, Object> anonymousUsage = Collections.singletonMap("enabled", AnonymousUser.enabled());
+        Map<String, Object> anonymousUsage = Collections.singletonMap("enabled", AnonymousUser.isAnonymousEnabled(settings));
         return new Usage(available(), enabled(), realmsUsage, rolesStoreUsage, sslUsage, auditUsage, ipFilterUsage, systemKeyUsage,
                 anonymousUsage);
     }

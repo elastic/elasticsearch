@@ -29,6 +29,7 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.RamUsageTester;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -1924,5 +1925,14 @@ public class TranslogTests extends ESTestCase {
         translog.close();
         IOUtils.close(view);
         translog = new Translog(config, generation);
+    }
+
+    public static Translog.Location randomTranslogLocation() {
+        return new Translog.Location(randomLong(), randomLong(), randomInt());
+    }
+
+    public void testLocationRamBytesUsed() {
+        Translog.Location location = randomTranslogLocation();
+        assertEquals(RamUsageTester.sizeOf(location), location.ramBytesUsed());
     }
 }

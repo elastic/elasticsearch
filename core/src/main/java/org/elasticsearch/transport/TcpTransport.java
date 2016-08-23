@@ -93,6 +93,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -478,20 +479,15 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
     @Override
     public void disconnectFromNode(DiscoveryNode node) {
-        // this might be called multiple times, so do a lightweight check outside of the lock
-        NodeChannels nodeChannels = connectedNodes.get(node);
-        if (nodeChannels != null) {
-            try (Releasable ignored = connectionLock.acquire(node.getId())) {
-                // check again within the connection lock, if its still applicable to remove it
-                nodeChannels = connectedNodes.remove(node);
-                if (nodeChannels != null) {
-                    try {
-                        logger.debug("disconnecting from [{}] due to explicit disconnect call", node);
-                        IOUtils.closeWhileHandlingException(nodeChannels);
-                    } finally {
-                        logger.trace("disconnected from [{}] due to explicit disconnect call", node);
-                        transportServiceAdapter.raiseNodeDisconnected(node);
-                    }
+        try (Releasable ignored = connectionLock.acquire(node.getId())) {
+            NodeChannels nodeChannels = connectedNodes.remove(node);
+            if (nodeChannels != null) {
+                try {
+                    logger.debug("disconnecting from [{}] due to explicit disconnect call", node);
+                    IOUtils.closeWhileHandlingException(nodeChannels);
+                } finally {
+                    logger.trace("disconnected from [{}] due to explicit disconnect call", node);
+                    transportServiceAdapter.raiseNodeDisconnected(node);
                 }
             }
         }

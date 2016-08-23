@@ -129,6 +129,8 @@ Set<String> getVersions() {
 }
 
 task updatePackagingTestUpgradeFromVersions {
+  group 'Verification'
+  description 'Update file containing options for the\n    "starting" version in the "upgrade from" packaging tests.'
   doLast {
     Set<String> versions = getVersions()
     new File(project.projectDir, 'versions').text = versions.join('\n') + '\n'

@@ -355,8 +355,8 @@ public class DateFieldMapper extends FieldMapper {
             // By default we split date ranges into a large static part that is
             // likely to be reused, and smaller parts that will not be cached
             // but should execute quickly since they match few docs
-            // for instance [NOW-1M TO NOW] would be rewritten to
-            // [NOW-1M TO NOW-1M+1H/H] OR [NOW-1M+1H/H TO NOW/H] OR [NOW/H TO NOW]
+            // for instance [now-1M TO now] would be rewritten to
+            // [now-1M TO  now-1M/H] OR [now-1M/H TO now/H] OR [now/H TO now]
             // This way, the middle query can be reused for one hour
             DateTimeField hour = ISOChronology.getInstanceUTC().hourOfDay();
             long l1 = l;

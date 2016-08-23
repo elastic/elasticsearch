@@ -51,7 +51,7 @@ dependencies {
 
   compile("org.elasticsearch.client:rest:${version}")
   // bottleneck should be the client, not Elasticsearch
-  compile project(path: ':client:noop-plugin')
+  compile project(path: ':client:client-benchmark-noop-api-plugin')
   // for transport client
   compile("org.elasticsearch:elasticsearch:${version}")
   compile("org.elasticsearch.client:transport:${version}")

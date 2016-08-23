@@ -23,8 +23,8 @@ apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'com.bmuschko.nexus'
 
 esplugin {
-  name 'noop'
-  description 'NOOP Actions for client-side benchmarking'
+  name 'client-benchmark-noop-api'
+  description 'Stubbed out Elasticsearch actions that can be used for client-side benchmarking'
   classname 'org.elasticsearch.plugin.noop.NoopPlugin'
 }
 

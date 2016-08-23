@@ -1,10 +1,10 @@
 ### Purpose
 
-This plugin provides empty REST and transport endpoints for bulk indexing and search. It is to avoid accidental server-side bottlenecks in client-side benchmarking.
+This plugin provides empty REST and transport endpoints for bulk indexing and search. It is used to avoid accidental server-side bottlenecks in client-side benchmarking.
 
 ### Build Instructions
 
-Build the plugin with `gradle :client:noop-plugin:assemble` from the Elasticsearch root project directory.
+Build the plugin with `gradle :client:client-benchmark-noop-api-plugin:assemble` from the Elasticsearch root project directory.
 
 ### Installation Instructions
 

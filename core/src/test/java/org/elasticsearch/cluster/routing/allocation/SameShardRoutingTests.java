@@ -47,8 +47,8 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(SameShardRoutingTests.class);
 
     public void testSameHost() {
-        AllocationService strategy = createAllocationService(Settings.builder()
-                .put(SameShardAllocationDecider.SAME_HOST_SETTING, true).build());
+        AllocationService strategy = createAllocationService(
+            Settings.builder().put(SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), true).build());
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))

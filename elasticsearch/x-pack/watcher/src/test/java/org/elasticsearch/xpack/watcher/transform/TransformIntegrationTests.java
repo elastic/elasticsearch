@@ -15,6 +15,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -70,7 +71,7 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
             // When using the MockScriptPlugin we can map File scripts to inline scripts:
             // the name of the file script is used in test method while the source of the file script
             // must match a predefined script from CustomScriptPlugin.pluginScripts() method
-            Files.write(scripts.resolve("my-script.groovy"), "return [key3 : ctx.payload.key1 + ctx.payload.key2]".getBytes("UTF-8"));
+            Files.write(scripts.resolve("my-script.painless"), "['key3' : ctx.payload.key1 + ctx.payload.key2]".getBytes("UTF-8"));
         } catch (IOException ex) {
             throw new RuntimeException("Failed to create scripts", ex);
         }
@@ -90,13 +91,13 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
-            scripts.put("return [key3 : ctx.payload.key1 + ctx.payload.key2]", vars -> {
+            scripts.put("['key3' : ctx.payload.key1 + ctx.payload.key2]", vars -> {
                 int key1 = (int) XContentMapValues.extractValue("ctx.payload.key1", vars);
                 int key2 = (int) XContentMapValues.extractValue("ctx.payload.key2", vars);
                 return singletonMap("key3", key1 + key2);
             });
 
-            scripts.put("return [key4 : ctx.payload.key3 + 10]", vars -> {
+            scripts.put("['key4' : ctx.payload.key3 + 10]", vars -> {
                 int key3 = (int) XContentMapValues.extractValue("ctx.payload.key3", vars);
                 return singletonMap("key4", key3 + 10);
             });
@@ -114,18 +115,18 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
         final Script script;
         if (randomBoolean()) {
             logger.info("testing script transform with an inline script");
-            script = new Script("return [key3 : ctx.payload.key1 + ctx.payload.key2]");
+            script = new Script("['key3' : ctx.payload.key1 + ctx.payload.key2]");
         } else if (randomBoolean()) {
             logger.info("testing script transform with an indexed script");
             assertAcked(client().admin().cluster().preparePutStoredScript()
                     .setId("my-script")
-                    .setScriptLang("groovy")
-                    .setSource(new BytesArray("{\"script\" : \"return [key3 : ctx.payload.key1 + ctx.payload.key2]\"}"))
+                    .setScriptLang("painless")
+                    .setSource(new BytesArray("{\"script\" : \"['key3' : ctx.payload.key1 + ctx.payload.key2]\"}"))
                     .get());
-            script = new Script("my-script", ScriptService.ScriptType.STORED, "groovy", null);
+            script = new Script("my-script", ScriptService.ScriptType.STORED, "painless", null);
         } else {
             logger.info("testing script transform with a file script");
-            script = new Script("my-script", ScriptService.ScriptType.FILE, "groovy", null);
+            script = new Script("my-script", ScriptService.ScriptType.FILE, "painless", null);
         }
 
         // put a watch that has watch level transform:
@@ -219,8 +220,9 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
     }
 
     public void testChainTransform() throws Exception {
-        Script script1 = new Script("return [key3 : ctx.payload.key1 + ctx.payload.key2]");
-        Script script2 = new Script("return [key4 : ctx.payload.key3 + 10]");
+        Script script1 = new Script("['key3' : ctx.payload.key1 + ctx.payload.key2]");
+        Script script2 = new Script("['key4' : ctx.payload.key3 + 10]");
+
         // put a watch that has watch level transform:
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id1")
                 .setSource(watchBuilder()

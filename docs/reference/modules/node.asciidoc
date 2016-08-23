@@ -202,7 +202,7 @@ of cluster state updates from every node! The benefit of client nodes should
 not be overstated -- data nodes can happily serve the same purpose as client
 nodes.
 
-To create a deciated client node, set:
+To create a dedicated client node, set:
 
 [source,yaml]
 -------------------

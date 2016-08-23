@@ -396,8 +396,8 @@ class BuildPlugin implements Plugin<Project> {
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
                 options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation' << '-Xdoclint:all' << '-Xdoclint:-missing'
 
-                // either disable annotation processor completely (default) or allow to enable them with ext.enableAnnotationProcessors = true
-                if (project.ext.has("enableAnnotationProcessors") == false || project.ext.get("enableAnnotationProcessors") == false) {
+                // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly defined
+                if (options.compilerArgs.contains("-processor") == false) {
                     options.compilerArgs << '-proc:none'
                 }
 

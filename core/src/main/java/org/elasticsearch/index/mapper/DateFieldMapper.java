@@ -496,10 +496,7 @@ public class DateFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext originalContext, List<Field> fields) throws IOException {
-        // Date fields, by default, will not be included in _all
-        final ParseContext context = originalContext.setIncludeInAllDefault(false);
-
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         String dateAsString;
         if (context.externalValueSet()) {
             Object dateAsObject = context.externalValue();

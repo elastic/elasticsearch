@@ -46,7 +46,6 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
@@ -55,6 +54,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
@@ -317,7 +317,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
         }
     }
 
-
     void sendPings(final TimeValue timeout, @Nullable TimeValue waitTime, final SendPingsHandler sendPingsHandler) {
         final UnicastPingRequest pingRequest = new UnicastPingRequest();
         pingRequest.id = sendPingsHandler.id();
@@ -381,7 +380,6 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
                         logger.trace("replacing {} with temp node {}", nodeToSend, tempNode);
                         nodeToSend = tempNode;
                     }
-                    sendPingsHandler.nodeToDisconnect.add(nodeToSend);
                 }
                 // fork the connection to another thread
                 final DiscoveryNode finalNodeToSend = nodeToSend;
@@ -397,6 +395,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
                             if (!nodeFoundByAddress) {
                                 logger.trace("[{}] connecting (light) to {}", sendPingsHandler.id(), finalNodeToSend);
                                 transportService.connectToNodeLightAndHandshake(finalNodeToSend, timeout.getMillis());
+
+                                logger.trace("[{}] add node {} to the list of nodes to disconnect", sendPingsHandler.id(), finalNodeToSend);
+                                sendPingsHandler.nodeToDisconnect.add(finalNodeToSend);
                             } else {
                                 logger.trace("[{}] connecting to {}", sendPingsHandler.id(), finalNodeToSend);
                                 transportService.connectToNode(finalNodeToSend);

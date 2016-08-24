@@ -1,4 +1,4 @@
-[[search-request-fields]]
+[[search-request-stored-fields]]
 === Fields
 
 WARNING: The `stored_fields` parameter is about fields that are explicitly marked as

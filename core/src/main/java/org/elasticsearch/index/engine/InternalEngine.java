@@ -562,8 +562,8 @@ public class InternalEngine extends Engine {
             ensureOpen();
             searcherManager.maybeRefreshBlocking();
         } catch (AlreadyClosedException e) {
-            ensureOpen();
-            maybeFailEngine("refresh", e);
+            failOnTragicEvent(e);
+            throw e;
         } catch (EngineClosedException e) {
             throw e;
         } catch (Exception e) {
@@ -610,8 +610,8 @@ public class InternalEngine extends Engine {
                 indexWriter.flush();
             }
         } catch (AlreadyClosedException e) {
-            ensureOpen();
-            maybeFailEngine("writeIndexingBuffer", e);
+            failOnTragicEvent(e);
+            throw e;
         } catch (EngineClosedException e) {
             throw e;
         } catch (Exception e) {
@@ -835,6 +835,14 @@ public class InternalEngine extends Engine {
             } finally {
                 store.decRef();
             }
+        } catch (AlreadyClosedException ex) {
+            /* in this case we first check if the engine is still open. If so this exception is just fine
+             * and expected. We don't hold any locks while we block on forceMerge otherwise it would block
+             * closing the engine as well. If we are not closed we pass it on to failOnTragicEvent which ensures
+             * we are handling a tragic even exception here */
+            ensureOpen();
+            failOnTragicEvent(ex);
+            throw ex;
         } catch (Exception e) {
             try {
                 maybeFailEngine("force merge", e);
@@ -869,26 +877,35 @@ public class InternalEngine extends Engine {
         }
     }
 
+    private void failOnTragicEvent(AlreadyClosedException ex) {
+        // if we are already closed due to some tragic exception
+        // we need to fail the engine. it might have already been failed before
+        // but we are double-checking it's failed and closed
+        if (indexWriter.isOpen() == false && indexWriter.getTragicException() != null) {
+            final Exception tragedy = indexWriter.getTragicException() instanceof Exception ?
+                (Exception) indexWriter.getTragicException() :
+                new Exception(indexWriter.getTragicException());
+            failEngine("already closed by tragic event on the index writer", tragedy);
+        } else if (translog.isOpen() == false && translog.getTragicException() != null) {
+            failEngine("already closed by tragic event on the translog", translog.getTragicException());
+        } else {
+            // this smells like a bug - we only expect ACE if we are in a fatal case ie. either translog or IW is closed by
+            // a tragic event or has closed itself. if that is not the case we are in a buggy state and raise an assertion error
+            throw new AssertionError("Unexpected AlreadyClosedException", ex);
+        }
+    }
+
     @Override
     protected boolean maybeFailEngine(String source, Exception e) {
         boolean shouldFail = super.maybeFailEngine(source, e);
         if (shouldFail) {
             return true;
         }
-
-        // Check for AlreadyClosedException
+        // Check for AlreadyClosedException -- ACE is a very special
+        // exception that should only be thrown in a tragic event. we pass on the checks to failOnTragicEvent which will
+        // throw and AssertionError if the tragic event condition is not met.
         if (e instanceof AlreadyClosedException) {
-            // if we are already closed due to some tragic exception
-            // we need to fail the engine. it might have already been failed before
-            // but we are double-checking it's failed and closed
-            if (indexWriter.isOpen() == false && indexWriter.getTragicException() != null) {
-                final Exception tragedy = indexWriter.getTragicException() instanceof Exception ?
-                        (Exception) indexWriter.getTragicException() :
-                        new Exception(indexWriter.getTragicException());
-                failEngine("already closed by tragic event on the index writer", tragedy);
-            } else if (translog.isOpen() == false && translog.getTragicException() != null) {
-                failEngine("already closed by tragic event on the translog", translog.getTragicException());
-            }
+            failOnTragicEvent((AlreadyClosedException)e);
             return true;
         } else if (e != null &&
             ((indexWriter.isOpen() == false && indexWriter.getTragicException() == e)
@@ -914,6 +931,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public long getIndexBufferRAMBytesUsed() {
+        // We don't guard w/ readLock here, so we could throw AlreadyClosedException
         return indexWriter.ramBytesUsed() + versionMap.ramBytesUsedForRefresh();
     }
 
@@ -963,8 +981,9 @@ public class InternalEngine extends Engine {
                 logger.trace("rollback indexWriter");
                 try {
                     indexWriter.rollback();
-                } catch (AlreadyClosedException e) {
-                    // ignore
+                } catch (AlreadyClosedException ex) {
+                    failOnTragicEvent(ex);
+                    throw ex;
                 }
                 logger.trace("rollback indexWriter done");
             } catch (Exception e) {

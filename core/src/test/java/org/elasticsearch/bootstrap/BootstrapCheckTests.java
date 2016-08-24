@@ -385,15 +385,6 @@ public class BootstrapCheckTests extends ESTestCase {
         BootstrapCheck.check(true, false, Collections.singletonList(check), "testMaxMapCountCheck");
     }
 
-    public void testMinMasterNodes() {
-        boolean isSet = randomBoolean();
-        BootstrapCheck.Check check = new BootstrapCheck.MinMasterNodesCheck(isSet);
-        assertThat(check.check(), not(equalTo(isSet)));
-        List<BootstrapCheck.Check> defaultChecks = BootstrapCheck.checks(Settings.EMPTY);
-
-        expectThrows(RuntimeException.class, () -> BootstrapCheck.check(true, false, defaultChecks, "testMinMasterNodes"));
-    }
-
     public void testClientJvmCheck() {
         final AtomicReference<String> vmName = new AtomicReference<>("Java HotSpot(TM) 32-Bit Client VM");
         final BootstrapCheck.Check check = new BootstrapCheck.ClientJvmCheck() {

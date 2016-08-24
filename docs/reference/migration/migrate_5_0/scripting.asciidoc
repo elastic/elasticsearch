@@ -1,6 +1,53 @@
 [[breaking_50_scripting]]
 === Script related changes
 
+==== Switched Default Language from Groovy to Painless
+
+The default scripting language for Elasticsearch is now Painless.  Painless is a custom-built language with syntax
+similar to Groovy designed to be fast as well as secure.  Many Groovy scripts will be identitical to Painless scripts
+to help make the transition between languages as simple as possible.
+
+Documentation for Painless can be found at <<modules-scripting-painless,Painless Scripting Language>>
+
+It is also possible to set the default language back to Groovy using the following setting: `script.default_lang: groovy`
+
+One common difference to note between Groovy and Painless is the use of parameters -- all parameters in Painless
+must be prefixed with `params.` now.  The following example shows the difference:
+
+Groovy:
+
+[source,js]
+-----------------------------------
+{
+  "script_score": {
+    "script": {
+      "lang": "groovy",
+      "inline": "Math.log(_score * 2) + my_modifier",
+      "params": {
+        "my_modifier": 8
+      }
+    }
+  }
+}
+-----------------------------------
+
+Painless (`my_modifer` is prefixed with `params`):
+
+[source,js]
+-----------------------------------
+{
+  "script_score": {
+    "script": {
+      "lang": "painless",
+      "inline": "Math.log(_score * 2) + params.my_modifier",
+      "params": {
+        "my_modifier": 8
+      }
+    }
+  }
+}
+-----------------------------------
+
 ==== Removed 1.x script and template syntax
 
 The deprecated 1.x syntax of defining inline scripts / templates and referring to file or index base scripts / templates

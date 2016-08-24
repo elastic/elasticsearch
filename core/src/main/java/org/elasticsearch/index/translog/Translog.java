@@ -657,6 +657,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     public static class Location implements Accountable, Comparable<Location> {
 
+        private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Location.class);
+
         public final long generation;
         public final long translogLocation;
         public final int size;
@@ -669,7 +671,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public long ramBytesUsed() {
-            return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 2 * Long.BYTES + Integer.BYTES;
+            return RAM_BYTES_USED;
         }
 
         @Override

@@ -40,7 +40,6 @@ public class MetaStateService extends AbstractComponent {
 
     private final NodeEnvironment nodeEnv;
 
-    @Inject
     public MetaStateService(Settings settings, NodeEnvironment nodeEnv) {
         super(settings);
         this.nodeEnv = nodeEnv;

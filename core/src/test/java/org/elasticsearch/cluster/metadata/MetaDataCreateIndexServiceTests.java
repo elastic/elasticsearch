@@ -215,7 +215,6 @@ public class MetaDataCreateIndexServiceTests extends ESTestCase {
             null,
             null,
             null,
-            new HashSet<>(),
             null,
             null,
             null,

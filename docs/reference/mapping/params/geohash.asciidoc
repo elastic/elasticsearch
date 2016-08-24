@@ -1,6 +1,8 @@
 [[geohash]]
 === `geohash`
 
+deprecated[5.0.0, Will be removed in the next major version.]
+
 Geohashes are a form of lat/lon encoding which divides the earth up into
 a grid. Each cell in this grid is represented by a geohash string. Each
 cell in turn can be further subdivided into smaller cells which are
@@ -17,7 +19,7 @@ as, eg `.geohash`. The length of the geohash is controlled by the
 If the <<geohash-prefix,`geohash_prefix`>> option is enabled, the `geohash`
 option will be enabled automatically.
 
-For example:
+For example, with this mapping:
 
 [source,js]
 --------------------------------------------------
@@ -34,9 +36,15 @@ PUT my_index
     }
   }
 }
+--------------------------------------------------
+// CONSOLE
+// TEST[warning:geo_point geohash parameter is deprecated and will be removed in the next major release]
 
+You can index a document and use this query:
 
-PUT my_index/my_type/1
+[source,js]
+--------------------------------------------------
+PUT my_index/my_type/1?refresh
 {
   "location": {
     "lat": 41.12,
@@ -54,6 +62,8 @@ GET my_index/_search?fielddata_fields=location.geohash <2>
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
+
 <1> A `location.geohash` field will be indexed for each geo-point.
 <2> The geohash can be retrieved with <<doc-values,`doc_values`>>.
 <3> A <<query-dsl-prefix-query,`prefix`>> query can find all geohashes which start with a particular prefix.
@@ -66,5 +76,3 @@ A `prefix` query on geohashes is expensive.  Instead, consider using the
 instead of on every query.
 
 ============================================
-
-

@@ -34,7 +34,7 @@ PUT my_index
 // TEST[warning:geo_point lat_lon parameter is deprecated and will be removed in the next major release]
 <1> Setting `lat_lon` to true indexes the geo-point in the `location.lat` and `location.lon` fields.
 
-Allows these actions:
+With this document:
 
 [source,js]
 --------------------------------------------------
@@ -45,8 +45,14 @@ PUT my_index/my_type/1?refresh
     "lon": -71.34
   }
 }
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
+Allows this query:
 
+[source,js]
+--------------------------------------------------
 GET my_index/_search
 {
   "query": {
@@ -63,6 +69,7 @@ GET my_index/_search
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+// TEST[warning:Deprecated field [optimize_bbox] used, replaced by [no replacement: `optimize_bbox` is no longer supported due to recent improvements]]
 <1> The `indexed` option tells the geo-distance query to use the inverted index instead of the in-memory calculation.
 
 Whether the in-memory or indexed operation performs better depends both on

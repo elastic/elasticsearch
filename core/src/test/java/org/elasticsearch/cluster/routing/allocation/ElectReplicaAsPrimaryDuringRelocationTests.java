@@ -51,61 +51,56 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
                 .build();
 
-        RoutingTable routingTable = RoutingTable.builder()
+        RoutingTable initialRoutingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
                 .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
 
         logger.info("Adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
-        RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        RoutingAllocation.Result routingResult = strategy.reroute(clusterState, "reroute");
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
 
         logger.info("Start the primary shards");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        routingResult = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
 
         logger.info("Start the replica shards");
         routingNodes = clusterState.getRoutingNodes();
-        prevRoutingTable = routingTable;
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        routingResult = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING));
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
         routingNodes = clusterState.getRoutingNodes();
 
-        assertThat(prevRoutingTable != routingTable, equalTo(true));
-        assertThat(routingTable.index("test").shards().size(), equalTo(2));
+        assertTrue(routingResult.changed());
+        assertThat(clusterState.routingTable().index("test").shards().size(), equalTo(2));
         assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED), equalTo(2));
         assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), equalTo(2));
 
         logger.info("Start another node and perform rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
-        prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        routingResult = strategy.reroute(clusterState, "reroute");
+        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
 
         logger.info("find the replica shard that gets relocated");
         IndexShardRoutingTable indexShardRoutingTable = null;
-        if (routingTable.index("test").shard(0).replicaShards().get(0).relocating()) {
-            indexShardRoutingTable = routingTable.index("test").shard(0);
-        } else if (routingTable.index("test").shard(1).replicaShards().get(0).relocating()) {
-            indexShardRoutingTable = routingTable.index("test").shard(1);
+        if (clusterState.routingTable().index("test").shard(0).replicaShards().get(0).relocating()) {
+            indexShardRoutingTable = clusterState.routingTable().index("test").shard(0);
+        } else if (clusterState.routingTable().index("test").shard(1).replicaShards().get(0).relocating()) {
+            indexShardRoutingTable = clusterState.routingTable().index("test").shard(1);
         }
 
         // we might have primary relocating, and the test is only for replicas, so only test in the case of replica allocation
         if (indexShardRoutingTable != null) {
             logger.info("kill the node [{}] of the primary shard for the relocating replica", indexShardRoutingTable.primaryShard().currentNodeId());
             clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(indexShardRoutingTable.primaryShard().currentNodeId())).build();
-            prevRoutingTable = routingTable;
-            routingTable = strategy.deassociateDeadNodes(clusterState, true, "reroute").routingTable();
-            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+            routingResult = strategy.deassociateDeadNodes(clusterState, true, "reroute");
+            clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
 
             logger.info("make sure all the primary shards are active");
-            assertThat(routingTable.index("test").shard(0).primaryShard().active(), equalTo(true));
-            assertThat(routingTable.index("test").shard(1).primaryShard().active(), equalTo(true));
+            assertThat(clusterState.routingTable().index("test").shard(0).primaryShard().active(), equalTo(true));
+            assertThat(clusterState.routingTable().index("test").shard(1).primaryShard().active(), equalTo(true));
         }
     }
 }

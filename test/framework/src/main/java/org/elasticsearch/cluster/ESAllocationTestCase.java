@@ -139,9 +139,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         if (initializingShards.isEmpty()) {
             return clusterState;
         }
-        RoutingTable routingTable = strategy.applyStartedShards(clusterState,
-            arrayAsArrayList(initializingShards.get(randomInt(initializingShards.size() - 1)))).routingTable();
-        return ClusterState.builder(clusterState).routingTable(routingTable).build();
+        RoutingAllocation.Result routingResult = strategy.applyStartedShards(clusterState,
+            arrayAsArrayList(initializingShards.get(randomInt(initializingShards.size() - 1))));
+        return ClusterState.builder(clusterState).routingResult(routingResult).build();
     }
 
     protected static AllocationDeciders yesAllocationDeciders() {
@@ -158,6 +158,16 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         return new AllocationDeciders(Settings.EMPTY, Arrays.asList(
             new TestAllocateDecision(Decision.THROTTLE),
             new SameShardAllocationDecider(Settings.EMPTY)));
+    }
+
+    protected ClusterState applyStartedShardsUntilNoChange(ClusterState clusterState, AllocationService service) {
+        RoutingAllocation.Result routingResult;
+        do {
+            logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
+            routingResult = service.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+            clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
+        } while (routingResult.changed());
+        return clusterState;
     }
 
     public static class TestAllocateDecision extends AllocationDecider {

@@ -28,6 +28,8 @@ import java.util.Collections;
 
 class VersionValue implements Accountable {
 
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(VersionValue.class);
+
     private final long version;
     private final Translog.Location translogLocation;
 
@@ -54,8 +56,7 @@ class VersionValue implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + Long.BYTES + RamUsageEstimator.NUM_BYTES_OBJECT_REF +
-            (translogLocation != null ? translogLocation.size : 0);
+        return BASE_RAM_BYTES_USED + (translogLocation != null ? translogLocation.ramBytesUsed() : 0);
     }
 
     @Override

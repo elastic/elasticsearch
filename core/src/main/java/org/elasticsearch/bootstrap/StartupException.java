@@ -23,6 +23,8 @@ import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.io.PrintStream;
+import java.io.PrintWriter;
+import java.util.function.Consumer;
 
 /**
  * Wraps an exception in a special way that it gets formatted
@@ -32,18 +34,18 @@ import java.io.PrintStream;
  */
 //TODO: remove this when guice is removed, and exceptions are cleaned up
 //this is horrible, but its what we must do
-final class StartupError extends RuntimeException {
-    
+final class StartupException extends RuntimeException {
+
     /** maximum length of a stacktrace, before we truncate it */
     static final int STACKTRACE_LIMIT = 30;
     /** all lines from this package are RLE-compressed */
     static final String GUICE_PACKAGE = "org.elasticsearch.common.inject";
-    
-    /** 
-     * Create a new StartupError that will format {@code cause}
+
+    /**
+     * Create a new StartupException that will format {@code cause}
      * to the console on failure.
      */
-    StartupError(Throwable cause) {
+    StartupException(Throwable cause) {
         super(cause);
     }
 
@@ -53,15 +55,24 @@ final class StartupError extends RuntimeException {
      */
     @Override
     public void printStackTrace(PrintStream s) {
+        printStackTrace(s::println);
+    }
+
+    @Override
+    public void printStackTrace(PrintWriter s) {
+        printStackTrace(s::println);
+    }
+
+    private void printStackTrace(Consumer<String> consumer) {
         Throwable originalCause = getCause();
         Throwable cause = originalCause;
         if (cause instanceof CreationException) {
             cause = getFirstGuiceCause((CreationException)cause);
         }
-        
+
         String message = cause.toString();
-        s.println(message);
-        
+        consumer.accept(message);
+
         if (cause != null) {
             // walk to the root cause
             while (cause.getCause() != null) {
@@ -70,7 +81,7 @@ final class StartupError extends RuntimeException {
 
             // print the root cause message, only if it differs!
             if (cause != originalCause && (message.equals(cause.toString()) == false)) {
-                s.println("Likely root cause: " + cause);
+                consumer.accept("Likely root cause: " + cause);
             }
 
             // print stacktrace of cause
@@ -78,33 +89,33 @@ final class StartupError extends RuntimeException {
             int linesWritten = 0;
             for (int i = 0; i < stack.length; i++) {
                 if (linesWritten == STACKTRACE_LIMIT) {
-                    s.println("\t<<<truncated>>>");
+                    consumer.accept("\t<<<truncated>>>");
                     break;
                 }
                 String line = stack[i].toString();
-                
+
                 // skip past contiguous runs of this garbage:
                 if (line.startsWith(GUICE_PACKAGE)) {
                     while (i + 1 < stack.length && stack[i + 1].toString().startsWith(GUICE_PACKAGE)) {
                         i++;
                     }
-                    s.println("\tat <<<guice>>>");
+                    consumer.accept("\tat <<<guice>>>");
                     linesWritten++;
                     continue;
                 }
 
-                s.println("\tat " + line.toString());
+                consumer.accept("\tat " + line.toString());
                 linesWritten++;
             }
         }
         // if its a guice exception, the whole thing really will not be in the log, its megabytes.
         // refer to the hack in bootstrap, where we don't log it
         if (originalCause instanceof CreationException == false) {
-            s.println("Refer to the log for complete error details.");
+            consumer.accept("Refer to the log for complete error details.");
         }
     }
-    
-    /** 
+
+    /**
      * Returns first cause from a guice error (it can have multiple).
      */
     static Throwable getFirstGuiceCause(CreationException guice) {
@@ -116,4 +127,5 @@ final class StartupError extends RuntimeException {
         }
         return guice; // we tried
     }
+
 }

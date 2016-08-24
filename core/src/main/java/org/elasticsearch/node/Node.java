@@ -74,6 +74,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -349,6 +350,11 @@ public class Node implements Closeable {
                     .flatMap(p -> p.getNamedWriteables().stream()))
                 .flatMap(Function.identity()).collect(Collectors.toList());
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
+            final MetaStateService metaStateService = new MetaStateService(settings, nodeEnvironment);
+            final IndicesService indicesService = new IndicesService(settings, pluginsService, nodeEnvironment,
+                settingsModule.getClusterSettings(), analysisModule.getAnalysisRegistry(), searchModule.getQueryParserRegistry(),
+                clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
+                threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, metaStateService);
             client = new NodeClient(settings, threadPool);
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
@@ -374,6 +380,9 @@ public class Node implements Closeable {
                     b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                     b.bind(IngestService.class).toInstance(ingestService);
                     b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
+                    b.bind(MetaDataUpgrader.class).toInstance(metaDataUpgrader);
+                    b.bind(MetaStateService.class).toInstance(metaStateService);
+                    b.bind(IndicesService.class).toInstance(indicesService);
                     Class<? extends SearchService> searchServiceImpl = pickSearchServiceImplementation();
                     if (searchServiceImpl == SearchService.class) {
                         b.bind(SearchService.class).asEagerSingleton();
@@ -381,7 +390,7 @@ public class Node implements Closeable {
                         b.bind(SearchService.class).to(searchServiceImpl).asEagerSingleton();
                     }
                     pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));
-                    b.bind(MetaDataUpgrader.class).toInstance(metaDataUpgrader);
+
                 }
             );
             injector = modules.createInjector();

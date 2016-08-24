@@ -859,6 +859,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return this;
         }
 
+        public Set<String> getActiveAllocationIds(int shardId) {
+            return activeAllocationIds.get(shardId);
+        }
+
         public long version() {
             return this.version;
         }

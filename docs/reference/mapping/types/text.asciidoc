@@ -1,7 +1,7 @@
 [[text]]
 === Text datatype
 
-A field to index full-text values, such as the body of on email or the
+A field to index full-text values, such as the body of an email or the
 description of a product. These fields are `analyzed`, that is they are passed through an
 <<analysis,analyzer>> to convert the string into a list of individual terms
 before being indexed. The analysis process allows Elasticsearch to search for

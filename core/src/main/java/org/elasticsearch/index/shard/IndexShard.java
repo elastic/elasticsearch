@@ -1639,9 +1639,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    // lock order --> fsyncLock --> monitor
-    private final ReentrantLock fsyncLock = new ReentrantLock();
-    private final Object monitor = new Object();
+    private final ReentrantLock fsyncLock = new ReentrantLock(); // lock order --> fsyncLock --> monitor
+    private final Object syncConsumerLock = new Object(); // guards access to the two below
     private List<Tuple<Translog.Location, Consumer<Exception>>> syncConsumerList = new ArrayList<>();
     private List<Tuple<Translog.Location, Consumer<Exception>>> syncConsumerListSpare = new ArrayList<>();
 
@@ -1654,10 +1653,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public final void sync(Translog.Location location, Consumer<Exception> syncListener) {
         verifyNotClosed();
-        /* we first add the location and the listener to the list and then try to accquire the
-         fsync lock. if we get it we run fsync for the further most location such that we only fsync once
-         for all pending operations. */
-        synchronized (monitor) {
+        // we first add the location and the listener to the list and then try to accquire the
+        // fsync lock. if we get it we run fsync for the further most location such that we only fsync once
+        // for all pending operations.
+        synchronized (syncConsumerLock) {
             // TODO should we make this bounded and block the caller thread?
             // I assume this won't grow to anything crazy but it might be good to have an upperbound here to prevent OOM?
             syncConsumerList.add(new Tuple<>(location, syncListener));
@@ -1665,7 +1664,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         while (fsyncLock.tryLock()) {
             try {
                 List<Tuple<Translog.Location, Consumer<Exception>>> candidates;
-                synchronized (monitor) {
+                synchronized (syncConsumerLock) {
                     candidates = syncConsumerList;
                     syncConsumerList = syncConsumerListSpare;
 
@@ -1681,7 +1680,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         final Engine engine = getEngine();
                         engine.getTranslog().ensureSynced(candidates.stream().map(Tuple::v1));
                     } catch (EngineClosedException ex) {
-                        // that's fine since we already synced everything on engine close - this also is conform with the methods documentation
+                        // that's fine since we already synced everything on engine close - this also is conform with the methods
+                        // documentation
                     } catch (IOException ex) { // if this fails we are in deep shit - fail the request
                         logger.debug("failed to sync translog", ex);
                         // this exception is passed to all listeners - we don't retry. if this doesn't work we are in deep shit
@@ -1700,8 +1700,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } finally {
                 fsyncLock.unlock();
             }
-            synchronized (monitor) {
-                if (syncConsumerList.isEmpty()) { // only step out of this iff the list is empty - it's crucial to hold both locks here.
+            synchronized (syncConsumerLock) {
+                // only step out of this iff the list is empty - it's crucial to not hold both locks here to give other threads
+                // a chance to take over processing
+                if (syncConsumerList.isEmpty()) {
                     break;
                 }
             }

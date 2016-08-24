@@ -229,8 +229,6 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         // for tee-sinks
         .put("daterecognizer",            Void.class)
         .put("minhash",                   Void.class)
-        .put("scandinaviannormalization", Void.class)
-        .put("scandinavianfolding",       Void.class)
 
         .immutableMap();
     

@@ -206,9 +206,11 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
                 }
             }
 
+            assert inSyncAllocationIds.isEmpty() == false || oldInSyncAllocationIds.isEmpty() :
+                "in-sync allocations cannot become empty after they have been non-empty: " + oldInSyncAllocationIds;
+
             // be extra safe here and only update in-sync set if it is non-empty
             if (inSyncAllocationIds.isEmpty() == false) {
-                assert inSyncAllocationIds.isEmpty() == false;
                 if (indexMetaDataBuilder == null) {
                     indexMetaDataBuilder = IndexMetaData.builder(oldIndexMetaData);
                 }

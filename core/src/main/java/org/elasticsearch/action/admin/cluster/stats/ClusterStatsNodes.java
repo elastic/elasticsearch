@@ -21,11 +21,12 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -39,11 +40,13 @@ import org.elasticsearch.plugins.PluginInfo;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClusterStatsNodes implements ToXContent {
 
@@ -54,6 +57,7 @@ public class ClusterStatsNodes implements ToXContent {
     private final JvmStats jvm;
     private final FsInfo.Path fs;
     private final Set<PluginInfo> plugins;
+    private final NetworkTypes networkTypes;
 
     ClusterStatsNodes(List<ClusterStatsNodeResponse> nodeResponses) {
         this.versions = new HashSet<>();
@@ -86,6 +90,7 @@ public class ClusterStatsNodes implements ToXContent {
         this.os = new OsStats(nodeInfos);
         this.process = new ProcessStats(nodeStats);
         this.jvm = new JvmStats(nodeInfos, nodeStats);
+        this.networkTypes = new NetworkTypes(nodeInfos);
     }
 
     public Counts getCounts() {
@@ -124,6 +129,7 @@ public class ClusterStatsNodes implements ToXContent {
         static final String JVM = "jvm";
         static final String FS = "fs";
         static final String PLUGINS = "plugins";
+        static final String NETWORK_TYPES = "network_types";
     }
 
     @Override
@@ -158,6 +164,10 @@ public class ClusterStatsNodes implements ToXContent {
             pluginInfo.toXContent(builder, params);
         }
         builder.endArray();
+
+        builder.startObject(Fields.NETWORK_TYPES);
+        networkTypes.toXContent(builder, params);
+        builder.endObject();
         return builder;
     }
 
@@ -506,4 +516,43 @@ public class ClusterStatsNodes implements ToXContent {
             return vmVersion.hashCode();
         }
     }
+
+    static class NetworkTypes implements ToXContent {
+
+        private final Map<String, AtomicInteger> transportTypes;
+        private final Map<String, AtomicInteger> httpTypes;
+
+        private NetworkTypes(final List<NodeInfo> nodeInfos) {
+            final Map<String, AtomicInteger> transportTypes = new HashMap<>();
+            final Map<String, AtomicInteger> httpTypes = new HashMap<>();
+            for (final NodeInfo nodeInfo : nodeInfos) {
+                final Settings settings = nodeInfo.getSettings();
+                final String transportType =
+                    settings.get(NetworkModule.TRANSPORT_TYPE_KEY, NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.get(settings));
+                final String httpType =
+                    settings.get(NetworkModule.HTTP_TYPE_KEY, NetworkModule.HTTP_DEFAULT_TYPE_SETTING.get(settings));
+                transportTypes.computeIfAbsent(transportType, k -> new AtomicInteger()).incrementAndGet();
+                httpTypes.computeIfAbsent(httpType, k -> new AtomicInteger()).incrementAndGet();
+            }
+            this.transportTypes = Collections.unmodifiableMap(transportTypes);
+            this.httpTypes = Collections.unmodifiableMap(httpTypes);
+        }
+
+        @Override
+        public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+            builder.startObject("transport_types");
+            for (final Map.Entry<String, AtomicInteger> entry : transportTypes.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue().get());
+            }
+            builder.endObject();
+            builder.startObject("http_types");
+            for (final Map.Entry<String, AtomicInteger> entry : httpTypes.entrySet()) {
+                builder.field(entry.getKey(), entry.getValue().get());
+            }
+            builder.endObject();
+            return builder;
+        }
+
+    }
+
 }

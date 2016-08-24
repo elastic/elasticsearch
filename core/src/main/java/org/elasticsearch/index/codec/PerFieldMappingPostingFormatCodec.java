@@ -22,7 +22,7 @@ package org.elasticsearch.index.codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
-import org.apache.lucene.codecs.lucene60.Lucene60Codec;
+import org.apache.lucene.codecs.lucene62.Lucene62Codec;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
@@ -39,7 +39,7 @@ import org.elasticsearch.index.mapper.MapperService;
  * configured for a specific field the default postings format is used.
  */
 // LUCENE UPGRADE: make sure to move to a new codec depending on the lucene version
-public class PerFieldMappingPostingFormatCodec extends Lucene60Codec {
+public class PerFieldMappingPostingFormatCodec extends Lucene62Codec {
     private final ESLogger logger;
     private final MapperService mapperService;
 

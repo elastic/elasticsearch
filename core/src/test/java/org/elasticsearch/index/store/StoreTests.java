@@ -391,8 +391,8 @@ public class StoreTests extends ESTestCase {
             CodecUtil.writeFooter(output);
             output.close();
         }
-        store.renameFile("foo.bar", "bar.foo");
-        assertThat(numNonExtraFiles(store), is(1));
+        store.renameFile("foo.bar", "bar2.foo");
+        assertThat(numNonExtraFiles(store), is(2));
         assertDeleteContent(store, directoryService);
         IOUtils.close(store);
     }
@@ -519,9 +519,6 @@ public class StoreTests extends ESTestCase {
         public LuceneManagedDirectoryService(Random random, boolean preventDoubleWrite) {
             super(new ShardId(INDEX_SETTINGS.getIndex(), 1), INDEX_SETTINGS);
             dir = StoreTests.newDirectory(random);
-            if (dir instanceof MockDirectoryWrapper) {
-                ((MockDirectoryWrapper) dir).setPreventDoubleWrite(preventDoubleWrite);
-            }
             this.random = random;
         }
 
@@ -963,11 +960,8 @@ public class StoreTests extends ESTestCase {
         }
         writer.commit();
         writer.close();
-        MockDirectoryWrapper leaf = DirectoryUtils.getLeaf(store.directory(), MockDirectoryWrapper.class);
-        if (leaf != null) {
-            leaf.setPreventDoubleWrite(false); // I do this on purpose
-        }
         SegmentInfos segmentCommitInfos = store.readLastCommittedSegmentsInfo();
+        store.directory().deleteFile(segmentCommitInfos.getSegmentsFileName());
         try (IndexOutput out = store.directory().createOutput(segmentCommitInfos.getSegmentsFileName(), IOContext.DEFAULT)) {
             // empty file
         }

@@ -1177,7 +1177,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     @Override
-    public void prepareCommit() throws IOException {
+    public long prepareCommit() throws IOException {
         try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
             if (currentCommittingGeneration != NOT_SET_GENERATION) {
@@ -1200,10 +1200,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             IOUtils.closeWhileHandlingException(this); // tragic event
             throw e;
         }
+        return 0L;
     }
 
     @Override
-    public void commit() throws IOException {
+    public long commit() throws IOException {
         try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
             if (currentCommittingGeneration == NOT_SET_GENERATION) {
@@ -1216,6 +1217,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             currentCommittingGeneration = NOT_SET_GENERATION;
             trimUnreferencedReaders();
         }
+        return 0;
     }
 
     void trimUnreferencedReaders() {

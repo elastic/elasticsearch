@@ -138,16 +138,6 @@ public final class SimilarityService extends AbstractIndexComponent {
         }
 
         @Override
-        public float coord(int overlap, int maxOverlap) {
-            return baseSimilarity.coord(overlap, maxOverlap);
-        }
-
-        @Override
-        public float queryNorm(float valueForNormalization) {
-            return baseSimilarity.queryNorm(valueForNormalization);
-        }
-
-        @Override
         public Similarity get(String name) {
             MappedFieldType fieldType = mapperService.fullName(name);
             return (fieldType != null && fieldType.similarity() != null) ? fieldType.similarity().get() : defaultSimilarity;

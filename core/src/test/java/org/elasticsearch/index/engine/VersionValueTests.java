@@ -19,43 +19,18 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.RamUsageTester;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogTests;
+import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collection;
-import java.util.Collections;
+public class VersionValueTests extends ESTestCase {
 
-class VersionValue implements Accountable {
-
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(VersionValue.class);
-
-    private final long version;
-
-    public VersionValue(long version) {
-        this.version = version;
+    public void testRamBytesUsed() {
+        VersionValue versionValue = new VersionValue(randomLong());
+        assertEquals(RamUsageTester.sizeOf(versionValue), versionValue.ramBytesUsed());
+        versionValue = new VersionValue(randomLong());
+        assertEquals(RamUsageTester.sizeOf(versionValue), versionValue.ramBytesUsed());
     }
 
-    public long time() {
-        throw new UnsupportedOperationException();
-    }
-
-    public long version() {
-        return version;
-    }
-
-    public boolean delete() {
-        return false;
-    }
-
-
-    @Override
-    public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED;
-    }
-
-    @Override
-    public Collection<Accountable> getChildResources() {
-        return Collections.emptyList();
-    }
 }

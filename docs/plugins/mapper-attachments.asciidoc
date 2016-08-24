@@ -90,10 +90,10 @@ If you get a hit for your indexed document, the plugin should be installed and w
   "took": 53,
   "hits": {
     "total": 1,
-    "max_score": 0.28582606,
+    "max_score": 0.25811607,
     "hits": [
       {
-        "_score": 0.28582606,
+        "_score": 0.25811607,
         "_index": "trying-out-mapper-attachments",
         "_type": "person",
         "_id": "1",

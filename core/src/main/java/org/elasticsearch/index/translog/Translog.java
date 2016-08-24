@@ -663,7 +663,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             this.size = size;
         }
 
-        @Override
         public String toString() {
             return "[generation: " + generation + ", location: " + translogLocation + ", size: " + size + "]";
         }

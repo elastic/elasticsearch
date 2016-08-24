@@ -476,7 +476,8 @@ run_elasticsearch_tests() {
       "query": {
         "script": {
           "script": {
-            "file": "is_guide"
+            "file": "is_guide",
+            "lang": "groovy"
           }
         }
       }

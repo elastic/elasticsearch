@@ -63,6 +63,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     /** Default for geo distance computation. */
     public static final GeoDistance DEFAULT_GEO_DISTANCE = GeoDistance.DEFAULT;
     /** Default for optimising query through pre computed bounding box query. */
+    @Deprecated
     public static final String DEFAULT_OPTIMIZE_BBOX = "memory";
 
     /**
@@ -75,7 +76,9 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
             .withAllDeprecated("use validation_method instead");
     private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize")
             .withAllDeprecated("use validation_method instead");
-    private static final ParseField OPTIMIZE_BBOX_FIELD = new ParseField("optimize_bbox");
+    @Deprecated
+    private static final ParseField OPTIMIZE_BBOX_FIELD = new ParseField("optimize_bbox")
+            .withAllDeprecated("no replacement: `optimize_bbox` is no longer supported due to recent improvements");
     private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
     private static final ParseField UNIT_FIELD = new ParseField("unit");
     private static final ParseField DISTANCE_FIELD = new ParseField("distance");
@@ -89,7 +92,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     /** Algorithm to use for distance computation. */
     private GeoDistance geoDistance = DEFAULT_GEO_DISTANCE;
     /** Whether or not to use a bbox for pre-filtering. TODO change to enum? */
-    private String optimizeBbox = DEFAULT_OPTIMIZE_BBOX;
+    private String optimizeBbox = null;
     /** How strict should geo coordinate validation be? */
     private GeoValidationMethod validationMethod = GeoValidationMethod.DEFAULT;
 
@@ -115,7 +118,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         distance = in.readDouble();
         validationMethod = GeoValidationMethod.readFromStream(in);
         center = in.readGeoPoint();
-        optimizeBbox = in.readString();
+        optimizeBbox = in.readOptionalString();
         geoDistance = GeoDistance.readFromStream(in);
         ignoreUnmapped = in.readBoolean();
     }
@@ -126,7 +129,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         out.writeDouble(distance);
         validationMethod.writeTo(out);
         out.writeGeoPoint(center);
-        out.writeString(optimizeBbox);
+        out.writeOptionalString(optimizeBbox);
         geoDistance.writeTo(out);
         out.writeBoolean(ignoreUnmapped);
     }
@@ -220,26 +223,20 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
      * Set this to memory or indexed if before running the distance
      * calculation you want to limit the candidates to hits in the
      * enclosing bounding box.
+     * @deprecated
      **/
+    @Deprecated
     public GeoDistanceQueryBuilder optimizeBbox(String optimizeBbox) {
-        if (optimizeBbox == null) {
-            throw new IllegalArgumentException("optimizeBbox must not be null");
-        }
-        switch (optimizeBbox) {
-            case "none":
-            case "memory":
-            case "indexed":
-                break;
-            default:
-                throw new IllegalArgumentException("optimizeBbox must be one of [none, memory, indexed]");
-        }
         this.optimizeBbox = optimizeBbox;
         return this;
     }
 
     /**
      * Returns whether or not to run a BoundingBox query prior to
-     * distance query for optimization purposes.*/
+     * distance query for optimization purposes.
+     * @deprecated
+     **/
+    @Deprecated
     public String optimizeBbox() {
         return this.optimizeBbox;
     }
@@ -303,8 +300,9 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         if (indexVersionCreated.before(Version.V_2_2_0)) {
             GeoPointFieldMapperLegacy.GeoPointFieldType geoFieldType = ((GeoPointFieldMapperLegacy.GeoPointFieldType) fieldType);
             IndexGeoPointFieldData indexFieldData = shardContext.getForField(fieldType);
+            String bboxOptimization = Strings.isEmpty(optimizeBbox) ? DEFAULT_OPTIMIZE_BBOX : optimizeBbox;
             return new GeoDistanceRangeQuery(center, null, normDistance, true, false, geoDistance,
-                    geoFieldType, indexFieldData, optimizeBbox);
+                    geoFieldType, indexFieldData, bboxOptimization);
         }
 
         // if index created V_2_2 use (soon to be legacy) numeric encoding postings format
@@ -324,7 +322,9 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         builder.startArray(fieldName).value(center.lon()).value(center.lat()).endArray();
         builder.field(DISTANCE_FIELD.getPreferredName(), distance);
         builder.field(DISTANCE_TYPE_FIELD.getPreferredName(), geoDistance.name().toLowerCase(Locale.ROOT));
-        builder.field(OPTIMIZE_BBOX_FIELD.getPreferredName(), optimizeBbox);
+        if (Strings.isEmpty(optimizeBbox) == false) {
+            builder.field(OPTIMIZE_BBOX_FIELD.getPreferredName(), optimizeBbox);
+        }
         builder.field(VALIDATION_METHOD_FIELD.getPreferredName(), validationMethod);
         builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
         printBoostAndQueryName(builder);
@@ -344,7 +344,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         Object vDistance = null;
         DistanceUnit unit = GeoDistanceQueryBuilder.DEFAULT_DISTANCE_UNIT;
         GeoDistance geoDistance = GeoDistanceQueryBuilder.DEFAULT_GEO_DISTANCE;
-        String optimizeBbox = GeoDistanceQueryBuilder.DEFAULT_OPTIMIZE_BBOX;
+        String optimizeBbox = null;
         boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
         boolean ignoreMalformed = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
         GeoValidationMethod validationMethod = null;

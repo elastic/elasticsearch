@@ -30,7 +30,9 @@ PUT /my_index
 }
 --------------------------------------------------
 // CONSOLE
-// TESTSETUP
+// TEST[warning:geo_point geohash parameter is deprecated and will be removed in the next major release]
+// TEST[warning:geo_point geohash_precision parameter is deprecated and will be removed in the next major release]
+// TEST[warning:geo_point geohash_prefix parameter is deprecated and will be removed in the next major release]
 
 The geohash cell can defined by all formats of `geo_points`. If such a cell is
 defined by a latitude and longitude pair the size of the cell needs to be
@@ -67,6 +69,7 @@ GET /_search
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
 
 [float]
 ==== Ignore Unmapped

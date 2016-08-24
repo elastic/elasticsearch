@@ -249,8 +249,7 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
     public void testIncludeInAll() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "scaled_float")
-                .field("scaling_factor", 10.0)
-                .field("include_in_all", true).endObject().endObject()
+                .field("scaling_factor", 10.0).endObject().endObject()
                 .endObject().endObject().string();
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
@@ -269,7 +268,8 @@ public class ScaledFloatFieldMapperTests extends ESSingleNodeTestCase {
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
-                .field("type", "scaled_float").field("scaling_factor", 10.0).endObject().endObject()
+                .field("type", "scaled_float").field("scaling_factor", 10.0)
+                .field("include_in_all", false).endObject().endObject()
                 .endObject().endObject().string();
 
         mapper = parser.parse("type", new CompressedXContent(mapping));

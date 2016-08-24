@@ -178,8 +178,7 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testIncludeInAll() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "date")
-                .field("include_in_all", true).endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "date").endObject().endObject()
                 .endObject().endObject().string();
 
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
@@ -197,7 +196,8 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals("2016-03-11", fields[0].stringValue());
 
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "date").endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "date")
+                .field("include_in_all", false).endObject().endObject()
                 .endObject().endObject().string();
 
         mapper = parser.parse("type", new CompressedXContent(mapping));

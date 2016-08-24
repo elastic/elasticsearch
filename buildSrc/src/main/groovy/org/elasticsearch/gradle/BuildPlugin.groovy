@@ -394,7 +394,13 @@ class BuildPlugin implements Plugin<Project> {
                  * -serial because we don't use java serialization.
                  */
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
-                options.compilerArgs << '-Werror' << '-proc:none' << '-Xlint:all,-path,-serial,-options,-deprecation' << '-Xdoclint:all' << '-Xdoclint:-missing'
+                options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation' << '-Xdoclint:all' << '-Xdoclint:-missing'
+
+                // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly defined
+                if (options.compilerArgs.contains("-processor") == false) {
+                    options.compilerArgs << '-proc:none'
+                }
+
                 options.encoding = 'UTF-8'
                 //options.incremental = true
 

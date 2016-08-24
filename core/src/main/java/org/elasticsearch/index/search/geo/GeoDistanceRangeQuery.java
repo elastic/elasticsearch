@@ -40,8 +40,10 @@ import org.elasticsearch.index.mapper.GeoPointFieldMapperLegacy;
 import java.io.IOException;
 
 /**
- *
+ * Query geo_point fields by distance ranges. Used for indexes created prior to 2.2
+ * @deprecated
  */
+@Deprecated
 public class GeoDistanceRangeQuery extends Query {
 
     private final double lat;
@@ -91,7 +93,8 @@ public class GeoDistanceRangeQuery extends Query {
             if ("memory".equals(optimizeBbox)) {
                 boundingBoxFilter = null;
             } else if ("indexed".equals(optimizeBbox)) {
-                boundingBoxFilter = IndexedGeoBoundingBoxQuery.create(distanceBoundingCheck.topLeft(), distanceBoundingCheck.bottomRight(), fieldType);
+                boundingBoxFilter = IndexedGeoBoundingBoxQuery.create(distanceBoundingCheck.topLeft(),
+                    distanceBoundingCheck.bottomRight(), fieldType);
                 distanceBoundingCheck = GeoDistance.ALWAYS_INSTANCE; // fine, we do the bounding box check using the filter
             } else {
                 throw new IllegalArgumentException("type [" + optimizeBbox + "] for bounding box optimization not supported");
@@ -207,7 +210,8 @@ public class GeoDistanceRangeQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "GeoDistanceRangeQuery(" + indexFieldData.getFieldName() + ", " + geoDistance + ", [" + inclusiveLowerPoint + " - " + inclusiveUpperPoint + "], " + lat + ", " + lon + ")";
+        return "GeoDistanceRangeQuery(" + indexFieldData.getFieldName() + ", " + geoDistance + ", ["
+            + inclusiveLowerPoint + " - " + inclusiveUpperPoint + "], " + lat + ", " + lon + ")";
     }
 
     @Override

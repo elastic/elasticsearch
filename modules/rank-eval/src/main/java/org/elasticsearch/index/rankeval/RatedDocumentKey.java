@@ -21,18 +21,20 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.FromXContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
+public class RatedDocumentKey extends ToXContentToBytes implements Writeable, FromXContentBuilder<RatedDocumentKey> {
     public static final ParseField DOC_ID_FIELD = new ParseField("doc_id");
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField INDEX_FIELD = new ParseField("index");
@@ -103,7 +105,18 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
         out.writeString(type);
         out.writeString(docId);
     }
-    
+
+    @Override
+    public RatedDocumentKey fromXContent(XContentParser parser, ParseFieldMatcher matcher) throws IOException {
+        return RatedDocumentKey.fromXContent(parser, new ParseFieldMatcherSupplier() {
+            
+            @Override
+            public ParseFieldMatcher getParseFieldMatcher() {
+                return matcher;
+            }
+        });
+    }
+
     public static RatedDocumentKey fromXContent(XContentParser parser, ParseFieldMatcherSupplier context) throws IOException {
         return PARSER.apply(parser, context);
     }

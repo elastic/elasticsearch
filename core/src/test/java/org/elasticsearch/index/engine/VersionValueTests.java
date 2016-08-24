@@ -27,18 +27,12 @@ import org.elasticsearch.test.ESTestCase;
 public class VersionValueTests extends ESTestCase {
 
     public void testRamBytesUsed() {
-        VersionValue versionValue = new VersionValue(randomLong(), null);
-        assertEquals(RamUsageTester.sizeOf(versionValue), versionValue.ramBytesUsed());
-        Translog.Location location = TranslogTests.randomTranslogLocation();
-        versionValue = new VersionValue(randomLong(), location);
+        VersionValue versionValue = new VersionValue(randomLong());
         assertEquals(RamUsageTester.sizeOf(versionValue), versionValue.ramBytesUsed());
     }
 
     public void testDeleteRamBytesUsed() {
-        DeleteVersionValue versionValue = new DeleteVersionValue(randomLong(), randomLong(), null);
-        assertEquals(RamUsageTester.sizeOf(versionValue), versionValue.ramBytesUsed());
-        Translog.Location location = TranslogTests.randomTranslogLocation();
-        versionValue = new DeleteVersionValue(randomLong(), randomLong(), location);
+        DeleteVersionValue versionValue = new DeleteVersionValue(randomLong(), randomLong());
         assertEquals(RamUsageTester.sizeOf(versionValue), versionValue.ramBytesUsed());
     }
 

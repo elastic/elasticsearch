@@ -55,3 +55,12 @@ failures as well and use this response format:
 
 Where `bulk` counts the number of bulk retries and `search` counts the number
 of search retries.
+
+==== get API
+
+As of 5.0.0 the get API will issue a refresh if the requested document has
+been changed since the last refresh but the change hasn't been refreshed yet. This
+will also make all other changes visible immediately. This can have an impact on
+performance if the same document is updated very frequently using a read modify update
+pattern since it might create many small segments. This behavior can be disabled by
+passing `realtime=false` to the get request.

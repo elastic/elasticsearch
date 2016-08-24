@@ -50,11 +50,11 @@ rate of the index (when data will become visible for search). If a document
 has been updated but is not yet refreshed, the get API will issue a refresh
 call in-place to make the document visible. This will also make other documents
 changed since the last refresh visible. In order to disable realtime GET,
-one can set `realtime` parameter to `false`.
+one can set the `realtime` parameter to `false`.
 
 When getting a document, one can specify `fields` to fetch from it. They
 will, when possible, be fetched as stored fields (fields mapped as
-stored in the mapping).
+<<mapping-store,stored>> in the mapping).
 
 [float]
 [[type]]

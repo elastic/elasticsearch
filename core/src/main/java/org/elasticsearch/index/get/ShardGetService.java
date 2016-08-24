@@ -181,7 +181,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         try {
             // break between having loaded it from translog (so we only have _source), and having a document to load
-                return innerGetLoadFromStoredFields(type, id, gFields, fetchSourceContext, get, mapperService);
+            return innerGetLoadFromStoredFields(type, id, gFields, fetchSourceContext, get, mapperService);
         } finally {
             get.release();
         }

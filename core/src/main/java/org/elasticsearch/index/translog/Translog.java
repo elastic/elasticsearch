@@ -22,9 +22,7 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TwoPhaseCommit;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -55,8 +53,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
@@ -655,7 +651,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
 
-    public static class Location implements Accountable, Comparable<Location> {
+    public static class Location implements Comparable<Location> {
 
         public final long generation;
         public final long translogLocation;
@@ -665,16 +661,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             this.generation = generation;
             this.translogLocation = translogLocation;
             this.size = size;
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 2 * Long.BYTES + Integer.BYTES;
-        }
-
-        @Override
-        public Collection<Accountable> getChildResources() {
-            return Collections.emptyList();
         }
 
         @Override

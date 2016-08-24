@@ -298,12 +298,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return statsCache.getOrRefresh();
     }
 
-    public void renameFile(String from, String to) throws IOException {
-        ensureOpen();
-        // TODO: switch to directory.rename?  but caller needs to syncMetaData!
-        directory.renameFile(from, to);
-    }
-
     /**
      * Increments the refCount of this Store instance.  RefCounts are used to determine when a
      * Store can be closed safely, i.e. as soon as there are no more references. Be sure to always call a

@@ -1638,7 +1638,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     stream = new RateLimitingInputStream(partSliceStream, restoreRateLimiter, restoreRateLimitingTimeInNanos::inc);
                 }
 
-                // TODO: why does the target file sometimes already exist?
+                // TODO: why does the target file sometimes already exist?  Simon says: I think, this can happen if you fail a shard and
+                // it's not cleaned up yet, the restore process tries to reuse files
                 IOUtils.deleteFilesIgnoringExceptions(store.directory(), fileInfo.physicalName());
                 
                 try (final IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {

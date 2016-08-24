@@ -79,7 +79,7 @@ Vagrant.configure(2) do |config|
   config.vm.synced_folder ".", "/elasticsearch"
   config.vm.provider "virtualbox" do |v|
     # Give the boxes 3GB because Elasticsearch defaults to using 2GB
-    v.memory = 3048
+    v.memory = 3072
   end
   if Vagrant.has_plugin?("vagrant-cachier")
     config.cache.scope = :box

@@ -29,7 +29,7 @@ import org.elasticsearch.rest.RestHandler;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Supplier;
 
 /**
@@ -38,7 +38,7 @@ import java.util.function.Supplier;
 public class UsageService extends AbstractComponent {
 
     private final Supplier<DiscoveryNode> localNodeSupplier;
-    private final Map<String, AtomicLong> restUsage;
+    private final Map<String, LongAdder> restUsage;
     private long sinceTime;
 
     @Inject
@@ -57,8 +57,8 @@ public class UsageService extends AbstractComponent {
      *            endpoint.
      */
     public void addRestCall(String actionName) {
-        AtomicLong counter = restUsage.computeIfAbsent(actionName, key -> new AtomicLong());
-        counter.getAndIncrement();
+        LongAdder counter = restUsage.computeIfAbsent(actionName, key -> new LongAdder());
+        counter.increment();
     }
 
     public void clear() {
@@ -80,7 +80,7 @@ public class UsageService extends AbstractComponent {
         if (restActions) {
             restUsageMap = new HashMap<>();
             restUsage.forEach((key, value) -> {
-                restUsageMap.put(key, value.get());
+                restUsageMap.put(key, value.longValue());
             });
         } else {
             restUsageMap = null;

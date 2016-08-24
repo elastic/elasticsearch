@@ -24,6 +24,7 @@ import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
@@ -87,7 +88,10 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
     @Override
     public void testToQuery() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        super.testToQuery();
+        Version version = createShardContext().indexVersionCreated();
+        if (version.before(Version.V_5_0_0_alpha6)) {
+            super.testToQuery();
+        }
     }
 
     public void testNullField() {
@@ -140,7 +144,10 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
     @Override
     public void testMustRewrite() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        super.testMustRewrite();
+        Version version = createShardContext().indexVersionCreated();
+        if (version.before(Version.V_5_0_0_alpha6)) {
+            super.testMustRewrite();
+        }
     }
 
     public void testIgnoreUnmapped() throws IOException {

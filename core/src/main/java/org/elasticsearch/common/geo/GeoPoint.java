@@ -19,8 +19,13 @@
 
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.geo.GeoEncodingUtils;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.NumericUtils;
 
 import static org.elasticsearch.common.geo.GeoHashUtils.mortonEncode;
 import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
@@ -86,6 +91,23 @@ public final class GeoPoint {
         lon = GeoPointField.decodeLongitude(hash);
         lat = GeoPointField.decodeLatitude(hash);
         return this;
+    }
+
+    // todo this is a crutch because LatLonPoint doesn't have a helper for returning .stringValue()
+    // todo remove with next release of lucene
+    public GeoPoint resetFromIndexableField(IndexableField field) {
+        if (field instanceof LatLonPoint) {
+            byte[] bytes = field.binaryValue().bytes;
+            return this.reset(
+                GeoEncodingUtils.decodeLatitude(bytes, 0),
+                GeoEncodingUtils.decodeLongitude(bytes, Integer.BYTES));
+        } else if (field instanceof LatLonDocValuesField) {
+            long encoded = (long)(field.numericValue());
+            return this.reset(
+                GeoEncodingUtils.decodeLatitude((int)(encoded >>> 32)),
+                GeoEncodingUtils.decodeLongitude((int)encoded));
+        }
+        return resetFromIndexHash(Long.parseLong(field.stringValue()));
     }
 
     public GeoPoint resetFromGeoHash(String geohash) {

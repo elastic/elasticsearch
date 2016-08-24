@@ -54,6 +54,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -560,6 +561,24 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             throw ex;
         }
         return false;
+    }
+
+    /**
+     * Ensures that all locations in the given stream have been synced / written to the underlying storage.
+     * This method allows for internal optimization to minimize the amout of fsync operations if multiple
+     * locations must be synced.
+     *
+     * @return Returns <code>true</code> iff this call caused an actual sync operation otherwise <code>false</code>
+     */
+    public boolean ensureSynced(Stream<Location> locations) throws IOException {
+        final Optional<Location> max = locations.max(Location::compareTo);
+        // we only need to sync the max location since it will sync all other
+        // locations implicitly
+        if (max.isPresent()) {
+            return ensureSynced(max.get());
+        } else {
+            return false;
+        }
     }
 
     private void closeOnTragicEvent(Exception ex) {

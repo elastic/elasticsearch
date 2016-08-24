@@ -34,6 +34,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Lock;
+import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
@@ -47,6 +48,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -128,6 +130,7 @@ import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -139,6 +142,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -1634,6 +1638,76 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } catch (IOException ex) { // if this fails we are in deep shit - fail the request
             logger.debug("failed to sync translog", ex);
             throw new ElasticsearchException("failed to sync translog", ex);
+        }
+    }
+
+    // lock order --> fsyncLock --> monitor
+    private final ReentrantLock fsyncLock = new ReentrantLock();
+    private final Object monitor = new Object();
+    private List<Tuple<Translog.Location, Consumer<Exception>>> syncConsumerList = new ArrayList<>();
+    private List<Tuple<Translog.Location, Consumer<Exception>>> syncConsumerListSpare = new ArrayList<>();
+
+    /**
+     * Syncs the given location with the underlying storage unless already synced. This method might return immediately without
+     * actually fsyncing the location until the sync listener is called. Yet, unless there is already another thread fsyncing
+     * the transaction log the caller thread will be hijacked to run the fsync for all pending fsync operations.
+     * This method allows indexing threads to continue indexing without blocking on fsync calls. We ensure that there is only
+     * one thread blocking on the sync an all others can continue indexing.
+     */
+    public final void sync(Translog.Location location, Consumer<Exception> syncListener) {
+        verifyNotClosed();
+        /* we first add the location and the listener to the list and then try to accquire the
+         fsync lock. if we get it we run fsync for the further most location such that we only fsync once
+         for all pending operations. */
+        synchronized (monitor) {
+            // TODO should we make this bounded and block the caller thread?
+            // I assume this won't grow to anything crazy but it might be good to have an upperbound here to prevent OOM?
+            syncConsumerList.add(new Tuple<>(location, syncListener));
+        }
+        while (fsyncLock.tryLock()) {
+            try {
+                List<Tuple<Translog.Location, Consumer<Exception>>> candidates;
+                synchronized (monitor) {
+                    candidates = syncConsumerList;
+                    syncConsumerList = syncConsumerListSpare;
+
+                    syncConsumerListSpare = candidates;
+                    if (syncConsumerListSpare.size() > 1024) {
+                        // we limit the size to 1024 elements to ensure we don't hold on to too large lists from peak times
+                        syncConsumerListSpare = new ArrayList<>();
+                    }
+                }
+                Exception exception = null;
+                if (candidates.isEmpty() == false) {
+                    candidates.sort((t1, t2) -> t2.v1().compareTo(t1.v1()));
+                    try {
+                        final Engine engine = getEngine();
+                        engine.getTranslog().ensureSynced(candidates.stream().map(Tuple::v1));
+                    } catch (EngineClosedException ex) {
+                        // that's fine since we already synced everything on engine close - this also is conform with the methods documentation
+                    } catch (IOException ex) { // if this fails we are in deep shit - fail the request
+                        logger.debug("failed to sync translog", ex);
+                        // this exception is passed to all listeners - we don't retry. if this doesn't work we are in deep shit
+                        exception = ex;
+                    }
+                }
+                for (Tuple<Translog.Location, Consumer<Exception>> tuple : candidates) {
+                    Consumer<Exception> consumer = tuple.v2();
+                    try {
+                        consumer.accept(exception);
+                    } catch (Exception ex) {
+                        exception.addSuppressed(ex);
+                    }
+                }
+                candidates.clear(); // now clear the list, we are done.
+            } finally {
+                fsyncLock.unlock();
+            }
+            synchronized (monitor) {
+                if (syncConsumerList.isEmpty()) { // only step out of this iff the list is empty - it's crucial to hold both locks here.
+                    break;
+                }
+            }
         }
     }
 

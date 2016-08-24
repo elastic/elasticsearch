@@ -22,19 +22,26 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -63,7 +70,55 @@ public class QuerySpecTests extends ESTestCase {
         searchRequestParsers = null;
     }
 
-    // TODO add some sort of roundtrip testing like we have now for queries?
+    public void testXContentRoundtrip() throws IOException {
+        String specId = randomAsciiOfLength(50);
+
+        SearchSourceBuilder testRequest = new SearchSourceBuilder();
+        testRequest.size(23);
+        testRequest.query(new MatchAllQueryBuilder());
+
+        List<String> indices = new ArrayList<>();
+        int size = randomIntBetween(0, 20);
+        for (int i = 0; i < size; i++) {
+            indices.add(randomAsciiOfLengthBetween(0, 50));
+        }
+
+        List<String> types = new ArrayList<>();
+        size = randomIntBetween(0, 20);
+        for (int i = 0; i < size; i++) {
+            types.add(randomAsciiOfLengthBetween(0, 50));
+        }
+
+        List<RatedDocument> ratedDocs = new ArrayList<>();
+        size = randomIntBetween(0, 20);
+        for (int i = 0; i < size; i++) {
+            ratedDocs.add(RatedDocumentTests.createTestItem());
+        }
+        
+
+        QuerySpec testItem = new QuerySpec(specId, testRequest, indices, types, ratedDocs);
+        
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        if (randomBoolean()) {
+            builder.prettyPrint();
+        }
+        testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        XContentBuilder shuffled = shuffleXContent(builder);
+        XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
+        itemParser.nextToken(); // TODO this could be the reason why the metric roundtrip tests failed
+
+        QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, itemParser, ParseFieldMatcher.STRICT);
+        RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,
+                searchRequestParsers);
+
+        QuerySpec parsedItem = QuerySpec.fromXContent(itemParser, rankContext);
+        parsedItem.setIndices(indices); // IRL these come from URL parameters - see RestRankEvalAction
+        parsedItem.setTypes(types); // IRL these come from URL parameters - see RestRankEvalAction
+        assertNotSame(testItem, parsedItem);
+        assertEquals(testItem, parsedItem);
+        assertEquals(testItem.hashCode(), parsedItem.hashCode());
+    }
+
     public void testParseFromXContent() throws IOException {
         String querySpecString = " {\n"
          + "   \"id\": \"my_qa_query\",\n"
@@ -99,4 +154,6 @@ public class QuerySpecTests extends ESTestCase {
         assertEquals("3", ratedDocs.get(2).getKey().getDocID());
         assertEquals(1, ratedDocs.get(2).getRating());
     }
+    
+    
 }

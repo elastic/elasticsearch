@@ -33,6 +33,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Defines a QA specification: All end user supplied query intents will be mapped to the search request specified in this search request
@@ -204,5 +205,26 @@ public class QuerySpec extends ToXContentToBytes implements Writeable {
         builder.endArray();
         builder.endObject();
         return builder;
+    }
+    
+    @Override
+    public final boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        QuerySpec other = (QuerySpec) obj;
+        return Objects.equals(specId, other.specId) &&
+                Objects.equals(testRequest, other.testRequest) &&
+                Objects.equals(indices, other.indices) &&
+                Objects.equals(types, other.types) &&
+                Objects.equals(ratedDocs, other.ratedDocs);
+    }
+    
+    @Override
+    public final int hashCode() {
+        return Objects.hash(getClass(), specId, testRequest, indices.hashCode(), types.hashCode(), ratedDocs.hashCode());
     }
 }

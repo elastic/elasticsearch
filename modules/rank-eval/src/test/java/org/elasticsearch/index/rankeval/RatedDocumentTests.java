@@ -23,13 +23,16 @@ import java.io.IOException;
 
 public class RatedDocumentTests extends XContentRoundtripTestCase<RatedDocument> {
 
-    public void testXContentParsing() throws IOException {
+    public static RatedDocument createTestItem() {
         String index = randomAsciiOfLength(10);
         String type = randomAsciiOfLength(10);
         String docId = randomAsciiOfLength(10);
         int rating = randomInt();
 
-        RatedDocument testItem = new RatedDocument(new RatedDocumentKey(index, type, docId), rating);
-        roundtrip(testItem);
+        return new RatedDocument(new RatedDocumentKey(index, type, docId), rating);
+    }
+
+    public void testXContentParsing() throws IOException {
+        roundtrip(createTestItem());
     }
 }

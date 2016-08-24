@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.LegacyNumericRangeQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -329,8 +330,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "    }\n" +
                 "}";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext()).rewrite(null);
-        if (parsedQuery instanceof PointRangeQuery) {
-            // TODO what can we assert
+        if (parsedQuery instanceof PointRangeQuery || parsedQuery instanceof ConstantScoreQuery) {
+            // TODO 5.x index, what can we assert
         } else {
             assertThat(parsedQuery, instanceOf(LegacyNumericRangeQuery.class));
 

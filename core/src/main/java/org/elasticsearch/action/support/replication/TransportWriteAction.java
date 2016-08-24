@@ -231,10 +231,10 @@ public abstract class TransportWriteAction<
      * translog syncs or waiting for a refresh to happen making the write operation
      * visible.
      */
-    static class AsyncAfterWriteAction {
+    final static class AsyncAfterWriteAction {
         private final Location location;
         private final boolean waitUntilRefresh;
-        private final boolean fsync;
+        private final boolean sync;
         private final AtomicInteger pendingOps = new AtomicInteger(0);
         private final AtomicBoolean refreshed = new AtomicBoolean(false);
         private final AtomicReference<Exception> syncFailure = new AtomicReference<>(null);
@@ -270,29 +270,34 @@ public abstract class TransportWriteAction<
             this.waitUntilRefresh = waitUntilRefresh;
             this.respond = respond;
             this.location = location;
-            if ((fsync = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null)) {
+            if ((sync = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null)) {
                 pendingOps.incrementAndGet();
             }
             this.logger = logger;
+            assert pendingOps.get() >= 0 && pendingOps.get() <= 2 : "pendingOpts was: " + pendingOps.get();
         }
 
+        /** calls the response listener if all pending operations have returned otherwise it just decrements the pending opts counter.*/
         private void maybeFinish() {
-            if (pendingOps.decrementAndGet() == 0) {
+            final int numPending = pendingOps.decrementAndGet();
+            if (numPending == 0) {
                 if (syncFailure.get() != null) {
                     respond.onFailure(syncFailure.get());
                 } else {
                     respond.onSuccess(refreshed.get());
                 }
-
             }
+            assert numPending == 0 || numPending == 1: "numPending must either 1 or 0 but was " + numPending ;
         }
 
-        public void run() {
+        void run() {
+            // we either respond immediately ie. if we we don't fsync per request or wait for refresh
+            // OR we got an pass async operations on and wait for them to return to respond.
             indexShard.maybeFlush();
             if (pendingOps.get() == 0) {
                 respond.onSuccess(refreshed.get());
             } else {
-                if (fsync) { // this is potentially slow so we do that first since it could safe us time on the waiting on refresh
+                if (sync) { // this is potentially slow so we do that first since it could safe us time on the waiting on refresh
                     indexShard.sync(location, (ex) -> {
                         syncFailure.set(ex);
                         maybeFinish();

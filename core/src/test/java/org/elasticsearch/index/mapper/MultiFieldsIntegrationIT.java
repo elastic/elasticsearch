@@ -128,7 +128,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
                 .setQuery(constantScoreQuery(geoDistanceQuery("a").point(51, 19).distance(50, DistanceUnit.KILOMETERS)))
                 .get();
         assertThat(countResponse.getHits().totalHits(), equalTo(1L));
-        countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", point.toString())).get();
+        countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", point.geohash())).get();
         assertThat(countResponse.getHits().totalHits(), equalTo(1L));
     }
 

@@ -204,7 +204,9 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
     @Override
     public void testToQuery() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        super.testToQuery();
+        if (createShardContext().indexVersionCreated().before(Version.V_5_0_0_alpha6)) {
+            super.testToQuery();
+        }
     }
 
     public void testNullFieldName() {
@@ -254,6 +256,11 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
     }
 
     public void testNestedRangeQuery() throws IOException {
+        // geo distance range queries are no longer supported in 5.0 they are replaced by using aggregations or sort
+        if (createShardContext().indexVersionCreated().onOrAfter(Version.V_5_0_0_alpha6)) {
+            return;
+        }
+
         // create a nested geo_point type with a subfield named "geohash" (explicit testing for ISSUE #15179)
         MapperService mapperService = createShardContext().getMapperService();
         String nestedMapping =
@@ -367,7 +374,9 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
     @Override
     public void testMustRewrite() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
-        super.testMustRewrite();
+        if (createShardContext().indexVersionCreated().before(Version.V_5_0_0_alpha6)) {
+            super.testMustRewrite();
+        }
     }
 
     public void testIgnoreUnmapped() throws IOException {

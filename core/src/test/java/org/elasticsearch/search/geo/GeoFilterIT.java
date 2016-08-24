@@ -446,7 +446,7 @@ public class GeoFilterIT extends ESIntegTestCase {
         }
     }
 
-    public void testGeohashCellFilter() throws IOException {
+    public void testLegacyGeohashCellFilter() throws IOException {
         String geohash = randomhash(10);
         logger.info("Testing geohash_cell filter for [{}]", geohash);
 
@@ -457,8 +457,11 @@ public class GeoFilterIT extends ESIntegTestCase {
         logger.info("Parent Neighbors {}", parentNeighbors);
 
         ensureYellow();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_5_0_0_alpha5);
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
 
-        client().admin().indices().prepareCreate("locations").addMapping("location", "pin", "type=geo_point,geohash_prefix=true,lat_lon=false").execute().actionGet();
+        client().admin().indices().prepareCreate("locations").setSettings(settings).addMapping("location", "pin",
+            "type=geo_point,geohash_prefix=true,lat_lon=false").execute().actionGet();
 
         // Index a pin
         client().prepareIndex("locations", "location", "1").setCreate(true).setSource("pin", geohash).execute().actionGet();

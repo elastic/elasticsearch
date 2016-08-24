@@ -59,6 +59,7 @@ public class ExternalMapper extends FieldMapper {
         private BooleanFieldMapper.Builder boolBuilder = new BooleanFieldMapper.Builder(Names.FIELD_BOOL);
         private GeoPointFieldMapper.Builder pointBuilder = new GeoPointFieldMapper.Builder(Names.FIELD_POINT);
         private LegacyGeoPointFieldMapper.Builder legacyPointBuilder = new LegacyGeoPointFieldMapper.Builder(Names.FIELD_POINT);
+        private LatLonPointFieldMapper.Builder latLonPointBuilder = new LatLonPointFieldMapper.Builder(Names.FIELD_POINT);
         private GeoShapeFieldMapper.Builder shapeBuilder = new GeoShapeFieldMapper.Builder(Names.FIELD_SHAPE);
         private Mapper.Builder stringBuilder;
         private String generatedValue;
@@ -82,8 +83,14 @@ public class ExternalMapper extends FieldMapper {
             context.path().add(name);
             BinaryFieldMapper binMapper = binBuilder.build(context);
             BooleanFieldMapper boolMapper = boolBuilder.build(context);
-            BaseGeoPointFieldMapper pointMapper = (context.indexCreatedVersion().before(Version.V_2_2_0)) ?
-                    legacyPointBuilder.build(context) : pointBuilder.build(context);
+            BaseGeoPointFieldMapper pointMapper;
+            if (context.indexCreatedVersion().before(Version.V_2_2_0)) {
+                pointMapper = legacyPointBuilder.build(context);
+            } else if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0_alpha6)) {
+                pointMapper = latLonPointBuilder.build(context);
+            } else {
+                pointMapper = pointBuilder.build(context);
+            }
             GeoShapeFieldMapper shapeMapper = shapeBuilder.build(context);
             FieldMapper stringMapper = (FieldMapper)stringBuilder.build(context);
             context.path().remove();
@@ -198,7 +205,7 @@ public class ExternalMapper extends FieldMapper {
         MultiFields multiFieldsUpdate = multiFields.updateFieldType(fullNameToFieldType);
         BinaryFieldMapper binMapperUpdate = (BinaryFieldMapper) binMapper.updateFieldType(fullNameToFieldType);
         BooleanFieldMapper boolMapperUpdate = (BooleanFieldMapper) boolMapper.updateFieldType(fullNameToFieldType);
-        GeoPointFieldMapper pointMapperUpdate = (GeoPointFieldMapper) pointMapper.updateFieldType(fullNameToFieldType);
+        BaseGeoPointFieldMapper pointMapperUpdate = (BaseGeoPointFieldMapper) pointMapper.updateFieldType(fullNameToFieldType);
         GeoShapeFieldMapper shapeMapperUpdate = (GeoShapeFieldMapper) shapeMapper.updateFieldType(fullNameToFieldType);
         TextFieldMapper stringMapperUpdate = (TextFieldMapper) stringMapper.updateFieldType(fullNameToFieldType);
         if (update == this

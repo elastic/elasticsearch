@@ -2728,7 +2728,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .startObject("properties")
             .startObject("geo_point")
             .field("type", "geo_point")
-            .field("geohash", true)
             .endObject()
             .startObject("text")
             .field("type", "text")

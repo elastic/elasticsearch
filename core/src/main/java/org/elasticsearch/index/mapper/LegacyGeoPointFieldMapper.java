@@ -25,7 +25,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -50,7 +49,7 @@ import java.util.Map;
  * "lon" : 2.1
  * }
  */
-public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implements ArrayValueMapperParser {
+public class LegacyGeoPointFieldMapper extends BaseGeoPointFieldMapper implements ArrayValueMapperParser {
 
     public static final String CONTENT_TYPE = "geo_point";
 
@@ -74,7 +73,7 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
     /**
      * Concrete builder for legacy GeoPointField
      */
-    public static class Builder extends BaseGeoPointFieldMapper.Builder<Builder, GeoPointFieldMapperLegacy> {
+    public static class Builder extends BaseGeoPointFieldMapper.Builder<Builder, LegacyGeoPointFieldMapper> {
 
         private Boolean coerce;
 
@@ -99,25 +98,26 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
         }
 
         @Override
-        public GeoPointFieldMapperLegacy build(BuilderContext context, String simpleName, MappedFieldType fieldType,
-                                               MappedFieldType defaultFieldType, Settings indexSettings, FieldMapper latMapper,
-                                               FieldMapper lonMapper, KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                                               CopyTo copyTo) {
+        public LegacyGeoPointFieldMapper build(BuilderContext context, String simpleName, MappedFieldType fieldType,
+                MappedFieldType defaultFieldType, Settings indexSettings, FieldMapper latMapper, FieldMapper lonMapper,
+                KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                CopyTo copyTo) {
             fieldType.setTokenized(false);
             setupFieldType(context);
             fieldType.setHasDocValues(false);
             defaultFieldType.setHasDocValues(false);
-            return new GeoPointFieldMapperLegacy(simpleName, fieldType, defaultFieldType, indexSettings, latMapper, lonMapper,
-                    geoHashMapper, multiFields, ignoreMalformed, coerce(context), copyTo);
+            return new LegacyGeoPointFieldMapper(simpleName, fieldType, defaultFieldType, indexSettings, latMapper,
+                lonMapper, geoHashMapper, multiFields, ignoreMalformed, coerce(context), copyTo);
         }
 
         @Override
-        public GeoPointFieldMapperLegacy build(BuilderContext context) {
+        public LegacyGeoPointFieldMapper build(BuilderContext context) {
             return super.build(context);
         }
     }
 
-    public static Builder parse(Builder builder, Map<String, Object> node, Mapper.TypeParser.ParserContext parserContext) throws MapperParsingException {
+    public static Builder parse(Builder builder, Map<String, Object> node, Mapper.TypeParser.ParserContext parserContext)
+            throws MapperParsingException {
         for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
             String propName = entry.getKey();
@@ -155,7 +155,8 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
             return instance;
         }
 
-        /** Get an instance based on the expected precision. Here are examples of the number of required bytes per value depending on the
+        /** Get an instance based on the expected precision. Here are examples of the number of required bytes per value
+         * depending on the
          *  expected precision:<ul>
          *  <li>1km: 4 bytes</li>
          *  <li>3m: 6 bytes</li>
@@ -182,13 +183,15 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
             this.numBytes = numBytes;
             this.numBytesPerCoordinate = numBytes / 2;
             this.factor = Math.pow(2, - numBytesPerCoordinate * 8 + 9);
-            assert (1L << (numBytesPerCoordinate * 8 - 1)) * factor > 180 && (1L << (numBytesPerCoordinate * 8 - 2)) * factor < 180 : numBytesPerCoordinate + " " + factor;
+            assert (1L << (numBytesPerCoordinate * 8 - 1)) * factor > 180 && (1L << (numBytesPerCoordinate * 8 - 2))
+                * factor < 180 : numBytesPerCoordinate + " " + factor;
             if (numBytes == MAX_NUM_BYTES) {
                 // no precision loss compared to a double
                 precision = new DistanceUnit.Distance(0, DistanceUnit.DEFAULT);
             } else {
+                // factor/2 because we use Math.round instead of a cast to convert the double to a long
                 precision = new DistanceUnit.Distance(
-                        GeoDistance.PLANE.calculate(0, 0, factor / 2, factor / 2, DistanceUnit.DEFAULT), // factor/2 because we use Math.round instead of a cast to convert the double to a long
+                        GeoDistance.PLANE.calculate(0, 0, factor / 2, factor / 2, DistanceUnit.DEFAULT),
                         DistanceUnit.DEFAULT);
             }
         }
@@ -257,10 +260,9 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
 
     protected Explicit<Boolean> coerce;
 
-    public GeoPointFieldMapperLegacy(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings,
-                                     FieldMapper latMapper, FieldMapper lonMapper,
-                                     KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                                     Explicit<Boolean> coerce, CopyTo copyTo) {
+    public LegacyGeoPointFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
+            Settings indexSettings, FieldMapper latMapper, FieldMapper lonMapper, KeywordFieldMapper geoHashMapper,
+            MultiFields multiFields, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, latMapper, lonMapper, geoHashMapper, multiFields,
                 ignoreMalformed, copyTo);
         this.coerce = coerce;
@@ -270,7 +272,7 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         super.doMerge(mergeWith, updateAllTypes);
 
-        GeoPointFieldMapperLegacy gpfmMergeWith = (GeoPointFieldMapperLegacy) mergeWith;
+        LegacyGeoPointFieldMapper gpfmMergeWith = (LegacyGeoPointFieldMapper) mergeWith;
         if (gpfmMergeWith.coerce.explicit()) {
             if (coerce.explicit() && coerce.value() != gpfmMergeWith.coerce.value()) {
                 throw new IllegalArgumentException("mapper [" + fieldType().name() + "] has different [coerce]");
@@ -302,14 +304,16 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
         }
 
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            Field field = new Field(fieldType().name(), Double.toString(point.lat()) + ',' + Double.toString(point.lon()), fieldType());
+            Field field = new Field(fieldType().name(), Double.toString(point.lat()) + ','
+                + Double.toString(point.lon()), fieldType());
             context.doc().add(field);
         }
 
         super.parse(context, point, geoHash);
 
         if (fieldType().hasDocValues()) {
-            CustomGeoPointDocValuesField field = (CustomGeoPointDocValuesField) context.doc().getByKey(fieldType().name());
+            CustomGeoPointDocValuesField field = (CustomGeoPointDocValuesField) context.doc()
+                .getByKey(fieldType().name());
             if (field == null) {
                 field = new CustomGeoPointDocValuesField(fieldType().name(), point.lat(), point.lon());
                 context.doc().addWithKey(fieldType().name(), field);

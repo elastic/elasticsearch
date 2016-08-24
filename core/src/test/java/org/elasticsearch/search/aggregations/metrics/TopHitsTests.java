@@ -34,6 +34,7 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
@@ -58,13 +59,25 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
         if (randomBoolean()) {
             factory.trackScores(randomBoolean());
         }
-        if (randomBoolean()) {
-            int fieldsSize = randomInt(25);
-            List<String> fields = new ArrayList<>(fieldsSize);
-            for (int i = 0; i < fieldsSize; i++) {
-                fields.add(randomAsciiOfLengthBetween(5, 50));
-            }
-            factory.fields(fields);
+        switch (randomInt(3)) {
+            case 0:
+                break;
+            case 1:
+                factory.storedField("_none_");
+                break;
+            case 2:
+                factory.storedFields(Collections.emptyList());
+                break;
+            case 3:
+                int fieldsSize = randomInt(25);
+                List<String> fields = new ArrayList<>(fieldsSize);
+                for (int i = 0; i < fieldsSize; i++) {
+                    fields.add(randomAsciiOfLengthBetween(5, 50));
+                }
+                factory.storedFields(fields);
+                break;
+            default:
+                throw new IllegalStateException();
         }
         if (randomBoolean()) {
             int fieldDataFieldsSize = randomInt(25);

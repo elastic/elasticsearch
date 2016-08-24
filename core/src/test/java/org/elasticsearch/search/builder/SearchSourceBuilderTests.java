@@ -53,14 +53,12 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.rescore.QueryRescoreBuilderTests;
@@ -73,7 +71,6 @@ import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilderTests;
-import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -213,20 +210,26 @@ public class SearchSourceBuilderTests extends ESTestCase {
         // if (randomBoolean()) {
         // builder.defaultRescoreWindowSize(randomIntBetween(1, 100));
         // }
-        if (randomBoolean()) {
-            int fieldsSize = randomInt(25);
-            List<String> fields = new ArrayList<>(fieldsSize);
-            for (int i = 0; i < fieldsSize; i++) {
-                fields.add(randomAsciiOfLengthBetween(5, 50));
-            }
-            builder.storedFields(fields);
+
+        switch(randomInt(2)) {
+            case 0:
+                builder.storedFields();
+                break;
+            case 1:
+                builder.storedField("_none_");
+                break;
+            case 2:
+                int fieldsSize = randomInt(25);
+                List<String> fields = new ArrayList<>(fieldsSize);
+                for (int i = 0; i < fieldsSize; i++) {
+                    fields.add(randomAsciiOfLengthBetween(5, 50));
+                }
+                builder.storedFields(fields);
+                break;
+            default:
+                throw new IllegalStateException();
         }
-        if (randomBoolean()) {
-            int fieldDataFieldsSize = randomInt(25);
-            for (int i = 0; i < fieldDataFieldsSize; i++) {
-                builder.docValueField(randomAsciiOfLengthBetween(5, 50));
-            }
-        }
+
         if (randomBoolean()) {
             int scriptFieldsSize = randomInt(25);
             for (int i = 0; i < scriptFieldsSize; i++) {
@@ -545,14 +548,14 @@ public class SearchSourceBuilderTests extends ESTestCase {
 
     public void testAggsParsing() throws IOException {
         {
-            String restContent = "{\n" + "    " + 
-                    "\"aggs\": {" + 
-                    "        \"test_agg\": {\n" + 
-                    "            " + "\"terms\" : {\n" + 
-                    "                \"field\": \"foo\"\n" + 
-                    "            }\n" + 
-                    "        }\n" + 
-                    "    }\n" + 
+            String restContent = "{\n" + "    " +
+                    "\"aggs\": {" +
+                    "        \"test_agg\": {\n" +
+                    "            " + "\"terms\" : {\n" +
+                    "                \"field\": \"foo\"\n" +
+                    "            }\n" +
+                    "        }\n" +
+                    "    }\n" +
                     "}\n";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
@@ -561,14 +564,14 @@ public class SearchSourceBuilderTests extends ESTestCase {
             }
         }
         {
-            String restContent = "{\n" + 
-                    "    \"aggregations\": {" + 
-                    "        \"test_agg\": {\n" + 
-                    "            \"terms\" : {\n" + 
-                    "                \"field\": \"foo\"\n" + 
-                    "            }\n" + 
-                    "        }\n" + 
-                    "    }\n" + 
+            String restContent = "{\n" +
+                    "    \"aggregations\": {" +
+                    "        \"test_agg\": {\n" +
+                    "            \"terms\" : {\n" +
+                    "                \"field\": \"foo\"\n" +
+                    "            }\n" +
+                    "        }\n" +
+                    "    }\n" +
                     "}\n";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),

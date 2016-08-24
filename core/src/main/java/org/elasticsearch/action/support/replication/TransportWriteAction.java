@@ -42,7 +42,6 @@ import org.elasticsearch.transport.TransportService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -154,13 +153,13 @@ public abstract class TransportWriteAction<
             }
         }
 
-        public synchronized void failAfterAsyncAction(Exception exception) {
+        public synchronized void onFailure(Exception exception) {
             finishedAsyncActions = true;
             respondIfPossible(exception);
         }
 
         @Override
-        public synchronized void respondAfterAsyncAction(boolean forcedRefresh) {
+        public synchronized void onSuccess(boolean forcedRefresh) {
             finalResponse.setForcedRefresh(forcedRefresh);
             finishedAsyncActions = true;
             respondIfPossible(null);
@@ -198,23 +197,40 @@ public abstract class TransportWriteAction<
         }
 
         @Override
-        public void failAfterAsyncAction(Exception ex) {
+        public void onFailure(Exception ex) {
             finishedAsyncActions = true;
             respondIfPossible(ex);
         }
 
         @Override
-        public synchronized void respondAfterAsyncAction(boolean forcedRefresh) {
+        public synchronized void onSuccess(boolean forcedRefresh) {
             finishedAsyncActions = true;
             respondIfPossible(null);
         }
     }
 
+    /**
+     * callback used by {@link AsyncAfterWriteAction} to notify that all post
+     * process actions have been executed
+     */
     private interface RespondingWriteResult {
-        void respondAfterAsyncAction(boolean forcedRefresh);
-        void failAfterAsyncAction(Exception ex);
+        /**
+         * Called on successful processing of all post write actions
+         * @param forcedRefresh <code>true</code> iff this write has caused a refresh
+         */
+        void onSuccess(boolean forcedRefresh);
+
+        /**
+         * Called on failure if a post action failed.
+         */
+        void onFailure(Exception ex);
     }
 
+    /**
+     * This class encapsulates post write actions like async waits for
+     * translog syncs or waiting for a refresh to happen making the write operation
+     * visible.
+     */
     static class AsyncAfterWriteAction {
         private final Location location;
         private final boolean waitUntilRefresh;
@@ -227,11 +243,11 @@ public abstract class TransportWriteAction<
         private final WriteRequest<?> request;
         private final ESLogger logger;
 
-        public AsyncAfterWriteAction(final IndexShard indexShard,
-                                     final WriteRequest<?> request,
-                                     @Nullable final Translog.Location location,
-                                     final RespondingWriteResult respond,
-                                     final ESLogger logger) {
+        AsyncAfterWriteAction(final IndexShard indexShard,
+                             final WriteRequest<?> request,
+                             @Nullable final Translog.Location location,
+                             final RespondingWriteResult respond,
+                             final ESLogger logger) {
             this.indexShard = indexShard;
             this.request = request;
             boolean waitUntilRefresh = false;
@@ -263,9 +279,9 @@ public abstract class TransportWriteAction<
         private void maybeFinish() {
             if (pendingOps.decrementAndGet() == 0) {
                 if (syncFailure.get() != null) {
-                    respond.failAfterAsyncAction(syncFailure.get());
+                    respond.onFailure(syncFailure.get());
                 } else {
-                    respond.respondAfterAsyncAction(refreshed.get());
+                    respond.onSuccess(refreshed.get());
                 }
 
             }
@@ -274,7 +290,7 @@ public abstract class TransportWriteAction<
         public void run() {
             indexShard.maybeFlush();
             if (pendingOps.get() == 0) {
-                respond.respondAfterAsyncAction(refreshed.get());
+                respond.onSuccess(refreshed.get());
             } else {
                 if (fsync) { // this is potentially slow so we do that first since it could safe us time on the waiting on refresh
                     indexShard.sync(location, (ex) -> {

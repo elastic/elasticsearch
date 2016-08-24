@@ -172,7 +172,7 @@ public class PrecisionAtN extends RankedListQualityMetric<PrecisionAtN> {
         builder.endObject();
         return builder;
     }
-    
+
     @Override
     public final boolean equals(Object obj) {
         if (this == obj) {
@@ -189,5 +189,4 @@ public class PrecisionAtN extends RankedListQualityMetric<PrecisionAtN> {
     public final int hashCode() {
         return Objects.hash(getClass(), n);
     }
-
 }

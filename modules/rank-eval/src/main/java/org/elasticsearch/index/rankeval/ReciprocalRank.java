@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import javax.naming.directory.SearchResult;
@@ -159,10 +160,27 @@ public class ReciprocalRank extends RankedListQualityMetric<ReciprocalRank> {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startObject(NAME);
+        //builder.startObject(NAME);
         builder.field(MAX_RANK_FIELD.getPreferredName(), this.maxAcceptableRank);
-        builder.endObject();
+        //builder.endObject();
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public final boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        ReciprocalRank other = (ReciprocalRank) obj;
+        return Objects.equals(maxAcceptableRank, other.maxAcceptableRank);
+    }
+    
+    @Override
+    public final int hashCode() {
+        return Objects.hash(getClass(), maxAcceptableRank);
     }
 }

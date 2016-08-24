@@ -20,6 +20,7 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,8 +36,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
+public class DiscountedCumulativeGainAt extends RankedListQualityMetric<DiscountedCumulativeGainAt> {
 
     /** rank position up to which to check results. */
     private int position;
@@ -81,6 +83,17 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
             throw new IllegalArgumentException("number of results to check needs to be positive but was " + position);
         }
         this.position = position;
+    }
+
+    /**
+     * @param position number of top results to check against a given set of relevant results. Must be positive. // TODO is there a way to enforce this?
+     * @param normalize If set to true, dcg will be normalized (ndcg) See https://en.wikipedia.org/wiki/Discounted_cumulative_gain
+     * @param unknownDocRating the rating for docs the user hasn't supplied an explicit rating for
+     * */
+    public DiscountedCumulativeGainAt(int position, boolean normalize, Integer unknownDocRating) {
+        this.position = position;
+        this.normalize = normalize;
+        this.unknownDocRating = unknownDocRating;
     }
 
     /**
@@ -178,13 +191,24 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
         PARSER.declareInt(DiscountedCumulativeGainAt::setUnknownDocRating, UNKNOWN_DOC_RATING_FIELD);
     }
 
+    @Override
+    public DiscountedCumulativeGainAt fromXContent(XContentParser parser, ParseFieldMatcher matcher) {
+        return DiscountedCumulativeGainAt.fromXContent(parser, new ParseFieldMatcherSupplier() {
+            @Override
+            public ParseFieldMatcher getParseFieldMatcher() {
+                return matcher;
+            }
+        });
+    }
+
     public static DiscountedCumulativeGainAt fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {
         return PARSER.apply(parser, matcher);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NAME);
+        //builder.startObject(NAME); // TODO roundtrip xcontent only works w/o this, wtf?
+        builder.startObject();
         builder.field(SIZE_FIELD.getPreferredName(), this.position);
         builder.field(NORMALIZE_FIELD.getPreferredName(), this.normalize);
         if (unknownDocRating != null) {
@@ -192,5 +216,24 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric {
         }
         builder.endObject();
         return builder;
+    }
+    
+    @Override
+    public final boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        DiscountedCumulativeGainAt other = (DiscountedCumulativeGainAt) obj;
+        return Objects.equals(position, other.position) &&
+                Objects.equals(normalize, other.normalize) &&
+                Objects.equals(unknownDocRating, other.unknownDocRating);
+    }
+    
+    @Override
+    public final int hashCode() {
+        return Objects.hash(getClass(), position, normalize, unknownDocRating);
     }
 }

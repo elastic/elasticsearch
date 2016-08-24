@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,7 +33,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-public class DiscountedCumulativeGainAtTests extends ESTestCase {
+public class DiscountedCumulativeGainAtTests extends XContentRoundtripTestCase<DiscountedCumulativeGainAt> {
 
     /**
      * Assuming the docs are ranked in the following order:
@@ -120,5 +119,14 @@ public class DiscountedCumulativeGainAtTests extends ESTestCase {
         DiscountedCumulativeGainAt dcgAt = DiscountedCumulativeGainAt.fromXContent(parser, () -> ParseFieldMatcher.STRICT);
         assertEquals(8, dcgAt.getPosition());
         assertEquals(true, dcgAt.getNormalize());
+    }
+    
+    public void testXContentRoundtrip() throws IOException {
+        int position = randomIntBetween(0, 1000);
+        boolean normalize = randomBoolean();
+        Integer unknownDocRating = new Integer(randomIntBetween(0, 1000));
+
+        DiscountedCumulativeGainAt testItem = new DiscountedCumulativeGainAt(position, normalize, unknownDocRating);
+        roundtrip(testItem);
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,7 +41,7 @@ import javax.naming.directory.SearchResult;
  *
  * Documents of unkonwn quality are ignored in the precision at n computation and returned by document id.
  * */
-public class PrecisionAtN extends RankedListQualityMetric {
+public class PrecisionAtN extends RankedListQualityMetric<PrecisionAtN> {
 
     /** Number of results to check against a given set of relevant results. */
     private int n;
@@ -88,6 +89,17 @@ public class PrecisionAtN extends RankedListQualityMetric {
 
     static {
         PARSER.declareInt(ConstructingObjectParser.constructorArg(), SIZE_FIELD);
+    }
+
+    @Override
+    public PrecisionAtN fromXContent(XContentParser parser, ParseFieldMatcher matcher) {
+        return PrecisionAtN.fromXContent(parser, new ParseFieldMatcherSupplier() {
+            
+            @Override
+            public ParseFieldMatcher getParseFieldMatcher() {
+                return matcher;
+            }
+        });
     }
 
     public static PrecisionAtN fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {

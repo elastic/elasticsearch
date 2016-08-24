@@ -21,6 +21,7 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -36,7 +37,7 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField INDEX_FIELD = new ParseField("index");
 
-    private static final ConstructingObjectParser<RatedDocumentKey, RankEvalContext> PARSER = new ConstructingObjectParser<>("ratings",
+    private static final ConstructingObjectParser<RatedDocumentKey, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>("ratings",
             a -> new RatedDocumentKey((String) a[0], (String) a[1], (String) a[2]));
 
     static {
@@ -103,7 +104,7 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable {
         out.writeString(docId);
     }
     
-    public static RatedDocumentKey fromXContent(XContentParser parser, RankEvalContext context) throws IOException {
+    public static RatedDocumentKey fromXContent(XContentParser parser, ParseFieldMatcherSupplier context) throws IOException {
         return PARSER.apply(parser, context);
     }
 

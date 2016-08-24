@@ -21,11 +21,14 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.FromXContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -35,12 +38,12 @@ import java.util.Objects;
 /**
  * A document ID and its rating for the query QA use case.
  * */
-public class RatedDocument extends ToXContentToBytes implements Writeable {
+public class RatedDocument extends ToXContentToBytes implements Writeable, FromXContentBuilder<RatedDocument> {
 
     public static final ParseField RATING_FIELD = new ParseField("rating");
     public static final ParseField KEY_FIELD = new ParseField("key");
 
-    private static final ConstructingObjectParser<RatedDocument, RankEvalContext> PARSER = new ConstructingObjectParser<>("rated_document", 
+    private static final ConstructingObjectParser<RatedDocument, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>("rated_document", 
             a -> new RatedDocument((RatedDocumentKey) a[0], (Integer) a[1])); 
             
     static {
@@ -93,8 +96,19 @@ public class RatedDocument extends ToXContentToBytes implements Writeable {
         out.writeVInt(rating);
     }
 
-    public static RatedDocument fromXContent(XContentParser parser, RankEvalContext context) throws IOException {
-        return PARSER.apply(parser, context);
+    @Override
+    public RatedDocument fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        return RatedDocument.fromXContent(parser, new ParseFieldMatcherSupplier() {
+            
+            @Override
+            public ParseFieldMatcher getParseFieldMatcher() {
+                return parseFieldMatcher;
+            }
+        });
+    }
+
+    public static RatedDocument fromXContent(XContentParser parser, ParseFieldMatcherSupplier supplier) throws IOException {
+        return PARSER.apply(parser, supplier);
     }
     
     @Override

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,7 +43,7 @@ import javax.naming.directory.SearchResult;
 /**
  * Evaluate reciprocal rank.
  * */
-public class ReciprocalRank extends RankedListQualityMetric {
+public class ReciprocalRank extends RankedListQualityMetric<ReciprocalRank> {
 
     public static final String NAME = "reciprocal_rank";
     public static final int DEFAULT_MAX_ACCEPTABLE_RANK = 10;
@@ -138,6 +139,17 @@ public class ReciprocalRank extends RankedListQualityMetric {
 
     static {
         PARSER.declareInt(ReciprocalRank::setMaxAcceptableRank, MAX_RANK_FIELD);
+    }
+
+    @Override
+    public ReciprocalRank fromXContent(XContentParser parser, ParseFieldMatcher matcher) {
+        return ReciprocalRank.fromXContent(parser, new ParseFieldMatcherSupplier() {
+            
+            @Override
+            public ParseFieldMatcher getParseFieldMatcher() {
+                return matcher;
+            }
+        });
     }
 
     public static ReciprocalRank fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {

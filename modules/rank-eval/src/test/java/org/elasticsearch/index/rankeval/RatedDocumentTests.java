@@ -19,41 +19,17 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
-
 import java.io.IOException;
 
-public class RatedDocumentTests extends ESTestCase {
+public class RatedDocumentTests extends XContentRoundtripTestCase<RatedDocument> {
 
     public void testXContentParsing() throws IOException {
         String index = randomAsciiOfLength(10);
         String type = randomAsciiOfLength(10);
         String docId = randomAsciiOfLength(10);
         int rating = randomInt();
+
         RatedDocument testItem = new RatedDocument(new RatedDocumentKey(index, type, docId), rating);
-
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        if (randomBoolean()) {
-            builder.prettyPrint();
-        }
-        testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentBuilder shuffled = shuffleXContent(builder);
-        XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
-        itemParser.nextToken();
-
-        RankEvalContext context = new RankEvalContext(ParseFieldMatcher.STRICT, null, null);
-        RatedDocument parsedItem = RatedDocument.fromXContent(itemParser, context);
-        assertNotSame(testItem, parsedItem);
-        assertEquals(testItem, parsedItem);
-        assertEquals(testItem.hashCode(), parsedItem.hashCode());
-
+        roundtrip(testItem);
     }
-
 }

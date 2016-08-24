@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.xcontent.FromXContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -38,7 +39,9 @@ import java.util.List;
  *
  * RelevancyLevel specifies the type of object determining the relevancy level of some known docid.
  * */
-public abstract class RankedListQualityMetric extends ToXContentToBytes implements NamedWriteable {
+public abstract class RankedListQualityMetric<T extends RankedListQualityMetric>
+    extends ToXContentToBytes 
+    implements NamedWriteable, FromXContentBuilder<T> {
 
     /**
      * Returns a single metric representing the ranking quality of a set of returned documents

@@ -231,7 +231,7 @@ public abstract class TransportWriteAction<
      * translog syncs or waiting for a refresh to happen making the write operation
      * visible.
      */
-    final static class AsyncAfterWriteAction {
+    static final class AsyncAfterWriteAction {
         private final Location location;
         private final boolean waitUntilRefresh;
         private final boolean sync;

@@ -160,7 +160,7 @@ public class ReciprocalRank extends RankedListQualityMetric<ReciprocalRank> {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        //builder.startObject(NAME);
+        //builder.startObject(NAME); // TODO for roundtripping to work
         builder.field(MAX_RANK_FIELD.getPreferredName(), this.maxAcceptableRank);
         //builder.endObject();
         builder.endObject();

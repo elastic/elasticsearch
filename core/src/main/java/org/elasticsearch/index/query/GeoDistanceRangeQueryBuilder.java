@@ -37,8 +37,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper.LegacyGeoPointFieldType;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
-import org.elasticsearch.index.mapper.LegacyGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 
@@ -347,8 +347,11 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         }
 
         final Version indexVersionCreated = context.indexVersionCreated();
-        if (indexVersionCreated.before(Version.V_2_2_0)) {
-            LegacyGeoPointFieldMapper.GeoPointFieldType geoFieldType = ((LegacyGeoPointFieldMapper.GeoPointFieldType) fieldType);
+        if (indexVersionCreated.onOrAfter(Version.V_5_0_0_alpha6)) {
+            throw new QueryShardException(context, "[{}] queries are no longer supported for geo_point field types. "
+                + "Use geo_distance sort or aggregations", NAME);
+        } else if (indexVersionCreated.before(Version.V_2_2_0)) {
+            LegacyGeoPointFieldType geoFieldType = (LegacyGeoPointFieldType) fieldType;
             IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
             String bboxOptimization = Strings.isEmpty(optimizeBbox) ? DEFAULT_OPTIMIZE_BBOX : optimizeBbox;
             return new GeoDistanceRangeQuery(point, fromValue, toValue, includeLower, includeUpper, geoDistance, geoFieldType,

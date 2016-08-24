@@ -25,6 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
@@ -83,7 +84,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.point"), notNullValue());
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
-        } else {
+        } else if (version.after(Version.V_5_0_0_alpha6)) {
             assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoPointField.encodeLatLon(42.0, 51.0)));
         }
 
@@ -141,7 +142,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.point"), notNullValue());
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
-        } else {
+        } else if (version.after(Version.V_5_0_0_alpha6)) {
             assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoPointField.encodeLatLon(42.0, 51.0)));
         }
 
@@ -211,7 +212,7 @@ public class ExternalFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.point"), notNullValue());
         if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
-        } else {
+        } else if (version.before(Version.V_5_0_0_alpha6)) {
             assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoPointField.encodeLatLon(42.0, 51.0)));
         }
 

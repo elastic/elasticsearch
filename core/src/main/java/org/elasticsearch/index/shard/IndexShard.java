@@ -34,7 +34,6 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Lock;
-import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
@@ -130,7 +129,6 @@ import java.nio.channels.ClosedByInterruptException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -1679,7 +1677,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
                 Exception exception = null;
                 if (candidates.isEmpty() == false) {
-                    candidates.sort((t1, t2) -> t2.v1().compareTo(t1.v1()));
                     try {
                         final Engine engine = getEngine();
                         engine.getTranslog().ensureSynced(candidates.stream().map(Tuple::v1));

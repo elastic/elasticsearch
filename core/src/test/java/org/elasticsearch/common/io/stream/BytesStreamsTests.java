@@ -36,6 +36,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -626,27 +627,30 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testWriteMapWithConsistentOrder() throws IOException {
-        Map<String, Object> map = new HashMap<>();
-        map.put("gWrgS", randomAsciiOfLength(5));
-        map.put("HLRYi", randomAsciiOfLength(5));
-        map.put("HyKnF", randomAsciiOfLength(5));
-        Map<String, Object> reOrderMap = new HashMap<>(map);
-        List<String> mapKeys = map.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toList());
-        List<String> reOrderMapKeys = reOrderMap.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toList());
+        Map<String, String> map =
+            randomMap(new TreeMap<>(), randomIntBetween(2, 20),
+                () -> randomAsciiOfLength(5),
+                () -> randomAsciiOfLength(5));
 
-        assertNotEquals(mapKeys, reOrderMapKeys);
+        Map<String, Object> reverseMap = new TreeMap<>(Collections.reverseOrder());
+        reverseMap.putAll(map);
+
+        List<String> mapKeys = map.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toList());
+        List<String> reverseMapKeys = reverseMap.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toList());
+
+        assertNotEquals(mapKeys, reverseMapKeys);
 
         BytesStreamOutput output = new BytesStreamOutput();
-        BytesStreamOutput reOrderMapOutput = new BytesStreamOutput();
+        BytesStreamOutput reverseMapOutput = new BytesStreamOutput();
         output.writeMapWithConsistentOrder(map);
-        reOrderMapOutput.writeMapWithConsistentOrder(reOrderMap);
+        reverseMapOutput.writeMapWithConsistentOrder(reverseMap);
 
-        assertEquals(output.bytes(), reOrderMapOutput.bytes());
+        assertEquals(output.bytes(), reverseMapOutput.bytes());
     }
 
     public void testReadMapByUsingWriteMapWithConsistentOrder() throws IOException {
         Map<String, String> streamOutMap =
-            randomHashMap(randomIntBetween(2, 20),
+            randomMap(new HashMap<>(), randomIntBetween(2, 20),
                 () -> randomAsciiOfLength(5),
                 () -> randomAsciiOfLength(5));
         BytesStreamOutput streamOut = new BytesStreamOutput();
@@ -657,20 +661,14 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testWriteMapWithConsistentOrderWithLinkedHashMapShouldThrowAssertError() throws IOException {
-        BytesStreamOutput output1 = new BytesStreamOutput();
-        Map<String, Object> map1 = new LinkedHashMap<>();
-        try {
-            output1.writeMapWithConsistentOrder(map1);
-            fail("should throw assert error when write consistent order map with LinkedHashMap");
-        } catch (Error e) {
-            assertTrue(e instanceof AssertionError);
-        }
+        BytesStreamOutput output = new BytesStreamOutput();
+        Map<String, Object> map = new LinkedHashMap<>();
+        Throwable e = expectThrows(AssertionError.class, () -> output.writeMapWithConsistentOrder(map));
+        assertEquals(AssertionError.class, e.getClass());
     }
 
-    private static <K, V> Map<K, V> randomHashMap(int size, Supplier<K> keyGenerator, Supplier<V> valueGenerator) {
-        Map<K, V> map = new HashMap<>();
+    private static <K, V> Map<K, V> randomMap(Map<K, V> map, int size, Supplier<K> keyGenerator, Supplier<V> valueGenerator) {
         IntStream.range(0, size).forEach(i -> map.put(keyGenerator.get(), valueGenerator.get()));
         return map;
     }
-
 }

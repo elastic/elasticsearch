@@ -272,4 +272,34 @@ public class BasicStatementTests extends ScriptTestCase {
                              null, true
        ));
     }
+
+    public void testForWithBreak() {
+        assertEquals(1, exec(
+            "Map settings = ['test1' : '1'];" +
+            "int setting = 0;" +
+            "List keys = ['test0', 'test1', 'test2'];" +
+            "for (int i = 0; i < keys.size(); ++i) {" +
+            "    if (settings.containsKey(keys[i])) {" +
+            "        setting = Integer.parseInt(settings[keys[i]]);" +
+            "        break;" +
+            "    }" +
+            "}" +
+            "return setting;"
+        ));
+    }
+
+    public void testForEachWithBreak() {
+        assertEquals(1, exec(
+            "Map settings = ['test1' : '1'];" +
+            "int setting = 0;" +
+            "List keys = ['test0', 'test1', 'test2'];" +
+            "for (String key : keys) {" +
+            "    if (settings.containsKey(key)) {" +
+            "        setting = Integer.parseInt(settings[key]);" +
+            "        break;" +
+            "    }" +
+            "}" +
+            "return setting;"
+        ));
+    }
 }

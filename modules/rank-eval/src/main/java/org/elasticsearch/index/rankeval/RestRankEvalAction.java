@@ -20,13 +20,10 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -192,34 +189,13 @@ public class RestRankEvalAction extends BaseRestHandler {
         client.execute(RankEvalAction.INSTANCE, rankEvalRequest, new RestToXContentListener<RankEvalResponse>(channel));
     }
 
-    private static final ParseField SPECID_FIELD = new ParseField("spec_id");
-    private static final ParseField METRIC_FIELD = new ParseField("metric");
-    private static final ParseField REQUESTS_FIELD = new ParseField("requests");
-    private static final ObjectParser<RankEvalSpec, RankEvalContext> PARSER = new ObjectParser<>("rank_eval", RankEvalSpec::new);
 
-    static {
-        PARSER.declareString(RankEvalSpec::setTaskId, SPECID_FIELD);
-        PARSER.declareObject(RankEvalSpec::setEvaluator, (p, c) -> {
-            try {
-                return RankedListQualityMetric.fromXContent(p, c);
-            } catch (IOException ex) {
-                throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
-            }
-        } , METRIC_FIELD);
-        PARSER.declareObjectArray(RankEvalSpec::setSpecifications, (p, c) -> {
-            try {
-                return QuerySpec.fromXContent(p, c);
-            } catch (IOException ex) {
-                throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
-            }
-        } , REQUESTS_FIELD);
-    }
 
     public static void parseRankEvalRequest(RankEvalRequest rankEvalRequest, RestRequest request, RankEvalContext context)
             throws IOException {
         List<String> indices = Arrays.asList(Strings.splitStringByCommaToArray(request.param("index")));
         List<String> types = Arrays.asList(Strings.splitStringByCommaToArray(request.param("type")));
-        RankEvalSpec spec = PARSER.parse(context.parser(), context);
+        RankEvalSpec spec = RankEvalSpec.parse(context.parser(), context);
         for (QuerySpec specification : spec.getSpecifications()) {
             specification.setIndices(indices);
             specification.setTypes(types);

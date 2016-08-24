@@ -24,6 +24,7 @@ import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.rankeval.PrecisionAtN.Rating;
 import org.elasticsearch.index.rankeval.PrecisionAtN.RatingMapping;
@@ -141,5 +142,15 @@ public class ReciprocalRank extends RankedListQualityMetric {
 
     public static ReciprocalRank fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {
         return PARSER.apply(parser, matcher);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.startObject(NAME);
+        builder.field(MAX_RANK_FIELD.getPreferredName(), this.maxAcceptableRank);
+        builder.endObject();
+        builder.endObject();
+        return builder;
     }
 }

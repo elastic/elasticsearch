@@ -19,9 +19,11 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.SearchHit;
@@ -36,7 +38,7 @@ import java.util.List;
  *
  * RelevancyLevel specifies the type of object determining the relevancy level of some known docid.
  * */
-public abstract class RankedListQualityMetric implements NamedWriteable {
+public abstract class RankedListQualityMetric extends ToXContentToBytes implements NamedWriteable {
 
     /**
      * Returns a single metric representing the ranking quality of a set of returned documents
@@ -79,4 +81,7 @@ public abstract class RankedListQualityMetric implements NamedWriteable {
     double combine(Collection<EvalQueryQuality> partialResults) {
         return partialResults.stream().mapToDouble(EvalQueryQuality::getQualityLevel).sum() / partialResults.size();
     }
+
+    @Override
+    public abstract XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
 }

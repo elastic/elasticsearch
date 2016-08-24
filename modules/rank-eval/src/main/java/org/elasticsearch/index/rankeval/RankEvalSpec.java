@@ -19,36 +19,42 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 
 /**
- * This class defines a qa task including query intent and query spec.
+ * This class defines a ranking evaluation task including an id, a collection of queries to evaluate and the evaluation metric.
  *
  * Each QA run is based on a set of queries to send to the index and multiple QA specifications that define how to translate the query
- * intents into elastic search queries. In addition it contains the quality metrics to compute.
+ * intents into elastic search queries.
  * */
 
-public class RankEvalSpec implements Writeable {
+public class RankEvalSpec extends ToXContentToBytes implements Writeable {
 
     /** Collection of query specifications, that is e.g. search request templates to use for query translation. */
     private Collection<QuerySpec> specifications = new ArrayList<>();
     /** Definition of the quality metric, e.g. precision at N */
     private RankedListQualityMetric eval;
     /** a unique id for the whole QA task */
-    private String taskId;
+    private String specId;
 
     public RankEvalSpec() {
         // TODO think if no args ctor is okay
     }
 
-    public RankEvalSpec(String taskId, Collection<QuerySpec> specs, RankedListQualityMetric metric) {
-        this.taskId = taskId;
+    public RankEvalSpec(String specId, Collection<QuerySpec> specs, RankedListQualityMetric metric) {
+        this.specId = specId;
         this.specifications = specs;
         this.eval = metric;
     }
@@ -60,7 +66,7 @@ public class RankEvalSpec implements Writeable {
             specifications.add(new QuerySpec(in));
         }
         eval = in.readNamedWriteable(RankedListQualityMetric.class);
-        taskId = in.readString();
+        specId = in.readString();
     }
 
     @Override
@@ -70,7 +76,7 @@ public class RankEvalSpec implements Writeable {
             spec.writeTo(out);
         }
         out.writeNamedWriteable(eval);
-        out.writeString(taskId);
+        out.writeString(specId);
     }
 
     public void setEval(RankedListQualityMetric eval) {
@@ -78,11 +84,11 @@ public class RankEvalSpec implements Writeable {
     }
 
     public void setTaskId(String taskId) {
-        this.taskId = taskId;
+        this.specId = taskId;
     }
 
     public String getTaskId() {
-        return this.taskId;
+        return this.specId;
     }
 
     /** Returns the precision at n configuration (containing level of n to consider).*/
@@ -103,6 +109,47 @@ public class RankEvalSpec implements Writeable {
     /** Set the list of intent to query translation specifications to evaluate. */
     public void setSpecifications(Collection<QuerySpec> specifications) {
         this.specifications = specifications;
+    }
+
+    private static final ParseField SPECID_FIELD = new ParseField("spec_id");
+    private static final ParseField METRIC_FIELD = new ParseField("metric");
+    private static final ParseField REQUESTS_FIELD = new ParseField("requests");
+    private static final ObjectParser<RankEvalSpec, RankEvalContext> PARSER = new ObjectParser<>("rank_eval", RankEvalSpec::new);
+
+    static {
+        PARSER.declareString(RankEvalSpec::setTaskId, SPECID_FIELD);
+        PARSER.declareObject(RankEvalSpec::setEvaluator, (p, c) -> {
+            try {
+                return RankedListQualityMetric.fromXContent(p, c);
+            } catch (IOException ex) {
+                throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
+            }
+        } , METRIC_FIELD);
+        PARSER.declareObjectArray(RankEvalSpec::setSpecifications, (p, c) -> {
+            try {
+                return QuerySpec.fromXContent(p, c);
+            } catch (IOException ex) {
+                throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
+            }
+        } , REQUESTS_FIELD);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(SPECID_FIELD.getPreferredName(), this.specId);
+        builder.startArray(REQUESTS_FIELD.getPreferredName());
+        for (QuerySpec spec : this.specifications) {
+            spec.toXContent(builder, params);
+        }
+        builder.endArray();
+        builder.field(METRIC_FIELD.getPreferredName(), this.eval);
+        builder.endObject();
+        return builder;
+    }
+
+    public static RankEvalSpec parse(XContentParser parser, RankEvalContext context) throws IOException {
+        return PARSER.parse(parser, context);
     }
 
 }

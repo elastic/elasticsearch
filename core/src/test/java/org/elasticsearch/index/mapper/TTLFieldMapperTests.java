@@ -28,6 +28,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -210,20 +211,59 @@ public class TTLFieldMapperTests extends ESSingleNodeTestCase {
         XContentBuilder mappingWithTtlEnabled = getMappingWithTtlEnabled("7d");
         IndexService indexService = createIndex("testindex", BW_SETTINGS, "type", mappingWithTtlEnabled);
         XContentBuilder mappingWithOnlyDefaultSet = getMappingWithOnlyTtlDefaultSet("6m");
-        indexService.mapperService().merge("type", new CompressedXContent(mappingWithOnlyDefaultSet.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        indexService.mapperService().merge("type", new CompressedXContent(mappingWithOnlyDefaultSet.string()),
+                MapperService.MergeReason.MAPPING_UPDATE, false);
         CompressedXContent mappingAfterMerge = indexService.mapperService().documentMapper("type").mappingSource();
-        assertThat(mappingAfterMerge, equalTo(new CompressedXContent("{\"type\":{\"_ttl\":{\"enabled\":true,\"default\":360000},\"properties\":{\"field\":{\"type\":\"text\"}}}}")));
+        assertEquals(JsonXContent.contentBuilder().startObject()
+                .startObject("type")
+                    .startObject("_ttl")
+                        .field("enabled", true)
+                        .field("default", 360000)
+                    .endObject()
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "string")
+                            .field("fielddata", false)
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string(),
+                mappingAfterMerge.string());
     }
 
     public void testMergeWithOnlyDefaultSetTtlDisabled() throws Exception {
         XContentBuilder mappingWithTtlEnabled = getMappingWithTtlDisabled("7d");
         IndexService indexService = createIndex("testindex", BW_SETTINGS, "type", mappingWithTtlEnabled);
         CompressedXContent mappingAfterCreation = indexService.mapperService().documentMapper("type").mappingSource();
-        assertThat(mappingAfterCreation, equalTo(new CompressedXContent("{\"type\":{\"_ttl\":{\"enabled\":false},\"properties\":{\"field\":{\"type\":\"text\"}}}}")));
+        assertEquals(JsonXContent.contentBuilder().startObject()
+                .startObject("type")
+                    .startObject("_ttl")
+                        .field("enabled", false)
+                    .endObject()
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "string")
+                            .field("fielddata", false)
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string(),
+                mappingAfterCreation.string());
         XContentBuilder mappingWithOnlyDefaultSet = getMappingWithOnlyTtlDefaultSet("6m");
-        indexService.mapperService().merge("type", new CompressedXContent(mappingWithOnlyDefaultSet.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        indexService.mapperService().merge("type", new CompressedXContent(mappingWithOnlyDefaultSet.string()),
+                MapperService.MergeReason.MAPPING_UPDATE, false);
         CompressedXContent mappingAfterMerge = indexService.mapperService().documentMapper("type").mappingSource();
-        assertThat(mappingAfterMerge, equalTo(new CompressedXContent("{\"type\":{\"_ttl\":{\"enabled\":false},\"properties\":{\"field\":{\"type\":\"text\"}}}}")));
+        assertEquals(JsonXContent.contentBuilder().startObject()
+                .startObject("type")
+                    .startObject("_ttl")
+                        .field("enabled", false)
+                    .endObject()
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", "string")
+                            .field("fielddata", false)
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string(),
+                mappingAfterMerge.string());
     }
 
     public void testIncludeInObjectNotAllowed() throws Exception {

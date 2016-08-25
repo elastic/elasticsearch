@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.common.settings;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;

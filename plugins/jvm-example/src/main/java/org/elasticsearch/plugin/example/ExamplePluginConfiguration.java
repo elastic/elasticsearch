@@ -37,7 +37,7 @@ public class ExamplePluginConfiguration {
 
     public static final Setting<String> TEST_SETTING =
       new Setting<String>("test", "default_value",
-      (value) -> value.toLowerCase(Locale.ROOT), Setting.Property.Dynamic);
+      (value) -> value, Setting.Property.Dynamic);
 
     @Inject
     public ExamplePluginConfiguration(Environment env) throws IOException {

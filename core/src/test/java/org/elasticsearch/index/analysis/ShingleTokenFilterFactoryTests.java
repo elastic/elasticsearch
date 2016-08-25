@@ -19,11 +19,12 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+
+import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 

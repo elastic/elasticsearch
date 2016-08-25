@@ -45,9 +45,9 @@ languages that have no defaults, or to simply replace the default set
 with your custom list. Check <<analysis-stop-analyzer,Stop Analyzer>>
 for more details. A default set of stopwords for many of these
 languages is available from for instance
-https://github.com/apache/lucene-solr/tree/trunk/lucene/analysis/common/src/resources/org/apache/lucene/analysis/[here]
+https://github.com/apache/lucene-solr/tree/master/lucene/analysis/common/src/resources/org/apache/lucene/analysis/[here]
 and
-https://github.com/apache/lucene-solr/tree/trunk/lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball[here.]
+https://github.com/apache/lucene-solr/tree/master/lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball[here.]
 
 A sample configuration (in YAML format) specifying Swedish with
 stopwords:

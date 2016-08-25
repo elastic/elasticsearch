@@ -545,14 +545,14 @@ public class SearchSourceBuilderTests extends ESTestCase {
 
     public void testAggsParsing() throws IOException {
         {
-            String restContent = "{\n" + "    " + 
-                    "\"aggs\": {" + 
-                    "        \"test_agg\": {\n" + 
-                    "            " + "\"terms\" : {\n" + 
-                    "                \"field\": \"foo\"\n" + 
-                    "            }\n" + 
-                    "        }\n" + 
-                    "    }\n" + 
+            String restContent = "{\n" + "    " +
+                    "\"aggs\": {" +
+                    "        \"test_agg\": {\n" +
+                    "            " + "\"terms\" : {\n" +
+                    "                \"field\": \"foo\"\n" +
+                    "            }\n" +
+                    "        }\n" +
+                    "    }\n" +
                     "}\n";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
@@ -561,14 +561,14 @@ public class SearchSourceBuilderTests extends ESTestCase {
             }
         }
         {
-            String restContent = "{\n" + 
-                    "    \"aggregations\": {" + 
-                    "        \"test_agg\": {\n" + 
-                    "            \"terms\" : {\n" + 
-                    "                \"field\": \"foo\"\n" + 
-                    "            }\n" + 
-                    "        }\n" + 
-                    "    }\n" + 
+            String restContent = "{\n" +
+                    "    \"aggregations\": {" +
+                    "        \"test_agg\": {\n" +
+                    "            \"terms\" : {\n" +
+                    "                \"field\": \"foo\"\n" +
+                    "            }\n" +
+                    "        }\n" +
+                    "    }\n" +
                     "}\n";
             try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
@@ -662,5 +662,26 @@ public class SearchSourceBuilderTests extends ESTestCase {
         SearchSourceBuilder builder = new SearchSourceBuilder();
         String query = "{ \"query\": {} }";
         assertParseSearchSource(builder, new BytesArray(query), ParseFieldMatcher.EMPTY);
+    }
+
+    public void testSearchRequestBuilderSerializationWithIndexBoost() throws Exception {
+        SearchSourceBuilder searchSourceBuilder = createSearchSourceBuilder();
+        createIndexBoost(searchSourceBuilder);
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            searchSourceBuilder.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                SearchSourceBuilder deserializedSearchSourceBuilder = new SearchSourceBuilder(in);
+                BytesStreamOutput deserializedOutput = new BytesStreamOutput();
+                deserializedSearchSourceBuilder.writeTo(deserializedOutput);
+                assertEquals(output.bytes(), deserializedOutput.bytes());
+            }
+        }
+    }
+
+    private void createIndexBoost(SearchSourceBuilder searchSourceBuilder) {
+        int indexBoostSize = randomIntBetween(1, 10);
+        for (int i = 0; i < indexBoostSize; i++) {
+            searchSourceBuilder.indexBoost(randomAsciiOfLengthBetween(5, 20), randomFloat() * 10);
+        }
     }
 }

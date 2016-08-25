@@ -39,7 +39,7 @@ import java.util.List;
  *
  * RelevancyLevel specifies the type of object determining the relevancy level of some known docid.
  * */
-public abstract class RankedListQualityMetric<T extends RankedListQualityMetric>
+public abstract class RankedListQualityMetric<T extends RankedListQualityMetric<?>>
     extends ToXContentToBytes 
     implements NamedWriteable, FromXContentBuilder<T> {
 
@@ -52,8 +52,8 @@ public abstract class RankedListQualityMetric<T extends RankedListQualityMetric>
      * */
     public abstract EvalQueryQuality evaluate(SearchHit[] hits, List<RatedDocument> ratedDocs);
 
-    public static RankedListQualityMetric fromXContent(XContentParser parser, ParseFieldMatcherSupplier context) throws IOException {
-        RankedListQualityMetric rc;
+    public static RankedListQualityMetric<?> fromXContent(XContentParser parser, ParseFieldMatcherSupplier context) throws IOException {
+        RankedListQualityMetric<?> rc;
         Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
             throw new ParsingException(parser.getTokenLocation(), "[_na] missing required metric name");

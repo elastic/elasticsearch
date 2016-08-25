@@ -28,13 +28,11 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
@@ -46,8 +44,7 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 
-public class QuerySpecTests extends ESTestCase {
-
+public class RankEvalSpecTests extends ESTestCase {
     private static SearchModule searchModule;
     private static SearchRequestParsers searchRequestParsers;
 
@@ -70,23 +67,7 @@ public class QuerySpecTests extends ESTestCase {
         searchRequestParsers = null;
     }
 
-    public static RatedRequest createTestItem(List<String> indices, List<String> types) {
-        String specId = randomAsciiOfLength(50);
-
-        SearchSourceBuilder testRequest = new SearchSourceBuilder();
-        testRequest.size(23);
-        testRequest.query(new MatchAllQueryBuilder());
-
-        List<RatedDocument> ratedDocs = new ArrayList<>();
-        int size = randomIntBetween(0, 2);
-        for (int i = 0; i < size; i++) {
-            ratedDocs.add(RatedDocumentTests.createTestItem());
-        }
-        
-        return new RatedRequest(specId, testRequest, indices, types, ratedDocs);
-    }
-
-    public void testXContentRoundtrip() throws IOException {
+    public void testRoundtripping() throws IOException {
         List<String> indices = new ArrayList<>();
         int size = randomIntBetween(0, 20);
         for (int i = 0; i < size; i++) {
@@ -98,8 +79,22 @@ public class QuerySpecTests extends ESTestCase {
         for (int i = 0; i < size; i++) {
             types.add(randomAsciiOfLengthBetween(0, 50));
         }
+        List<RatedRequest> specs = new ArrayList<>();
+        size = randomIntBetween(1, 2); // TODO I guess requests with no query spec should be rejected...
+        for (int i = 0; i < size; i++) {
+            specs.add(QuerySpecTests.createTestItem(indices, types));
+        }
 
-        RatedRequest testItem = createTestItem(indices, types);
+        String specId = randomAsciiOfLengthBetween(1, 10); // TODO we should reject zero length ids ...
+        @SuppressWarnings("rawtypes")
+        RankedListQualityMetric metric;
+        if (randomBoolean()) {
+            metric = PrecisionAtNTests.createTestItem();
+        } else {
+            metric = DiscountedCumulativeGainAtTests.createTestItem();
+        }
+
+        RankEvalSpec testItem = new RankEvalSpec(specId, specs, metric);
 
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         if (randomBoolean()) {
@@ -108,55 +103,17 @@ public class QuerySpecTests extends ESTestCase {
         testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentBuilder shuffled = shuffleXContent(builder);
         XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
-        itemParser.nextToken(); // TODO this could be the reason why the metric roundtrip tests failed
 
         QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, itemParser, ParseFieldMatcher.STRICT);
         RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,
                 searchRequestParsers);
 
-        RatedRequest parsedItem = RatedRequest.fromXContent(itemParser, rankContext);
-        parsedItem.setIndices(indices); // IRL these come from URL parameters - see RestRankEvalAction
-        parsedItem.setTypes(types); // IRL these come from URL parameters - see RestRankEvalAction
+        RankEvalSpec parsedItem = RankEvalSpec.parse(itemParser, rankContext);
+        // IRL these come from URL parameters - see RestRankEvalAction
+        parsedItem.getSpecifications().stream().forEach(e -> {e.setIndices(indices); e.setTypes(types);}); 
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());
     }
 
-    public void testParseFromXContent() throws IOException {
-        String querySpecString = " {\n"
-         + "   \"id\": \"my_qa_query\",\n"
-         + "   \"request\": {\n"
-         + "           \"query\": {\n"
-         + "               \"bool\": {\n"
-         + "                   \"must\": [\n"
-         + "                       {\"match\": {\"beverage\": \"coffee\"}},\n"
-         + "                       {\"term\": {\"browser\": {\"value\": \"safari\"}}},\n"
-         + "                       {\"term\": {\"time_of_day\": {\"value\": \"morning\",\"boost\": 2}}},\n"
-         + "                       {\"term\": {\"ip_location\": {\"value\": \"ams\",\"boost\": 10}}}]}\n"
-         + "           },\n"
-         + "           \"size\": 10\n"
-         + "   },\n"
-         + "   \"ratings\": [ "
-         + "        {\"key\": {\"index\": \"test\", \"type\": \"testtype\", \"doc_id\": \"1\"}, \"rating\" : 1 }, "
-         + "        {\"key\": {\"index\": \"test\", \"type\": \"testtype\", \"doc_id\": \"2\"}, \"rating\" : 0 }, "
-         + "        {\"key\": {\"index\": \"test\", \"type\": \"testtype\", \"doc_id\": \"3\"}, \"rating\" : 1 }]\n"
-         + "}";
-        XContentParser parser = XContentFactory.xContent(querySpecString).createParser(querySpecString);
-        QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, parser, ParseFieldMatcher.STRICT);
-        RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,
-                searchRequestParsers);
-        RatedRequest specification = RatedRequest.fromXContent(parser, rankContext);
-        assertEquals("my_qa_query", specification.getSpecId());
-        assertNotNull(specification.getTestRequest());
-        List<RatedDocument> ratedDocs = specification.getRatedDocs();
-        assertEquals(3, ratedDocs.size());
-        assertEquals("1", ratedDocs.get(0).getKey().getDocID());
-        assertEquals(1, ratedDocs.get(0).getRating());
-        assertEquals("2", ratedDocs.get(1).getKey().getDocID());
-        assertEquals(0, ratedDocs.get(1).getRating());
-        assertEquals("3", ratedDocs.get(2).getKey().getDocID());
-        assertEquals(1, ratedDocs.get(2).getRating());
-    }
-    
-    
 }

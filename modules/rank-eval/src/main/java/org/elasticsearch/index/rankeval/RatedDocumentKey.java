@@ -39,7 +39,8 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable, Fr
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField INDEX_FIELD = new ParseField("index");
 
-    private static final ConstructingObjectParser<RatedDocumentKey, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>("ratings",
+    private static final ConstructingObjectParser<RatedDocumentKey, ParseFieldMatcherSupplier> PARSER =
+            new ConstructingObjectParser<>("ratings",
             a -> new RatedDocumentKey((String) a[0], (String) a[1], (String) a[2]));
 
     static {
@@ -117,7 +118,8 @@ public class RatedDocumentKey extends ToXContentToBytes implements Writeable, Fr
         });
     }
 
-    public static RatedDocumentKey fromXContent(XContentParser parser, ParseFieldMatcherSupplier context) throws IOException {
+    public static RatedDocumentKey fromXContent(
+            XContentParser parser, ParseFieldMatcherSupplier context) throws IOException {
         return PARSER.apply(parser, context);
     }
 

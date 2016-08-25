@@ -20,7 +20,6 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.FromXContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,9 +31,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-public class XContentRoundtripTestCase<T extends ToXContentToBytes & FromXContentBuilder<T>> extends ESTestCase {
+public class XContentRoundtripTests<T extends ToXContentToBytes & FromXContentBuilder<T>> extends ESTestCase {
 
-    public void roundtrip(T testItem) throws IOException { 
+    public XContentParser roundtrip(T testItem) throws IOException { 
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         if (randomBoolean()) {
             builder.prettyPrint();
@@ -42,10 +41,6 @@ public class XContentRoundtripTestCase<T extends ToXContentToBytes & FromXConten
         testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentBuilder shuffled = shuffleXContent(builder);
         XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
-        itemParser.nextToken();
-        T parsedItem = testItem.fromXContent(itemParser, ParseFieldMatcher.STRICT);
-        assertNotSame(testItem, parsedItem);
-        assertEquals(testItem, parsedItem);
-        assertEquals(testItem.hashCode(), parsedItem.hashCode());
+        return itemParser;
     }
 }

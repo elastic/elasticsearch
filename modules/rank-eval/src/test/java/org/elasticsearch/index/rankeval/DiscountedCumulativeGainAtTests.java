@@ -33,7 +33,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-public class DiscountedCumulativeGainAtTests extends XContentRoundtripTestCase<DiscountedCumulativeGainAt> {
+public class DiscountedCumulativeGainAtTests extends XContentRoundtripTests<DiscountedCumulativeGainAt> {
 
     /**
      * Assuming the docs are ranked in the following order:
@@ -121,12 +121,21 @@ public class DiscountedCumulativeGainAtTests extends XContentRoundtripTestCase<D
         assertEquals(true, dcgAt.getNormalize());
     }
     
-    public void testXContentRoundtrip() throws IOException {
+    public static DiscountedCumulativeGainAt createTestItem() {
         int position = randomIntBetween(0, 1000);
         boolean normalize = randomBoolean();
         Integer unknownDocRating = new Integer(randomIntBetween(0, 1000));
 
-        DiscountedCumulativeGainAt testItem = new DiscountedCumulativeGainAt(position, normalize, unknownDocRating);
-        roundtrip(testItem);
+        return new DiscountedCumulativeGainAt(position, normalize, unknownDocRating);
+    }
+    public void testXContentRoundtrip() throws IOException {
+        DiscountedCumulativeGainAt testItem = createTestItem();
+        XContentParser itemParser = roundtrip(testItem);
+        itemParser.nextToken();
+        itemParser.nextToken();
+        DiscountedCumulativeGainAt parsedItem = testItem.fromXContent(itemParser, ParseFieldMatcher.STRICT);
+        assertNotSame(testItem, parsedItem);
+        assertEquals(testItem, parsedItem);
+        assertEquals(testItem.hashCode(), parsedItem.hashCode());
     }
 }

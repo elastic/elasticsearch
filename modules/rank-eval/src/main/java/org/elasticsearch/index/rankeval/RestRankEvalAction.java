@@ -196,7 +196,7 @@ public class RestRankEvalAction extends BaseRestHandler {
         List<String> indices = Arrays.asList(Strings.splitStringByCommaToArray(request.param("index")));
         List<String> types = Arrays.asList(Strings.splitStringByCommaToArray(request.param("type")));
         RankEvalSpec spec = RankEvalSpec.parse(context.parser(), context);
-        for (QuerySpec specification : spec.getSpecifications()) {
+        for (RatedRequest specification : spec.getSpecifications()) {
             specification.setIndices(indices);
             specification.setTypes(types);
         };

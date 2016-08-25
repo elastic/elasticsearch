@@ -86,8 +86,10 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric<Discount
     }
 
     /**
-     * @param position number of top results to check against a given set of relevant results. Must be positive. // TODO is there a way to enforce this?
-     * @param normalize If set to true, dcg will be normalized (ndcg) See https://en.wikipedia.org/wiki/Discounted_cumulative_gain
+     * @param position number of top results to check against a given set of relevant results. Must be positive.
+     *  // TODO is there a way to enforce this?
+     * @param normalize If set to true, dcg will be normalized (ndcg)
+     * See https://en.wikipedia.org/wiki/Discounted_cumulative_gain
      * @param unknownDocRating the rating for docs the user hasn't supplied an explicit rating for
      * */
     public DiscountedCumulativeGainAt(int position, boolean normalize, Integer unknownDocRating) {
@@ -207,13 +209,14 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric<Discount
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        //builder.startObject(NAME); // TODO roundtrip xcontent only works w/o this, wtf?
         builder.startObject();
+        builder.startObject(NAME);
         builder.field(SIZE_FIELD.getPreferredName(), this.position);
         builder.field(NORMALIZE_FIELD.getPreferredName(), this.normalize);
         if (unknownDocRating != null) {
             builder.field(UNKNOWN_DOC_RATING_FIELD.getPreferredName(), this.unknownDocRating);
         }
+        builder.endObject();
         builder.endObject();
         return builder;
     }

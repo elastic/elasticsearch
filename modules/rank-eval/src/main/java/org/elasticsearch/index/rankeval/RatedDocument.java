@@ -43,7 +43,8 @@ public class RatedDocument extends ToXContentToBytes implements Writeable, FromX
     public static final ParseField RATING_FIELD = new ParseField("rating");
     public static final ParseField KEY_FIELD = new ParseField("key");
 
-    private static final ConstructingObjectParser<RatedDocument, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>("rated_document", 
+    private static final ConstructingObjectParser<RatedDocument, ParseFieldMatcherSupplier> PARSER =
+            new ConstructingObjectParser<>("rated_document", 
             a -> new RatedDocument((RatedDocumentKey) a[0], (Integer) a[1])); 
             
     static {

@@ -19,9 +19,12 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.XContentParser;
+
 import java.io.IOException;
 
-public class RatedDocumentTests extends XContentRoundtripTestCase<RatedDocument> {
+public class RatedDocumentTests extends XContentRoundtripTests<RatedDocument> {
 
     public static RatedDocument createTestItem() {
         String index = randomAsciiOfLength(10);
@@ -33,6 +36,11 @@ public class RatedDocumentTests extends XContentRoundtripTestCase<RatedDocument>
     }
 
     public void testXContentParsing() throws IOException {
-        roundtrip(createTestItem());
+        RatedDocument testItem = createTestItem();
+        XContentParser itemParser = roundtrip(testItem);
+        RatedDocument parsedItem = testItem.fromXContent(itemParser, ParseFieldMatcher.STRICT);
+        assertNotSame(testItem, parsedItem);
+        assertEquals(testItem, parsedItem);
+        assertEquals(testItem.hashCode(), parsedItem.hashCode());
     }
 }

@@ -37,7 +37,7 @@ import java.util.concurrent.ExecutionException;
 
 import static java.util.Collections.emptyList;
 
-public class PrecisionAtNTests extends XContentRoundtripTestCase<PrecisionAtN> {
+public class PrecisionAtNTests extends XContentRoundtripTests<PrecisionAtN> {
 
     public void testPrecisionAtFiveCalculation() throws IOException, InterruptedException, ExecutionException {
         List<RatedDocument> rated = new ArrayList<>();
@@ -111,10 +111,19 @@ public class PrecisionAtNTests extends XContentRoundtripTestCase<PrecisionAtN> {
         assertEquals(0.3, metric.combine(partialResults), Double.MIN_VALUE);
     }
 
-    public void testXContentRoundtrip() throws IOException {
+    public static PrecisionAtN createTestItem() {
         int position = randomIntBetween(0, 1000);
+        return new PrecisionAtN(position);
+    }
 
-        PrecisionAtN testItem = new PrecisionAtN(position);
-        roundtrip(testItem);
+    public void testXContentRoundtrip() throws IOException {
+        PrecisionAtN testItem = createTestItem();
+        XContentParser itemParser = roundtrip(testItem);
+        itemParser.nextToken();
+        itemParser.nextToken();
+        PrecisionAtN parsedItem = testItem.fromXContent(itemParser, ParseFieldMatcher.STRICT);
+        assertNotSame(testItem, parsedItem);
+        assertEquals(testItem, parsedItem);
+        assertEquals(testItem.hashCode(), parsedItem.hashCode());
     }
 }

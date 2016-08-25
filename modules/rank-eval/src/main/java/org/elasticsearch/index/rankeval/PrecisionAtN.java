@@ -166,9 +166,10 @@ public class PrecisionAtN extends RankedListQualityMetric<PrecisionAtN> {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        //builder.startObject(NAME); TODO Why does roundtripping fail with the name?
         builder.startObject();
+        builder.startObject(NAME);
         builder.field(SIZE_FIELD.getPreferredName(), this.n);
+        builder.endObject();
         builder.endObject();
         return builder;
     }

@@ -64,11 +64,11 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         RankEvalSpec qualityTask = request.getRankEvalSpec();
 
         Map<String, Collection<RatedDocumentKey>> unknownDocs = new ConcurrentHashMap<>();
-        Collection<QuerySpec> specifications = qualityTask.getSpecifications();
+        Collection<RatedRequest> specifications = qualityTask.getSpecifications();
         AtomicInteger responseCounter = new AtomicInteger(specifications.size());
         Map<String, EvalQueryQuality> partialResults = new ConcurrentHashMap<>(specifications.size());
 
-        for (QuerySpec querySpecification : specifications) {
+        for (RatedRequest querySpecification : specifications) {
             final RankEvalActionListener searchListener = new RankEvalActionListener(listener, qualityTask, querySpecification,
                     partialResults, unknownDocs, responseCounter);
             SearchSourceBuilder specRequest = querySpecification.getTestRequest();
@@ -85,13 +85,13 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
     public static class RankEvalActionListener implements ActionListener<SearchResponse> {
 
         private ActionListener<RankEvalResponse> listener;
-        private QuerySpec specification;
+        private RatedRequest specification;
         private Map<String, EvalQueryQuality> partialResults;
         private RankEvalSpec task;
         private Map<String, Collection<RatedDocumentKey>> unknownDocs;
         private AtomicInteger responseCounter;
 
-        public RankEvalActionListener(ActionListener<RankEvalResponse> listener, RankEvalSpec task, QuerySpec specification,
+        public RankEvalActionListener(ActionListener<RankEvalResponse> listener, RankEvalSpec task, RatedRequest specification,
                 Map<String, EvalQueryQuality> partialResults, Map<String, Collection<RatedDocumentKey>> unknownDocs,
                 AtomicInteger responseCounter) {
             this.listener = listener;

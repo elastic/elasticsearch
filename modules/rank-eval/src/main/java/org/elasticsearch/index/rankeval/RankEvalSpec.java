@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Objects;
 
 /**
  * This class defines a ranking evaluation task including an id, a collection of queries to evaluate and the evaluation metric.
@@ -43,9 +44,9 @@ import java.util.Collection;
 public class RankEvalSpec extends ToXContentToBytes implements Writeable {
 
     /** Collection of query specifications, that is e.g. search request templates to use for query translation. */
-    private Collection<QuerySpec> specifications = new ArrayList<>();
+    private Collection<RatedRequest> ratedRequests = new ArrayList<>();
     /** Definition of the quality metric, e.g. precision at N */
-    private RankedListQualityMetric eval;
+    private RankedListQualityMetric<?> metric;
     /** a unique id for the whole QA task */
     private String specId;
 
@@ -53,34 +54,34 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
         // TODO think if no args ctor is okay
     }
 
-    public RankEvalSpec(String specId, Collection<QuerySpec> specs, RankedListQualityMetric metric) {
+    public RankEvalSpec(String specId, Collection<RatedRequest> specs, RankedListQualityMetric<?> metric) {
         this.specId = specId;
-        this.specifications = specs;
-        this.eval = metric;
+        this.ratedRequests = specs;
+        this.metric = metric;
     }
 
     public RankEvalSpec(StreamInput in) throws IOException {
         int specSize = in.readInt();
-        specifications = new ArrayList<>(specSize);
+        ratedRequests = new ArrayList<>(specSize);
         for (int i = 0; i < specSize; i++) {
-            specifications.add(new QuerySpec(in));
+            ratedRequests.add(new RatedRequest(in));
         }
-        eval = in.readNamedWriteable(RankedListQualityMetric.class);
+        metric = in.readNamedWriteable(RankedListQualityMetric.class);
         specId = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(specifications.size());
-        for (QuerySpec spec : specifications) {
+        out.writeInt(ratedRequests.size());
+        for (RatedRequest spec : ratedRequests) {
             spec.writeTo(out);
         }
-        out.writeNamedWriteable(eval);
+        out.writeNamedWriteable(metric);
         out.writeString(specId);
     }
 
-    public void setEval(RankedListQualityMetric eval) {
-        this.eval = eval;
+    public void setEval(RankedListQualityMetric<?> eval) {
+        this.metric = eval;
     }
 
     public void setTaskId(String taskId) {
@@ -92,23 +93,23 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     }
 
     /** Returns the precision at n configuration (containing level of n to consider).*/
-    public RankedListQualityMetric getEvaluator() {
-        return eval;
+    public RankedListQualityMetric<?> getEvaluator() {
+        return metric;
     }
 
     /** Sets the precision at n configuration (containing level of n to consider).*/
-    public void setEvaluator(RankedListQualityMetric config) {
-        this.eval = config;
+    public void setEvaluator(RankedListQualityMetric<?> config) {
+        this.metric = config;
     }
 
     /** Returns a list of intent to query translation specifications to evaluate. */
-    public Collection<QuerySpec> getSpecifications() {
-        return specifications;
+    public Collection<RatedRequest> getSpecifications() {
+        return ratedRequests;
     }
 
     /** Set the list of intent to query translation specifications to evaluate. */
-    public void setSpecifications(Collection<QuerySpec> specifications) {
-        this.specifications = specifications;
+    public void setSpecifications(Collection<RatedRequest> specifications) {
+        this.ratedRequests = specifications;
     }
 
     private static final ParseField SPECID_FIELD = new ParseField("spec_id");
@@ -127,7 +128,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
         } , METRIC_FIELD);
         PARSER.declareObjectArray(RankEvalSpec::setSpecifications, (p, c) -> {
             try {
-                return QuerySpec.fromXContent(p, c);
+                return RatedRequest.fromXContent(p, c);
             } catch (IOException ex) {
                 throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
             }
@@ -139,11 +140,11 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
         builder.startObject();
         builder.field(SPECID_FIELD.getPreferredName(), this.specId);
         builder.startArray(REQUESTS_FIELD.getPreferredName());
-        for (QuerySpec spec : this.specifications) {
+        for (RatedRequest spec : this.ratedRequests) {
             spec.toXContent(builder, params);
         }
         builder.endArray();
-        builder.field(METRIC_FIELD.getPreferredName(), this.eval);
+        builder.field(METRIC_FIELD.getPreferredName(), this.metric);
         builder.endObject();
         return builder;
     }
@@ -152,4 +153,22 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
         return PARSER.parse(parser, context);
     }
 
+    @Override
+    public final boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        RankEvalSpec other = (RankEvalSpec) obj;
+        return Objects.equals(specId, other.specId) &&
+                Objects.equals(ratedRequests, other.ratedRequests) &&
+                Objects.equals(metric, other.metric);
+    }
+    
+    @Override
+    public final int hashCode() {
+        return Objects.hash(getClass(), specId, ratedRequests, metric);
+    }
 }

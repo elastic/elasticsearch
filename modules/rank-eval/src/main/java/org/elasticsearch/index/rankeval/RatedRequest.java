@@ -41,7 +41,7 @@ import java.util.Objects;
  *
  * The resulting document lists can then be compared against what was specified in the set of rated documents as part of a QAQuery.
  * */
-public class QuerySpec extends ToXContentToBytes implements Writeable {
+public class RatedRequest extends ToXContentToBytes implements Writeable {
 
     private String specId;
     private SearchSourceBuilder testRequest;
@@ -50,12 +50,12 @@ public class QuerySpec extends ToXContentToBytes implements Writeable {
     /** Collection of rated queries for this query QA specification.*/
     private List<RatedDocument> ratedDocs = new ArrayList<>();
 
-    public QuerySpec() {
+    public RatedRequest() {
         // ctor that doesn't require all args to be present immediatly is easier to use with ObjectParser
         // TODO decide if we can require only id as mandatory, set default values for the rest?
     }
 
-    public QuerySpec(String specId, SearchSourceBuilder testRequest, List<String> indices, List<String> types,
+    public RatedRequest(String specId, SearchSourceBuilder testRequest, List<String> indices, List<String> types,
             List<RatedDocument> ratedDocs) {
         this.specId = specId;
         this.testRequest = testRequest;
@@ -64,7 +64,7 @@ public class QuerySpec extends ToXContentToBytes implements Writeable {
         this.ratedDocs = ratedDocs;
     }
 
-    public QuerySpec(StreamInput in) throws IOException {
+    public RatedRequest(StreamInput in) throws IOException {
         this.specId = in.readString();
         testRequest = new SearchSourceBuilder(in);
         int indicesSize = in.readInt();
@@ -149,18 +149,18 @@ public class QuerySpec extends ToXContentToBytes implements Writeable {
     private static final ParseField ID_FIELD = new ParseField("id");
     private static final ParseField REQUEST_FIELD = new ParseField("request");
     private static final ParseField RATINGS_FIELD = new ParseField("ratings");
-    private static final ObjectParser<QuerySpec, RankEvalContext> PARSER = new ObjectParser<>("requests", QuerySpec::new);
+    private static final ObjectParser<RatedRequest, RankEvalContext> PARSER = new ObjectParser<>("requests", RatedRequest::new);
 
     static {
-        PARSER.declareString(QuerySpec::setSpecId, ID_FIELD);
-        PARSER.declareObject(QuerySpec::setTestRequest, (p, c) -> {
+        PARSER.declareString(RatedRequest::setSpecId, ID_FIELD);
+        PARSER.declareObject(RatedRequest::setTestRequest, (p, c) -> {
             try {
                 return SearchSourceBuilder.fromXContent(c.getParseContext(), c.getAggs(),  c.getSuggesters());
             } catch (IOException ex) {
                 throw new ParsingException(p.getTokenLocation(), "error parsing request", ex);
             }
         } , REQUEST_FIELD);
-        PARSER.declareObjectArray(QuerySpec::setRatedDocs, (p, c) -> {
+        PARSER.declareObjectArray(RatedRequest::setRatedDocs, (p, c) -> {
             try {
                 return RatedDocument.fromXContent(p, c);
             } catch (IOException ex) {
@@ -170,7 +170,7 @@ public class QuerySpec extends ToXContentToBytes implements Writeable {
     }
 
     /**
-     * Parses {@link QuerySpec} from rest representation:
+     * Parses {@link RatedRequest} from rest representation:
      *
      * Example:
      *  {
@@ -189,7 +189,7 @@ public class QuerySpec extends ToXContentToBytes implements Writeable {
      *   "ratings": [{ "1": 1 }, { "2": 0 }, { "3": 1 } ]
      *  }
      */
-    public static QuerySpec fromXContent(XContentParser parser, RankEvalContext context) throws IOException {
+    public static RatedRequest fromXContent(XContentParser parser, RankEvalContext context) throws IOException {
         return PARSER.parse(parser, context);
     }
 
@@ -215,7 +215,7 @@ public class QuerySpec extends ToXContentToBytes implements Writeable {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        QuerySpec other = (QuerySpec) obj;
+        RatedRequest other = (RatedRequest) obj;
         return Objects.equals(specId, other.specId) &&
                 Objects.equals(testRequest, other.testRequest) &&
                 Objects.equals(indices, other.indices) &&

@@ -227,10 +227,10 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         // Check that we can get doc 1 and 2, because we are doing realtime
         // gets and getting from the primary
-        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
-        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").get();
+        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").get();
+        assertThat(gResp1.getSource().get("foo"), equalTo("bar"));
+        assertThat(gResp2.getSource().get("foo"), equalTo("bar"));
 
         flushAndRefresh(IDX);
         client().prepareIndex(IDX, "doc", "3").setSource("foo", "bar").get();
@@ -238,10 +238,10 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         refresh();
 
         // Check that we can get doc 1 and 2 without realtime
-        gResp1 = client().prepareGet(IDX, "doc", "1").setRealtime(false).setFields("foo").get();
-        gResp2 = client().prepareGet(IDX, "doc", "2").setRealtime(false).setFields("foo").get();
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+        gResp1 = client().prepareGet(IDX, "doc", "1").setRealtime(false).get();
+        gResp2 = client().prepareGet(IDX, "doc", "2").setRealtime(false).get();
+        assertThat(gResp1.getSource().get("foo"), equalTo("bar"));
+        assertThat(gResp2.getSource().get("foo"), equalTo("bar"));
 
         logger.info("--> restarting all nodes");
         if (randomBoolean()) {
@@ -283,12 +283,12 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
 
-        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
-        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
+        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").get();
+        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").get();
         assertTrue(gResp1.isExists());
         assertTrue(gResp2.isExists());
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+        assertThat(gResp1.getSource().get("foo"), equalTo("bar"));
+        assertThat(gResp2.getSource().get("foo"), equalTo("bar"));
 
         // Node1 has the primary, now node2 has the replica
         String node2 = internalCluster().startNode(nodeSettings);
@@ -304,21 +304,21 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).get();
         assertHitCount(resp, 2);
 
-        gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
-        gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
+        gResp1 = client().prepareGet(IDX, "doc", "1").get();
+        gResp2 = client().prepareGet(IDX, "doc", "2").get();
         assertTrue(gResp1.isExists());
         assertTrue(gResp2.toString(), gResp2.isExists());
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+        assertThat(gResp1.getSource().get("foo"), equalTo("bar"));
+        assertThat(gResp2.getSource().get("foo"), equalTo("bar"));
 
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "foobar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "foobar").get();
-        gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
-        gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
+        gResp1 = client().prepareGet(IDX, "doc", "1").get();
+        gResp2 = client().prepareGet(IDX, "doc", "2").get();
         assertTrue(gResp1.isExists());
         assertTrue(gResp2.toString(), gResp2.isExists());
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("foobar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("foobar"));
+        assertThat(gResp1.getSource().get("foo"), equalTo("foobar"));
+        assertThat(gResp2.getSource().get("foo"), equalTo("foobar"));
     }
 
     public void testPrimaryRelocation() throws Exception {
@@ -340,12 +340,12 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
 
-        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
-        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
+        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").get();
+        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").get();
         assertTrue(gResp1.isExists());
         assertTrue(gResp2.isExists());
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+        assertThat(gResp1.getSource().get("foo"), equalTo("bar"));
+        assertThat(gResp2.getSource().get("foo"), equalTo("bar"));
 
         // Node1 has the primary, now node2 has the replica
         String node2 = internalCluster().startNode(nodeSettings);
@@ -363,21 +363,21 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).get();
         assertHitCount(resp, 2);
 
-        gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
-        gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
+        gResp1 = client().prepareGet(IDX, "doc", "1").get();
+        gResp2 = client().prepareGet(IDX, "doc", "2").get();
         assertTrue(gResp1.isExists());
         assertTrue(gResp2.toString(), gResp2.isExists());
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+        assertThat(gResp1.getSource().get("foo"), equalTo("bar"));
+        assertThat(gResp2.getSource().get("foo"), equalTo("bar"));
 
         client().prepareIndex(IDX, "doc", "3").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "4").setSource("foo", "bar").get();
-        gResp1 = client().prepareGet(IDX, "doc", "3").setPreference("_primary").setFields("foo").get();
-        gResp2 = client().prepareGet(IDX, "doc", "4").setPreference("_primary").setFields("foo").get();
+        gResp1 = client().prepareGet(IDX, "doc", "3").setPreference("_primary").get();
+        gResp2 = client().prepareGet(IDX, "doc", "4").setPreference("_primary").get();
         assertTrue(gResp1.isExists());
         assertTrue(gResp2.isExists());
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+        assertThat(gResp1.getSource().get("foo"), equalTo("bar"));
+        assertThat(gResp2.getSource().get("foo"), equalTo("bar"));
     }
 
     public void testPrimaryRelocationWithConcurrentIndexing() throws Exception {
@@ -573,10 +573,10 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
         flushAndRefresh(IDX);
 
-        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
-        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").get();
+        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").get();
+        assertThat(gResp1.getSource().get("foo"), equalTo("bar"));
+        assertThat(gResp2.getSource().get("foo"), equalTo("bar"));
 
         logger.info("--> performing query");
         SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).get();

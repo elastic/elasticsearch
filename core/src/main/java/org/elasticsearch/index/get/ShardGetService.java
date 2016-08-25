@@ -41,28 +41,19 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.TTLFieldMapper;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ParentFieldSubFetchPhase;
-import org.elasticsearch.search.lookup.LeafSearchLookup;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -218,40 +209,13 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             fields.put(ParentFieldMapper.NAME, new GetField(ParentFieldMapper.NAME, Collections.singletonList(parentId)));
         }
 
-        // now, go and do the script thingy if needed
-
         if (gFields != null && gFields.length > 0) {
-            SearchLookup searchLookup = null;
             for (String field : gFields) {
-                Object value = null;
                 FieldMapper fieldMapper = docMapper.mappers().smartNameFieldMapper(field);
                 if (fieldMapper == null) {
                     if (docMapper.objectMappers().get(field) != null) {
                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
                         throw new IllegalArgumentException("field [" + field + "] isn't a leaf field");
-                    }
-                } else if (!fieldMapper.fieldType().stored() && !fieldMapper.isGenerated()) {
-                    if (searchLookup == null) {
-                        searchLookup = new SearchLookup(mapperService, null, new String[]{type});
-                        LeafSearchLookup leafSearchLookup = searchLookup.getLeafSearchLookup(docIdAndVersion.context);
-                        searchLookup.source().setSource(source);
-                        leafSearchLookup.setDocument(docIdAndVersion.docId);
-                    }
-
-                    List<Object> values = searchLookup.source().extractRawValues(field);
-                    if (values.isEmpty() == false) {
-                        value = values;
-                    }
-                }
-
-                if (value != null) {
-                    if (fields == null) {
-                        fields = new HashMap<>(2);
-                    }
-                    if (value instanceof List) {
-                        fields.put(field, new GetField(field, (List) value));
-                    } else {
-                        fields.put(field, new GetField(field, Collections.singletonList(value)));
                     }
                 }
             }

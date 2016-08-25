@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimary
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,9 +51,17 @@ import static org.hamcrest.Matchers.hasItem;
 
 public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
-    public void testInSyncAllocationIdsUpdated() {
-        AllocationService allocation = createAllocationService();
+    private AllocationService allocation;
+    private ShardStateAction.ShardFailedClusterStateTaskExecutor failedClusterStateTaskExecutor;
 
+
+    @Before
+    public void setupAllocationService() {
+        allocation = createAllocationService();
+        failedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocation, null, logger);
+    }
+
+    public void testInSyncAllocationIdsUpdated() {
         logger.info("creating an index with 1 shard, 2 replicas");
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
@@ -187,9 +196,6 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
         IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index("test").shard(0);
         ShardRouting primaryShard = shardRoutingTable.primaryShard();
         ShardRouting replicaShard = shardRoutingTable.replicaShards().get(0);
-
-        ShardStateAction.ShardFailedClusterStateTaskExecutor failedClusterStateTaskExecutor =
-            new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocation, null, logger);
 
         long primaryTerm = clusterState.metaData().index("test").primaryTerm(0);
 

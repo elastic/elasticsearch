@@ -164,7 +164,8 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, "_na_", 0);
 
         ClusterState state = stateWithActivePrimary(index, true, 1 + randomInt(2), randomInt(2));
-        final long primaryTerm = state.getMetaData().index(index).primaryTerm(0);
+        IndexMetaData indexMetaData = state.getMetaData().index(index);
+        final long primaryTerm = indexMetaData.primaryTerm(0);
         ShardRouting primaryShard = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
         if (primaryShard.relocating() && randomBoolean()) {
             // simulate execution of the replication phase on the relocation target node after relocation source was marked as relocated
@@ -172,6 +173,10 @@ public class ReplicationOperationTests extends ESTestCase {
                 .nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(primaryShard.relocatingNodeId())).build();
             primaryShard = primaryShard.getTargetRelocatingShard();
         }
+        // add in-sync allocation id that doesn't have a corresponding routing entry
+        state = ClusterState.builder(state).metaData(MetaData.builder(state.metaData()).put(IndexMetaData.builder(indexMetaData)
+            .putInSyncAllocationIds(0, Sets.union(indexMetaData.inSyncAllocationIds(0), Sets.newHashSet(randomAsciiOfLength(10))))))
+            .build();
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, state);
 
@@ -182,13 +187,28 @@ public class ReplicationOperationTests extends ESTestCase {
         Request request = new Request(shardId);
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         final ClusterState finalState = state;
+        final boolean testPrimaryDemotedOnStaleShardCopies = randomBoolean();
         final TestReplicaProxy replicasProxy = new TestReplicaProxy(expectedFailures) {
             @Override
             public void failShard(ShardRouting replica, long primaryTerm, String message, Exception exception,
                                   Runnable onSuccess, Consumer<Exception> onPrimaryDemoted,
                                   Consumer<Exception> onIgnoredFailure) {
-                assertThat(replica, equalTo(failedReplica));
-                onPrimaryDemoted.accept(new ElasticsearchException("the king is dead"));
+                if (testPrimaryDemotedOnStaleShardCopies) {
+                    super.failShard(replica, primaryTerm, message, exception, onSuccess, onPrimaryDemoted, onIgnoredFailure);
+                } else {
+                    assertThat(replica, equalTo(failedReplica));
+                    onPrimaryDemoted.accept(new ElasticsearchException("the king is dead"));
+                }
+            }
+
+            @Override
+            public void markShardCopyAsStale(ShardId shardId, String allocationId, long primaryTerm, Runnable onSuccess,
+                                             Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+                if (testPrimaryDemotedOnStaleShardCopies) {
+                    onPrimaryDemoted.accept(new ElasticsearchException("the king is dead"));
+                } else {
+                    super.markShardCopyAsStale(shardId, allocationId, primaryTerm, onSuccess, onPrimaryDemoted, onIgnoredFailure);
+                }
             }
         };
         AtomicBoolean primaryFailed = new AtomicBoolean();

@@ -32,9 +32,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -119,11 +119,6 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
             for (Map.Entry<ShardId, Updates> shardEntry : indexChanges.getValue()) {
                 ShardId shardId = shardEntry.getKey();
                 Updates updates = shardEntry.getValue();
-
-                assert Sets.haveEmptyIntersection(updates.addedAllocationIds, updates.removedAllocationIds) :
-                    "allocation ids cannot be both added and removed in the same allocation round, added ids: " +
-                        updates.addedAllocationIds + ", removed ids: " + updates.removedAllocationIds;
-
                 indexMetaDataBuilder = updateInSyncAllocations(newRoutingTable, oldIndexMetaData, indexMetaDataBuilder, shardId, updates);
                 indexMetaDataBuilder = updatePrimaryTerm(oldIndexMetaData, indexMetaDataBuilder, shardId, updates);
             }
@@ -148,6 +143,10 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
      */
     private IndexMetaData.Builder updateInSyncAllocations(RoutingTable newRoutingTable, IndexMetaData oldIndexMetaData,
                                                           IndexMetaData.Builder indexMetaDataBuilder, ShardId shardId, Updates updates) {
+        assert Sets.haveEmptyIntersection(updates.addedAllocationIds, updates.removedAllocationIds) :
+            "allocation ids cannot be both added and removed in the same allocation round, added ids: " +
+                updates.addedAllocationIds + ", removed ids: " + updates.removedAllocationIds;
+
         Set<String> oldInSyncAllocationIds = oldIndexMetaData.inSyncAllocationIds(shardId.id());
 
         // check if we have been force-initializing an empty primary or a stale primary
@@ -179,19 +178,17 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
             // Prevent set of inSyncAllocationIds to grow unboundedly. This can happen for example if we don't write to a primary
             // but repeatedly shut down nodes that have active replicas.
             // We use number_of_replicas + 1 (= possible active shard copies) to bound the inSyncAllocationIds set
-            int upperBound = oldIndexMetaData.getNumberOfReplicas() + 1; // +1 for the primary
-            int overflow = inSyncAllocationIds.size() - upperBound;
-            if (overflow > 0) {
+            int maxActiveShards = oldIndexMetaData.getNumberOfReplicas() + 1; // +1 for the primary
+            if (inSyncAllocationIds.size() > maxActiveShards) {
                 // trim entries that have no corresponding shard routing in the cluster state (i.e. trim unavailable copies)
-                Set<String> assignedAllocations = newRoutingTable.shardRoutingTable(shardId).assignedShards().stream()
-                    .map(shr -> shr.allocationId().getId()).collect(Collectors.toSet());
-                Set<String> candidatesToRemove = Sets.difference(inSyncAllocationIds, assignedAllocations);
-                for (Iterator<String> it = candidatesToRemove.iterator(); it.hasNext() && overflow > 0; ) {
-                    inSyncAllocationIds.remove(it.next());
-                    overflow--;
-                }
-                assert overflow == 0 :
-                    "not enough candidates to remove, candidates: " + candidatesToRemove + " overflow: " + overflow;
+                List<ShardRouting> assignedShards = newRoutingTable.shardRoutingTable(shardId).assignedShards();
+                assert assignedShards.size() <= maxActiveShards :
+                    "cannot have more assigned shards " + assignedShards + " than maximum possible active shards " + maxActiveShards;
+                Set<String> assignedAllocations = assignedShards.stream().map(s -> s.allocationId().getId()).collect(Collectors.toSet());
+                inSyncAllocationIds = inSyncAllocationIds.stream()
+                    .sorted(Comparator.comparing(assignedAllocations::contains).reversed()) // values with routing entries first
+                    .limit(maxActiveShards)
+                    .collect(Collectors.toSet());
             }
 
             // only update in-sync allocation ids if there is at least one entry remaining. Assume for example that there only

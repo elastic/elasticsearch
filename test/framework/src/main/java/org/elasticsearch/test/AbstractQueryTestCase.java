@@ -403,25 +403,22 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             int mutation = 0;
 
             while (true) {
-                // Track the objects hierarchy
-                Deque<String> hierarchy = new LinkedList<>();
+                boolean expectException = true;
 
                 BytesStreamOutput out = new BytesStreamOutput();
                 try (
                         XContentGenerator generator = XContentType.JSON.xContent().createGenerator(out);
                         XContentParser parser = XContentHelper.createParser(new BytesArray(query));
                 ) {
-                    // Parse the valid query and inserts a new object level called "newField"
                     int objectIndex = -1;
+                    Deque<String> levels = new LinkedList<>();
 
+                    // Parse the valid query and inserts a new object level called "newField"
                     XContentParser.Token token;
                     while ((token = parser.nextToken()) != null) {
                         if (token == XContentParser.Token.START_OBJECT) {
                             objectIndex++;
-
-                            if (objectIndex <= mutation) {
-                                hierarchy.push(parser.currentName());
-                            }
+                            levels.addLast(parser.currentName());
 
                             if (objectIndex == mutation) {
                                 // We reached the place in the object tree where we want to insert a new object level
@@ -430,9 +427,23 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                                 XContentHelper.copyCurrentStructure(generator, parser);
                                 generator.writeEndObject();
 
+                                if (hasArbitraryContent) {
+                                    // The query has one or more fields that hold arbitrary content. If the current
+                                    // field is one (or a child) of those, no exception is expected when parsing the mutated query.
+                                    String h = Arrays.toString(levels.toArray());
+                                    for (String marker : arbitraryMarkers) {
+                                        if (levels.contains(marker)) {
+                                            expectException = false;
+                                            break;
+                                        }
+                                    }
+                                }
+
                                 // Jump to next token
                                 continue;
                             }
+                        } else if (token == XContentParser.Token.END_OBJECT) {
+                            levels.removeLast();
                         }
 
                         // We are walking through the object tree, so we can safely copy the current node
@@ -448,18 +459,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     } else {
                         // We reached the expected insertion point, so next time we'll try one step further
                         mutation++;
-                    }
-                }
-
-                boolean expectException = true;
-                if (hasArbitraryContent) {
-                    // The query has one or more fields that hold arbitrary content. If the current
-                    // field is one (or a child) of those, no exception is expected when parsing the mutated query.
-                    for (String marker : arbitraryMarkers) {
-                        if (hierarchy.contains(marker)) {
-                            expectException = false;
-                            break;
-                        }
                     }
                 }
 

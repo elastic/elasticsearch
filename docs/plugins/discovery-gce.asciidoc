@@ -11,7 +11,7 @@ This plugin can be installed using the plugin manager:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install discovery-gce
+sudo bin/elasticsearch-plugin install cloud-gce
 ----------------------------------------------------------------
 // NOTCONSOLE
 
@@ -26,7 +26,7 @@ The plugin can be removed with the following command:
 
 [source,sh]
 ----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove discovery-gce
+sudo bin/elasticsearch-plugin remove cloud-gce
 ----------------------------------------------------------------
 // NOTCONSOLE
 

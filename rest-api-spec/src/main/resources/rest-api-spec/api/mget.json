@@ -16,7 +16,7 @@
         }
       },
       "params": {
-        "fields": {
+        "stored_fields": {
           "type": "list",
           "description" : "A comma-separated list of fields to return in the response"
         },

@@ -5,7 +5,7 @@
 Allows to control how the `_source` field is returned with every hit.
 
 By default operations return the contents of the `_source` field unless
-you have used the `fields` parameter or if the `_source` field is disabled.
+you have used the `stored_fields` parameter or if the `_source` field is disabled.
 
 You can turn off `_source` retrieval by using the `_source` parameter:
 

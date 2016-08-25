@@ -78,11 +78,11 @@ public class RestExplainAction extends BaseRestHandler {
             explainRequest.query(query);
         }
 
-        String sField = request.param("fields");
+        String sField = request.param("stored_fields");
         if (sField != null) {
             String[] sFields = Strings.splitStringByCommaToArray(sField);
             if (sFields != null) {
-                explainRequest.fields(sFields);
+                explainRequest.storedFields(sFields);
             }
         }
 

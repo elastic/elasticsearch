@@ -59,11 +59,11 @@ public class RestGetAction extends BaseRestHandler {
         getRequest.preference(request.param("preference"));
         getRequest.realtime(request.paramAsBoolean("realtime", getRequest.realtime()));
 
-        String sField = request.param("fields");
+        String sField = request.param("stored_fields");
         if (sField != null) {
             String[] sFields = Strings.splitStringByCommaToArray(sField);
             if (sFields != null) {
-                getRequest.fields(sFields);
+                getRequest.storedFields(sFields);
             }
         }
 

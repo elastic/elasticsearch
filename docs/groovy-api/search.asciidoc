@@ -72,7 +72,7 @@ def search = node.client.search {
     source {
         query {
             query_string(
-                fields: ["test"],
+                stored_fields: ["test"],
                 query: "value1 value2")
         }
     }

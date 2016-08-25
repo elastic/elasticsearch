@@ -51,7 +51,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     private String parent;
     private String preference;
 
-    private String[] fields;
+    private String[] storedFields;
 
     private FetchSourceContext fetchSourceContext;
 
@@ -186,20 +186,20 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     }
 
     /**
-     * Explicitly specify the fields that will be returned. By default, the <tt>_source</tt>
+     * Explicitly specify the stored fields that will be returned. By default, the <tt>_source</tt>
      * field will be returned.
      */
-    public GetRequest fields(String... fields) {
-        this.fields = fields;
+    public GetRequest storedFields(String... fields) {
+        this.storedFields = fields;
         return this;
     }
 
     /**
-     * Explicitly specify the fields that will be returned. By default, the <tt>_source</tt>
+     * Explicitly specify the stored fields that will be returned. By default, the <tt>_source</tt>
      * field will be returned.
      */
-    public String[] fields() {
-        return this.fields;
+    public String[] storedFields() {
+        return this.storedFields;
     }
 
     /**
@@ -260,13 +260,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         parent = in.readOptionalString();
         preference = in.readOptionalString();
         refresh = in.readBoolean();
-        int size = in.readInt();
-        if (size >= 0) {
-            fields = new String[size];
-            for (int i = 0; i < size; i++) {
-                fields[i] = in.readString();
-            }
-        }
+        storedFields = in.readOptionalStringArray();
         realtime = in.readBoolean();
 
         this.versionType = VersionType.fromValue(in.readByte());
@@ -284,14 +278,7 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         out.writeOptionalString(preference);
 
         out.writeBoolean(refresh);
-        if (fields == null) {
-            out.writeInt(-1);
-        } else {
-            out.writeInt(fields.length);
-            for (String field : fields) {
-                out.writeString(field);
-            }
-        }
+        out.writeOptionalStringArray(storedFields);
         out.writeBoolean(realtime);
         out.writeByte(versionType.getValue());
         out.writeLong(version);

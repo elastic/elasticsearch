@@ -61,7 +61,7 @@ public class RestMultiGetAction extends BaseRestHandler {
         multiGetRequest.realtime(request.paramAsBoolean("realtime", multiGetRequest.realtime()));
 
         String[] sFields = null;
-        String sField = request.param("fields");
+        String sField = request.param("stored_fields");
         if (sField != null) {
             sFields = Strings.splitStringByCommaToArray(sField);
         }

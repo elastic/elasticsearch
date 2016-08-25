@@ -48,7 +48,7 @@ public class ExampleCatAction extends AbstractCatAction {
     protected void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         Table table = getTableWithHeader(request);
         table.startRow();
-        table.addCell(config.getTestConfig());
+        table.addCell(config.getTestConfig().get(settings));
         table.endRow();
         try {
             channel.sendResponse(RestTable.buildResponse(table, channel));

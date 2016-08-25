@@ -26,6 +26,7 @@ import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Locale;
 
 /**
  * Example configuration.
@@ -47,7 +48,7 @@ public class ExamplePluginConfiguration {
         assert settings.get("test") != null;
 
         String testValue = settings.get("test", "default_value");
-        TEST_SETTING = new Setting<>("test", testValue, value -> (value.toLowerCase()), false, Setting.Scope.CLUSTER);   
+        TEST_SETTING = new Setting<String>("test", testValue, (value) -> value.toLowerCase(Locale.ROOT), Setting.Property.Dynamic);   
     }
 
     public Setting<String> getTestConfig() {

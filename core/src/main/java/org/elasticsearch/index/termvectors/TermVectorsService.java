@@ -82,15 +82,8 @@ public class TermVectorsService  {
         Engine.GetResult get = indexShard.get(new Engine.Get(request.realtime(), uidTerm).version(request.version()).versionType(request.versionType()));
 
         Fields termVectorsByField = null;
-        boolean docFromTranslog = get.source() != null;
         AggregatedDfs dfs = null;
         TermVectorsFilter termVectorsFilter = null;
-
-        /* fetched from translog is treated as an artificial document */
-        if (docFromTranslog) {
-            request.doc(get.source().source, false);
-            termVectorsResponse.setDocVersion(get.version());
-        }
 
         /* handle potential wildcards in fields */
         if (request.selectedFields() != null) {
@@ -103,12 +96,12 @@ public class TermVectorsService  {
             Versions.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
             /* from an artificial document */
             if (request.doc() != null) {
-                termVectorsByField = generateTermVectorsFromDoc(indexShard, request, !docFromTranslog);
+                termVectorsByField = generateTermVectorsFromDoc(indexShard, request);
                 // if no document indexed in shard, take the queried document itself for stats
                 if (topLevelFields == null) {
                     topLevelFields = termVectorsByField;
                 }
-                termVectorsResponse.setArtificial(!docFromTranslog);
+                termVectorsResponse.setArtificial(true);
                 termVectorsResponse.setExists(true);
             }
             /* or from an existing document */
@@ -252,7 +245,7 @@ public class TermVectorsService  {
         return MultiFields.getFields(index.createSearcher().getIndexReader());
     }
 
-    private static Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request, boolean doAllFields) throws IOException {
+    private static Fields generateTermVectorsFromDoc(IndexShard indexShard, TermVectorsRequest request) throws IOException {
         // parse the document, at the moment we do update the mapping, just like percolate
         ParsedDocument parsedDocument = parseDocument(indexShard, indexShard.shardId().getIndexName(), request.type(), request.doc());
 
@@ -263,9 +256,6 @@ public class TermVectorsService  {
         for (IndexableField field : doc.getFields()) {
             MappedFieldType fieldType = indexShard.mapperService().fullName(field.name());
             if (!isValidField(fieldType)) {
-                continue;
-            }
-            if (request.selectedFields() == null && !doAllFields && !fieldType.storeTermVectors()) {
                 continue;
             }
             if (request.selectedFields() != null && !request.selectedFields().contains(field.name())) {

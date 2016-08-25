@@ -172,7 +172,6 @@ public class MockFSDirectoryService extends FsDirectoryService {
         w.setRandomIOExceptionRateOnOpen(randomIOExceptionRateOnOpen);
         w.setThrottling(throttle);
         w.setCheckIndexOnClose(false); // we do this on the index level
-        w.setPreventDoubleWrite(preventDoubleWrite);
         // TODO: make this test robust to virus scanner
         w.setAssertNoDeleteOpenFile(false);
         w.setUseSlowOpenClosers(false);

@@ -34,15 +34,17 @@ import java.util.Objects;
 
 /**
  *
+ * @deprecated This query is no longer used for geo_point indexes created after version 2.1
  */
-public class InMemoryGeoBoundingBoxQuery extends Query {
+@Deprecated
+public class LegacyInMemoryGeoBoundingBoxQuery extends Query {
 
     private final GeoPoint topLeft;
     private final GeoPoint bottomRight;
 
     private final IndexGeoPointFieldData indexFieldData;
 
-    public InMemoryGeoBoundingBoxQuery(GeoPoint topLeft, GeoPoint bottomRight, IndexGeoPointFieldData indexFieldData) {
+    public LegacyInMemoryGeoBoundingBoxQuery(GeoPoint topLeft, GeoPoint bottomRight, IndexGeoPointFieldData indexFieldData) {
         this.topLeft = topLeft;
         this.bottomRight = bottomRight;
         this.indexFieldData = indexFieldData;
@@ -87,7 +89,7 @@ public class InMemoryGeoBoundingBoxQuery extends Query {
         if (sameClassAs(obj) == false) {
             return false;
         }
-        InMemoryGeoBoundingBoxQuery other = (InMemoryGeoBoundingBoxQuery) obj;
+        LegacyInMemoryGeoBoundingBoxQuery other = (LegacyInMemoryGeoBoundingBoxQuery) obj;
         return fieldName().equalsIgnoreCase(other.fieldName())
                 && topLeft.equals(other.topLeft)
                 && bottomRight.equals(other.bottomRight);

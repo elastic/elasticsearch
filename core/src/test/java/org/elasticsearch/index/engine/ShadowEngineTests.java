@@ -612,8 +612,7 @@ public class ShadowEngineTests extends ESTestCase {
         // but, we can still get it (in realtime)
         Engine.GetResult getResult = primaryEngine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source().source, equalTo(B_1));
-        assertThat(getResult.docIdAndVersion(), nullValue());
+        assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
 
         // can't get it from the replica, because it's not in the translog for a shadow replica
@@ -623,10 +622,8 @@ public class ShadowEngineTests extends ESTestCase {
 
         // but, not there non realtime
         getResult = primaryEngine.get(new Engine.Get(false, newUid("1")));
-        assertThat(getResult.exists(), equalTo(false));
+        assertThat(getResult.exists(), equalTo(true));
         getResult.release();
-        // refresh and it should be there
-        primaryEngine.refresh("test");
 
         // now its there...
         searchResult = primaryEngine.acquireSearcher("test");
@@ -663,8 +660,7 @@ public class ShadowEngineTests extends ESTestCase {
         // but, we can still get it (in realtime)
         getResult = primaryEngine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source().source, equalTo(B_2));
-        assertThat(getResult.docIdAndVersion(), nullValue());
+        assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
 
         // refresh and it should be updated
@@ -747,7 +743,6 @@ public class ShadowEngineTests extends ESTestCase {
         // and, verify get (in real time)
         getResult = primaryEngine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source(), nullValue());
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
 
@@ -760,7 +755,6 @@ public class ShadowEngineTests extends ESTestCase {
         searchResult.close();
         getResult = replicaEngine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(true));
-        assertThat(getResult.source(), nullValue());
         assertThat(getResult.docIdAndVersion(), notNullValue());
         getResult.release();
 

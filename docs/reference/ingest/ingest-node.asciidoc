@@ -1356,20 +1356,23 @@ caching see <<modules-scripting-using-caching, Script Caching>>.
 | `file`                 | no        | -       | The script file to refer to
 | `id`                   | no        | -       | The stored script id to refer to
 | `inline`               | no        | -       | An inline script to be executed
+| `params`               | no        | -       | Script Parameters
 |======
 
 You can access the current ingest document from within the script context by using the `ctx` variable.
 
-The following example sets a new field called `field_a_plus_b` to be the sum of two existing
-numeric fields `field_a` and `field_b`:
+The following example sets a new field called `field_a_plus_b_times_c` to be the sum of two existing
+numeric fields `field_a` and `field_b` multiplied by the parameter param_c:
 
 [source,js]
 --------------------------------------------------
 {
   "script": {
-    "field": "field_a_plus_b",
     "lang": "painless",
-    "inline": "return ctx.field_a + ctx.field_b"
+    "inline": "ctx.field_a_plus_b_times_c = (ctx.field_a + ctx.field_b) * params.param_c",
+    "params": {
+      "param_c": 10
+    }
   }
 }
 --------------------------------------------------

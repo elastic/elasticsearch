@@ -42,7 +42,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
 
         // Used while refresh is running, and to hold adds/deletes until refresh finishes.  We read from both current and old on lookup:
         final Map<BytesRef,VersionValue> old;
-      
+
         public Maps(Map<BytesRef,VersionValue> current, Map<BytesRef,VersionValue> old) {
            this.current = current;
            this.old = old;
@@ -256,7 +256,7 @@ class LiveVersionMap implements ReferenceManager.RefreshListener, Accountable {
         return ramBytesUsedCurrent.get() + ramBytesUsedTombstones.get();
     }
 
-    /** Returns how much RAM would be freed up by refreshing. This is {@link ramBytesUsed} except does not include tombstones because they
+    /** Returns how much RAM would be freed up by refreshing. This is {@link #ramBytesUsed} except does not include tombstones because they
      *  don't clear on refresh. */
     long ramBytesUsedForRefresh() {
         return ramBytesUsedCurrent.get();

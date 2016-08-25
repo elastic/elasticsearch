@@ -328,10 +328,7 @@ public class InternalEngine extends Engine {
                         throw new VersionConflictEngineException(shardId, uid.type(), uid.id(),
                                 get.versionType().explainConflictForReads(versionValue.version(), get.version()));
                     }
-                    Translog.Operation op = translog.read(versionValue.translogLocation());
-                    if (op != null) {
-                        return new GetResult(true, versionValue.version(), op.getSource());
-                    }
+                    refresh("realtime_get");
                 }
             }
 
@@ -368,11 +365,11 @@ public class InternalEngine extends Engine {
         return currentVersion;
     }
 
-    private static VersionValueSupplier NEW_VERSION_VALUE = (u, t, l) -> new VersionValue(u, l);
+    private static VersionValueSupplier NEW_VERSION_VALUE = (u, t) -> new VersionValue(u);
 
     @FunctionalInterface
     private interface VersionValueSupplier {
-        VersionValue apply(long updatedVersion, long time, Translog.Location location);
+        VersionValue apply(long updatedVersion, long time);
     }
 
     private <T extends Engine.Operation> void maybeAddToTranslog(
@@ -383,14 +380,9 @@ public class InternalEngine extends Engine {
         if (op.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
             final Translog.Location translogLocation = translog.add(toTranslogOp.apply(op));
             op.setTranslogLocation(translogLocation);
-            versionMap.putUnderLock(op.uid().bytes(), toVersionValue.apply(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), op.getTranslogLocation()));
-        } else {
-            // we do not replay in to the translog, so there is no
-            // translog location; that is okay because real-time
-            // gets are not possible during recovery and we will
-            // flush when the recovery is complete
-            versionMap.putUnderLock(op.uid().bytes(), toVersionValue.apply(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), null));
         }
+        versionMap.putUnderLock(op.uid().bytes(), toVersionValue.apply(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis()));
+
     }
 
     @Override

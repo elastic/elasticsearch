@@ -33,6 +33,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -1636,6 +1637,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 } else {
                     stream = new RateLimitingInputStream(partSliceStream, restoreRateLimiter, restoreRateLimitingTimeInNanos::inc);
                 }
+
+                // TODO: why does the target file sometimes already exist?  Simon says: I think, this can happen if you fail a shard and
+                // it's not cleaned up yet, the restore process tries to reuse files
+                IOUtils.deleteFilesIgnoringExceptions(store.directory(), fileInfo.physicalName());
+                
                 try (final IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
                     final byte[] buffer = new byte[BUFFER_SIZE];
                     int length;

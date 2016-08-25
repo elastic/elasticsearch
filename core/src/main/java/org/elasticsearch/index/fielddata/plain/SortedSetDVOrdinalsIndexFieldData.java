@@ -30,8 +30,8 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
-import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
@@ -89,7 +89,7 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
         }
         try {
             return cache.load(indexReader, this);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
             } else {

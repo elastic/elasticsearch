@@ -19,16 +19,11 @@
 
 package org.elasticsearch;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
@@ -47,9 +42,9 @@ public class Build {
         final String date;
         final boolean isSnapshot;
 
-        Path path = getElasticsearchCodebase();
-        if (path.toString().endsWith(".jar")) {
-            try (JarInputStream jar = new JarInputStream(Files.newInputStream(path))) {
+        final URL url = getElasticsearchCodebase();
+        if (url.toString().endsWith(".jar")) {
+            try (JarInputStream jar = new JarInputStream(url.openStream())) {
                 Manifest manifest = jar.getManifest();
                 shortHash = manifest.getMainAttributes().getValue("Change");
                 date = manifest.getMainAttributes().getValue("Build-Date");
@@ -80,14 +75,8 @@ public class Build {
     /**
      * Returns path to elasticsearch codebase path
      */
-    @SuppressForbidden(reason = "looks up path of elasticsearch.jar directly")
-    static Path getElasticsearchCodebase() {
-        URL url = Build.class.getProtectionDomain().getCodeSource().getLocation();
-        try {
-            return PathUtils.get(url.toURI());
-        } catch (URISyntaxException bogus) {
-            throw new RuntimeException(bogus);
-        }
+    static URL getElasticsearchCodebase() {
+        return Build.class.getProtectionDomain().getCodeSource().getLocation();
     }
 
     private String shortHash;

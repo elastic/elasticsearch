@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -30,13 +29,12 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -108,10 +106,10 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         this.threadPool = threadPool;
         this.updateFrequency = INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.get(settings);
         this.fetchTimeout = INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.get(settings);
-        this.enabled = DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
+        this.enabled = DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING, this::setFetchTimeout);
         clusterSettings.addSettingsUpdateConsumer(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING, this::setUpdateFrequency);
-        clusterSettings.addSettingsUpdateConsumer(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
+        clusterSettings.addSettingsUpdateConsumer(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
 
         // Add InternalClusterInfoService to listen for Master changes
         this.clusterService.add((LocalNodeMasterListener)this);
@@ -280,7 +278,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         return latch;
     }
 
-    private final void maybeRefresh() {
+    private void maybeRefresh() {
         // Short-circuit if not enabled
         if (enabled) {
             refresh();
@@ -309,7 +307,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 if (e instanceof ReceiveTimeoutTransportException) {
                     logger.error("NodeStatsAction timed out for ClusterInfoUpdateJob", e);
                 } else {
@@ -339,7 +337,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 if (e instanceof ReceiveTimeoutTransportException) {
                     logger.error("IndicesStatsAction timed out for ClusterInfoUpdateJob", e);
                 } else {

@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanContainingQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
@@ -39,19 +40,9 @@ public class SpanContainingQueryBuilderTests extends AbstractQueryTestCase<SpanC
     }
 
     public void testIllegalArguments() {
-        try {
-            new SpanContainingQueryBuilder(null, new SpanTermQueryBuilder("field", "value"));
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            new SpanContainingQueryBuilder(new SpanTermQueryBuilder("field", "value"), null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        SpanTermQueryBuilder spanTermQuery = new SpanTermQueryBuilder("field", "value");
+        expectThrows(IllegalArgumentException.class, () -> new SpanContainingQueryBuilder(null, spanTermQuery));
+        expectThrows(IllegalArgumentException.class, () -> new SpanContainingQueryBuilder(spanTermQuery, null));
     }
 
     public void testFromJson() throws IOException {

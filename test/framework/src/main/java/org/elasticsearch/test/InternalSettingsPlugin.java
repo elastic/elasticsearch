@@ -24,16 +24,10 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 
-public final class InternalSettingsPlugin extends Plugin {
-    @Override
-    public String name() {
-        return "internal-settings-plugin";
-    }
+import java.util.Arrays;
+import java.util.List;
 
-    @Override
-    public String description() {
-        return "a plugin that allows to set values for internal settings which are can't be set via the ordinary API without this plugin installed";
-    }
+public final class InternalSettingsPlugin extends Plugin {
 
     public static final Setting<Integer> VERSION_CREATED =
         Setting.intSetting("index.version.created", 0, Property.IndexScope, Property.NodeScope);
@@ -42,9 +36,8 @@ public final class InternalSettingsPlugin extends Plugin {
     public static final Setting<Long> INDEX_CREATION_DATE_SETTING =
         Setting.longSetting(IndexMetaData.SETTING_CREATION_DATE, -1, -1, Property.IndexScope, Property.NodeScope);
 
-    public void onModule(SettingsModule module) {
-        module.registerSetting(VERSION_CREATED);
-        module.registerSetting(MERGE_ENABLED);
-        module.registerSetting(INDEX_CREATION_DATE_SETTING);
+    @Override
+    public List<Setting<?>> getSettings() {
+        return Arrays.asList(VERSION_CREATED, MERGE_ENABLED, INDEX_CREATION_DATE_SETTING);
     }
 }

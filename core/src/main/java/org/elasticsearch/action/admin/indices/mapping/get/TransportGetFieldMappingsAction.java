@@ -77,7 +77,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
                     }
 
                     @Override
-                    public void onFailure(Throwable e) {
+                    public void onFailure(Exception e) {
                         int index = indexCounter.getAndIncrement();
                         indexResponses.set(index, e);
                         if (completionCounter.decrementAndGet() == 0) {

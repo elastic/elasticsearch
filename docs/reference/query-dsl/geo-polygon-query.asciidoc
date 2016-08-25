@@ -6,25 +6,29 @@ points. Here is an example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "bool" : {
-        "query" : {
-            "match_all" : {}
-        },
-        "filter" : {
-            "geo_polygon" : {
-                "person.location" : {
-                    "points" : [
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_polygon" : {
+                    "person.location" : {
+                        "points" : [
                         {"lat" : 40, "lon" : -70},
                         {"lat" : 30, "lon" : -80},
                         {"lat" : 20, "lon" : -90}
-                    ]
+                        ]
+                    }
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ==== Query Options
@@ -53,25 +57,29 @@ conform with http://geojson.org/[GeoJSON].
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "bool" : {
-        "must" : {
-            "match_all" : {}
-        },
-        "filter" : {
-            "geo_polygon" : {
-                "person.location" : {
-                    "points" : [
-                        [-70, 40],
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_polygon" : {
+                    "person.location" : {
+                        "points" : [
+                            [-70, 40],
                         [-80, 30],
-                        [-90, 20]
-                    ]
+                            [-90, 20]
+                        ]
+                    }
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ===== Lat Lon as String
@@ -80,50 +88,58 @@ Format in `lat,lon`.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "bool" : {
-        "must" : {
-            "match_all" : {}
-        },
-        "filter" : {
-            "geo_polygon" : {
-                "person.location" : {
-                    "points" : [
-                        "40, -70",
-                        "30, -80",
-                        "20, -90"
-                    ]
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+               "geo_polygon" : {
+                    "person.location" : {
+                        "points" : [
+                            "40, -70",
+                            "30, -80",
+                            "20, -90"
+                        ]
+                    }
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ===== Geohash
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "bool" : {
-        "must" : {
-            "match_all" : {}
-        },
-        "filter" : {
-            "geo_polygon" : {
-                "person.location" : {
-                    "points" : [
-                        "drn5x1g8cu2y",
-                        "30, -80",
-                        "20, -90"
-                    ]
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+               "geo_polygon" : {
+                    "person.location" : {
+                        "points" : [
+                            "drn5x1g8cu2y",
+                            "30, -80",
+                            "20, -90"
+                        ]
+                    }
                 }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 [float]
 ==== geo_point Type

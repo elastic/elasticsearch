@@ -23,7 +23,9 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 
@@ -32,14 +34,15 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.index.mapper.core.KeywordFieldMapper.KeywordFieldType;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper.NumberFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
-
+import static org.hamcrest.Matchers.startsWith;
 
 public class MapperServiceTests extends ESSingleNodeTestCase {
 
@@ -100,7 +103,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
 
         // 2. already existing index
         IndexService indexService = createIndex("index2");
-        expectThrows(ExecutionException.class, () -> {
+        e = expectThrows(ExecutionException.class, () -> {
             client().prepareIndex("index1", MapperService.DEFAULT_MAPPING, "2").setSource().execute().get();
         });
         throwable = ExceptionsHelper.unwrapCause(e.getCause());
@@ -166,4 +169,22 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertThat(mapperService.unmappedFieldType("string"), instanceOf(KeywordFieldType.class));
     }
 
+
+    public void testMergeWithMap() throws Throwable {
+        IndexService indexService1 = createIndex("index1");
+        MapperService mapperService = indexService1.mapperService();
+        Map<String, Map<String, Object>> mappings = new HashMap<>();
+
+        mappings.put(MapperService.DEFAULT_MAPPING, MapperService.parseMapping("{}"));
+        MapperException e = expectThrows(MapperParsingException.class,
+            () -> mapperService.merge(mappings, false));
+        assertThat(e.getMessage(), startsWith("Failed to parse mapping [" + MapperService.DEFAULT_MAPPING + "]: "));
+
+        mappings.clear();
+        mappings.put("type1", MapperService.parseMapping("{}"));
+
+        e = expectThrows( MapperParsingException.class,
+            () -> mapperService.merge(mappings, false));
+        assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: "));
+    }
 }

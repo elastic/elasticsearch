@@ -21,6 +21,7 @@ package org.elasticsearch.mapper.attachments;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.search.Query;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.Version;
@@ -32,16 +33,18 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.core.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.core.TextFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -49,7 +52,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
+import static org.elasticsearch.index.mapper.TypeParsers.parseMultiField;
 
 /**
  * <pre>
@@ -117,6 +120,11 @@ public class AttachmentMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            throw new QueryShardException(context, "Attachment fields are not searchable: [" + name() + "]");
         }
     }
 
@@ -419,7 +427,6 @@ public class AttachmentMapper extends FieldMapper {
     }
 
     @Override
-    @SuppressWarnings("deprecation") // https://github.com/elastic/elasticsearch/issues/15843
     public Mapper parse(ParseContext context) throws IOException {
         byte[] content = null;
         String contentType = null;
@@ -475,7 +482,7 @@ public class AttachmentMapper extends FieldMapper {
         String parsedContent;
         try {
             parsedContent = TikaImpl.parse(content, metadata, indexedChars);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             // #18: we could ignore errors when Tika does not parse data
             if (!ignoreErrors) {
                 logger.trace("exception caught", e);
@@ -501,8 +508,8 @@ public class AttachmentMapper extends FieldMapper {
                 }
                 context = context.createExternalValueContext(language);
                 languageMapper.parse(context);
-            } catch(Throwable t) {
-                logger.debug("Cannot detect language: [{}]", t.getMessage());
+            } catch(Exception e) {
+                logger.debug("Cannot detect language: [{}]", e.getMessage());
             }
         }
 

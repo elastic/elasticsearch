@@ -19,14 +19,11 @@
 
 package org.elasticsearch.painless;
 
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.util.TraceClassVisitor;
+import org.apache.lucene.util.IOUtils;
+import org.objectweb.asm.util.Textifier;
 
-import java.io.ByteArrayOutputStream;
-import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
+import java.io.StringWriter;
 
 /** quick and dirty tools for debugging */
 final class Debugger {
@@ -37,19 +34,20 @@ final class Debugger {
     }
 
     /** compiles to bytecode, and returns debugging output */
-    static String toString(final String source, final CompilerSettings settings) {
-        final byte[] bytes = Compiler.compile(source, settings);
-        final ByteArrayOutputStream output = new ByteArrayOutputStream();
-        final PrintWriter outputWriter = new PrintWriter(new OutputStreamWriter(output, StandardCharsets.UTF_8));
-        final ClassReader reader = new ClassReader(bytes);
-
-        reader.accept(new TraceClassVisitor(outputWriter), 0);
-        outputWriter.flush();
-
+    static String toString(String source, CompilerSettings settings) {
+        StringWriter output = new StringWriter();
+        PrintWriter outputWriter = new PrintWriter(output);
+        Textifier textifier = new Textifier();
         try {
-            return output.toString("UTF-8");
-        } catch (final UnsupportedEncodingException e) {
-            throw new RuntimeException(e);
+            Compiler.compile("<debugging>", source, settings, textifier);
+        } catch (Exception e) {
+            textifier.print(outputWriter);
+            e.addSuppressed(new Exception("current bytecode: \n" + output));
+            IOUtils.reThrowUnchecked(e);
+            throw new AssertionError();
         }
+        
+        textifier.print(outputWriter);
+        return output.toString();
     }
 }

@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -38,7 +37,6 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "node_version";
 
-    @Inject
     public NodeVersionAllocationDecider(Settings settings) {
         super(settings);
     }
@@ -59,7 +57,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
                 return isVersionCompatible(allocation.routingNodes(), shardRouting.currentNodeId(), node, allocation);
             }
         } else {
-            final ShardRouting primary = allocation.routingNodes().activePrimary(shardRouting);
+            final ShardRouting primary = allocation.routingNodes().activePrimary(shardRouting.shardId());
             // check that active primary has a newer version so that peer recovery works
             if (primary != null) {
                 return isVersionCompatible(allocation.routingNodes(), primary.currentNodeId(), node, allocation);

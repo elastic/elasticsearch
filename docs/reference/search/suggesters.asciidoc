@@ -10,15 +10,25 @@ The suggest request part is either defined alongside the query part in a
 
 [source,js]
 --------------------------------------------------
-curl -s -XPOST 'localhost:9200/_search' -d '{
+POST twitter/_search
+{
   "query" : {
-    ...
+    "match": {
+      "message": "tring out Elasticsearch"
+    }
   },
   "suggest" : {
-    ...
+    "my-suggestion" : {
+      "text" : "trying out Elasticsearch",
+      "term" : {
+        "field" : "message"
+      }
+    }
   }
-}' 
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 Suggest requests executed against the `_suggest` endpoint should omit
 the surrounding `suggest` element which is only used if the suggest
@@ -26,15 +36,18 @@ request is part of a search.
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/_suggest' -d '{
+POST _suggest
+{
   "my-suggestion" : {
-    "text" : "the amsterdma meetpu",
+    "text" : "tring out Elasticsearch",
     "term" : {
-      "field" : "body"
+      "field" : "message"
     }
   }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 Several suggestions can be specified per request. Each suggestion is
 identified with an arbitrary name. In the example below two suggestions
@@ -43,21 +56,24 @@ the `term` suggester, but have a different `text`.
 
 [source,js]
 --------------------------------------------------
-"suggest" : {
+POST _suggest
+{
   "my-suggest-1" : {
-    "text" : "the amsterdma meetpu",
+    "text" : "tring out Elasticsearch",
     "term" : {
-      "field" : "body"
+      "field" : "message"
     }
   },
   "my-suggest-2" : {
-    "text" : "the rottredam meetpu",
+    "text" : "kmichy",
     "term" : {
-      "field" : "title"
+      "field" : "user"
     }
   }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 The below suggest response example includes the suggestion response for
 `my-suggest-1` and `my-suggest-2`. Each suggestion part contains
@@ -68,43 +84,34 @@ in the suggest text and if found an arbitrary number of options.
 [source,js]
 --------------------------------------------------
 {
-  ...
-  "suggest": {
-    "my-suggest-1": [
-      {
-        "text" : "amsterdma",
-        "offset": 4,
-        "length": 9,
-        "options": [
-           ...
-        ]
-      },     
-      ...       
-    ],
-    "my-suggest-2" : [
-      ... 
-    ]
-  }
-  ...
+  "_shards": ...
+  "my-suggest-1": [ {
+    "text": "tring",
+    "offset": 0,
+    "length": 5,
+    "options": [ {"text": "trying", "score": 0.8, "freq": 1 } ]
+  }, {
+    "text": "out",
+    "offset": 6,
+    "length": 3,
+    "options": []
+  }, {
+    "text": "elasticsearch",
+    "offset": 10,
+    "length": 13,
+    "options": []
+  } ],
+  "my-suggest-2": ...
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": "$body._shards",/]
+// TESTRESPONSE[s/"my-suggest-2": \.\.\./"my-suggest-2": "$body.my-suggest-2"/]
+
 
 Each options array contains an option object that includes the
 suggested text, its document frequency and score compared to the suggest
 entry text. The meaning of the score depends on the used suggester. The
 term suggester's score is based on the edit distance.
-
-[source,js]
---------------------------------------------------
-"options": [
-  {
-    "text": "amsterdam",
-    "freq": 77,
-    "score": 0.8888889
-  },
-  ...
-]  
---------------------------------------------------
 
 [float]
 [[global-suggest]]
@@ -116,156 +123,26 @@ and applies to the `my-suggest-1` and `my-suggest-2` suggestions.
 
 [source,js]
 --------------------------------------------------
-"suggest" : {
-  "text" : "the amsterdma meetpu",
+POST _suggest
+{
+  "text" : "tring out Elasticsearch",
   "my-suggest-1" : {
     "term" : {
-      "field" : "title"
+      "field" : "message"
     }
   },
   "my-suggest-2" : {
     "term" : {
-      "field" : "body"
+      "field" : "user"
     }
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 The suggest text can in the above example also be specified as
 suggestion specific option. The suggest text specified on suggestion
 level override the suggest text on the global level.
-
-[float]
-=== Other suggest example
-
-In the below example we request suggestions for the following suggest
-text: `devloping distibutd saerch engies` on the `title` field with a
-maximum of 3 suggestions per term inside the suggest text. Note that in
-this example we set `size` to `0`. This isn't required, but a
-nice optimization. The suggestions are gathered in the `query` phase and
-in the case that we only care about suggestions (so no hits) we don't
-need to execute the `fetch` phase.
-
-[source,js]
---------------------------------------------------
-curl -s -XPOST 'localhost:9200/_search' -d '{
-  "size": 0,
-  "suggest" : {
-    "my-title-suggestions-1" : {
-      "text" : "devloping distibutd saerch engies",
-      "term" : {
-        "size" : 3,
-        "field" : "title"  
-      }
-    }
-  }
-}'
---------------------------------------------------
-
-The above request could yield the response as stated in the code example
-below. As you can see if we take the first suggested options of each
-suggestion entry we get `developing distributed search engines` as
-result.
-
-[source,js]
---------------------------------------------------
-{
-  ...
-  "suggest": {
-    "my-title-suggestions-1": [
-      {
-        "text": "devloping",
-        "offset": 0,
-        "length": 9,
-        "options": [
-          {
-            "text": "developing",
-            "freq": 77,
-            "score": 0.8888889
-          },
-          {
-            "text": "deloping",
-            "freq": 1,
-            "score": 0.875
-          },
-          {
-            "text": "deploying",
-            "freq": 2,
-            "score": 0.7777778
-          }
-        ]
-      },
-      {
-        "text": "distibutd",
-        "offset": 10,
-        "length": 9,
-        "options": [
-          {
-            "text": "distributed",
-            "freq": 217,
-            "score": 0.7777778
-          },
-          {
-            "text": "disributed",
-            "freq": 1,
-            "score": 0.7777778
-          },
-          {
-            "text": "distribute",
-            "freq": 1,
-            "score": 0.7777778
-          }
-        ]
-      },
-      {
-        "text": "saerch",
-        "offset": 20,
-        "length": 6,
-        "options": [
-          {
-            "text": "search",
-            "freq": 1038,
-            "score": 0.8333333
-          },
-          {
-            "text": "smerch",
-            "freq": 3,
-            "score": 0.8333333
-          },
-          {
-            "text": "serch",
-            "freq": 2,
-            "score": 0.8
-          }
-        ]
-      },
-      {
-        "text": "engies",
-        "offset": 27,
-        "length": 6,
-        "options": [
-          {
-            "text": "engines",
-            "freq": 568,
-            "score": 0.8333333
-          },
-          {
-            "text": "engles",
-            "freq": 3,
-            "score": 0.8333333
-          },
-          {
-            "text": "eggies",
-            "freq": 1,
-            "score": 0.8333333
-          }
-        ]
-      }
-    ]
-  }
-  ...
-}
---------------------------------------------------
 
 include::suggesters/term-suggest.asciidoc[]
 
@@ -274,5 +151,3 @@ include::suggesters/phrase-suggest.asciidoc[]
 include::suggesters/completion-suggest.asciidoc[]
 
 include::suggesters/context-suggest.asciidoc[]
-
-

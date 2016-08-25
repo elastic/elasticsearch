@@ -38,8 +38,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.Objects;
 
 /**
  * Abstract base class for allocating an unassigned shard to a node
@@ -61,7 +60,7 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
     /**
      * Works around ObjectParser not supporting constructor arguments.
      */
-    protected static abstract class Builder<T extends AbstractAllocateAllocationCommand> {
+    protected abstract static class Builder<T extends AbstractAllocateAllocationCommand> {
         protected String index;
         protected int shard = -1;
         protected String node;
@@ -208,9 +207,9 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
                 continue;
             }
             if (unassignedInfo != null) {
-                unassigned = it.updateUnassignedInfo(unassignedInfo);
+                unassigned = it.updateUnassignedInfo(unassignedInfo, allocation.changes());
             }
-            it.initialize(routingNode.nodeId(), null, allocation.clusterInfo().getShardSize(unassigned, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
+            it.initialize(routingNode.nodeId(), null, allocation.clusterInfo().getShardSize(unassigned, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
             return;
         }
         assert false : "shard to initialize not found in list of unassigned shards";
@@ -227,5 +226,23 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
     }
 
     protected void extraXContent(XContentBuilder builder) throws IOException {
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        AbstractAllocateAllocationCommand other = (AbstractAllocateAllocationCommand) obj;
+        // Override equals and hashCode for testing
+        return Objects.equals(index, other.index) &&
+                Objects.equals(shardId, other.shardId) &&
+                Objects.equals(node, other.node);
+    }
+
+    @Override
+    public int hashCode() {
+        // Override equals and hashCode for testing
+        return Objects.hash(index, shardId, node);
     }
 }

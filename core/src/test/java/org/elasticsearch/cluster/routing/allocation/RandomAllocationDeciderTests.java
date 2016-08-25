@@ -37,7 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESAllocationTestCase;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 import org.hamcrest.Matchers;
 
@@ -77,12 +77,13 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             routingTableBuilder.addAsNew(metaData.index("INDEX_" + i));
         }
 
-        RoutingTable routingTable = routingTableBuilder.build();
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        RoutingTable initialRoutingTable = routingTableBuilder.build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).routingTable(initialRoutingTable).build();
         int numIters = scaledRandomIntBetween(5, 15);
         int nodeIdCounter = 0;
         int atMostNodes = scaledRandomIntBetween(Math.max(1, maxNumReplicas), 15);
         final boolean frequentNodes = randomBoolean();
+        RoutingAllocation.Result routingResult;
         for (int i = 0; i < numIters; i++) {
             logger.info("Start iteration [{}]", i);
             ClusterState.Builder stateBuilder = ClusterState.builder(clusterState);
@@ -93,24 +94,29 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
                 int numNodes = scaledRandomIntBetween(1, 3);
                 for (int j = 0; j < numNodes; j++) {
                     logger.info("adding node [{}]", nodeIdCounter);
-                    newNodesBuilder.put(newNode("NODE_" + (nodeIdCounter++)));
+                    newNodesBuilder.add(newNode("NODE_" + (nodeIdCounter++)));
                 }
             }
 
+            boolean nodesRemoved = false;
             if (nodeIdCounter > 1 && rarely()) {
                 int nodeId = scaledRandomIntBetween(0, nodeIdCounter - 2);
                 logger.info("removing node [{}]", nodeId);
                 newNodesBuilder.remove("NODE_" + nodeId);
+                nodesRemoved = true;
             }
 
             stateBuilder.nodes(newNodesBuilder.build());
             clusterState = stateBuilder.build();
-            routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+            if (nodesRemoved) {
+                routingResult = strategy.deassociateDeadNodes(clusterState, true, "reroute");
+            } else {
+                routingResult = strategy.reroute(clusterState, "reroute");
+            }
+            clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
             if (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size() > 0) {
-                routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))
-                        .routingTable();
-                clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+                routingResult = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+                clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
             }
         }
         logger.info("Fill up nodes such that every shard can be allocated");
@@ -119,7 +125,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
             DiscoveryNodes.Builder newNodesBuilder = DiscoveryNodes.builder(clusterState.nodes());
             for (int j = 0; j < (maxNumReplicas - clusterState.nodes().getSize()); j++) {
                 logger.info("adding node [{}]", nodeIdCounter);
-                newNodesBuilder.put(newNode("NODE_" + (nodeIdCounter++)));
+                newNodesBuilder.add(newNode("NODE_" + (nodeIdCounter++)));
             }
             stateBuilder.nodes(newNodesBuilder.build());
             clusterState = stateBuilder.build();
@@ -131,12 +137,11 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         int iterations = 0;
         do {
             iterations++;
-            routingTable = strategy.reroute(clusterState, "reroute").routingTable();
-            clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+            routingResult = strategy.reroute(clusterState, "reroute");
+            clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
             if (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size() > 0) {
-                routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))
-                        .routingTable();
-                clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+                routingResult = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
+                clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
             }
 
         } while (clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size() != 0 ||
@@ -161,7 +166,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         }
     }
 
-    private static final class RandomAllocationDecider extends AllocationDecider {
+    public static final class RandomAllocationDecider extends AllocationDecider {
 
         private final Random random;
 

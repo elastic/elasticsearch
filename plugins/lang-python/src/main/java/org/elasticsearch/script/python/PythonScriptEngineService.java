@@ -24,7 +24,6 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.CompiledScript;
@@ -47,9 +46,6 @@ import java.security.AccessController;
 import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -58,11 +54,11 @@ import java.util.Map;
 //TODO we can optimize the case for Map<String, Object> similar to PyStringMap
 public class PythonScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
-    public static final List<String> TYPES = Collections.unmodifiableList(Arrays.asList("py", "python"));
+    public static final String NAME = "python";
+    public static final String EXTENSION = "py";
 
     private final PythonInterpreter interp;
 
-    @Inject
     public PythonScriptEngineService(Settings settings) {
         super(settings);
 
@@ -96,22 +92,17 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public List<String> getTypes() {
-        return TYPES;
+    public String getType() {
+        return NAME;
     }
 
     @Override
-    public List<String> getExtensions() {
-        return Collections.unmodifiableList(Arrays.asList("py"));
+    public String getExtension() {
+        return EXTENSION;
     }
 
     @Override
-    public boolean isSandboxed() {
-        return false;
-    }
-
-    @Override
-    public Object compile(String script, Map<String, String> params) {
+    public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
         // classloader created here
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -120,7 +111,7 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         return AccessController.doPrivileged(new PrivilegedAction<PyCode>() {
             @Override
             public PyCode run() {
-                return interp.compile(script);
+                return interp.compile(scriptSource);
             }
         });
     }
@@ -149,11 +140,6 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     @Override
     public void close() {
         interp.cleanup();
-    }
-
-    @Override
-    public void scriptRemoved(@Nullable CompiledScript compiledScript) {
-        // Nothing to do
     }
 
     public class PythonExecutableScript implements ExecutableScript {
@@ -248,11 +234,6 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         }
 
         @Override
-        public float runAsFloat() {
-            return ((Number) run()).floatValue();
-        }
-
-        @Override
         public long runAsLong() {
             return ((Number) run()).longValue();
         }
@@ -280,7 +261,7 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     }
 
     /** Evaluates with reduced privileges */
-    private final PyObject evalRestricted(final PyCode code) {
+    private PyObject evalRestricted(final PyCode code) {
         // eval the script with reduced privileges
         return AccessController.doPrivileged(new PrivilegedAction<PyObject>() {
             @Override

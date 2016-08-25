@@ -113,9 +113,10 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
                 .endObject()
                 .endObject()
                 .endObject()
+                .endObject()
                 .endObject();
 
-        byte[] mapping = mappingBuilder.bytes().toBytes();
+        byte[] mapping = BytesReference.toBytes(mappingBuilder.bytes());
         MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper());
         DocumentMapper docMapper = mapperService.parse("mail", new CompressedXContent(mapping), true);
         // this should not throw an exception

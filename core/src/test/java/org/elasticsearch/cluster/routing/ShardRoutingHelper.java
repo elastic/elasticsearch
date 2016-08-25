@@ -52,6 +52,12 @@ public class ShardRoutingHelper {
         return routing.reinitializeShard().updateUnassignedInfo(new UnassignedInfo(reason, "test_reinit"));
     }
 
+    public static ShardRouting initWithSameId(ShardRouting copy) {
+        return new ShardRouting(copy.shardId(), copy.currentNodeId(), copy.relocatingNodeId(), copy.restoreSource(),
+            copy.primary(), ShardRoutingState.INITIALIZING, new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
+            copy.allocationId(), copy.getExpectedShardSize());
+    }
+
     public static ShardRouting moveToUnassigned(ShardRouting routing, UnassignedInfo info) {
         return routing.moveToUnassigned(info);
     }

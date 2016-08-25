@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * The BoostingQuery class can be used to effectively demote results that match a given query.
@@ -45,9 +46,7 @@ import java.util.Objects;
  * demoting effect
  */
 public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuilder> {
-
     public static final String NAME = "boosting";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField POSITIVE_FIELD = new ParseField("positive");
     private static final ParseField NEGATIVE_FIELD = new ParseField("negative");
@@ -138,12 +137,12 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         builder.endObject();
     }
 
-    public static BoostingQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<BoostingQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
-        QueryBuilder positiveQuery = null;
+        Optional<QueryBuilder> positiveQuery = null;
         boolean positiveQueryFound = false;
-        QueryBuilder negativeQuery = null;
+        Optional<QueryBuilder> negativeQuery = null;
         boolean negativeQueryFound = false;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         float negativeBoost = -1;
@@ -187,12 +186,15 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
             throw new ParsingException(parser.getTokenLocation(),
                     "[boosting] query requires 'negative_boost' to be set to be a positive value'");
         }
+        if (positiveQuery.isPresent() == false || negativeQuery.isPresent() == false) {
+            return Optional.empty();
+        }
 
-        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery, negativeQuery);
+        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery.get(), negativeQuery.get());
         boostingQuery.negativeBoost(negativeBoost);
         boostingQuery.boost(boost);
         boostingQuery.queryName(queryName);
-        return boostingQuery;
+        return Optional.of(boostingQuery);
     }
 
     @Override
@@ -204,12 +206,6 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Query positive = positiveQuery.toQuery(context);
         Query negative = negativeQuery.toQuery(context);
-        // make upstream queries ignore this query by returning `null`
-        // if either inner query builder returns null
-        if (positive == null || negative == null) {
-            return null;
-        }
-
         return new BoostingQuery(positive, negative, negativeBoost);
     }
 

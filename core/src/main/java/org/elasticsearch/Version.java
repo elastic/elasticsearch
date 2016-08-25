@@ -22,7 +22,6 @@ package org.elasticsearch;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -32,7 +31,6 @@ import java.io.IOException;
 
 /**
  */
-@SuppressWarnings("deprecation")
 public class Version {
     /*
      * The logic for ID is: XXYYZZAA, where XX is major version, YY is minor version, ZZ is revision, and AA is alpha/beta/rc indicator AA
@@ -69,13 +67,25 @@ public class Version {
     public static final Version V_2_3_1 = new Version(V_2_3_1_ID, org.apache.lucene.util.Version.LUCENE_5_5_0);
     public static final int V_2_3_2_ID = 2030299;
     public static final Version V_2_3_2 = new Version(V_2_3_2_ID, org.apache.lucene.util.Version.LUCENE_5_5_0);
+    public static final int V_2_3_3_ID = 2030399;
+    public static final Version V_2_3_3 = new Version(V_2_3_3_ID, org.apache.lucene.util.Version.LUCENE_5_5_0);
+    public static final int V_2_3_4_ID = 2030499;
+    public static final Version V_2_3_4 = new Version(V_2_3_4_ID, org.apache.lucene.util.Version.LUCENE_5_5_0);
+    public static final int V_2_3_5_ID = 2030599;
+    public static final Version V_2_3_5 = new Version(V_2_3_5_ID, org.apache.lucene.util.Version.LUCENE_5_5_0);
     public static final int V_5_0_0_alpha1_ID = 5000001;
     public static final Version V_5_0_0_alpha1 = new Version(V_5_0_0_alpha1_ID, org.apache.lucene.util.Version.LUCENE_6_0_0);
     public static final int V_5_0_0_alpha2_ID = 5000002;
     public static final Version V_5_0_0_alpha2 = new Version(V_5_0_0_alpha2_ID, org.apache.lucene.util.Version.LUCENE_6_0_0);
-    public static final int V_5_0_0_ID = 5000099;
-    public static final Version V_5_0_0 = new Version(V_5_0_0_ID, org.apache.lucene.util.Version.LUCENE_6_0_0);
-    public static final Version CURRENT = V_5_0_0;
+    public static final int V_5_0_0_alpha3_ID = 5000003;
+    public static final Version V_5_0_0_alpha3 = new Version(V_5_0_0_alpha3_ID, org.apache.lucene.util.Version.LUCENE_6_0_0);
+    public static final int V_5_0_0_alpha4_ID = 5000004;
+    public static final Version V_5_0_0_alpha4 = new Version(V_5_0_0_alpha4_ID, org.apache.lucene.util.Version.LUCENE_6_1_0);
+    public static final int V_5_0_0_alpha5_ID = 5000005;
+    public static final Version V_5_0_0_alpha5 = new Version(V_5_0_0_alpha5_ID, org.apache.lucene.util.Version.LUCENE_6_1_0);
+    public static final int V_5_0_0_alpha6_ID = 5000006;
+    public static final Version V_5_0_0_alpha6 = new Version(V_5_0_0_alpha6_ID, org.apache.lucene.util.Version.LUCENE_6_2_0);
+    public static final Version CURRENT = V_5_0_0_alpha6;
 
     static {
         assert CURRENT.luceneVersion.equals(org.apache.lucene.util.Version.LATEST) : "Version must be upgraded to ["
@@ -88,12 +98,24 @@ public class Version {
 
     public static Version fromId(int id) {
         switch (id) {
-            case V_5_0_0_ID:
-                return V_5_0_0;
+            case V_5_0_0_alpha6_ID:
+                return V_5_0_0_alpha6;
+            case V_5_0_0_alpha5_ID:
+                return V_5_0_0_alpha5;
+            case V_5_0_0_alpha4_ID:
+                return V_5_0_0_alpha4;
+            case V_5_0_0_alpha3_ID:
+                return V_5_0_0_alpha3;
             case V_5_0_0_alpha2_ID:
                 return V_5_0_0_alpha2;
             case V_5_0_0_alpha1_ID:
                 return V_5_0_0_alpha1;
+            case V_2_3_5_ID:
+                return V_2_3_5;
+            case V_2_3_4_ID:
+                return V_2_3_4;
+            case V_2_3_3_ID:
+                return V_2_3_3;
             case V_2_3_2_ID:
                 return V_2_3_2;
             case V_2_3_1_ID:
@@ -321,19 +343,5 @@ public class Version {
 
     public boolean isRC() {
         return build > 50 && build < 99;
-    }
-
-    public static class Module extends AbstractModule {
-
-        private final Version version;
-
-        public Module(Version version) {
-            this.version = version;
-        }
-
-        @Override
-        protected void configure() {
-            bind(Version.class).toInstance(version);
-        }
     }
 }

@@ -41,12 +41,13 @@ import java.util.Map;
  */
 public class TermsParser extends AbstractTermsParser {
     @Override
-    protected TermsAggregatorBuilder doCreateFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, BucketCountThresholds bucketCountThresholds, SubAggCollectionMode collectMode, String executionHint,
-            IncludeExclude incExc, Map<ParseField, Object> otherOptions) {
-        TermsAggregatorBuilder factory = new TermsAggregatorBuilder(aggregationName, targetValueType);
+    protected TermsAggregationBuilder doCreateFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                      ValueType targetValueType, BucketCountThresholds bucketCountThresholds,
+                                                      SubAggCollectionMode collectMode, String executionHint,
+                                                      IncludeExclude incExc, Map<ParseField, Object> otherOptions) {
+        TermsAggregationBuilder factory = new TermsAggregationBuilder(aggregationName, targetValueType);
         @SuppressWarnings("unchecked")
-        List<OrderElement> orderElements = (List<OrderElement>) otherOptions.get(TermsAggregatorBuilder.ORDER_FIELD);
+        List<OrderElement> orderElements = (List<OrderElement>) otherOptions.get(TermsAggregationBuilder.ORDER_FIELD);
         if (orderElements != null) {
             List<Terms.Order> orders = new ArrayList<>(orderElements.size());
             for (OrderElement orderElement : orderElements) {
@@ -66,7 +67,7 @@ public class TermsParser extends AbstractTermsParser {
         if (incExc != null) {
             factory.includeExclude(incExc);
         }
-        Boolean showTermDocCountError = (Boolean) otherOptions.get(TermsAggregatorBuilder.SHOW_TERM_DOC_COUNT_ERROR);
+        Boolean showTermDocCountError = (Boolean) otherOptions.get(TermsAggregationBuilder.SHOW_TERM_DOC_COUNT_ERROR);
         if (showTermDocCountError != null) {
             factory.showTermDocCountError(showTermDocCountError);
         }
@@ -77,12 +78,12 @@ public class TermsParser extends AbstractTermsParser {
     public boolean parseSpecial(String aggregationName, XContentParser parser, ParseFieldMatcher parseFieldMatcher, Token token,
             String currentFieldName, Map<ParseField, Object> otherOptions) throws IOException {
         if (token == XContentParser.Token.START_OBJECT) {
-            if (parseFieldMatcher.match(currentFieldName, TermsAggregatorBuilder.ORDER_FIELD)) {
-                otherOptions.put(TermsAggregatorBuilder.ORDER_FIELD, Collections.singletonList(parseOrderParam(aggregationName, parser)));
+            if (parseFieldMatcher.match(currentFieldName, TermsAggregationBuilder.ORDER_FIELD)) {
+                otherOptions.put(TermsAggregationBuilder.ORDER_FIELD, Collections.singletonList(parseOrderParam(aggregationName, parser)));
                 return true;
             }
         } else if (token == XContentParser.Token.START_ARRAY) {
-            if (parseFieldMatcher.match(currentFieldName, TermsAggregatorBuilder.ORDER_FIELD)) {
+            if (parseFieldMatcher.match(currentFieldName, TermsAggregationBuilder.ORDER_FIELD)) {
                 List<OrderElement> orderElements = new ArrayList<>();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     if (token == XContentParser.Token.START_OBJECT) {
@@ -93,12 +94,12 @@ public class TermsParser extends AbstractTermsParser {
                                 "Order elements must be of type object in [" + aggregationName + "] found token of type [" + token + "].");
                     }
                 }
-                otherOptions.put(TermsAggregatorBuilder.ORDER_FIELD, orderElements);
+                otherOptions.put(TermsAggregationBuilder.ORDER_FIELD, orderElements);
                 return true;
             }
         } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-            if (parseFieldMatcher.match(currentFieldName, TermsAggregatorBuilder.SHOW_TERM_DOC_COUNT_ERROR)) {
-                otherOptions.put(TermsAggregatorBuilder.SHOW_TERM_DOC_COUNT_ERROR, parser.booleanValue());
+            if (parseFieldMatcher.match(currentFieldName, TermsAggregationBuilder.SHOW_TERM_DOC_COUNT_ERROR)) {
+                otherOptions.put(TermsAggregationBuilder.SHOW_TERM_DOC_COUNT_ERROR, parser.booleanValue());
                 return true;
             }
         }
@@ -158,7 +159,7 @@ public class TermsParser extends AbstractTermsParser {
 
     @Override
     public TermsAggregator.BucketCountThresholds getDefaultBucketCountThresholds() {
-        return new TermsAggregator.BucketCountThresholds(TermsAggregatorBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS);
+        return new TermsAggregator.BucketCountThresholds(TermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS);
     }
 
     static Terms.Order resolveOrder(String key, boolean asc) {

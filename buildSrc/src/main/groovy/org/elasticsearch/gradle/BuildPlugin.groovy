@@ -113,7 +113,7 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             // enforce gradle version
-            GradleVersion minGradle = GradleVersion.version('2.8')
+            GradleVersion minGradle = GradleVersion.version('2.13')
             if (GradleVersion.current() < minGradle) {
                 throw new GradleException("${minGradle} or above is required to build elasticsearch")
             }
@@ -143,7 +143,7 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             project.rootProject.ext.javaHome = javaHome
-            project.rootProject.ext.javaVersion = javaVersion
+            project.rootProject.ext.javaVersion = javaVersionEnum
             project.rootProject.ext.buildChecksDone = true
         }
         project.targetCompatibility = minimumJava
@@ -270,7 +270,7 @@ class BuildPlugin implements Plugin<Project> {
 
         // add exclusions to the pom directly, for each of the transitive deps of this project's deps
         project.modifyPom { MavenPom pom ->
-            pom.withXml(removeTransitiveDependencies(project))
+            pom.withXml(fixupDependencies(project))
         }
     }
 
@@ -299,9 +299,16 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
-    /** Returns a closure which can be used with a MavenPom for removing transitive dependencies. */
-    private static Closure removeTransitiveDependencies(Project project) {
-        // TODO: remove this when enforcing gradle 2.13+, it now properly handles exclusions
+    /**
+     * Returns a closure which can be used with a MavenPom for fixing problems with gradle generated poms.
+     *
+     * <ul>
+     *     <li>Remove transitive dependencies (using wildcard exclusions, fixed in gradle 2.14)</li>
+     *     <li>Set compile time deps back to compile from runtime (known issue with maven-publish plugin)
+     * </ul>
+     */
+    private static Closure fixupDependencies(Project project) {
+        // TODO: remove this when enforcing gradle 2.14+, it now properly handles exclusions
         return { XmlProvider xml ->
             // first find if we have dependencies at all, and grab the node
             NodeList depsNodes = xml.asNode().get('dependencies')
@@ -315,6 +322,15 @@ class BuildPlugin implements Plugin<Project> {
                 String artifactId = depNode.get('artifactId').get(0).text()
                 String version = depNode.get('version').get(0).text()
 
+                // fix deps incorrectly marked as runtime back to compile time deps
+                // see https://discuss.gradle.org/t/maven-publish-plugin-generated-pom-making-dependency-scope-runtime/7494/4
+                boolean isCompileDep = project.configurations.compile.allDependencies.find { dep ->
+                    dep.name == depNode.artifactId.text()
+                }
+                if (depNode.scope.text() == 'runtime' && isCompileDep) {
+                    depNode.scope*.value = 'compile'
+                }
+
                 // collect the transitive deps now that we know what this dependency is
                 String depConfig = transitiveDepConfigName(groupId, artifactId, version)
                 Configuration configuration = project.configurations.findByName(depConfig)
@@ -327,29 +343,22 @@ class BuildPlugin implements Plugin<Project> {
                     continue
                 }
 
-                // we now know we have something to exclude, so add the exclusion elements
-                Node exclusions = depNode.appendNode('exclusions')
-                for (ResolvedArtifact transitiveArtifact : artifacts) {
-                    ModuleVersionIdentifier transitiveDep = transitiveArtifact.moduleVersion.id
-                    if (transitiveDep.group == groupId && transitiveDep.name == artifactId) {
-                        continue; // don't exclude the dependency itself!
-                    }
-                    Node exclusion = exclusions.appendNode('exclusion')
-                    exclusion.appendNode('groupId', transitiveDep.group)
-                    exclusion.appendNode('artifactId', transitiveDep.name)
-                }
+                // we now know we have something to exclude, so add a wildcard exclusion element
+                Node exclusion = depNode.appendNode('exclusions').appendNode('exclusion')
+                exclusion.appendNode('groupId', '*')
+                exclusion.appendNode('artifactId', '*')
             }
         }
     }
 
     /**Configuration generation of maven poms. */
-    private static void configurePomGeneration(Project project) {
+    public static void configurePomGeneration(Project project) {
         project.plugins.withType(MavenPublishPlugin.class).whenPluginAdded {
             project.publishing {
                 publications {
                     all { MavenPublication publication -> // we only deal with maven
                         // add exclusions to the pom directly, for each of the transitive deps of this project's deps
-                        publication.pom.withXml(removeTransitiveDependencies(project))
+                        publication.pom.withXml(fixupDependencies(project))
                     }
                 }
             }
@@ -372,25 +381,36 @@ class BuildPlugin implements Plugin<Project> {
                 options.fork = true
                 options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
                 options.forkOptions.memoryMaximumSize = "1g"
+                if (project.targetCompatibility >= JavaVersion.VERSION_1_8) {
+                    // compile with compact 3 profile by default
+                    // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
+                    if (project.compactProfile != 'full') {
+                        options.compilerArgs << '-profile' << project.compactProfile
+                    }
+                }
                 /*
                  * -path because gradle will send in paths that don't always exist.
                  * -missing because we have tons of missing @returns and @param.
                  * -serial because we don't use java serialization.
                  */
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
-                options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial' << '-Xdoclint:all' << '-Xdoclint:-missing'
-                // compile with compact 3 profile by default
-                // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
-                if (project.compactProfile != 'full') {
-                    options.compilerArgs << '-profile' << project.compactProfile
+                options.compilerArgs << '-Werror' << '-Xlint:all,-path,-serial,-options,-deprecation' << '-Xdoclint:all' << '-Xdoclint:-missing'
+
+                // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly defined
+                if (options.compilerArgs.contains("-processor") == false) {
+                    options.compilerArgs << '-proc:none'
                 }
+
                 options.encoding = 'UTF-8'
                 //options.incremental = true
 
-                // gradle ignores target/source compatibility when it is "unnecessary", but since to compile with
-                // java 9, gradle is running in java 8, it incorrectly thinks it is unnecessary
-                assert minimumJava == JavaVersion.VERSION_1_8
-                options.compilerArgs << '-target' << '1.8' << '-source' << '1.8'
+                if (project.javaVersion == JavaVersion.VERSION_1_9) {
+                    // hack until gradle supports java 9's new "-release" arg
+                    assert minimumJava == JavaVersion.VERSION_1_8
+                    options.compilerArgs << '-release' << '8'
+                    project.sourceCompatibility = null
+                    project.targetCompatibility = null
+                }
             }
         }
     }
@@ -456,7 +476,7 @@ class BuildPlugin implements Plugin<Project> {
             // default test sysprop values
             systemProperty 'tests.ifNoTests', 'fail'
             // TODO: remove setting logging level via system property
-            systemProperty 'es.logger.level', 'WARN'
+            systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {
                 if (property.getKey().startsWith('tests.') ||
                     property.getKey().startsWith('es.')) {

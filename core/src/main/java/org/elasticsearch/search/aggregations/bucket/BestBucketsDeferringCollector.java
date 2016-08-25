@@ -82,6 +82,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     }
 
     /** Set the deferred collectors. */
+    @Override
     public void setDeferredCollector(Iterable<BucketCollector> deferredCollectors) {
         this.collector = BucketCollector.wrap(deferredCollectors);
     }
@@ -166,16 +167,16 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             int doc = 0;
             for (long i = 0, end = entry.docDeltas.size(); i < end; ++i) {
                 doc += docDeltaIterator.next();
-                if (needsScores) {
-                    if (docIt.docID() < doc) {
-                        docIt.advance(doc);
-                    }
-                    // aggregations should only be replayed on matching documents
-                    assert docIt.docID() == doc;
-                }
                 final long bucket = buckets.next();
                 final long rebasedBucket = hash.find(bucket);
                 if (rebasedBucket != -1) {
+                    if (needsScores) {
+                        if (docIt.docID() < doc) {
+                            docIt.advance(doc);
+                        }
+                        // aggregations should only be replayed on matching documents
+                        assert docIt.docID() == doc;
+                    }
                     leafCollector.collect(doc, rebasedBucket);
                 }
             }

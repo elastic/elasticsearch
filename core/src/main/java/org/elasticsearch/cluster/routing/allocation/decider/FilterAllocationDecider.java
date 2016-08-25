@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -75,7 +74,6 @@ public class FilterAllocationDecider extends AllocationDecider {
     private volatile DiscoveryNodeFilters clusterIncludeFilters;
     private volatile DiscoveryNodeFilters clusterExcludeFilters;
 
-    @Inject
     public FilterAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         setClusterRequireFilters(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.get(settings));
@@ -88,6 +86,19 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        if (shardRouting.unassigned()) {
+            // only for unassigned - we filter allocation right after the index creation ie. for shard shrinking etc. to ensure
+            // that once it has been allocated post API the replicas can be allocated elsewhere without user interaction
+            // this is a setting that can only be set within the system!
+            IndexMetaData indexMd = allocation.metaData().getIndexSafe(shardRouting.index());
+            DiscoveryNodeFilters initialRecoveryFilters = indexMd.getInitialRecoveryFilters();
+            if (shardRouting.allocatedPostIndexCreate(indexMd) == false &&
+                initialRecoveryFilters != null &&
+                initialRecoveryFilters.match(node.node()) == false) {
+                return allocation.decision(Decision.NO, NAME, "node does not match index initial recovery filters [%s]",
+                    indexMd.includeFilters());
+            }
+        }
         return shouldFilter(shardRouting, node, allocation);
     }
 
@@ -105,7 +116,7 @@ public class FilterAllocationDecider extends AllocationDecider {
         Decision decision = shouldClusterFilter(node, allocation);
         if (decision != null) return decision;
 
-        decision = shouldIndexFilter(allocation.routingNodes().metaData().getIndexSafe(shardRouting.index()), node, allocation);
+        decision = shouldIndexFilter(allocation.metaData().getIndexSafe(shardRouting.index()), node, allocation);
         if (decision != null) return decision;
 
         return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require filters");

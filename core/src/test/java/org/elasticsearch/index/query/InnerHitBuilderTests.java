@@ -18,18 +18,6 @@
  */
 package org.elasticsearch.index.query;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.sameInstance;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
-
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -49,14 +37,29 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
-import org.elasticsearch.search.highlight.HighlightBuilderTests;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+
+import static java.util.Collections.emptyList;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class InnerHitBuilderTests extends ESTestCase {
 
@@ -66,8 +69,9 @@ public class InnerHitBuilderTests extends ESTestCase {
 
     @BeforeClass
     public static void init() {
-        namedWriteableRegistry = new NamedWriteableRegistry();
-        indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).getQueryParserRegistry();
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+        indicesQueriesRegistry = searchModule.getQueryParserRegistry();
     }
 
     @AfterClass
@@ -218,8 +222,10 @@ public class InnerHitBuilderTests extends ESTestCase {
         innerHits.setExplain(randomBoolean());
         innerHits.setVersion(randomBoolean());
         innerHits.setTrackScores(randomBoolean());
-        innerHits.setFieldNames(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
-        innerHits.setFieldDataFields(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
+        if (randomBoolean()) {
+            innerHits.setStoredFieldNames(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
+        }
+        innerHits.setDocValueFields(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
         // Random script fields deduped on their field name.
         Map<String, SearchSourceBuilder.ScriptField> scriptFields = new HashMap<>();
         for (SearchSourceBuilder.ScriptField field: randomListStuff(16, InnerHitBuilderTests::randomScript)) {
@@ -294,11 +300,11 @@ public class InnerHitBuilderTests extends ESTestCase {
                 break;
             case 6:
                 if (randomBoolean()) {
-                    instance.setFieldDataFields(randomValueOtherThan(instance.getFieldDataFields(), () -> {
+                    instance.setDocValueFields(randomValueOtherThan(instance.getDocValueFields(), () -> {
                         return randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16));
                     }));
                 } else {
-                    instance.addFieldDataField(randomAsciiOfLengthBetween(1, 16));
+                    instance.addDocValueField(randomAsciiOfLengthBetween(1, 16));
                 }
                 break;
             case 7:
@@ -341,12 +347,13 @@ public class InnerHitBuilderTests extends ESTestCase {
                         HighlightBuilderTests::randomHighlighterBuilder));
                 break;
             case 11:
-                if (instance.getFieldNames() == null || randomBoolean()) {
-                    instance.setFieldNames(randomValueOtherThan(instance.getFieldNames(), () -> {
-                        return randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16));
-                    }));
+                if (instance.getStoredFieldsContext() == null || randomBoolean()) {
+                    List<String> previous = instance.getStoredFieldsContext() == null ?
+                        Collections.emptyList() : instance.getStoredFieldsContext().fieldNames();
+                    instance.setStoredFieldNames(randomValueOtherThan(previous,
+                        () -> randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16))));
                 } else {
-                    instance.getFieldNames().add(randomAsciiOfLengthBetween(1, 16));
+                    instance.getStoredFieldsContext().addFieldName(randomAsciiOfLengthBetween(1, 16));
                 }
                 break;
             default:
@@ -381,7 +388,7 @@ public class InnerHitBuilderTests extends ESTestCase {
     private static InnerHitBuilder serializedCopy(InnerHitBuilder original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 return new InnerHitBuilder(in);
             }
         }

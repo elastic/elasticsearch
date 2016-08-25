@@ -19,17 +19,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.ingest.PipelineStore;
-import org.elasticsearch.ingest.ProcessorsRegistry;
-import org.elasticsearch.ingest.TestProcessor;
-import org.elasticsearch.ingest.TestTemplateService;
-import org.elasticsearch.ingest.core.CompoundProcessor;
-import org.elasticsearch.ingest.core.IngestDocument;
-import org.elasticsearch.ingest.core.Pipeline;
-import org.elasticsearch.ingest.core.Processor;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,11 +27,20 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.elasticsearch.ingest.CompoundProcessor;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.ingest.PipelineStore;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.TestProcessor;
+import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
+
 import static org.elasticsearch.action.ingest.SimulatePipelineRequest.Fields;
 import static org.elasticsearch.action.ingest.SimulatePipelineRequest.SIMULATED_PIPELINE_ID;
-import static org.elasticsearch.ingest.core.IngestDocument.MetaData.ID;
-import static org.elasticsearch.ingest.core.IngestDocument.MetaData.INDEX;
-import static org.elasticsearch.ingest.core.IngestDocument.MetaData.TYPE;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.ID;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.INDEX;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.TYPE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
@@ -57,12 +55,11 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         TestProcessor processor = new TestProcessor(ingestDocument -> {});
         CompoundProcessor pipelineCompoundProcessor = new CompoundProcessor(processor);
         Pipeline pipeline = new Pipeline(SIMULATED_PIPELINE_ID, null, pipelineCompoundProcessor);
-        ProcessorsRegistry.Builder processorRegistryBuilder = new ProcessorsRegistry.Builder();
-        processorRegistryBuilder.registerProcessor("mock_processor", ((templateService, registry) -> mock(Processor.Factory.class)));
-        ProcessorsRegistry processorRegistry = processorRegistryBuilder.build(TestTemplateService.instance());
+        Map<String, Processor.Factory> registry =
+            Collections.singletonMap("mock_processor", (factories, tag, config) -> processor);
         store = mock(PipelineStore.class);
         when(store.get(SIMULATED_PIPELINE_ID)).thenReturn(pipeline);
-        when(store.getProcessorRegistry()).thenReturn(processorRegistry);
+        when(store.getProcessorFactories()).thenReturn(registry);
     }
 
     public void testParseUsingPipelineStore() throws Exception {

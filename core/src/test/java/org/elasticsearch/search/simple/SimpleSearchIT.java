@@ -19,10 +19,6 @@
 
 package org.elasticsearch.search.simple;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ExecutionException;
-
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -36,6 +32,12 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
+
+import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -49,23 +51,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
-
 public class SimpleSearchIT extends ESIntegTestCase {
     public void testSearchNullIndex() {
-        try {
-            client().prepareSearch((String) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
-            fail();
-        } catch (IllegalArgumentException e) {
+        expectThrows(NullPointerException.class,
+                () -> client().prepareSearch((String) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).get());
 
-        }
+        expectThrows(NullPointerException.class,
+                () -> client().prepareSearch((String[]) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).get());
 
-        try {
-            client().prepareSearch((String[]) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
-            fail();
-        } catch (IllegalArgumentException e) {
-
-        }
     }
 
     public void testSearchRandomPreference() throws InterruptedException, ExecutionException {
@@ -101,7 +94,8 @@ public class SimpleSearchIT extends ESIntegTestCase {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client().prepareIndex("test", "type1", "1").setSource("from", "192.168.0.5", "to", "192.168.0.10").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("from", "192.168.0.5", "to", "192.168.0.10").setRefreshPolicy(IMMEDIATE)
+                .get();
 
         SearchResponse search = client().prepareSearch()
                 .setQuery(boolQuery().must(rangeQuery("from").lte("192.168.0.7")).must(rangeQuery("to").gte("192.168.0.7")))
@@ -185,19 +179,12 @@ public class SimpleSearchIT extends ESIntegTestCase {
     public void testSimpleId() {
         createIndex("test");
 
-        client().prepareIndex("test", "type", "XXX1").setSource("field", "value").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type", "XXX1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         // id is not indexed, but lets see that we automatically convert to
         SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
         assertHitCount(searchResponse, 1L);
 
         searchResponse = client().prepareSearch().setQuery(QueryBuilders.queryStringQuery("_id:XXX1")).execute().actionGet();
-        assertHitCount(searchResponse, 1L);
-
-        // id is not index, but we can automatically support prefix as well
-        searchResponse = client().prepareSearch().setQuery(QueryBuilders.prefixQuery("_id", "XXX")).execute().actionGet();
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch().setQuery(QueryBuilders.queryStringQuery("_id:XXX*").lowercaseExpandedTerms(false)).execute().actionGet();
         assertHitCount(searchResponse, 1L);
     }
 
@@ -421,6 +408,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
                 client().prepareSearch("idx").addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(defaultMaxWindow + 1)).get(),
                 1);
     }
+
     public void testQueryNumericFieldWithRegex() throws Exception {
         assertAcked(prepareCreate("idx").addMapping("type", "num", "type=integer"));
         ensureGreen("idx");
@@ -429,7 +417,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
             client().prepareSearch("idx").setQuery(QueryBuilders.regexpQuery("num", "34")).get();
             fail("SearchPhaseExecutionException should have been thrown");
         } catch (SearchPhaseExecutionException ex) {
-            assertThat(ex.getCause().getCause().getMessage(), containsString("Can only use regular expression on keyword and text fields"));
+            assertThat(ex.getCause().getCause().getMessage(), containsString("Can only use regexp queries on keyword and text fields"));
         }
     }
 
@@ -447,6 +435,6 @@ public class SimpleSearchIT extends ESIntegTestCase {
         assertThat(e.toString(), containsString("Rescore window [" + windowSize + "] is too large. It must "
                 + "be less than [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY)));
         assertThat(e.toString(), containsString(
-                "This limit can be set by chaning the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey() + "] index level setting."));
+                "This limit can be set by changing the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey() + "] index level setting."));
     }
 }

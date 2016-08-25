@@ -106,7 +106,7 @@ public abstract class BaseNodesResponse<TNodeResponse extends BaseNodeResponse> 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        clusterName = ClusterName.readClusterName(in);
+        clusterName = new ClusterName(in);
         nodes = readNodesFrom(in);
         failures = in.readList(FailedNodeException::new);
     }

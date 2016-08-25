@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -43,7 +44,7 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
         AtomicReference<String> value = new AtomicReference<>(randomSimpleString(random()));
         indexRandom(true, client().prepareIndex("test", "test", "test").setSource("test", value.get()));
 
-        AtomicReference<Throwable> failure = new AtomicReference<>();
+        AtomicReference<Exception> failure = new AtomicReference<>();
         AtomicBoolean keepUpdating = new AtomicBoolean(true);
         Thread updater = new Thread(() -> {
             while (keepUpdating.get()) {
@@ -51,8 +52,8 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
                     BulkIndexByScrollResponse response = updateByQuery().source("test").refresh(true).abortOnVersionConflict(false).get();
                     assertThat(response, matcher().updated(either(equalTo(0L)).or(equalTo(1L)))
                             .versionConflicts(either(equalTo(0L)).or(equalTo(1L))));
-                } catch (Throwable t) {
-                    failure.set(t);
+                } catch (Exception e) {
+                    failure.set(e);
                 }
             }
         });
@@ -64,7 +65,7 @@ public class UpdateByQueryWhileModifyingTests extends ReindexTestCase {
                 assertEquals(value.get(), get.getSource().get("test"));
                 value.set(randomSimpleString(random()));
                 IndexRequestBuilder index = client().prepareIndex("test", "test", "test").setSource("test", value.get())
-                        .setRefresh(true);
+                        .setRefreshPolicy(IMMEDIATE);
                 /*
                  * Update by query increments the version number so concurrent
                  * indexes might get version conflict exceptions so we just

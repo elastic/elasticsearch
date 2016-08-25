@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -72,8 +71,6 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
         Setting.intSetting("cluster.routing.allocation.total_shards_per_node", -1,  -1,
             Property.Dynamic, Property.NodeScope);
 
-
-    @Inject
     public ShardsLimitAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         this.clusterShardLimit = CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.get(settings);
@@ -86,7 +83,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        IndexMetaData indexMd = allocation.routingNodes().metaData().getIndexSafe(shardRouting.index());
+        IndexMetaData indexMd = allocation.metaData().getIndexSafe(shardRouting.index());
         final int indexShardLimit = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMd.getSettings(), settings);
         // Capture the limit here in case it changes during this method's
         // execution
@@ -125,7 +122,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        IndexMetaData indexMd = allocation.routingNodes().metaData().getIndexSafe(shardRouting.index());
+        IndexMetaData indexMd = allocation.metaData().getIndexSafe(shardRouting.index());
         final int indexShardLimit = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMd.getSettings(), settings);
         // Capture the limit here in case it changes during this method's
         // execution

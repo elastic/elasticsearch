@@ -22,16 +22,15 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregationBuilder;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class PercentilesBucketTests extends AbstractBucketMetricsTestCase<PercentilesBucketPipelineAggregatorBuilder> {
+public class PercentilesBucketTests extends AbstractBucketMetricsTestCase<PercentilesBucketPipelineAggregationBuilder> {
 
     @Override
-    protected PercentilesBucketPipelineAggregatorBuilder doCreateTestAggregatorFactory(String name, String bucketsPath) {
-        PercentilesBucketPipelineAggregatorBuilder factory = new PercentilesBucketPipelineAggregatorBuilder(name, bucketsPath);
+    protected PercentilesBucketPipelineAggregationBuilder doCreateTestAggregatorFactory(String name, String bucketsPath) {
+        PercentilesBucketPipelineAggregationBuilder factory = new PercentilesBucketPipelineAggregationBuilder(name, bucketsPath);
         if (randomBoolean()) {
             int numPercents = randomIntBetween(1, 20);
             double[] percents = new double[numPercents];
@@ -55,8 +54,8 @@ public class PercentilesBucketTests extends AbstractBucketMetricsTestCase<Percen
         QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
         parser.nextToken(); // skip object start
 
-        PercentilesBucketPipelineAggregatorBuilder builder = (PercentilesBucketPipelineAggregatorBuilder) aggParsers
-            .pipelineParser(PercentilesBucketPipelineAggregator.TYPE.name(), parseFieldMatcher)
+        PercentilesBucketPipelineAggregationBuilder builder = (PercentilesBucketPipelineAggregationBuilder) aggParsers
+            .pipelineParser(PercentilesBucketPipelineAggregationBuilder.NAME, parseFieldMatcher)
             .parse("test", parseContext);
 
         assertThat(builder.percents(), equalTo(new double[]{0.0, 20.0, 50.0, 75.99}));

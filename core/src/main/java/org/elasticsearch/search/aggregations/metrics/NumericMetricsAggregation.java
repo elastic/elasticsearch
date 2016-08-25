@@ -23,7 +23,7 @@ import org.elasticsearch.search.aggregations.Aggregation;
 
 public interface NumericMetricsAggregation extends Aggregation {
 
-    public static interface SingleValue extends NumericMetricsAggregation {
+    interface SingleValue extends NumericMetricsAggregation {
 
         double value();
 
@@ -31,6 +31,6 @@ public interface NumericMetricsAggregation extends Aggregation {
 
     }
 
-    public static interface MultiValue extends NumericMetricsAggregation {
+    interface MultiValue extends NumericMetricsAggregation {
     }
 }

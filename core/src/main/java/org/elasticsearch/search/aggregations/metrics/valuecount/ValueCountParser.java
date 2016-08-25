@@ -24,7 +24,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -46,8 +46,8 @@ public class ValueCountParser extends AnyValuesSourceParser {
     }
 
     @Override
-    protected ValuesSourceAggregatorBuilder<ValuesSource, ValueCountAggregatorBuilder> createFactory(
+    protected ValuesSourceAggregationBuilder<ValuesSource, ValueCountAggregationBuilder> createFactory(
             String aggregationName, ValuesSourceType valuesSourceType, ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new ValueCountAggregatorBuilder(aggregationName, targetValueType);
+        return new ValueCountAggregationBuilder(aggregationName, targetValueType);
     }
 }

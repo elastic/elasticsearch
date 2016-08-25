@@ -45,6 +45,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SmallFloat;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -61,6 +62,19 @@ public final class AllTermQuery extends Query {
 
     public AllTermQuery(Term term) {
         this.term = term;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (sameClassAs(obj) == false) {
+            return false;
+        }
+        return Objects.equals(term, ((AllTermQuery) obj).term);
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * classHash() + term.hashCode();
     }
 
     @Override
@@ -103,12 +117,12 @@ public final class AllTermQuery extends Query {
         return new Weight(this) {
 
             @Override
-            public final float getValueForNormalization() throws IOException {
+            public float getValueForNormalization() throws IOException {
                 return stats.getValueForNormalization();
             }
 
             @Override
-            public final void normalize(float norm, float topLevelBoost) {
+            public void normalize(float norm, float topLevelBoost) {
                 stats.normalize(norm, topLevelBoost);
             }
 

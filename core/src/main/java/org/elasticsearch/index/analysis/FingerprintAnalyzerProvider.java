@@ -20,7 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
+import org.apache.lucene.analysis.CharArraySet;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -34,10 +34,8 @@ import org.elasticsearch.index.IndexSettings;
 public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {
 
     public static ParseField MAX_OUTPUT_SIZE = FingerprintTokenFilterFactory.MAX_OUTPUT_SIZE;
-    public static ParseField PRESERVE_ORIGINAL = ASCIIFoldingTokenFilterFactory.PRESERVE_ORIGINAL;
 
     public static int DEFAULT_MAX_OUTPUT_SIZE = FingerprintTokenFilterFactory.DEFAULT_MAX_OUTPUT_SIZE;
-    public static boolean DEFAULT_PRESERVE_ORIGINAL = ASCIIFoldingTokenFilterFactory.DEFAULT_PRESERVE_ORIGINAL;
     public static CharArraySet DEFAULT_STOP_WORDS = CharArraySet.EMPTY_SET;
 
     private final FingerprintAnalyzer analyzer;
@@ -47,10 +45,9 @@ public class FingerprintAnalyzerProvider extends AbstractIndexAnalyzerProvider<A
 
         char separator = FingerprintTokenFilterFactory.parseSeparator(settings);
         int maxOutputSize = settings.getAsInt(MAX_OUTPUT_SIZE.getPreferredName(),DEFAULT_MAX_OUTPUT_SIZE);
-        boolean preserveOriginal = settings.getAsBoolean(PRESERVE_ORIGINAL.getPreferredName(), DEFAULT_PRESERVE_ORIGINAL);
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, DEFAULT_STOP_WORDS);
 
-        this.analyzer = new FingerprintAnalyzer(stopWords, separator, maxOutputSize, preserveOriginal);
+        this.analyzer = new FingerprintAnalyzer(stopWords, separator, maxOutputSize);
     }
 
     @Override

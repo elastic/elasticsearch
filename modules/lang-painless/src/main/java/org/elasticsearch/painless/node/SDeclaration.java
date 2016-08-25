@@ -19,68 +19,86 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Sort;
-import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.Variables.Variable;
+import org.elasticsearch.painless.Definition.Type;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.commons.GeneratorAdapter;
+
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents a single variable declaration.
  */
 public final class SDeclaration extends AStatement {
 
-    final String type;
-    final String name;
-    AExpression expression;
+    private final String type;
+    private final String name;
+    private AExpression expression;
 
-    Variable variable;
+    private Variable variable = null;
 
-    public SDeclaration(final String location, final String type, final String name, final AExpression expression) {
+    public SDeclaration(Location location, String type, String name, AExpression expression) {
         super(location);
 
-        this.type = type;
-        this.name = name;
+        this.type = Objects.requireNonNull(type);
+        this.name = Objects.requireNonNull(name);
         this.expression = expression;
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        variable = variables.addVariable(location, type, name, false, false);
+    void extractVariables(Set<String> variables) {
+        variables.add(name);
 
         if (expression != null) {
-            expression.expected = variable.type;
-            expression.analyze(settings, definition, variables);
-            expression = expression.cast(settings, definition, variables);
+            expression.extractVariables(variables);
         }
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        final org.objectweb.asm.Type type = variable.type.type;
-        final Sort sort = variable.type.sort;
+    void analyze(Locals locals) {
+        final Type type;
 
-        final boolean initialize = expression == null;
-
-        if (!initialize) {
-            expression.write(settings, definition, adapter);
+        try {
+            type = Definition.getType(this.type);
+        } catch (IllegalArgumentException exception) {
+            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
-        switch (sort) {
-            case VOID:   throw new IllegalStateException(error("Illegal tree structure."));
-            case BOOL:
-            case BYTE:
-            case SHORT:
-            case CHAR:
-            case INT:    if (initialize) adapter.push(0);    break;
-            case LONG:   if (initialize) adapter.push(0L);   break;
-            case FLOAT:  if (initialize) adapter.push(0.0F); break;
-            case DOUBLE: if (initialize) adapter.push(0.0);  break;
-            default:     if (initialize) adapter.visitInsn(Opcodes.ACONST_NULL);
+        if (expression != null) {
+            expression.expected = type;
+            expression.analyze(locals);
+            expression = expression.cast(locals);
         }
 
-        adapter.visitVarInsn(type.getOpcode(Opcodes.ISTORE), variable.slot);
+        variable = locals.addVariable(location, type, name, false);
+    }
+
+    @Override
+    void write(MethodWriter writer, Globals globals) {
+        writer.writeStatementOffset(location);
+
+        if (expression == null) {
+            switch (variable.type.sort) {
+                case VOID:   throw createError(new IllegalStateException("Illegal tree structure."));
+                case BOOL:
+                case BYTE:
+                case SHORT:
+                case CHAR:
+                case INT:    writer.push(0);    break;
+                case LONG:   writer.push(0L);   break;
+                case FLOAT:  writer.push(0.0F); break;
+                case DOUBLE: writer.push(0.0);  break;
+                default:     writer.visitInsn(Opcodes.ACONST_NULL);
+            }
+        } else {
+            expression.write(writer, globals);
+        }
+
+        writer.visitVarInsn(variable.type.type.getOpcode(Opcodes.ISTORE), variable.getSlot());
     }
 }

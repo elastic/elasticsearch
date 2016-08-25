@@ -23,6 +23,7 @@
   # Update by query can't create
   - is_false: created
   - is_false: task
+  - is_false: deleted
 
 ---
 "wait_for_completion=false":
@@ -49,12 +50,28 @@
   - is_false: took
   - is_false: throttled_millis
   - is_false: created
+  - is_false: deleted
 
   - do:
-      tasks.list:
+      tasks.get:
         wait_for_completion: true
         task_id: $task
   - is_false: node_failures
+  # The task will be in the response even if it finished before we got here
+  # because of task persistence.
+  - is_true: task
+  - is_false: response.timed_out
+  - match: {response.updated: 1}
+  - match: {response.version_conflicts: 0}
+  - match: {response.batches: 1}
+  - match: {response.failures: []}
+  - match: {response.noops: 0}
+  - match: {response.throttled_millis: 0}
+  - gte: { response.took: 0 }
+  # Update by query can't create
+  - is_false: response.created
+  - is_false: response.task
+  - is_false: response.deleted
 
 ---
 "Response for version conflict":
@@ -200,9 +217,6 @@
         body:
           settings:
             number_of_shards: 1
-  - do:
-      cluster.health:
-          wait_for_status: yellow
   - do:
       index:
         index:   test

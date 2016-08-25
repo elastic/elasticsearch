@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -31,36 +30,34 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
-*
-*/
 public class InternalMin extends InternalNumericMetricsAggregation.SingleValue implements Min {
-
-    public final static Type TYPE = new Type("min");
-
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalMin readResult(StreamInput in) throws IOException {
-            InternalMin result = new InternalMin();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-
-    private double min;
-
-    InternalMin() {} // for serialization
+    private final double min;
 
     public InternalMin(String name, double min, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.min = min;
         this.format = formatter;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public InternalMin(StreamInput in) throws IOException {
+        super(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
+        min = in.readDouble();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(format);
+        out.writeDouble(min);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return MinAggregationBuilder.NAME;
     }
 
     @Override
@@ -74,29 +71,12 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public Type type() {
-        return TYPE;
-    }
-
-    @Override
     public InternalMin doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double min = Double.POSITIVE_INFINITY;
         for (InternalAggregation aggregation : aggregations) {
             min = Math.min(min, ((InternalMin) aggregation).min);
         }
         return new InternalMin(getName(), min, this.format, pipelineAggregators(), getMetaData());
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        format = in.readNamedWriteable(DocValueFormat.class);
-        min = in.readDouble();
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(format);
-        out.writeDouble(min);
     }
 
     @Override

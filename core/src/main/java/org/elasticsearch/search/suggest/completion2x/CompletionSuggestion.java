@@ -92,15 +92,15 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
             }
 
             public String getPayloadAsString() {
-                return payload.toUtf8();
+                return payload.utf8ToString();
             }
 
             public long getPayloadAsLong() {
-                return Long.parseLong(payload.toUtf8());
+                return Long.parseLong(payload.utf8ToString());
             }
 
             public double getPayloadAsDouble() {
-                return Double.parseDouble(payload.toUtf8());
+                return Double.parseDouble(payload.utf8ToString());
             }
 
             public Map<String, Object> getPayloadAsMap() {
@@ -119,7 +119,7 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
                     XContentType contentType = XContentFactory.xContentType(payload);
                     if (contentType == null) {
                         // must be a string or number
-                        builder.field("payload", payload.toUtf8());
+                        builder.field("payload", payload.utf8ToString());
                     } else {
                         builder.rawField("payload", payload);
                     }

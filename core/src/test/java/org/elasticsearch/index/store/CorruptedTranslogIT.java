@@ -68,7 +68,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CorruptedTranslogIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class, MockEngineFactoryPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class, MockEngineFactoryPlugin.class);
     }
 
     public void testCorruptTranslogFiles() throws Exception {
@@ -80,7 +80,6 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
                 .put("index.refresh_interval", "-1")
                 .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true) // never flush - always recover from translog
         ));
-        ensureYellow();
 
         // Index some documents
         int numDocs = scaledRandomIntBetween(100, 1000);
@@ -110,7 +109,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
 
     private void corruptRandomTranslogFiles() throws IOException {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        GroupShardsIterator shardIterators = state.getRoutingNodes().getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
+        GroupShardsIterator shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
         final Index test = state.metaData().index("test").getIndex();
         List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
         ShardIterator shardIterator = RandomPicks.randomFrom(random(), iterators);

@@ -31,8 +31,7 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class SimpleIcuAnalysisTests extends ESTestCase {
     public void testDefaultsIcuAnalysis() throws IOException {
-        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"),
-            Settings.EMPTY, new AnalysisICUPlugin()::onModule);
+        AnalysisService analysisService = createAnalysisService(new Index("test", "_na_"), Settings.EMPTY, new AnalysisICUPlugin());
 
         TokenizerFactory tokenizerFactory = analysisService.tokenizer("icu_tokenizer");
         assertThat(tokenizerFactory, instanceOf(IcuTokenizerFactory.class));

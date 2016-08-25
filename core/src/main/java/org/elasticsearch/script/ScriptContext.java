@@ -84,21 +84,21 @@ public interface ScriptContext {
             this.key = pluginName + "_" + operation;
         }
 
-        public final String getPluginName() {
+        public String getPluginName() {
             return pluginName;
         }
 
-        public final String getOperation() {
+        public String getOperation() {
             return operation;
         }
 
         @Override
-        public final String getKey() {
+        public String getKey() {
             return key;
         }
 
         @Override
-        public final String toString() {
+        public String toString() {
             return getKey();
         }
     }

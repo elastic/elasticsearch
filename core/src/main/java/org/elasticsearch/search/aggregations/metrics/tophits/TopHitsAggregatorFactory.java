@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
+import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -28,11 +29,11 @@ import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext.FieldDataField;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
-import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext.DocValueField;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -53,15 +54,16 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
     private final boolean trackScores;
     private final List<SortBuilder<?>> sorts;
     private final HighlightBuilder highlightBuilder;
-    private final List<String> fieldNames;
-    private final List<String> fieldDataFields;
+    private final StoredFieldsContext storedFieldsContext;
+    private final List<String> docValueFields;
     private final Set<ScriptField> scriptFields;
     private final FetchSourceContext fetchSourceContext;
 
     public TopHitsAggregatorFactory(String name, Type type, int from, int size, boolean explain, boolean version, boolean trackScores,
-            List<SortBuilder<?>> sorts, HighlightBuilder highlightBuilder, List<String> fieldNames, List<String> fieldDataFields,
-            Set<ScriptField> scriptFields, FetchSourceContext fetchSourceContext, AggregationContext context, AggregatorFactory<?> parent,
-            AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
+            List<SortBuilder<?>> sorts, HighlightBuilder highlightBuilder, StoredFieldsContext storedFieldsContext,
+            List<String> docValueFields, Set<ScriptField> scriptFields, FetchSourceContext fetchSourceContext,
+            AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories,
+            Map<String, Object> metaData) throws IOException {
         super(name, type, context, parent, subFactories, metaData);
         this.from = from;
         this.size = size;
@@ -70,8 +72,8 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
         this.trackScores = trackScores;
         this.sorts = sorts;
         this.highlightBuilder = highlightBuilder;
-        this.fieldNames = fieldNames;
-        this.fieldDataFields = fieldDataFields;
+        this.storedFieldsContext = storedFieldsContext;
+        this.docValueFields = docValueFields;
         this.scriptFields = scriptFields;
         this.fetchSourceContext = fetchSourceContext;
     }
@@ -92,22 +94,22 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
                 subSearchContext.sort(optionalSort.get());
             }
         }
-        if (fieldNames != null) {
-            subSearchContext.fieldNames().addAll(fieldNames);
+        if (storedFieldsContext != null) {
+            subSearchContext.storedFieldsContext(storedFieldsContext);
         }
-        if (fieldDataFields != null) {
-            FieldDataFieldsContext fieldDataFieldsContext = subSearchContext
-                    .getFetchSubPhaseContext(FieldDataFieldsFetchSubPhase.CONTEXT_FACTORY);
-            for (String field : fieldDataFields) {
-                fieldDataFieldsContext.add(new FieldDataField(field));
+        if (docValueFields != null) {
+            DocValueFieldsContext docValueFieldsContext = subSearchContext
+                    .getFetchSubPhaseContext(DocValueFieldsFetchSubPhase.CONTEXT_FACTORY);
+            for (String field : docValueFields) {
+                docValueFieldsContext.add(new DocValueField(field));
             }
-            fieldDataFieldsContext.setHitExecutionNeeded(true);
+            docValueFieldsContext.setHitExecutionNeeded(true);
         }
         if (scriptFields != null) {
             for (ScriptField field : scriptFields) {
                 SearchScript searchScript = subSearchContext.scriptService().search(subSearchContext.lookup(), field.script(),
-                        ScriptContext.Standard.SEARCH, Collections.emptyMap(), subSearchContext.getQueryShardContext().getClusterState());
-                subSearchContext.scriptFields().add(new org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField(
+                        ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                subSearchContext.scriptFields().add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                         field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }

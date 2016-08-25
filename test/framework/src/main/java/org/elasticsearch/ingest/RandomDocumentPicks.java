@@ -22,7 +22,6 @@ package org.elasticsearch.ingest;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.elasticsearch.ingest.core.IngestDocument;
 
 import java.util.ArrayList;
 import java.util.HashMap;

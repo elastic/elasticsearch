@@ -24,6 +24,7 @@ import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -42,11 +43,11 @@ import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.FutureTransportResponseHandler;
@@ -58,7 +59,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
@@ -77,6 +77,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
         public static final String TRANSLOG_OPS = "internal:index/shard/recovery/translog_ops";
         public static final String PREPARE_TRANSLOG = "internal:index/shard/recovery/prepare_translog";
         public static final String FINALIZE = "internal:index/shard/recovery/finalize";
+        public static final String WAIT_CLUSTERSTATE = "internal:index/shard/recovery/wait_clusterstate";
     }
 
     private final ThreadPool threadPool;
@@ -96,7 +97,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
         this.transportService = transportService;
         this.recoverySettings = recoverySettings;
         this.clusterService = clusterService;
-        this.onGoingRecoveries = new RecoveriesCollection(logger, threadPool);
+        this.onGoingRecoveries = new RecoveriesCollection(logger, threadPool, this::waitForClusterState);
 
         transportService.registerRequestHandler(Actions.FILES_INFO, RecoveryFilesInfoRequest::new, ThreadPool.Names.GENERIC, new
                 FilesInfoRequestHandler());
@@ -110,6 +111,8 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
                 new TranslogOperationsRequestHandler());
         transportService.registerRequestHandler(Actions.FINALIZE, RecoveryFinalizeRecoveryRequest::new, ThreadPool.Names.GENERIC, new
                 FinalizeRecoveryRequestHandler());
+        transportService.registerRequestHandler(Actions.WAIT_CLUSTERSTATE, RecoveryWaitForClusterStateRequest::new,
+            ThreadPool.Names.GENERIC, new WaitForClusterStateRequestHandler());
     }
 
     @Override
@@ -124,13 +127,10 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
      *
      * @param reason       reason for cancellation
      * @param shardId      shardId for which to cancel recoveries
-     * @param shouldCancel a predicate to check if a recovery should be cancelled or not. Null means cancel without an extra check.
-     *                     note that the recovery state can change after this check, but before it is being cancelled via other
-     *                     already issued outstanding references.
      * @return true if a recovery was cancelled
      */
-    public boolean cancelRecoveriesForShard(ShardId shardId, String reason, @Nullable Predicate<RecoveryTarget> shouldCancel) {
-        return onGoingRecoveries.cancelRecoveriesForShard(shardId, reason, shouldCancel);
+    public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
+        return onGoingRecoveries.cancelRecoveriesForShard(shardId, reason);
     }
 
     public void startRecovery(final IndexShard indexShard, final RecoveryState.Type recoveryType, final DiscoveryNode sourceNode, final
@@ -154,8 +154,8 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
 
     private void retryRecovery(final RecoveryTarget recoveryTarget, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
         try {
-            recoveryTarget.resetRecovery();
-        } catch (Throwable e) {
+            onGoingRecoveries.resetRecovery(recoveryTarget.recoveryId(), recoveryTarget.shardId());
+        } catch (Exception e) {
             onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(currentRequest, e), true);
         }
         threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(recoveryTarget.recoveryId()));
@@ -167,7 +167,16 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
         logger.trace("collecting local files for {}", recoveryTarget);
         Store.MetadataSnapshot metadataSnapshot = null;
         try {
-            metadataSnapshot = recoveryTarget.store().getMetadataOrEmpty();
+            if (recoveryTarget.indexShard().indexSettings().isOnSharedFilesystem()) {
+                // we are not going to copy any files, so don't bother listing files, potentially running
+                // into concurrency issues with the primary changing files underneath us.
+                metadataSnapshot = Store.MetadataSnapshot.EMPTY;
+            } else {
+                metadataSnapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
+            }
+        } catch (org.apache.lucene.index.IndexNotFoundException e) {
+            // happens on an empty folder. no need to log
+            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
         } catch (IOException e) {
             logger.warn("error while listing local files, recover as if there are none", e);
             metadataSnapshot = Store.MetadataSnapshot.EMPTY;
@@ -178,6 +187,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
                     new RecoveryFailedException(recoveryTarget.state(), "failed to list local files", e), true);
             return;
         }
+        logger.trace("{} local file count: [{}]", recoveryTarget, metadataSnapshot.size());
         final StartRecoveryRequest request = new StartRecoveryRequest(recoveryTarget.shardId(), recoveryTarget.sourceNode(),
                 clusterService.localNode(),
                 metadataSnapshot, recoveryTarget.state().getType(), recoveryTarget.recoveryId());
@@ -223,7 +233,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
             }
         } catch (CancellableThreads.ExecutionCancelledException e) {
             logger.trace("recovery cancelled", e);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().getIndex().getName(), request.shardId().id());
             }
@@ -266,12 +276,6 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
                 return;
             }
 
-            if (cause instanceof IndexShardClosedException) {
-                onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(request, "source shard is " +
-                        "closed", cause), false);
-                return;
-            }
-
             if (cause instanceof AlreadyClosedException) {
                 onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(request, "source shard is " +
                         "closed", cause), false);
@@ -306,6 +310,18 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
             try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
                 recoveryRef.status().finalizeRecovery();
+            }
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        }
+    }
+
+    class WaitForClusterStateRequestHandler implements TransportRequestHandler<RecoveryWaitForClusterStateRequest> {
+
+        @Override
+        public void messageReceived(RecoveryWaitForClusterStateRequest request, TransportChannel channel) throws Exception {
+            try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
+            )) {
+                recoveryRef.status().ensureClusterStateVersion(request.clusterStateVersion());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -368,6 +384,52 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
                         }
                     });
                 }
+            }
+        }
+    }
+
+    private void waitForClusterState(long clusterStateVersion) {
+        ClusterStateObserver observer = new ClusterStateObserver(clusterService, TimeValue.timeValueMinutes(5), logger,
+            threadPool.getThreadContext());
+        final ClusterState clusterState = observer.observedState();
+        if (clusterState.getVersion() >= clusterStateVersion) {
+            logger.trace("node has cluster state with version higher than {} (current: {})", clusterStateVersion,
+                clusterState.getVersion());
+            return;
+        } else {
+            logger.trace("waiting for cluster state version {} (current: {})", clusterStateVersion, clusterState.getVersion());
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            observer.waitForNextChange(new ClusterStateObserver.Listener() {
+
+                @Override
+                public void onNewClusterState(ClusterState state) {
+                    future.onResponse(null);
+                }
+
+                @Override
+                public void onClusterServiceClose() {
+                    future.onFailure(new NodeClosedException(clusterService.localNode()));
+                }
+
+                @Override
+                public void onTimeout(TimeValue timeout) {
+                    future.onFailure(new IllegalStateException("cluster state never updated to version " + clusterStateVersion));
+                }
+            }, new ClusterStateObserver.ValidationPredicate() {
+
+                @Override
+                protected boolean validate(ClusterState newState) {
+                    return newState.getVersion() >= clusterStateVersion;
+                }
+            });
+            try {
+                future.get();
+                logger.trace("successfully waited for cluster state with version {} (current: {})", clusterStateVersion,
+                    observer.observedState().getVersion());
+            } catch (Exception e) {
+                logger.debug("failed waiting for cluster state with version {} (current: {})", e, clusterStateVersion,
+                    observer.observedState());
+                throw ExceptionsHelper.convertToRuntime(e);
             }
         }
     }
@@ -441,16 +503,16 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
         }
 
         @Override
-        public void onFailure(Throwable t) {
+        public void onFailure(Exception e) {
             try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
                 if (recoveryRef != null) {
-                    logger.error("unexpected error during recovery [{}], failing shard", t, recoveryId);
+                    logger.error("unexpected error during recovery [{}], failing shard", e, recoveryId);
                     onGoingRecoveries.failRecovery(recoveryId,
-                            new RecoveryFailedException(recoveryRef.status().state(), "unexpected error", t),
+                            new RecoveryFailedException(recoveryRef.status().state(), "unexpected error", e),
                             true // be safe
                     );
                 } else {
-                    logger.debug("unexpected error during recovery, but recovery id [{}] is finished", t, recoveryId);
+                    logger.debug("unexpected error during recovery, but recovery id [{}] is finished", e, recoveryId);
                 }
             }
         }

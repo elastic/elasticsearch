@@ -27,15 +27,9 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class GatewayModule extends AbstractModule {
 
-    private final Settings settings;
-
-    public GatewayModule(Settings settings) {
-        this.settings = settings;
-    }
 
     @Override
     protected void configure() {
-        bind(MetaStateService.class).asEagerSingleton();
         bind(DanglingIndicesState.class).asEagerSingleton();
         bind(GatewayService.class).asEagerSingleton();
         bind(TransportNodesListGatewayMetaState.class).asEagerSingleton();

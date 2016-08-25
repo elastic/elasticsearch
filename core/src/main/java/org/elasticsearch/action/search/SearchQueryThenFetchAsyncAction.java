@@ -68,18 +68,17 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
 
     @Override
     protected void moveToSecondPhase() throws Exception {
-        boolean useScroll = request.scroll() != null;
-        sortedShardList = searchPhaseController.sortDocs(useScroll, firstResults);
-        searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardList);
+        final boolean isScrollRequest = request.scroll() != null;
+        sortedShardDocs = searchPhaseController.sortDocs(isScrollRequest, firstResults);
+        searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardDocs);
 
         if (docIdsToLoad.asList().isEmpty()) {
             finishHim();
             return;
         }
 
-        final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(
-            request, sortedShardList, firstResults.length()
-        );
+        final ScoreDoc[] lastEmittedDocPerShard = isScrollRequest ?
+            searchPhaseController.getLastEmittedDocPerShard(firstResults.asList(), sortedShardDocs, firstResults.length()) : null;
         final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
         for (AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
             QuerySearchResultProvider queryResult = firstResults.get(entry.index);
@@ -102,7 +101,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
                 // the search context might not be cleared on the node where the fetch was executed for example
                 // because the action was rejected by the thread pool. in this case we need to send a dedicated
                 // request to clear the search context. by setting docIdsToLoad to null, the context will be cleared
@@ -113,12 +112,12 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
         });
     }
 
-    void onFetchFailure(Throwable t, ShardFetchSearchRequest fetchSearchRequest, int shardIndex, SearchShardTarget shardTarget,
+    void onFetchFailure(Exception e, ShardFetchSearchRequest fetchSearchRequest, int shardIndex, SearchShardTarget shardTarget,
                         AtomicInteger counter) {
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}] Failed to execute fetch phase", t, fetchSearchRequest.id());
+            logger.debug("[{}] Failed to execute fetch phase", e, fetchSearchRequest.id());
         }
-        this.addShardFailure(shardIndex, shardTarget, t);
+        this.addShardFailure(shardIndex, shardTarget, e);
         successfulOps.decrementAndGet();
         if (counter.decrementAndGet() == 0) {
             finishHim();
@@ -129,21 +128,19 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<QuerySea
         threadPool.executor(ThreadPool.Names.SEARCH).execute(new ActionRunnable<SearchResponse>(listener) {
             @Override
             public void doRun() throws IOException {
-                final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, firstResults,
+                final boolean isScrollRequest = request.scroll() != null;
+                final InternalSearchResponse internalResponse = searchPhaseController.merge(isScrollRequest, sortedShardDocs, firstResults,
                     fetchResults);
-                String scrollId = null;
-                if (request.scroll() != null) {
-                    scrollId = TransportSearchHelper.buildScrollId(request.searchType(), firstResults, null);
-                }
+                String scrollId = isScrollRequest ? TransportSearchHelper.buildScrollId(request.searchType(), firstResults) : null;
                 listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps,
                     successfulOps.get(), buildTookInMillis(), buildShardFailures()));
                 releaseIrrelevantSearchContexts(firstResults, docIdsToLoad);
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception e) {
                 try {
-                    ReduceSearchPhaseException failure = new ReduceSearchPhaseException("fetch", "", t, buildShardFailures());
+                    ReduceSearchPhaseException failure = new ReduceSearchPhaseException("fetch", "", e, buildShardFailures());
                     if (logger.isDebugEnabled()) {
                         logger.debug("failed to reduce search", failure);
                     }

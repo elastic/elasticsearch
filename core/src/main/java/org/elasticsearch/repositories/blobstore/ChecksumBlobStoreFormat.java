@@ -179,7 +179,10 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
                 }
                 CodecUtil.writeFooter(indexOutput);
             }
-            blobContainer.writeBlob(blobName, new BytesArray(byteArrayOutputStream.toByteArray()));
+            BytesArray bytesArray = new BytesArray(byteArrayOutputStream.toByteArray());
+            try (InputStream stream = bytesArray.streamInput()) {
+                blobContainer.writeBlob(blobName, stream, bytesArray.length());
+            }
         }
     }
 
@@ -195,7 +198,7 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
     protected BytesReference write(T obj) throws IOException {
         try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
             if (compress) {
-                try (StreamOutput compressedStreamOutput = CompressorFactory.defaultCompressor().streamOutput(bytesStreamOutput)) {
+                try (StreamOutput compressedStreamOutput = CompressorFactory.COMPRESSOR.streamOutput(bytesStreamOutput)) {
                     write(obj, compressedStreamOutput);
                 }
             } else {

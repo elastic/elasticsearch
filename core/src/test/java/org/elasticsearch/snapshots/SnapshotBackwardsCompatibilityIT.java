@@ -68,7 +68,6 @@ public class SnapshotBackwardsCompatibilityIT extends ESBackcompatTestCase {
         String[] indices = new String[indicesBefore.length + indicesAfter.length];
         System.arraycopy(indicesBefore, 0, indices, 0, indicesBefore.length);
         System.arraycopy(indicesAfter, 0, indices, indicesBefore.length, indicesAfter.length);
-        ensureYellow();
         logger.info("--> indexing some data");
         IndexRequestBuilder[] buildersBefore = new IndexRequestBuilder[randomIntBetween(10, 200)];
         for (int i = 0; i < buildersBefore.length; i++) {
@@ -86,7 +85,7 @@ public class SnapshotBackwardsCompatibilityIT extends ESBackcompatTestCase {
             counts[i] = client().prepareSearch(indices[i]).setSize(0).get().getHits().totalHits();
         }
 
-        logger.info("--> snapshot subset of indices before upgrage");
+        logger.info("--> snapshot subset of indices before upgrade");
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1").setWaitForCompletion(true).setIndices("index_before_*").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
@@ -171,7 +170,6 @@ public class SnapshotBackwardsCompatibilityIT extends ESBackcompatTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
         ));
-        ensureYellow();
         logger.info("-->  indexing");
 
         final int numDocs = randomIntBetween(10, 100);

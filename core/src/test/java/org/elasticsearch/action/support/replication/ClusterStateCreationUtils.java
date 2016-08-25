@@ -34,7 +34,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Arrays;
@@ -81,7 +81,7 @@ public class ClusterStateCreationUtils {
         Set<String> unassignedNodes = new HashSet<>();
         for (int i = 0; i < numberOfNodes + 1; i++) {
             final DiscoveryNode node = newNode(i);
-            discoBuilder = discoBuilder.put(node);
+            discoBuilder = discoBuilder.add(node);
             unassignedNodes.add(node.getId());
         }
         discoBuilder.localNodeId(newNode(0).getId());
@@ -153,7 +153,7 @@ public class ClusterStateCreationUtils {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         for (int i = 0; i < numberOfNodes + 1; i++) {
             final DiscoveryNode node = newNode(i);
-            discoBuilder = discoBuilder.put(node);
+            discoBuilder = discoBuilder.add(node);
         }
         discoBuilder.localNodeId(newNode(0).getId());
         discoBuilder.masterNodeId(newNode(1).getId()); // we need a non-local master to test shard failures
@@ -220,7 +220,6 @@ public class ClusterStateCreationUtils {
      * Creates a cluster state with no index
      */
     public static ClusterState stateWithNoShard() {
-        int numberOfNodes = 2;
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         discoBuilder.localNodeId(newNode(0).getId());
         discoBuilder.masterNodeId(newNode(1).getId());
@@ -242,7 +241,7 @@ public class ClusterStateCreationUtils {
     public static ClusterState state(DiscoveryNode localNode, DiscoveryNode masterNode, DiscoveryNode... allNodes) {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         for (DiscoveryNode node : allNodes) {
-            discoBuilder.put(node);
+            discoBuilder.add(node);
         }
         if (masterNode != null) {
             discoBuilder.masterNodeId(masterNode.getId());
@@ -256,11 +255,11 @@ public class ClusterStateCreationUtils {
     }
 
     private static DiscoveryNode newNode(int nodeId) {
-        return new DiscoveryNode("node_" + nodeId, DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+        return new DiscoveryNode("node_" + nodeId, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
                 new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.CURRENT);
     }
 
-    static private String selectAndRemove(Set<String> strings) {
+    private static String selectAndRemove(Set<String> strings) {
         String selection = randomFrom(strings.toArray(new String[strings.size()]));
         strings.remove(selection);
         return selection;

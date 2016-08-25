@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorBuilder;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -115,8 +115,8 @@ public abstract class AbstractPercentilesParser extends NumericValuesSourceParse
     }
 
     @Override
-    protected ValuesSourceAggregatorBuilder<Numeric, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+    protected ValuesSourceAggregationBuilder<Numeric, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+                                                                       ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         PercentilesMethod method = (PercentilesMethod) otherOptions.getOrDefault(METHOD_FIELD, PercentilesMethod.TDIGEST);
 
         double[] cdfValues = (double[]) otherOptions.get(keysField());
@@ -126,10 +126,10 @@ public abstract class AbstractPercentilesParser extends NumericValuesSourceParse
         return buildFactory(aggregationName, cdfValues, method, compression, numberOfSignificantValueDigits, keyed);
     }
 
-    protected abstract ValuesSourceAggregatorBuilder<Numeric, ?> buildFactory(String aggregationName, double[] cdfValues,
-            PercentilesMethod method,
-            Double compression,
-            Integer numberOfSignificantValueDigits, Boolean keyed);
+    protected abstract ValuesSourceAggregationBuilder<Numeric, ?> buildFactory(String aggregationName, double[] cdfValues,
+                                                                               PercentilesMethod method,
+                                                                               Double compression,
+                                                                               Integer numberOfSignificantValueDigits, Boolean keyed);
 
     protected abstract ParseField keysField();
 

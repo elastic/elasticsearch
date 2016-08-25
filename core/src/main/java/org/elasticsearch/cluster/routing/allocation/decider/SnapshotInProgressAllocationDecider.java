@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -63,7 +62,6 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
         this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
 
-    @Inject
     public SnapshotInProgressAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         enableRelocation = CLUSTER_ROUTING_ALLOCATION_SNAPSHOT_RELOCATION_ENABLED_SETTING.get(settings);
@@ -98,7 +96,7 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
         if (!enableRelocation && shardRouting.primary()) {
             // Only primary shards are snapshotted
 
-            SnapshotsInProgress snapshotsInProgress = allocation.routingNodes().custom(SnapshotsInProgress.TYPE);
+            SnapshotsInProgress snapshotsInProgress = allocation.custom(SnapshotsInProgress.TYPE);
             if (snapshotsInProgress == null) {
                 // Snapshots are not running
                 return allocation.decision(Decision.YES, NAME, "no snapshots are currently running");

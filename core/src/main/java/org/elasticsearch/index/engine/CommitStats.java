@@ -19,7 +19,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.SegmentInfos;
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.Map;
 
 /** a class the returns dynamic information with respect to the last commit point of this shard */
@@ -44,9 +44,7 @@ public final class CommitStats implements Streamable, ToXContent {
         userData = MapBuilder.<String, String>newMapBuilder().putAll(segmentInfos.getUserData()).immutableMap();
         // lucene calls the current generation, last generation.
         generation = segmentInfos.getLastGeneration();
-        if (segmentInfos.getId() != null) { // id is only written starting with Lucene 5.0
-            id = Base64.encodeBytes(segmentInfos.getId());
-        }
+        id = Base64.getEncoder().encodeToString(segmentInfos.getId());
         numDocs = Lucene.getNumDocs(segmentInfos);
     }
 

@@ -20,17 +20,13 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class ShardRoutingTests extends ESTestCase {
 
@@ -89,7 +85,7 @@ public class ShardRoutingTests extends ESTestCase {
         assertFalse(startedShard1.isRelocationTarget());
         ShardRouting sourceShard0a = startedShard0.relocate("node2", -1);
         assertFalse(sourceShard0a.isRelocationTarget());
-        ShardRouting targetShard0a = sourceShard0a.buildTargetRelocatingShard();
+        ShardRouting targetShard0a = sourceShard0a.getTargetRelocatingShard();
         assertTrue(targetShard0a.isRelocationTarget());
         ShardRouting sourceShard0b = startedShard0.relocate("node2", -1);
         ShardRouting sourceShard1 = startedShard1.relocate("node2", -1);
@@ -155,8 +151,8 @@ public class ShardRoutingTests extends ESTestCase {
                 case 4:
                     // change restore source
                     otherRouting = TestShardRouting.newShardRouting(otherRouting.getIndexName(), otherRouting.id(), otherRouting.currentNodeId(), otherRouting.relocatingNodeId(),
-                            otherRouting.restoreSource() == null ? new RestoreSource(new SnapshotId("test", "s1"), Version.CURRENT, "test") :
-                                    new RestoreSource(otherRouting.restoreSource().snapshotId(), Version.CURRENT, otherRouting.index() + "_1"),
+                            otherRouting.restoreSource() == null ? new RestoreSource(new Snapshot("test", new SnapshotId("s1", UUIDs.randomBase64UUID())), Version.CURRENT, "test") :
+                                    new RestoreSource(otherRouting.restoreSource().snapshot(), Version.CURRENT, otherRouting.index() + "_1"),
                             otherRouting.primary(), otherRouting.state(), otherRouting.unassignedInfo());
                     break;
                 case 5:
@@ -209,7 +205,7 @@ public class ShardRoutingTests extends ESTestCase {
             if (randomBoolean()) {
                 BytesStreamOutput out = new BytesStreamOutput();
                 routing.writeTo(out);
-                routing = new ShardRouting(StreamInput.wrap(out.bytes()));
+                routing = new ShardRouting(out.bytes().streamInput());
             }
             if (routing.initializing() || routing.relocating()) {
                 assertEquals(routing.toString(), byteSize, routing.getExpectedShardSize());

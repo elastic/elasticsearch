@@ -176,28 +176,28 @@ public class IndexingSlowLogTests extends ESTestCase {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse setting [index.indexing.slowlog.threshold.index.trace] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertEquals(ex.getMessage(), "failed to parse setting [index.indexing.slowlog.threshold.index.trace] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
         }
 
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse setting [index.indexing.slowlog.threshold.index.debug] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertEquals(ex.getMessage(), "failed to parse setting [index.indexing.slowlog.threshold.index.debug] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
         }
 
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse setting [index.indexing.slowlog.threshold.index.info] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertEquals(ex.getMessage(), "failed to parse setting [index.indexing.slowlog.threshold.index.info] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
         }
 
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse setting [index.indexing.slowlog.threshold.index.warn] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            assertEquals(ex.getMessage(), "failed to parse setting [index.indexing.slowlog.threshold.index.warn] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
         }
     }
 

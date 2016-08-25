@@ -24,15 +24,15 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
-import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregationBuilder;
 
-public class FiltersTests extends BaseAggregationTestCase<FiltersAggregatorBuilder> {
+public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuilder> {
 
     @Override
-    protected FiltersAggregatorBuilder createTestAggregatorBuilder() {
+    protected FiltersAggregationBuilder createTestAggregatorBuilder() {
 
         int size = randomIntBetween(1, 20);
-        FiltersAggregatorBuilder factory;
+        FiltersAggregationBuilder factory;
         if (randomBoolean()) {
             KeyedFilter[] filters = new KeyedFilter[size];
             int i = 0;
@@ -40,13 +40,13 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregatorBuild
                 filters[i++] = new KeyedFilter(key,
                         QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20)));
             }
-            factory = new FiltersAggregatorBuilder(randomAsciiOfLengthBetween(1, 20), filters);
+            factory = new FiltersAggregationBuilder(randomAsciiOfLengthBetween(1, 20), filters);
         } else {
             QueryBuilder[] filters = new QueryBuilder[size];
             for (int i = 0; i < size; i++) {
                 filters[i] = QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20));
             }
-            factory = new FiltersAggregatorBuilder(randomAsciiOfLengthBetween(1, 20), filters);
+            factory = new FiltersAggregationBuilder(randomAsciiOfLengthBetween(1, 20), filters);
         }
         if (randomBoolean()) {
             factory.otherBucket(randomBoolean());
@@ -64,8 +64,8 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregatorBuild
     public void testFiltersSortedByKey() {
         KeyedFilter[] original = new KeyedFilter[]{new KeyedFilter("bbb", new MatchNoneQueryBuilder()),
                 new KeyedFilter("aaa", new MatchNoneQueryBuilder())};
-        FiltersAggregatorBuilder builder;
-        builder = new FiltersAggregatorBuilder("my-agg", original);
+        FiltersAggregationBuilder builder;
+        builder = new FiltersAggregationBuilder("my-agg", original);
         assertEquals("aaa", builder.filters().get(0).key());
         assertEquals("bbb", builder.filters().get(1).key());
         // original should be unchanged

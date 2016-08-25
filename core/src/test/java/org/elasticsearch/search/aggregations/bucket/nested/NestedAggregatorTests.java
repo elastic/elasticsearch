@@ -38,8 +38,8 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -123,7 +123,7 @@ public class NestedAggregatorTests extends ESSingleNodeTestCase {
         AggregationContext context = new AggregationContext(searchContext);
 
         AggregatorFactories.Builder builder = AggregatorFactories.builder();
-        NestedAggregatorBuilder factory = new NestedAggregatorBuilder("test", "nested_field");
+        NestedAggregationBuilder factory = new NestedAggregationBuilder("test", "nested_field");
         builder.addAggregator(factory);
         AggregatorFactories factories = builder.build(context, null);
         searchContext.aggregations(new SearchContextAggregations(factories));

@@ -42,7 +42,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -58,6 +58,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -96,14 +97,14 @@ public class RareClusterStateIT extends ESIntegTestCase {
         ClusterState current = clusterService().state();
         GatewayAllocator allocator = internalCluster().getInstance(GatewayAllocator.class);
 
-        AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[0]);
+        AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY, Collections.emptyList());
         RoutingNodes routingNodes = new RoutingNodes(
                 ClusterState.builder(current)
                         .routingTable(RoutingTable.builder(current.routingTable()).remove("a").addAsRecovery(current.metaData().index("a")).build())
                         .nodes(DiscoveryNodes.EMPTY_NODES)
                         .build(), false
         );
-        RoutingAllocation routingAllocation = new RoutingAllocation(allocationDeciders, routingNodes, current.nodes(), ClusterInfo.EMPTY, System.nanoTime());
+        RoutingAllocation routingAllocation = new RoutingAllocation(allocationDeciders, routingNodes, current, ClusterInfo.EMPTY, System.nanoTime(), false);
         allocator.allocateUnassigned(routingAllocation);
     }
 
@@ -125,8 +126,8 @@ public class RareClusterStateIT extends ESIntegTestCase {
             public ClusterState execute(ClusterState currentState) throws Exception {
                 // inject a node
                 ClusterState.Builder builder = ClusterState.builder(currentState);
-                builder.nodes(DiscoveryNodes.builder(currentState.nodes()).put(new DiscoveryNode("_non_existent",
-                        DummyTransportAddress.INSTANCE, emptyMap(), emptySet(), Version.CURRENT)));
+                builder.nodes(DiscoveryNodes.builder(currentState.nodes()).add(new DiscoveryNode("_non_existent",
+                        LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT)));
 
                 // open index
                 final IndexMetaData indexMetaData = IndexMetaData.builder(currentState.metaData().index(index)).state(IndexMetaData.State.OPEN).build();
@@ -145,7 +146,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
+            public void onFailure(String source, Exception e) {
 
             }
         });
@@ -154,18 +155,17 @@ public class RareClusterStateIT extends ESIntegTestCase {
         clusterService.submitStateUpdateTask("test-remove-injected-node", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                // inject a node
                 ClusterState.Builder builder = ClusterState.builder(currentState);
                 builder.nodes(DiscoveryNodes.builder(currentState.nodes()).remove("_non_existent"));
 
                 currentState = builder.build();
-                RoutingAllocation.Result result = allocationService.reroute(currentState, "reroute");
+                RoutingAllocation.Result result = allocationService.deassociateDeadNodes(currentState, true, "reroute");
                 return ClusterState.builder(currentState).routingResult(result).build();
 
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
+            public void onFailure(String source, Exception e) {
 
             }
         });
@@ -260,7 +260,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 putMappingResponse.set(e);
             }
         });
@@ -292,7 +292,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 docIndexResponse.set(e);
             }
         });
@@ -376,7 +376,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 putMappingResponse.set(e);
             }
         });
@@ -403,7 +403,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 docIndexResponse.set(e);
             }
         });

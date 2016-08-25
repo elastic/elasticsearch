@@ -28,6 +28,5 @@ Identifying indices via wildcards or `_all` can be disabled by setting the
 `action.destructive_requires_name` flag in the config file to `true`.
 This setting can also be changed via the cluster update settings api.
 
-Closed indices consume a significant amount of disk-space which can cause problems
-issues in managed environments. Closing indices can be disabled via the cluster settings
+Closed indices consume a significant amount of disk-space which can cause problems in managed environments. Closing indices can be disabled via the cluster settings
 API by setting `cluster.indices.close.enable` to `false`. The default is `true`.

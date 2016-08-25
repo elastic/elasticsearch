@@ -20,6 +20,8 @@
 package org.elasticsearch.search.sort;
 
 
+import org.apache.lucene.queryparser.xml.builders.MatchAllDocsQueryBuilder;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -31,9 +33,10 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.query.GeoValidationMethod;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.DocValueFormat;
@@ -90,7 +93,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             result.sortMode(randomValueOtherThan(SortMode.SUM, () -> randomFrom(SortMode.values())));
         }
         if (randomBoolean()) {
-            result.setNestedFilter(randomNestedFilter());
+            result.setNestedFilter(new MatchAllQueryBuilder());
         }
         if (randomBoolean()) {
             result.setNestedPath(

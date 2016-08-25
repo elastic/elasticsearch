@@ -34,6 +34,11 @@ final class GeoField {
     static final String LAT_VARIABLE          = "lat";
     static final String LON_VARIABLE          = "lon";
     
+    // supported methods
+    static final String ISEMPTY_METHOD        = "isEmpty";
+    static final String GETLAT_METHOD         = "getLat";
+    static final String GETLON_METHOD         = "getLon";
+    
     static ValueSource getVariable(IndexFieldData<?> fieldData, String fieldName, String variable) {
         switch (variable) {
             case EMPTY_VARIABLE:
@@ -48,6 +53,15 @@ final class GeoField {
     }
     
     static ValueSource getMethod(IndexFieldData<?> fieldData, String fieldName, String method) {
-        throw new IllegalArgumentException("Member method [" + method + "] does not exist for geo field [" + fieldName + "].");
+        switch (method) {
+            case ISEMPTY_METHOD:
+                return new GeoEmptyValueSource(fieldData);
+            case GETLAT_METHOD:
+                return new GeoLatitudeValueSource(fieldData);
+            case GETLON_METHOD:
+                return new GeoLongitudeValueSource(fieldData);
+            default:
+                throw new IllegalArgumentException("Member method [" + method + "] does not exist for geo field [" + fieldName + "].");
+        }
     }
 }

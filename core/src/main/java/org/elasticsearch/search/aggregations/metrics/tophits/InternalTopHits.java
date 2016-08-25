@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -40,31 +39,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
+ * Results of the {@link TopHitsAggregator}.
  */
 public class InternalTopHits extends InternalMetricsAggregation implements TopHits {
-
-    public static final InternalAggregation.Type TYPE = new Type("top_hits");
-
-    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalTopHits readResult(StreamInput in) throws IOException {
-            InternalTopHits buckets = new InternalTopHits();
-            buckets.readFrom(in);
-            return buckets;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     private int from;
     private int size;
     private TopDocs topDocs;
     private InternalSearchHits searchHits;
-
-    InternalTopHits() {
-    }
 
     public InternalTopHits(String name, int from, int size, TopDocs topDocs, InternalSearchHits searchHits,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
@@ -75,9 +56,29 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
         this.searchHits = searchHits;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public InternalTopHits(StreamInput in) throws IOException {
+        super(in);
+        from = in.readVInt();
+        size = in.readVInt();
+        topDocs = Lucene.readTopDocs(in);
+        assert topDocs != null;
+        searchHits = InternalSearchHits.readSearchHits(in);
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeVInt(from);
+        out.writeVInt(size);
+        Lucene.writeTopDocs(out, topDocs);
+        searchHits.writeTo(out);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return TopHitsAggregationBuilder.NAME;
     }
 
     @Override
@@ -137,23 +138,6 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        from = in.readVInt();
-        size = in.readVInt();
-        topDocs = Lucene.readTopDocs(in);
-        assert topDocs != null;
-        searchHits = InternalSearchHits.readSearchHits(in);
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(from);
-        out.writeVInt(size);
-        Lucene.writeTopDocs(out, topDocs);
-        searchHits.writeTo(out);
     }
 
     @Override

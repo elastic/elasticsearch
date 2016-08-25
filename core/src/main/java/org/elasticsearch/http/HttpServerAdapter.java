@@ -29,4 +29,5 @@ import org.elasticsearch.rest.RestRequest;
 public interface HttpServerAdapter {
 
     void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext context);
+
 }

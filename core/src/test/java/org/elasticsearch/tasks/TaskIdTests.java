@@ -57,7 +57,7 @@ public class TaskIdTests extends ESTestCase {
             taskId.writeTo(out);
             BytesReference bytes = out.bytes();
             assertEquals(expectedSize, bytes.length());
-            try (StreamInput in = StreamInput.wrap(bytes)) {
+            try (StreamInput in = bytes.streamInput()) {
                 return TaskId.readFromStream(in);
             }
         }

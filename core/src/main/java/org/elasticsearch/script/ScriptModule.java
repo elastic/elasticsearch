@@ -19,90 +19,81 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.multibindings.MapBinder;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
- * An {@link org.elasticsearch.common.inject.Module} which manages {@link ScriptEngineService}s, as well
- * as named script
+ * Manages building {@link ScriptService} and {@link ScriptSettings} from a list of plugins.
  */
-public class ScriptModule extends AbstractModule {
+public class ScriptModule {
+    private final ScriptSettings scriptSettings;
+    private final ScriptService scriptService;
 
-    private final List<ScriptEngineRegistry.ScriptEngineRegistration> scriptEngineRegistrations = new ArrayList<>();
-
-    {
-        scriptEngineRegistrations.add(new ScriptEngineRegistry.ScriptEngineRegistration(NativeScriptEngineService.class, NativeScriptEngineService.TYPES));
-    }
-
-    private final Map<String, Class<? extends NativeScriptFactory>> scripts = new HashMap<>();
-
-    private final List<ScriptContext.Plugin> customScriptContexts = new ArrayList<>();
-
-
-    public void addScriptEngine(ScriptEngineRegistry.ScriptEngineRegistration scriptEngineRegistration) {
-        Objects.requireNonNull(scriptEngineRegistration);
-        scriptEngineRegistrations.add(scriptEngineRegistration);
-    }
-
-    public void registerScript(String name, Class<? extends NativeScriptFactory> script) {
-        scripts.put(name, script);
+    /**
+     * Build from {@linkplain ScriptPlugin}s. Convenient for normal use but not great for tests. See
+     * {@link ScriptModule#ScriptModule(Settings, Environment, ResourceWatcherService, List, List)} for easier use in tests.
+     */
+    public static ScriptModule create(Settings settings, Environment environment,
+                                      ResourceWatcherService resourceWatcherService, List<ScriptPlugin> scriptPlugins) {
+        Map<String, NativeScriptFactory> factoryMap = scriptPlugins.stream().flatMap(x -> x.getNativeScripts().stream())
+            .collect(Collectors.toMap(NativeScriptFactory::getName, Function.identity()));
+        NativeScriptEngineService nativeScriptEngineService = new NativeScriptEngineService(settings, factoryMap);
+        List<ScriptEngineService> scriptEngineServices = scriptPlugins.stream().map(x -> x.getScriptEngineService(settings))
+            .filter(Objects::nonNull).collect(Collectors.toList());
+        scriptEngineServices.add(nativeScriptEngineService);
+        List<ScriptContext.Plugin> plugins = scriptPlugins.stream().map(x -> x.getCustomScriptContexts()).filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        return new ScriptModule(settings, environment, resourceWatcherService, scriptEngineServices, plugins);
     }
 
     /**
-     * Registers a custom script context that can be used by plugins to categorize the different operations that they use scripts for.
-     * Fine-grained settings allow to enable/disable scripts per context.
+     * Build {@linkplain ScriptEngineService} and {@linkplain ScriptContext.Plugin}.
      */
-    public void registerScriptContext(ScriptContext.Plugin scriptContext) {
-        customScriptContexts.add(scriptContext);
+    public ScriptModule(Settings settings, Environment environment,
+                        ResourceWatcherService resourceWatcherService, List<ScriptEngineService> scriptEngineServices,
+                        List<ScriptContext.Plugin> customScriptContexts) {
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customScriptContexts);
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngineServices);
+        scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
+        try {
+            scriptService = new ScriptService(settings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry,
+                    scriptSettings);
+        } catch (IOException e) {
+            throw new RuntimeException("Couldn't setup ScriptService", e);
+        }
     }
 
     /**
-     * This method is called after all modules have been processed but before we actually validate all settings. This allows the
-     * script extensions to add all their settings.
+     * Extra settings for scripts.
      */
-    public void prepareSettings(SettingsModule settingsModule) {
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customScriptContexts);
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngineRegistrations);
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-
-        scriptSettings.getScriptTypeSettings().forEach(settingsModule::registerSetting);
-        scriptSettings.getScriptContextSettings().forEach(settingsModule::registerSetting);
-        scriptSettings.getScriptLanguageSettings().forEach(settingsModule::registerSetting);
-        settingsModule.registerSetting(scriptSettings.getDefaultScriptLanguageSetting());
+    public List<Setting<?>> getSettings() {
+        return scriptSettings.getSettings();
     }
 
-    @Override
-    protected void configure() {
-        MapBinder<String, NativeScriptFactory> scriptsBinder
-                = MapBinder.newMapBinder(binder(), String.class, NativeScriptFactory.class);
-        for (Map.Entry<String, Class<? extends NativeScriptFactory>> entry : scripts.entrySet()) {
-            scriptsBinder.addBinding(entry.getKey()).to(entry.getValue()).asEagerSingleton();
-        }
+    /**
+     * Service responsible for managing scripts.
+     */
+    public ScriptService getScriptService() {
+        return scriptService;
+    }
 
-        Multibinder<ScriptEngineService> multibinder = Multibinder.newSetBinder(binder(), ScriptEngineService.class);
-        multibinder.addBinding().to(NativeScriptEngineService.class);
-
-        for (ScriptEngineRegistry.ScriptEngineRegistration scriptEngineRegistration : scriptEngineRegistrations) {
-            multibinder.addBinding().to(scriptEngineRegistration.getScriptEngineService()).asEagerSingleton();
-        }
-
-
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customScriptContexts);
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(scriptEngineRegistrations);
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-
-        bind(ScriptContextRegistry.class).toInstance(scriptContextRegistry);
-        bind(ScriptEngineRegistry.class).toInstance(scriptEngineRegistry);
-        bind(ScriptSettings.class).toInstance(scriptSettings);
-        bind(ScriptService.class).asEagerSingleton();
+    /**
+     * Allow the script service to register any settings update handlers on the cluster settings
+     */
+    public void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
+        scriptService.registerClusterSettingsListeners(clusterSettings);
     }
 }

@@ -40,9 +40,8 @@ public interface ShardsAllocator {
      * - relocate shards to find a good shard balance in the cluster
      *
      * @param allocation current node allocation
-     * @return <code>true</code> if the allocation has changed, otherwise <code>false</code>
      */
-    boolean allocate(RoutingAllocation allocation);
+    void allocate(RoutingAllocation allocation);
 
     /**
      * Returns a map of node to a float "weight" of where the allocator would like to place the shard.

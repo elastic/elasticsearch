@@ -35,7 +35,6 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -157,7 +156,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         Releasables.close(counts, collector);
     }
 
-    private static abstract class Collector extends LeafBucketCollector implements Releasable {
+    private abstract static class Collector extends LeafBucketCollector implements Releasable {
 
         public abstract void postCollect();
 
@@ -294,7 +293,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     /**
      * Representation of a list of hash values. There might be dups and there is no guarantee on the order.
      */
-    static abstract class MurmurHash3Values {
+    abstract static class MurmurHash3Values {
 
         public abstract void setDocument(int docId);
 

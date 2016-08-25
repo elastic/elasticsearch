@@ -29,7 +29,7 @@ import java.util.Map;
  */
 public interface ToXContent {
 
-    public static interface Params {
+    interface Params {
         String param(String key);
 
         String param(String key, String defaultValue);
@@ -39,7 +39,7 @@ public interface ToXContent {
         Boolean paramAsBoolean(String key, Boolean defaultValue);
     }
 
-    public static final Params EMPTY_PARAMS = new Params() {
+    Params EMPTY_PARAMS = new Params() {
         @Override
         public String param(String key) {
             return null;
@@ -62,7 +62,7 @@ public interface ToXContent {
 
     };
 
-    public static class MapParams implements Params {
+    class MapParams implements Params {
 
         private final Map<String, String> params;
 
@@ -95,7 +95,7 @@ public interface ToXContent {
         }
     }
 
-    public static class DelegatingMapParams extends MapParams {
+    class DelegatingMapParams extends MapParams {
 
         private final Params delegate;
 

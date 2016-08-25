@@ -1,0 +1,68 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+buildscript {
+  repositories {
+    maven {
+      url 'https://plugins.gradle.org/m2/'
+    }
+  }
+  dependencies {
+    classpath 'com.github.jengelman.gradle.plugins:shadow:1.2.3'
+  }
+}
+
+
+apply plugin: 'elasticsearch.build'
+// build an uberjar with all benchmarks
+apply plugin: 'com.github.johnrengelman.shadow'
+// have the shadow plugin provide the runShadow task
+apply plugin: 'application'
+
+group = 'org.elasticsearch.client'
+
+archivesBaseName = 'client-benchmarks'
+mainClassName = 'org.elasticsearch.client.benchmark.BenchmarkMain'
+
+
+// never try to invoke tests on the benchmark project - there aren't any
+check.dependsOn.remove(test)
+// explicitly override the test task too in case somebody invokes 'gradle test' so it won't trip
+task test(type: Test, overwrite: true)
+
+dependencies {
+  compile 'org.apache.commons:commons-math3:3.2'
+
+  compile("org.elasticsearch.client:rest:${version}")
+  // for transport client
+  compile("org.elasticsearch:elasticsearch:${version}")
+  compile("org.elasticsearch.client:transport:${version}")
+  compile project(path: ':modules:transport-netty3', configuration: 'runtime')
+  compile project(path: ':modules:transport-netty4', configuration: 'runtime')
+  compile project(path: ':modules:reindex', configuration: 'runtime')
+  compile project(path: ':modules:lang-mustache', configuration: 'runtime')
+  compile project(path: ':modules:percolator', configuration: 'runtime')
+}
+
+// No licenses for our benchmark deps (we don't ship benchmarks)
+dependencyLicenses.enabled = false
+
+extraArchive {
+  javadoc = false
+}

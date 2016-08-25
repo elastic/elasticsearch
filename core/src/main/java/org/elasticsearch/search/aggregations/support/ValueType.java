@@ -25,7 +25,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.joda.time.DateTimeZone;
 
@@ -70,12 +70,7 @@ public enum ValueType implements Writeable {
             return true;
         }
     },
-    IP((byte) 6, "ip", "ip", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.IP) {
-        @Override
-        public boolean isNumeric() {
-            return true;
-        }
-    },
+    IP((byte) 6, "ip", "ip", ValuesSourceType.BYTES, IndexFieldData.class, DocValueFormat.IP),
     NUMERIC((byte) 7, "numeric", "numeric", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW) {
         @Override
         public boolean isNumeric() {

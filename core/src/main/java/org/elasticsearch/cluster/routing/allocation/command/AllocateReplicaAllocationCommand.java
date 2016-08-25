@@ -136,6 +136,4 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
         initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting);
         return new RerouteExplanation(this, decision);
     }
-
-
 }

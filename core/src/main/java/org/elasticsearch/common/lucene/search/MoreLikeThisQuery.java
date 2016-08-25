@@ -84,14 +84,14 @@ public class MoreLikeThisQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), boostTerms, boostTermsFactor, Arrays.hashCode(likeText),
+        return Objects.hash(classHash(), boostTerms, boostTermsFactor, Arrays.hashCode(likeText),
                 maxDocFreq, maxQueryTerms, maxWordLen, minDocFreq, minTermFrequency, minWordLen,
                 Arrays.hashCode(moreLikeFields), minimumShouldMatch, stopWords);
     }
 
     @Override
     public boolean equals(Object obj) {
-        if (super.equals(obj) == false) {
+        if (sameClassAs(obj) == false) {
             return false;
         }
         MoreLikeThisQuery other = (MoreLikeThisQuery) obj;

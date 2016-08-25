@@ -31,15 +31,14 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A query that wraps a filter and simply returns a constant score equal to the
  * query boost for every document in the filter.
  */
 public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScoreQueryBuilder> {
-
     public static final String NAME = "constant_score";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField INNER_QUERY_FIELD = new ParseField("filter", "query");
 
@@ -87,10 +86,10 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
         builder.endObject();
     }
 
-    public static ConstantScoreQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<ConstantScoreQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
-        QueryBuilder query = null;
+        Optional<QueryBuilder> query = null;
         boolean queryFound = false;
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -131,19 +130,20 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
             throw new ParsingException(parser.getTokenLocation(), "[constant_score] requires a 'filter' element");
         }
 
-        ConstantScoreQueryBuilder constantScoreBuilder = new ConstantScoreQueryBuilder(query);
+        if (query.isPresent() == false) {
+            // if inner query is empty, bubble this up to caller so they can decide how to deal with it
+            return Optional.empty();
+        }
+
+        ConstantScoreQueryBuilder constantScoreBuilder = new ConstantScoreQueryBuilder(query.get());
         constantScoreBuilder.boost(boost);
         constantScoreBuilder.queryName(queryName);
-        return constantScoreBuilder;
+        return Optional.of(constantScoreBuilder);
     }
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Query innerFilter = filterBuilder.toFilter(context);
-        if (innerFilter == null ) {
-            // return null so that parent queries (e.g. bool) also ignore this
-            return null;
-        }
         return new ConstantScoreQuery(innerFilter);
     }
 

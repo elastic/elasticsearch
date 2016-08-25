@@ -151,66 +151,7 @@ public final class Fuzziness implements ToXContent, Writeable {
                 return 1;
             }
         }
-        return Math.min(2, asInt());
-    }
-
-    public TimeValue asTimeValue() {
-        if (this.equals(AUTO)) {
-            return TimeValue.timeValueMillis(1);
-        } else {
-            return TimeValue.parseTimeValue(fuzziness.toString(), null, "fuzziness");
-        }
-    }
-
-    public long asLong() {
-        if (this.equals(AUTO)) {
-            return 1;
-        }
-        try {
-            return Long.parseLong(fuzziness.toString());
-        } catch (NumberFormatException ex) {
-            return (long) Double.parseDouble(fuzziness.toString());
-        }
-    }
-
-    public int asInt() {
-        if (this.equals(AUTO)) {
-            return 1;
-        }
-        try {
-            return Integer.parseInt(fuzziness.toString());
-        } catch (NumberFormatException ex) {
-            return (int) Float.parseFloat(fuzziness.toString());
-        }
-    }
-
-    public short asShort() {
-        if (this.equals(AUTO)) {
-            return 1;
-        }
-        try {
-            return Short.parseShort(fuzziness.toString());
-        } catch (NumberFormatException ex) {
-            return (short) Float.parseFloat(fuzziness.toString());
-        }
-    }
-
-    public byte asByte() {
-        if (this.equals(AUTO)) {
-            return 1;
-        }
-        try {
-            return Byte.parseByte(fuzziness.toString());
-        } catch (NumberFormatException ex) {
-            return (byte) Float.parseFloat(fuzziness.toString());
-        }
-    }
-
-    public double asDouble() {
-        if (this.equals(AUTO)) {
-            return 1d;
-        }
-        return Double.parseDouble(fuzziness.toString());
+        return Math.min(2, (int) asFloat());
     }
 
     public float asFloat() {

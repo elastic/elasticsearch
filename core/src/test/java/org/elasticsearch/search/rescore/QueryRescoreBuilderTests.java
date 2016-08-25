@@ -40,7 +40,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.core.TextFieldMapper;
+import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -54,6 +54,8 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+
+import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -68,8 +70,9 @@ public class QueryRescoreBuilderTests extends ESTestCase {
      */
     @BeforeClass
     public static void init() {
-        namedWriteableRegistry = new NamedWriteableRegistry();
-        indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).getQueryParserRegistry();
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+        indicesQueriesRegistry = searchModule.getQueryParserRegistry();
     }
 
     @AfterClass
@@ -158,7 +161,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAsciiOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
         QueryShardContext mockShardContext = new QueryShardContext(idxSettings, null, null, null, null, null, indicesQueriesRegistry,
-                null, null, null, null) {
+                null, null, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
@@ -178,6 +181,11 @@ public class QueryRescoreBuilderTests extends ESTestCase {
             assertEquals(rescoreBuilder.getRescoreQueryWeight(), rescoreContext.rescoreQueryWeight(), Float.MIN_VALUE);
             assertEquals(rescoreBuilder.getScoreMode(), rescoreContext.scoreMode());
         }
+    }
+
+    public void testRescoreQueryNull() throws IOException {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new QueryRescorerBuilder((QueryBuilder) null));
+        assertEquals("rescore_query cannot be null", e.getMessage());
     }
 
     /**
@@ -334,7 +342,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
     private static RescoreBuilder<?> serializedCopy(RescoreBuilder<?> original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.writeNamedWriteable(original);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 return in.readNamedWriteable(RescoreBuilder.class);
             }
         }

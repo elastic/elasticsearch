@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -40,9 +39,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
-import java.util.HashMap;
-
-import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -98,22 +94,6 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         );
 
         assertThrows(client().prepareMultiGet().add("no_index", "type1", "1"),
-                ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
-        );
-
-        PercolateSourceBuilder percolateSource = new PercolateSourceBuilder();
-        percolateSource.setDoc(docBuilder().setDoc(new HashMap()));
-        assertThrows(client().preparePercolate()
-                        .setIndices("test").setDocumentType("type1")
-                        .setSource(percolateSource),
-                ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
-        );
-
-        percolateSource = new PercolateSourceBuilder();
-        percolateSource.setDoc(docBuilder().setDoc(new HashMap()));
-        assertThrows(client().preparePercolate()
-                        .setIndices("no_index").setDocumentType("type1")
-                        .setSource(percolateSource),
                 ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 

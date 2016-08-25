@@ -41,7 +41,9 @@ import java.util.Locale;
 public enum GeoDistance implements Writeable {
     /**
      * Calculates distance as points on a plane. Faster, but less accurate than {@link #ARC}.
+     * @deprecated use {@link GeoUtils#planeDistance}
      */
+    @Deprecated
     PLANE {
         @Override
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
@@ -63,7 +65,11 @@ public enum GeoDistance implements Writeable {
 
     /**
      * Calculates distance factor.
+     * Note: {@code calculate} is simply returning the RHS of the spherical law of cosines from 2 lat,lon points.
+     * {@code normalize} also returns the RHS of the spherical law of cosines for a given distance
+     * @deprecated use {@link SloppyMath#haversinMeters} to get distance in meters, law of cosines is being removed
      */
+    @Deprecated
     FACTOR {
         @Override
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
@@ -80,12 +86,14 @@ public enum GeoDistance implements Writeable {
 
         @Override
         public FixedSourceDistance fixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
-            return new FactorFixedSourceDistance(sourceLatitude, sourceLongitude, unit);
+            return new FactorFixedSourceDistance(sourceLatitude, sourceLongitude);
         }
     },
     /**
      * Calculates distance as points on a globe.
+     * @deprecated use {@link GeoUtils#arcDistance}
      */
+    @Deprecated
     ARC {
         @Override
         public double calculate(double sourceLatitude, double sourceLongitude, double targetLatitude, double targetLongitude, DistanceUnit unit) {
@@ -143,6 +151,7 @@ public enum GeoDistance implements Writeable {
      * Default {@link GeoDistance} function. This method should be used, If no specific function has been selected.
      * This is an alias for <code>SLOPPY_ARC</code>
      */
+    @Deprecated
     public static final GeoDistance DEFAULT = SLOPPY_ARC;
 
     public abstract double normalize(double distance, DistanceUnit unit);
@@ -217,12 +226,12 @@ public enum GeoDistance implements Writeable {
         throw new IllegalArgumentException("No geo distance for [" + name + "]");
     }
 
-    public static interface FixedSourceDistance {
+    public interface FixedSourceDistance {
 
         double calculate(double targetLatitude, double targetLongitude);
     }
 
-    public static interface DistanceBoundingCheck {
+    public interface DistanceBoundingCheck {
 
         boolean isWithin(double targetLatitude, double targetLongitude);
 
@@ -331,7 +340,7 @@ public enum GeoDistance implements Writeable {
         private final double sinA;
         private final double cosA;
 
-        public FactorFixedSourceDistance(double sourceLatitude, double sourceLongitude, DistanceUnit unit) {
+        public FactorFixedSourceDistance(double sourceLatitude, double sourceLongitude) {
             this.sourceLongitude = sourceLongitude;
             this.a = Math.toRadians(90D - sourceLatitude);
             this.sinA = Math.sin(a);
@@ -350,7 +359,7 @@ public enum GeoDistance implements Writeable {
      * Basic implementation of {@link FixedSourceDistance}. This class keeps the basic parameters for a distance
      * functions based on a fixed source. Namely latitude, longitude and unit.
      */
-    public static abstract class FixedSourceDistanceBase implements FixedSourceDistance {
+    public abstract static class FixedSourceDistanceBase implements FixedSourceDistance {
         protected final double sourceLatitude;
         protected final double sourceLongitude;
         protected final DistanceUnit unit;

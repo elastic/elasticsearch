@@ -42,19 +42,18 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * {@link QueryBuilder} that builds a GeoShape Query
  */
 public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuilder> {
-
     public static final String NAME = "geo_shape";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     public static final String DEFAULT_SHAPE_INDEX_NAME = "shapes";
     public static final String DEFAULT_SHAPE_FIELD_NAME = "shape";
@@ -377,6 +376,10 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         if (!response.isExists()) {
             throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() + "] not found");
         }
+        if (response.isSourceEmpty()) {
+            throw new IllegalArgumentException("Shape with ID [" + getRequest.id() + "] in type [" + getRequest.type() +
+                    "] source disabled");
+        }
 
         String[] pathElements = path.split("\\.");
         int currentPathSlot = 0;
@@ -453,7 +456,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         builder.endObject();
     }
 
-    public static GeoShapeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<GeoShapeQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -559,7 +562,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         }
         builder.boost(boost);
         builder.ignoreUnmapped(ignoreUnmapped);
-        return builder;
+        return Optional.of(builder);
     }
 
     @Override

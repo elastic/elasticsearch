@@ -27,7 +27,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.regex.Regex;
@@ -57,7 +56,6 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     private final List<ExpressionResolver> expressionResolvers;
     private final DateMathExpressionResolver dateMathExpressionResolver;
 
-    @Inject
     public IndexNameExpressionResolver(Settings settings) {
         super(settings);
         expressionResolvers = Arrays.asList(
@@ -490,7 +488,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         return false;
     }
 
-    final static class Context {
+    static final class Context {
 
         private final ClusterState state;
         private final IndicesOptions options;
@@ -553,7 +551,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     /**
      * Resolves alias/index name expressions with wildcards into the corresponding concrete indices/aliases
      */
-    final static class WildcardExpressionResolver implements ExpressionResolver {
+    static final class WildcardExpressionResolver implements ExpressionResolver {
 
         @Override
         public List<String> resolve(Context context, List<String> expressions) {
@@ -740,7 +738,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         }
     }
 
-    final static class DateMathExpressionResolver implements ExpressionResolver {
+    static final class DateMathExpressionResolver implements ExpressionResolver {
 
         private static final String EXPRESSION_LEFT_BOUND = "<";
         private static final String EXPRESSION_RIGHT_BOUND = ">";

@@ -19,12 +19,11 @@
 
 package org.elasticsearch.search.aggregations.metrics.geocentroid;
 
-import org.apache.lucene.spatial.util.GeoEncodingUtils;
+import org.apache.lucene.spatial.geopoint.document.GeoPointField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -34,51 +33,60 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Serialization and merge logic for {@link org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregator}
+ * Serialization and merge logic for {@link GeoCentroidAggregator}.
  */
 public class InternalGeoCentroid extends InternalMetricsAggregation implements GeoCentroid {
-
-    public final static Type TYPE = new Type("geo_centroid");
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalGeoCentroid readResult(StreamInput in) throws IOException {
-            InternalGeoCentroid result = new InternalGeoCentroid();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    protected GeoPoint centroid;
-    protected long count;
-
-    protected InternalGeoCentroid() {
-    }
+    protected final GeoPoint centroid;
+    protected final long count;
 
     public InternalGeoCentroid(String name, GeoPoint centroid, long count, List<PipelineAggregator>
             pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
+        assert (centroid == null) == (count == 0);
         this.centroid = centroid;
         assert count >= 0;
         this.count = count;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public InternalGeoCentroid(StreamInput in) throws IOException {
+        super(in);
+        count = in.readVLong();
+        if (in.readBoolean()) {
+            final long hash = in.readLong();
+            centroid = new GeoPoint(GeoPointField.decodeLatitude(hash), GeoPointField.decodeLongitude(hash));
+        } else {
+            centroid = null;
+        }
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeVLong(count);
+        if (centroid != null) {
+            out.writeBoolean(true);
+            // should we just write lat and lon separately?
+            out.writeLong(GeoPointField.encodeLatLon(centroid.lat(), centroid.lon()));
+        } else {
+            out.writeBoolean(false);
+        }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return GeoCentroidAggregationBuilder.NAME;
+    }
+
     @Override
     public GeoPoint centroid() {
-        return (centroid == null || Double.isNaN(centroid.lon()) ? null : centroid);
+        return centroid;
     }
 
     @Override
     public long count() {
         return count;
-    }
-
-    @Override
-    public Type type() {
-        return TYPE;
     }
 
     @Override
@@ -121,27 +129,6 @@ public class InternalGeoCentroid extends InternalMetricsAggregation implements G
             }
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
-        }
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        count = in.readVLong();
-        if (in.readBoolean()) {
-            centroid = GeoPoint.fromIndexLong(in.readLong());
-        } else {
-            centroid = null;
-        }
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVLong(count);
-        if (centroid != null) {
-            out.writeBoolean(true);
-            out.writeLong(GeoEncodingUtils.mortonHash(centroid.lat(), centroid.lon()));
-        } else {
-            out.writeBoolean(false);
         }
     }
 

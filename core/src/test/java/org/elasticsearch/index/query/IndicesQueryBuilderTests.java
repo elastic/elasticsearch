@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
@@ -60,12 +61,7 @@ public class IndicesQueryBuilderTests extends AbstractQueryTestCase<IndicesQuery
     }
 
     public void testIllegalArguments() {
-        try {
-            new IndicesQueryBuilder(null, "index");
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new IndicesQueryBuilder(null, "index"));
 
         expectThrows(IllegalArgumentException.class, () -> new IndicesQueryBuilder(new MatchAllQueryBuilder(), (String[]) null));
         expectThrows(IllegalArgumentException.class, () -> new IndicesQueryBuilder(new MatchAllQueryBuilder(), new String[0]));
@@ -77,27 +73,27 @@ public class IndicesQueryBuilderTests extends AbstractQueryTestCase<IndicesQuery
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"indices\" : {\n" + 
-                "    \"indices\" : [ \"index1\", \"index2\" ],\n" + 
-                "    \"query\" : {\n" + 
-                "      \"term\" : {\n" + 
-                "        \"tag\" : {\n" + 
-                "          \"value\" : \"wow\",\n" + 
-                "          \"boost\" : 1.0\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    },\n" + 
-                "    \"no_match_query\" : {\n" + 
-                "      \"term\" : {\n" + 
-                "        \"tag\" : {\n" + 
-                "          \"value\" : \"kow\",\n" + 
-                "          \"boost\" : 1.0\n" + 
-                "        }\n" + 
-                "      }\n" + 
-                "    },\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"indices\" : {\n" +
+                "    \"indices\" : [ \"index1\", \"index2\" ],\n" +
+                "    \"query\" : {\n" +
+                "      \"term\" : {\n" +
+                "        \"tag\" : {\n" +
+                "          \"value\" : \"wow\",\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"no_match_query\" : {\n" +
+                "      \"term\" : {\n" +
+                "        \"tag\" : {\n" +
+                "          \"value\" : \"kow\",\n" +
+                "          \"boost\" : 1.0\n" +
+                "        }\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
         IndicesQueryBuilder parsed = (IndicesQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

@@ -19,42 +19,45 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
 import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Variables;
-import org.elasticsearch.painless.WriterUtility;
-import org.objectweb.asm.commons.GeneratorAdapter;
+
+import java.util.Objects;
+import java.util.Set;
+
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.MethodWriter;
 
 /**
- * Represents an implicit cast in most cases, though it will replace
- * explicit casts in the tree for simplicity.  (Internal only.)
+ * Represents a cast that is inserted into the tree replacing other casts.  (Internal only.)
  */
 final class ECast extends AExpression {
 
-    final String type;
-    AExpression child;
+    private AExpression child;
+    private final Cast cast;
 
-    Cast cast = null;
-
-    ECast(final String location, final AExpression child, final Cast cast) {
+    ECast(Location location, AExpression child, Cast cast) {
         super(location);
 
-        this.type = null;
-        this.child = child;
-
-        this.cast = cast;
+        this.child = Objects.requireNonNull(child);
+        this.cast = Objects.requireNonNull(cast);
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        throw new IllegalStateException(error("Illegal tree structure."));
+    void extractVariables(Set<String> variables) {
+        throw new IllegalStateException("Illegal tree structure.");
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        child.write(settings, definition, adapter);
-        WriterUtility.writeCast(adapter, cast);
-        WriterUtility.writeBranch(adapter, tru, fals);
+    void analyze(Locals locals) {
+        throw createError(new IllegalStateException("Illegal tree structure."));
+    }
+
+    @Override
+    void write(MethodWriter writer, Globals globals) {
+        child.write(writer, globals);
+        writer.writeDebugInfo(location);
+        writer.writeCast(cast);
     }
 }

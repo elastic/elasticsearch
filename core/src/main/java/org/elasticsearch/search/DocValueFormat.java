@@ -30,7 +30,6 @@ import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.index.mapper.ip.LegacyIpFieldMapper;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -74,7 +73,7 @@ public interface DocValueFormat extends NamedWriteable {
      *  to the original BytesRef. */
     BytesRef parseBytesRef(String value);
 
-    public static final DocValueFormat RAW = new DocValueFormat() {
+    DocValueFormat RAW = new DocValueFormat() {
 
         @Override
         public String getWriteableName() {
@@ -116,12 +115,13 @@ public interface DocValueFormat extends NamedWriteable {
             return Double.parseDouble(value);
         }
 
+        @Override
         public BytesRef parseBytesRef(String value) {
             return new BytesRef(value);
         }
     };
 
-    public static final class DateTime implements DocValueFormat {
+    final class DateTime implements DocValueFormat {
 
         public static final String NAME = "date_time";
 
@@ -181,7 +181,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
     }
 
-    public static final DocValueFormat GEOHASH = new DocValueFormat() {
+    DocValueFormat GEOHASH = new DocValueFormat() {
 
         @Override
         public String getWriteableName() {
@@ -223,7 +223,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
-    public static final DocValueFormat BOOLEAN = new DocValueFormat() {
+    DocValueFormat BOOLEAN = new DocValueFormat() {
 
         @Override
         public String getWriteableName() {
@@ -271,7 +271,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
-    public static final DocValueFormat IP = new DocValueFormat() {
+    DocValueFormat IP = new DocValueFormat() {
 
         @Override
         public String getWriteableName() {
@@ -284,12 +284,12 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public String format(long value) {
-            return LegacyIpFieldMapper.longToIp(value);
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public String format(double value) {
-            return format((long) value);
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -301,13 +301,12 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public long parseLong(String value, boolean roundUp, Callable<Long> now) {
-            // TODO: throw exception in 6.0
-            return LegacyIpFieldMapper.ipToLong(value);
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public double parseDouble(String value, boolean roundUp, Callable<Long> now) {
-            return parseLong(value, roundUp, now);
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -316,7 +315,7 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
-    public static final class Decimal implements DocValueFormat {
+    final class Decimal implements DocValueFormat {
 
         public static final String NAME = "decimal";
         private static final DecimalFormatSymbols SYMBOLS = new DecimalFormatSymbols(Locale.ROOT);

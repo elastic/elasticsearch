@@ -23,6 +23,11 @@ it is often easier to break them into three main families:
 <<search-aggregations-metrics, _Metric_>>::
 				Aggregations that keep track and compute metrics over a set of documents.
 
+<<search-aggregations-matrix, _Matrix_>>::
+                A family of aggregations that operate on multiple fields and produce a matrix result based on the
+                values extracted from the requested document fields. Unlike metric and bucket aggregations, this
+                aggregation family does not yet support scripting.
+
 <<search-aggregations-pipeline, _Pipeline_>>::
 				Aggregations that aggregate the output of other aggregations and their associated metrics
 
@@ -99,5 +104,7 @@ include::aggregations/metrics.asciidoc[]
 include::aggregations/bucket.asciidoc[]
 
 include::aggregations/pipeline.asciidoc[]
+
+include::aggregations/matrix.asciidoc[]
 
 include::aggregations/misc.asciidoc[]

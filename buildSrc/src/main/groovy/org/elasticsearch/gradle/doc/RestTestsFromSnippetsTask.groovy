@@ -32,6 +32,12 @@ import java.util.regex.Matcher
  * Generates REST tests for each snippet marked // TEST.
  */
 public class RestTestsFromSnippetsTask extends SnippetsTask {
+    /**
+     * These languages aren't supported by the syntax highlighter so we
+     * shouldn't use them.
+     */
+    private static final List BAD_LANGUAGES = ['json', 'javascript']
+
     @Input
     Map<String, String> setups = new HashMap()
 
@@ -87,6 +93,10 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
          * calls buildTest to actually build the test.
          */
         void handleSnippet(Snippet snippet) {
+            if (BAD_LANGUAGES.contains(snippet.language)) {
+                throw new InvalidUserDataException(
+                        "$snippet: Use `js` instead of `${snippet.language}`.")
+            }
             if (snippet.testSetup) {
                 setup(snippet)
                 return
@@ -115,6 +125,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 current.println("      reason: $test.skipTest")
             }
             if (test.setup != null) {
+                // Insert a setup defined outside of the docs
                 String setup = setups[test.setup]
                 if (setup == null) {
                     throw new InvalidUserDataException("Couldn't find setup "
@@ -123,20 +134,31 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 current.println(setup)
             }
 
-            body(test)
+            body(test, false)
         }
 
         private void response(Snippet response) {
-            current.println("  - response_body: |")
-            response.contents.eachLine { current.println("      $it") }
+            current.println("  - match: ")
+            current.println("      \$body: ")
+            response.contents.eachLine { current.println("        $it") }
         }
 
-        void emitDo(String method, String pathAndQuery,
-                String body, String catchPart) {
+        void emitDo(String method, String pathAndQuery, String body,
+                String catchPart, List warnings, boolean inSetup) {
             def (String path, String query) = pathAndQuery.tokenize('?')
             current.println("  - do:")
             if (catchPart != null) {
                 current.println("      catch: $catchPart")
+            }
+            if (false == warnings.isEmpty()) {
+                current.println("      warnings:")
+                for (String warning in warnings) {
+                    // Escape " because we're going to quote the warning
+                    String escaped = warning.replaceAll('"', '\\\\"')
+                    /* Quote the warning in case it starts with [ which makes
+                     * it look too much like an array. */
+                    current.println("         - \"$escaped\"")
+                }
             }
             current.println("      raw:")
             current.println("        method: $method")
@@ -144,6 +166,9 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             if (query != null) {
                 for (String param: query.tokenize('&')) {
                     def (String name, String value) = param.tokenize('=')
+                    if (value == null) {
+                        value = ''
+                    }
                     current.println("        $name: \"$value\"")
                 }
             }
@@ -152,6 +177,19 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                 body = body.substring(1)
                 current.println("        body: |")
                 body.eachLine { current.println("          $it") }
+            }
+            /* Catch any shard failures. These only cause a non-200 response if
+             * no shard succeeds. But we need to fail the tests on all of these
+             * because they mean invalid syntax or broken queries or something
+             * else that we don't want to teach people to do. The REST test
+             * framework doesn't allow us to has assertions in the setup
+             * section so we have to skip it there. We also have to skip _cat
+             * actions because they don't return json so we can't is_false
+             * them. That is ok because they don't have this
+             * partial-success-is-success thing.
+             */
+            if (false == inSetup && false == path.startsWith('_cat')) {
+                current.println("  - is_false: _shards.failures")
             }
         }
 
@@ -162,10 +200,10 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
             setupCurrent(setup)
             current.println('---')
             current.println("setup:")
-            body(setup)
+            body(setup, true)
         }
 
-        private void body(Snippet snippet) {
+        private void body(Snippet snippet, boolean inSetup) {
             parse("$snippet", snippet.contents, SYNTAX) { matcher, last ->
                 if (matcher.group("comment") != null) {
                     // Comment
@@ -179,7 +217,8 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
                     // Leading '/'s break the generated paths
                     pathAndQuery = pathAndQuery.substring(1)
                 }
-                emitDo(method, pathAndQuery, body, catchPart)
+                emitDo(method, pathAndQuery, body, catchPart, snippet.warnings,
+                    inSetup)
             }
         }
 

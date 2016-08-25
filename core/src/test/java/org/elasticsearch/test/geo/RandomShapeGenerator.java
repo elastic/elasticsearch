@@ -20,16 +20,9 @@
 package org.elasticsearch.test.geo;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
-import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
-import org.locationtech.spatial4j.distance.DistanceUtils;
-import org.locationtech.spatial4j.exception.InvalidShapeException;
-import org.locationtech.spatial4j.shape.Point;
-import org.locationtech.spatial4j.shape.Rectangle;
-import org.locationtech.spatial4j.shape.impl.Range;
 import com.vividsolutions.jts.algorithm.ConvexHull;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.builders.CoordinateCollection;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
@@ -42,6 +35,12 @@ import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.search.geo.GeoShapeQueryTests;
 import org.junit.Assert;
+import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
+import org.locationtech.spatial4j.distance.DistanceUtils;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Point;
+import org.locationtech.spatial4j.shape.Rectangle;
+import org.locationtech.spatial4j.shape.impl.Range;
 
 import java.util.Random;
 
@@ -230,14 +229,10 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
                     // The validate flag will check for these possibilities and bail if an incorrect geometry is created
                     try {
                         pgb.build();
-                    } catch (Throwable e) {
+                    } catch (AssertionError | InvalidShapeException e) {
                         // jts bug may occasionally misinterpret coordinate order causing an unhelpful ('geom' assertion)
                         // or InvalidShapeException
-                        if (e instanceof InvalidShapeException || e instanceof AssertionError) {
-                            return null;
-                        }
-                        // throw any other exception
-                        throw e;
+                        return null;
                     }
                 }
                 return pgb;

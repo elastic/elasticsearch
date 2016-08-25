@@ -64,7 +64,7 @@ public class MainActionTests extends ESTestCase {
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         mainResponse.writeTo(streamOutput);
         final MainResponse serialized = new MainResponse();
-        serialized.readFrom(new ByteBufferStreamInput(ByteBuffer.wrap(streamOutput.bytes().toBytes())));
+        serialized.readFrom(streamOutput.bytes().streamInput());
 
         assertThat(serialized.getNodeName(), equalTo(nodeName));
         assertThat(serialized.getClusterName(), equalTo(clusterName));
@@ -112,7 +112,7 @@ public class MainActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
 
         TransportMainAction action = new TransportMainAction(settings, mock(ThreadPool.class), mock(TransportService.class),
-            mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), clusterService, Version.CURRENT);
+            mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), clusterService);
         AtomicReference<MainResponse> responseRef = new AtomicReference<>();
         action.doExecute(new MainRequest(), new ActionListener<MainResponse>() {
             @Override
@@ -121,7 +121,7 @@ public class MainActionTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 logger.error("unexpected error", e);
             }
         });

@@ -20,16 +20,16 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregatorBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBoundsTests;
 
-public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAggregatorBuilder> {
+public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAggregationBuilder> {
 
     @Override
-    protected DateHistogramAggregatorBuilder createTestAggregatorBuilder() {
-        DateHistogramAggregatorBuilder factory = new DateHistogramAggregatorBuilder("foo");
+    protected DateHistogramAggregationBuilder createTestAggregatorBuilder() {
+        DateHistogramAggregationBuilder factory = new DateHistogramAggregationBuilder("foo");
         factory.field(INT_FIELD_NAME);
         if (randomBoolean()) {
             factory.interval(randomIntBetween(1, 100000));
@@ -62,9 +62,7 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
             }
         }
         if (randomBoolean()) {
-            long extendedBoundsMin = randomIntBetween(-100000, 100000);
-            long extendedBoundsMax = randomIntBetween((int) extendedBoundsMin, 200000);
-            factory.extendedBounds(new ExtendedBounds(extendedBoundsMin, extendedBoundsMax));
+            factory.extendedBounds(ExtendedBoundsTests.randomExtendedBounds());
         }
         if (randomBoolean()) {
             factory.format("###.##");

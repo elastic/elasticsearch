@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.RandomDocumentPicks;
-import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -34,7 +34,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.ingest.core.IngestDocumentTests.assertIngestDocument;
+import static org.elasticsearch.ingest.IngestDocumentTests.assertIngestDocument;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -47,7 +47,7 @@ public class WriteableIngestDocumentTests extends ESTestCase {
         for (int i = 0; i < numFields; i++) {
             sourceAndMetadata.put(randomFrom(IngestDocument.MetaData.values()).getFieldName(), randomAsciiOfLengthBetween(5, 10));
         }
-        Map<String, String> ingestMetadata = new HashMap<>();
+        Map<String, Object> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
         for (int i = 0; i < numFields; i++) {
             ingestMetadata.put(randomAsciiOfLengthBetween(5, 10), randomAsciiOfLengthBetween(5, 10));
@@ -70,7 +70,7 @@ public class WriteableIngestDocumentTests extends ESTestCase {
             changed = true;
         }
 
-        Map<String, String> otherIngestMetadata;
+        Map<String, Object> otherIngestMetadata;
         if (randomBoolean()) {
             otherIngestMetadata = new HashMap<>();
             numFields = randomIntBetween(1, 5);
@@ -103,7 +103,7 @@ public class WriteableIngestDocumentTests extends ESTestCase {
         for (int i = 0; i < numFields; i++) {
             sourceAndMetadata.put(randomFrom(IngestDocument.MetaData.values()).getFieldName(), randomAsciiOfLengthBetween(5, 10));
         }
-        Map<String, String> ingestMetadata = new HashMap<>();
+        Map<String, Object> ingestMetadata = new HashMap<>();
         numFields = randomIntBetween(1, 5);
         for (int i = 0; i < numFields; i++) {
             ingestMetadata.put(randomAsciiOfLengthBetween(5, 10), randomAsciiOfLengthBetween(5, 10));
@@ -112,7 +112,7 @@ public class WriteableIngestDocumentTests extends ESTestCase {
 
         BytesStreamOutput out = new BytesStreamOutput();
         writeableIngestDocument.writeTo(out);
-        StreamInput streamInput = StreamInput.wrap(out.bytes());
+        StreamInput streamInput = out.bytes().streamInput();
         WriteableIngestDocument otherWriteableIngestDocument = new WriteableIngestDocument(streamInput);
         assertIngestDocument(otherWriteableIngestDocument.getIngestDocument(), writeableIngestDocument.getIngestDocument());
     }
@@ -131,7 +131,7 @@ public class WriteableIngestDocumentTests extends ESTestCase {
 
         Map<String, Object> toXContentDoc = (Map<String, Object>) toXContentMap.get("doc");
         Map<String, Object> toXContentSource = (Map<String, Object>) toXContentDoc.get("_source");
-        Map<String, String> toXContentIngestMetadata = (Map<String, String>) toXContentDoc.get("_ingest");
+        Map<String, Object> toXContentIngestMetadata = (Map<String, Object>) toXContentDoc.get("_ingest");
 
         Map<IngestDocument.MetaData, String> metadataMap = ingestDocument.extractMetadata();
         for (Map.Entry<IngestDocument.MetaData, String> metadata : metadataMap.entrySet()) {

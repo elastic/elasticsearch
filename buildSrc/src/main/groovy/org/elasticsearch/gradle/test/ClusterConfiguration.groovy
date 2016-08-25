@@ -20,11 +20,14 @@ package org.elasticsearch.gradle.test
 
 import org.gradle.api.GradleException
 import org.gradle.api.Project
+import org.gradle.api.artifacts.Configuration
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 
 /** Configuration for an elasticsearch cluster, used for integration tests. */
 class ClusterConfiguration {
+
+    private final Project project
 
     @Input
     String distribution = 'integ-test-zip'
@@ -51,7 +54,9 @@ class ClusterConfiguration {
     boolean debug = false
 
     @Input
-    String jvmArgs = System.getProperty('tests.jvm.argline', '')
+    String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
+            " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
+            " " + System.getProperty('tests.jvm.argline', '')
 
     /**
      * The seed nodes port file. In the case the cluster has more than one node we use a seed node
@@ -77,6 +82,10 @@ class ClusterConfiguration {
         return tmpFile.exists()
     }
 
+    public ClusterConfiguration(Project project) {
+        this.project = project
+    }
+
     Map<String, String> systemProperties = new HashMap<>()
 
     Map<String, String> settings = new HashMap<>()
@@ -84,7 +93,7 @@ class ClusterConfiguration {
     // map from destination path, to source file
     Map<String, Object> extraConfigFiles = new HashMap<>()
 
-    LinkedHashMap<String, Object> plugins = new LinkedHashMap<>()
+    LinkedHashMap<String, Project> plugins = new LinkedHashMap<>()
 
     List<Project> modules = new ArrayList<>()
 
@@ -101,13 +110,9 @@ class ClusterConfiguration {
     }
 
     @Input
-    void plugin(String name, FileCollection file) {
-        plugins.put(name, file)
-    }
-
-    @Input
-    void plugin(String name, Project pluginProject) {
-        plugins.put(name, pluginProject)
+    void plugin(String path) {
+        Project pluginProject = project.project(path)
+        plugins.put(pluginProject.name, pluginProject)
     }
 
     /** Add a module to the cluster. The project must be an esplugin and have a single zip default artifact. */

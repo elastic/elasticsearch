@@ -22,7 +22,7 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -70,7 +70,7 @@ public class MultiGetShardRequestTests extends ESTestCase {
         out.setVersion(randomVersion(random()));
         multiGetShardRequest.writeTo(out);
 
-        StreamInput in = StreamInput.wrap(out.bytes());
+        StreamInput in = out.bytes().streamInput();
         in.setVersion(out.getVersion());
         MultiGetShardRequest multiGetShardRequest2 = new MultiGetShardRequest();
         multiGetShardRequest2.readFrom(in);

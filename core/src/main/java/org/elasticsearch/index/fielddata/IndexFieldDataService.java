@@ -21,26 +21,12 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.plain.AbstractGeoPointDVIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.BytesBinaryDVIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.GeoPointArrayIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.IndexIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
-import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.core.TextFieldMapper;
-import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -53,10 +39,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.unmodifiableMap;
-
-/**
- */
 public class IndexFieldDataService extends AbstractIndexComponent implements Closeable {
     public static final String FIELDDATA_CACHE_VALUE_NODE = "node";
     public static final String FIELDDATA_CACHE_KEY = "index.fielddata.cache";
@@ -97,13 +79,13 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     }
 
     public synchronized void clear() {
-        List<Throwable> exceptions = new ArrayList<>(0);
+        List<Exception> exceptions = new ArrayList<>(0);
         final Collection<IndexFieldDataCache> fieldDataCacheValues = fieldDataCaches.values();
         for (IndexFieldDataCache cache : fieldDataCacheValues) {
             try {
                 cache.clear();
-            } catch (Throwable t) {
-                exceptions.add(t);
+            } catch (Exception e) {
+                exceptions.add(e);
             }
         }
         fieldDataCacheValues.clear();
@@ -111,13 +93,13 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     }
 
     public synchronized void clearField(final String fieldName) {
-        List<Throwable> exceptions = new ArrayList<>(0);
+        List<Exception> exceptions = new ArrayList<>(0);
         final IndexFieldDataCache cache = fieldDataCaches.remove(fieldName);
         if (cache != null) {
             try {
                 cache.clear();
-            } catch (Throwable t) {
-                exceptions.add(t);
+            } catch (Exception e) {
+                exceptions.add(e);
             }
         }
         ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);

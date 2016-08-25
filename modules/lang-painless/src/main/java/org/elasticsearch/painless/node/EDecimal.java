@@ -19,45 +19,56 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Variables;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.MethodWriter;
+
+import java.util.Objects;
+import java.util.Set;
 
 /**
- * Respresents a decimal constant.
+ * Represents a decimal constant.
  */
 public final class EDecimal extends AExpression {
 
-    final String value;
+    private final String value;
 
-    public EDecimal(final String location, final String value) {
+    public EDecimal(Location location, String value) {
         super(location);
 
-        this.value = value;
+        this.value = Objects.requireNonNull(value);
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void extractVariables(Set<String> variables) {}
+
+    @Override
+    void analyze(Locals locals) {
+        if (!read) {
+            throw createError(new IllegalArgumentException("Must read from constant [" + value + "]."));
+        }
+
         if (value.endsWith("f") || value.endsWith("F")) {
             try {
                 constant = Float.parseFloat(value.substring(0, value.length() - 1));
-                actual = definition.floatType;
-            } catch (final NumberFormatException exception) {
-                throw new IllegalArgumentException(error("Invalid float constant [" + value + "]."));
+                actual = Definition.FLOAT_TYPE;
+            } catch (NumberFormatException exception) {
+                throw createError(new IllegalArgumentException("Invalid float constant [" + value + "]."));
             }
         } else {
             try {
                 constant = Double.parseDouble(value);
-                actual = definition.doubleType;
-            } catch (final NumberFormatException exception) {
-                throw new IllegalArgumentException(error("Invalid double constant [" + value + "]."));
+                actual = Definition.DOUBLE_TYPE;
+            } catch (NumberFormatException exception) {
+                throw createError(new IllegalArgumentException("Invalid double constant [" + value + "]."));
             }
         }
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        throw new IllegalArgumentException(error("Illegal tree structure."));
+    void write(MethodWriter writer, Globals globals) {
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 }

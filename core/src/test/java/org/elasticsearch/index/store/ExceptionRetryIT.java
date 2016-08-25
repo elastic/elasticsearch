@@ -38,6 +38,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
@@ -57,7 +58,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class);
     }
 
     @Override
@@ -113,7 +114,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
         }
 
         refresh();
-        SearchResponse searchResponse = client().prepareSearch("index").setSize(numDocs * 2).addField("_id").get();
+        SearchResponse searchResponse = client().prepareSearch("index").setSize(numDocs * 2).addStoredField("_id").get();
 
         Set<String> uniqueIds = new HashSet();
         long dupCounter = 0;

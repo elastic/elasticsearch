@@ -42,12 +42,19 @@ Computing the average grade based on a script:
     ...,
 
     "aggs" : {
-        "avg_grade" : { "avg" : { "script" : "doc['grade'].value" } }
+        "avg_grade" : { 
+            "avg" : { 
+                "script" : {
+                    "inline" : "doc['grade'].value",
+                    "lang" : "painless"
+                }
+            }
+        }
     }
 }
 --------------------------------------------------
 
-This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a file script use the following syntax:
+This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a file script use the following syntax:
 
 [source,js]
 --------------------------------------------------
@@ -86,7 +93,8 @@ It turned out that the exam was way above the level of the students and a grade 
                 "avg" : {
                     "field" : "grade",
                     "script" : {
-                        "inline": "_value * correction",
+                        "lang": "painless",
+                        "inline": "_value * params.correction",
                         "params" : {
                             "correction" : 1.2
                         }

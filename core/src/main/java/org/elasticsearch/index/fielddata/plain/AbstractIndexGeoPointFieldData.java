@@ -20,7 +20,6 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.spatial.geopoint.document.GeoPointField;
-import org.apache.lucene.spatial.util.GeoEncodingUtils;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.CharsRefBuilder;
@@ -58,7 +57,7 @@ abstract class AbstractIndexGeoPointFieldData extends AbstractIndexFieldData<Ato
                 return null;
             }
             if (termEncoding == GeoPointField.TermEncoding.PREFIX) {
-                return GeoEncodingUtils.prefixCodedToGeoCoded(term);
+                return GeoPointField.prefixCodedToGeoCoded(term);
             } else if (termEncoding == GeoPointField.TermEncoding.NUMERIC) {
                 return LegacyNumericUtils.prefixCodedToLong(term);
             }

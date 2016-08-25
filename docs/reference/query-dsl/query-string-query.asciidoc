@@ -6,13 +6,17 @@ an example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "query_string" : {
-        "default_field" : "content",
-        "query" : "this AND that OR thus"
+    "query": {
+        "query_string" : {
+            "default_field" : "content",
+            "query" : "this AND that OR thus"
+        }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The `query_string` top level parameters include:
 
@@ -113,25 +117,33 @@ For example, the following query
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "query_string" : {
-        "fields" : ["content", "name"],
-        "query" : "this AND that"
+    "query": {
+        "query_string" : {
+            "fields" : ["content", "name"],
+            "query" : "this AND that"
+        }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 matches the same words as
 
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "query_string": {
-      "query": "(content:this OR name:this) AND (content:that OR name:that)"
+    "query": {
+        "query_string": {
+            "query": "(content:this OR name:this) AND (content:that OR name:that)"
+        }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 Since several queries are generated from the individual search terms,
 combining them can be automatically done using either a `dis_max` query or a
@@ -140,14 +152,18 @@ notation):
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "query_string" : {
-        "fields" : ["content", "name^5"],
-        "query" : "this AND that OR thus",
-        "use_dis_max" : true
+    "query": {
+        "query_string" : {
+            "fields" : ["content", "name^5"],
+            "query" : "this AND that OR thus",
+            "use_dis_max" : true
+        }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 Simple wildcard can also be used to search "within" specific inner
 elements of the document. For example, if we have a `city` object with
@@ -156,14 +172,18 @@ search on all "city" fields:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "query_string" : {
-        "fields" : ["city.*"],
-        "query" : "this AND that OR thus",
-        "use_dis_max" : true
+    "query": {
+        "query_string" : {
+            "fields" : ["city.*"],
+            "query" : "this AND that OR thus",
+            "use_dis_max" : true
+        }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 Another option is to provide the wildcard fields search in the query
 string itself (properly escaping the `*` sign), for example:
@@ -188,13 +208,17 @@ introduced fields included). For example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "query_string" : {
-        "fields" : ["content", "name.*^5"],
-        "query" : "this AND that OR thus",
-        "use_dis_max" : true
+    "query": {
+        "query_string" : {
+            "fields" : ["content", "name.*^5"],
+            "query" : "this AND that OR thus",
+            "use_dis_max" : true
+        }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 include::query-string-syntax.asciidoc[]

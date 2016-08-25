@@ -1,0 +1,353 @@
+setup:
+  - do:
+      indices.create:
+          index: test_1
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              test:
+                properties:
+                  str:
+                     type: keyword
+                  ip:
+                     type: ip
+                  boolean:
+                     type: boolean
+                  integer:
+                    type: long
+                  double:
+                    type: double
+                  date:
+                    type: date
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+---
+"Basic test":
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 1
+        body: { "str" : "abc" }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 2
+        body: { "str": "abc" }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 3
+        body: { "str": "bcd" }
+      
+  - do:
+      indices.refresh: {}
+    
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str" } } } }
+
+  - match: { hits.total: 3 }
+  
+  - length: { aggregations.str_terms.buckets: 2 }
+  
+  - match: { aggregations.str_terms.buckets.0.key: "abc" }
+  
+  - is_false: aggregations.str_terms.buckets.0.key_as_string
+  
+  - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
+  
+  - match: { aggregations.str_terms.buckets.1.key: "bcd" }
+  
+  - is_false: aggregations.str_terms.buckets.1.key_as_string
+  
+  - match: { aggregations.str_terms.buckets.1.doc_count: 1 }
+  
+---
+"IP test":
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 1
+        body: { "ip": "::1" }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 2
+        body: { "ip": "127.0.0.1" }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 3
+        body: { "ip": "::1" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip" } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.ip_terms.buckets: 2 }
+
+  - match: { aggregations.ip_terms.buckets.0.key: "::1" }
+
+  - is_false: aggregations.ip_terms.buckets.0.key_as_string
+
+  - match: { aggregations.ip_terms.buckets.0.doc_count: 2 }
+
+  - match: { aggregations.ip_terms.buckets.1.key: "127.0.0.1" }
+  
+  - is_false: aggregations.ip_terms.buckets.1.key_as_string
+  
+  - match: { aggregations.ip_terms.buckets.1.doc_count: 1 }
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip", "include" : [ "127.0.0.1" ] } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.ip_terms.buckets: 1 }
+
+  - match: { aggregations.ip_terms.buckets.0.key: "127.0.0.1" }
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip", "exclude" : [ "127.0.0.1" ] } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.ip_terms.buckets: 1 }
+
+  - match: { aggregations.ip_terms.buckets.0.key: "::1" }
+
+  - do:
+      catch: request
+      search:
+        body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip", "exclude" :  "127.*"  } } } }
+
+  
+
+---
+"Boolean test":
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 1
+        body: { "boolean": true }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 2
+        body: { "boolean": false }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 3
+        body: { "boolean": true }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "boolean_terms" : { "terms" : { "field" : "boolean" } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.boolean_terms.buckets: 2 }
+
+  - match: { aggregations.boolean_terms.buckets.0.key: 1 }
+
+  - match: { aggregations.boolean_terms.buckets.0.key_as_string: "true" }
+
+  - match: { aggregations.boolean_terms.buckets.0.doc_count: 2 }
+
+  - match: { aggregations.boolean_terms.buckets.1.key: 0 }
+
+  - match: { aggregations.boolean_terms.buckets.1.key_as_string: "false" }
+
+  - match: { aggregations.boolean_terms.buckets.1.doc_count: 1 }
+
+---
+"Integer test":
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 1
+        body: { "integer": 1234 }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 2
+        body: { "integer": 5678 }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 3
+        body: { "integer": 1234 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "integer_terms" : { "terms" : { "field" : "integer" } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.integer_terms.buckets: 2 }
+
+  - match: { aggregations.integer_terms.buckets.0.key: 1234 }
+
+  - is_false: aggregations.integer_terms.buckets.0.key_as_string
+
+  - match: { aggregations.integer_terms.buckets.0.doc_count: 2 }
+
+  - match: { aggregations.integer_terms.buckets.1.key: 5678 }
+
+  - is_false: aggregations.integer_terms.buckets.1.key_as_string
+
+  - match: { aggregations.integer_terms.buckets.1.doc_count: 1 }
+
+---
+"Double test":
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 1
+        body: { "double": 1234.5 }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 2
+        body: { "double": 5678.5 }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 3
+        body: { "double": 1234.5 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "double_terms" : { "terms" : { "field" : "double" } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.double_terms.buckets: 2 }
+
+  - match: { aggregations.double_terms.buckets.0.key: 1234.5 }
+
+  - is_false: aggregations.double_terms.buckets.0.key_as_string
+
+  - match: { aggregations.double_terms.buckets.0.doc_count: 2 }
+
+  - match: { aggregations.double_terms.buckets.1.key: 5678.5 }
+
+  - is_false: aggregations.double_terms.buckets.1.key_as_string
+
+  - match: { aggregations.double_terms.buckets.1.doc_count: 1 }
+
+---
+"Date test":
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 1
+        body: { "date": "2016-05-03" }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 2
+        body: { "date": "2014-09-01" }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 3
+        body: { "date": "2016-05-03" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "date_terms" : { "terms" : { "field" : "date" } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.date_terms.buckets: 2 }
+
+  - match: { aggregations.date_terms.buckets.0.key: 1462233600000 }
+
+  - match: { aggregations.date_terms.buckets.0.key_as_string: "2016-05-03T00:00:00.000Z" }
+
+  - match: { aggregations.date_terms.buckets.0.doc_count: 2 }
+
+  - match: { aggregations.date_terms.buckets.1.key: 1409529600000 }
+
+  - match: { aggregations.date_terms.buckets.1.key_as_string: "2014-09-01T00:00:00.000Z" }
+
+  - match: { aggregations.date_terms.buckets.1.doc_count: 1 }
+  
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "date_terms" : { "terms" : { "field" : "date", "include" : [ "2016-05-03" ] } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.date_terms.buckets: 1 }
+  
+  - match: { aggregations.date_terms.buckets.0.key_as_string: "2016-05-03T00:00:00.000Z" }
+  
+  - match: { aggregations.date_terms.buckets.0.doc_count: 2 }  
+  
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "date_terms" : { "terms" : { "field" : "date", "exclude" : [ "2016-05-03" ] } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.date_terms.buckets: 1 }
+  
+  - match: { aggregations.date_terms.buckets.0.key_as_string: "2014-09-01T00:00:00.000Z" }
+
+  - match: { aggregations.date_terms.buckets.0.doc_count: 1 }  

@@ -19,6 +19,10 @@
 
 package org.elasticsearch.painless;
 
+import static org.elasticsearch.painless.WriterConstants.MAX_INDY_STRING_CONCAT_ARGS;
+
+import java.util.Locale;
+
 public class StringTests extends ScriptTestCase {
 
     public void testAppend() {
@@ -61,6 +65,34 @@ public class StringTests extends ScriptTestCase {
         assertEquals("cat" + 2.0, exec("String s = 'cat'; return s + 2.0;"));
         // String
         assertEquals("cat" + "cat", exec("String s = 'cat'; return s + s;"));
+    }
+
+    public void testAppendMultiple() {
+        assertEquals("cat" + true + "abc" + null, exec("String s = \"cat\"; return s + true + 'abc' + null;"));
+    }
+
+    public void testAppendMany() {
+        for (int i = MAX_INDY_STRING_CONCAT_ARGS - 5; i < MAX_INDY_STRING_CONCAT_ARGS + 5; i++) {
+            doTestAppendMany(i);
+        }
+    }
+
+    private void doTestAppendMany(int count) {
+        StringBuilder script = new StringBuilder("String s = \"cat\"; return s");
+        StringBuilder result = new StringBuilder("cat");
+        for (int i = 1; i < count; i++) {
+            final String s = String.format(Locale.ROOT, "%03d", i);
+            script.append(" + '").append(s).append("'.toString()");
+            result.append(s);
+        }
+        final String s = script.toString();
+        assertTrue("every string part should be separatly pushed to stack.",
+                Debugger.toString(s).contains(String.format(Locale.ROOT, "LDC \"%03d\"", count/2)));
+        assertEquals(result.toString(), exec(s));
+    }
+
+    public void testNestedConcats() {
+        assertEquals("foo1010foo", exec("String s = 'foo'; String x = '10'; return s + Integer.parseInt(x + x) + s;"));
     }
 
     public void testStringAPI() {
@@ -127,71 +159,70 @@ public class StringTests extends ScriptTestCase {
         assertEquals("c", exec("return (String)(char)\"c\""));
         assertEquals("c", exec("return (String)(char)'c'"));
 
-        assertEquals('c', exec("String s = \"c\" (char)s"));
-        assertEquals('c', exec("String s = 'c' (char)s"));
+        assertEquals('c', exec("String s = \"c\"; (char)s"));
+        assertEquals('c', exec("String s = 'c'; (char)s"));
 
-        try {
+        ClassCastException expected = expectScriptThrows(ClassCastException.class, () -> {
             assertEquals("cc", exec("return (String)(char)\"cc\""));
-            fail();
-        } catch (final ClassCastException cce) {
-            assertTrue(cce.getMessage().contains("Cannot cast from [String] to [char]."));
-        }
+        });
+        assertTrue(expected.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
 
-        try {
+        expected = expectScriptThrows(ClassCastException.class, () -> {
             assertEquals("cc", exec("return (String)(char)'cc'"));
-            fail();
-        } catch (final ClassCastException cce) {
-            assertTrue(cce.getMessage().contains("Cannot cast from [String] to [char]."));
-        }
+        });
+        assertTrue(expected.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
 
-        try {
-            assertEquals('c', exec("String s = \"cc\" (char)s"));
-            fail();
-        } catch (final ClassCastException cce) {
-            assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
-        }
+        expected = expectScriptThrows(ClassCastException.class, () -> {
+            assertEquals('c', exec("String s = \"cc\"; (char)s"));
+        });
+        assertTrue(expected.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
 
-        try {
-            assertEquals('c', exec("String s = 'cc' (char)s"));
-            fail();
-        } catch (final ClassCastException cce) {
-            assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
-        }
+        expected = expectScriptThrows(ClassCastException.class, () -> {
+            assertEquals('c', exec("String s = 'cc'; (char)s"));
+        });
+        assertTrue(expected.getMessage().contains("Cannot cast [String] with length greater than one to [char]."));
+    }
+    
+    public void testDefConcat() {
+        assertEquals("a" + (byte)2, exec("def x = 'a'; def y = (byte)2; return x + y"));
+        assertEquals("a" + (short)2, exec("def x = 'a'; def y = (short)2; return x + y"));
+        assertEquals("a" + (char)2, exec("def x = 'a'; def y = (char)2; return x + y"));
+        assertEquals("a" + 2, exec("def x = 'a'; def y = (int)2; return x + y"));
+        assertEquals("a" + 2L, exec("def x = 'a'; def y = (long)2; return x + y"));
+        assertEquals("a" + 2F, exec("def x = 'a'; def y = (float)2; return x + y"));
+        assertEquals("a" + 2D, exec("def x = 'a'; def y = (double)2; return x + y"));
+        assertEquals("ab", exec("def x = 'a'; def y = 'b'; return x + y"));
+        assertEquals((byte)2 + "a", exec("def x = 'a'; def y = (byte)2; return y + x"));
+        assertEquals((short)2 + "a", exec("def x = 'a'; def y = (short)2; return y + x"));
+        assertEquals((char)2 + "a", exec("def x = 'a'; def y = (char)2; return y + x"));
+        assertEquals(2 + "a", exec("def x = 'a'; def y = (int)2; return y + x"));
+        assertEquals(2L + "a", exec("def x = 'a'; def y = (long)2; return y + x"));
+        assertEquals(2F + "a", exec("def x = 'a'; def y = (float)2; return y + x"));
+        assertEquals(2D + "a", exec("def x = 'a'; def y = (double)2; return y + x"));
+        assertEquals("anull", exec("def x = 'a'; def y = null; return x + y"));
+        assertEquals("nullb", exec("def x = null; def y = 'b'; return x + y"));
+        expectScriptThrows(NullPointerException.class, () -> {
+            exec("def x = null; def y = null; return x + y");
+        });
+    }
+    
+    public void testDefCompoundAssignment() {
+        assertEquals("a" + (byte)2, exec("def x = 'a'; x += (byte)2; return x"));
+        assertEquals("a" + (short)2, exec("def x = 'a'; x  += (short)2; return x"));
+        assertEquals("a" + (char)2, exec("def x = 'a'; x += (char)2; return x"));
+        assertEquals("a" + 2, exec("def x = 'a'; x += (int)2; return x"));
+        assertEquals("a" + 2L, exec("def x = 'a'; x += (long)2; return x"));
+        assertEquals("a" + 2F, exec("def x = 'a'; x += (float)2; return x"));
+        assertEquals("a" + 2D, exec("def x = 'a'; x += (double)2; return x"));
+        assertEquals("ab", exec("def x = 'a'; def y = 'b'; x += y; return x"));
+        assertEquals("anull", exec("def x = 'a'; x += null; return x"));
+        assertEquals("nullb", exec("def x = null; x += 'b'; return x"));
+        expectScriptThrows(NullPointerException.class, () -> {
+            exec("def x = null; def y = null; x += y");
+        });
+    }
 
-        assertEquals('c', exec("return (Character)\"c\""));
-        assertEquals('c', exec("return (Character)'c'"));
-        assertEquals("c", exec("return (String)(Character)\"c\""));
-        assertEquals("c", exec("return (String)(Character)'c'"));
-
-        assertEquals('c', exec("String s = \"c\" (Character)s"));
-        assertEquals('c', exec("String s = 'c' (Character)s"));
-
-        try {
-            assertEquals("cc", exec("return (String)(Character)\"cc\""));
-            fail();
-        } catch (final ClassCastException ise) {
-            assertTrue(ise.getMessage().contains("Cannot cast [String] with length greater than one to [Character]."));
-        }
-
-        try {
-            assertEquals("cc", exec("return (String)(Character)'cc'"));
-            fail();
-        } catch (final ClassCastException ise) {
-            assertTrue(ise.getMessage().contains("Cannot cast [String] with length greater than one to [Character]."));
-        }
-
-        try {
-            assertEquals('c', exec("String s = \"cc\" (Character)s"));
-            fail();
-        } catch (final ClassCastException cce) {
-            assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [Character]."));
-        }
-
-        try {
-            assertEquals('c', exec("String s = 'cc' (Character)s"));
-            fail();
-        } catch (final ClassCastException cce) {
-            assertTrue(cce.getMessage().contains("Cannot cast [String] with length greater than one to [Character]."));
-        }
+    public void testAppendStringIntoMap() {
+        assertEquals("nullcat", exec("def a = new HashMap(); a.cat += 'cat'"));
     }
 }

@@ -39,6 +39,7 @@ import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A sort builder to sort based on a document field.
@@ -328,7 +329,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     public static FieldSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
         XContentParser parser = context.parser();
 
-        QueryBuilder nestedFilter = null;
+        Optional<QueryBuilder> nestedFilter = Optional.empty();
         String nestedPath = null;
         Object missing = null;
         SortOrder order = null;
@@ -371,9 +372,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
 
         FieldSortBuilder builder = new FieldSortBuilder(fieldName);
-        if (nestedFilter != null) {
-            builder.setNestedFilter(nestedFilter);
-        }
+        nestedFilter.ifPresent(builder::setNestedFilter);
         if (nestedPath != null) {
             builder.setNestedPath(nestedPath);
         }

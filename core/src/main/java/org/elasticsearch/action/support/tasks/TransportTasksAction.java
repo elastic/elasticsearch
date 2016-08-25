@@ -26,7 +26,6 @@ import org.elasticsearch.action.NoSuchNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -39,7 +38,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -67,7 +66,6 @@ public abstract class TransportTasksAction<
         TaskResponse extends Writeable
     > extends HandledTransportAction<TasksRequest, TasksResponse> {
 
-    protected final ClusterName clusterName;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
     protected final Supplier<TasksRequest> requestSupplier;
@@ -75,13 +73,12 @@ public abstract class TransportTasksAction<
 
     protected final String transportNodeAction;
 
-    protected TransportTasksAction(Settings settings, String actionName, ClusterName clusterName, ThreadPool threadPool,
+    protected TransportTasksAction(Settings settings, String actionName, ThreadPool threadPool,
                                    ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver, Supplier<TasksRequest> requestSupplier,
                                    Supplier<TasksResponse> responseSupplier,
                                    String nodeExecutor) {
         super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, requestSupplier);
-        this.clusterName = clusterName;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.transportNodeAction = actionName + "[n]";
@@ -127,7 +124,7 @@ public abstract class TransportTasksAction<
         if (request.getTaskId().isSet()) {
             return new String[]{request.getTaskId().getNodeId()};
         } else {
-            return clusterState.nodes().resolveNodesIds(request.getNodesIds());
+            return clusterState.nodes().resolveNodes(request.getNodesIds());
         }
     }
 
@@ -218,9 +215,9 @@ public abstract class TransportTasksAction<
                 // nothing to do
                 try {
                     listener.onResponse(newResponse(request, responses));
-                } catch (Throwable t) {
-                    logger.debug("failed to generate empty response", t);
-                    listener.onFailure(t);
+                } catch (Exception e) {
+                    logger.debug("failed to generate empty response", e);
+                    listener.onFailure(e);
                 }
             } else {
                 TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
@@ -240,7 +237,7 @@ public abstract class TransportTasksAction<
                             nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                             taskManager.registerChildTask(task, node.getId());
                             transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
-                                new BaseTransportResponseHandler<NodeTasksResponse>() {
+                                new TransportResponseHandler<NodeTasksResponse>() {
                                     @Override
                                     public NodeTasksResponse newInstance() {
                                         return new NodeTasksResponse();
@@ -262,8 +259,8 @@ public abstract class TransportTasksAction<
                                     }
                                 });
                         }
-                    } catch (Throwable t) {
-                        onFailure(idx, nodeId, t);
+                    } catch (Exception e) {
+                        onFailure(idx, nodeId, e);
                     }
                 }
             }
@@ -292,9 +289,9 @@ public abstract class TransportTasksAction<
             TasksResponse finalResponse;
             try {
                 finalResponse = newResponse(request, responses);
-            } catch (Throwable t) {
-                logger.debug("failed to combine responses from nodes", t);
-                listener.onFailure(t);
+            } catch (Exception e) {
+                logger.debug("failed to combine responses from nodes", e);
+                listener.onFailure(e);
                 return;
             }
             listener.onResponse(finalResponse);

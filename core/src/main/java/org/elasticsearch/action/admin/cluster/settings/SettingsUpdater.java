@@ -77,7 +77,7 @@ final class SettingsUpdater {
         Settings settings = build.metaData().settings();
         // now we try to apply things and if they are invalid we fail
         // this dryRun will validate & parse settings but won't actually apply them.
-        clusterSettings.dryRun(settings);
+        clusterSettings.validateUpdate(settings);
         return build;
     }
 

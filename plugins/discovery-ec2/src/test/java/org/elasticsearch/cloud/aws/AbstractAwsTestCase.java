@@ -29,6 +29,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ThirdParty;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 
 /**
@@ -49,7 +51,11 @@ public abstract class AbstractAwsTestCase extends ESIntegTestCase {
         // if explicit, just load it and don't load from env
         try {
             if (Strings.hasText(System.getProperty("tests.config"))) {
-                settings.loadFromPath(PathUtils.get(System.getProperty("tests.config")));
+                try {
+                    settings.loadFromPath(PathUtils.get(System.getProperty("tests.config")));
+                } catch (IOException e) {
+                    throw new IllegalArgumentException("could not load aws tests config", e);
+                }
             } else {
                 throw new IllegalStateException("to run integration tests, you need to set -Dtests.thirdparty=true and -Dtests.config=/path/to/elasticsearch.yml");
             }
@@ -61,6 +67,6 @@ public abstract class AbstractAwsTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(Ec2DiscoveryPlugin.class);
+        return Arrays.asList(Ec2DiscoveryPlugin.class);
     }
 }

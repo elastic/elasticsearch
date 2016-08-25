@@ -31,11 +31,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBuilder> implements SpanQueryBuilder {
-
     public static final String NAME = "span_first";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField MATCH_FIELD = new ParseField("match");
     private static final ParseField END_FIELD = new ParseField("end");
@@ -101,7 +100,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
         builder.endObject();
     }
 
-    public static SpanFirstQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<SpanFirstQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -117,11 +116,11 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseContext.getParseFieldMatcher().match(currentFieldName, MATCH_FIELD)) {
-                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
-                    if (!(query instanceof SpanQueryBuilder)) {
+                    Optional<QueryBuilder> query = parseContext.parseInnerQueryBuilder();
+                    if (query.isPresent() == false || query.get() instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(), "spanFirst [match] must be of type span query");
                     }
-                    match = (SpanQueryBuilder) query;
+                    match = (SpanQueryBuilder) query.get();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_first] query does not support [" + currentFieldName + "]");
                 }
@@ -145,7 +144,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
         }
         SpanFirstQueryBuilder queryBuilder = new SpanFirstQueryBuilder(match, end);
         queryBuilder.boost(boost).queryName(queryName);
-        return queryBuilder;
+        return Optional.of(queryBuilder);
     }
 
     @Override

@@ -58,7 +58,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         output.setVersion(Version.CURRENT);
         info.writeTo(output);
 
-        StreamInput input = StreamInput.wrap(output.bytes());
+        StreamInput input = output.bytes().streamInput();
         ThreadPool.Info newInfo = new ThreadPool.Info();
         newInfo.readFrom(input);
 
@@ -70,7 +70,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         output.setVersion(Version.CURRENT);
         info.writeTo(output);
 
-        StreamInput input = StreamInput.wrap(output.bytes());
+        StreamInput input = output.bytes().streamInput();
         ThreadPool.Info newInfo = new ThreadPool.Info();
         newInfo.readFrom(input);
 
@@ -96,7 +96,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
     }
 
     public void testThatNegativeSettingAllowsToStart() throws InterruptedException {
-        Settings settings = Settings.builder().put("node.name", "index").put("threadpool.index.queue_size", "-1").build();
+        Settings settings = Settings.builder().put("node.name", "index").put("thread_pool.index.queue_size", "-1").build();
         ThreadPool threadPool = new ThreadPool(settings);
         assertThat(threadPool.info("index").getQueueSize(), is(nullValue()));
         terminate(threadPool);
@@ -125,7 +125,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         output.setVersion(Version.CURRENT);
         info.writeTo(output);
 
-        StreamInput input = StreamInput.wrap(output.bytes());
+        StreamInput input = output.bytes().streamInput();
         ThreadPool.Info newInfo = new ThreadPool.Info();
         newInfo.readFrom(input);
 

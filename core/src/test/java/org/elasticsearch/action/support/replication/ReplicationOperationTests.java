@@ -21,16 +21,15 @@ package org.elasticsearch.action.support.replication;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
@@ -77,16 +76,16 @@ public class ReplicationOperationTests extends ESTestCase {
             // simulate execution of the replication phase on the relocation target node after relocation source was marked as relocated
             state = ClusterState.builder(state)
                 .nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(primaryShard.relocatingNodeId())).build();
-            primaryShard = primaryShard.buildTargetRelocatingShard();
+            primaryShard = primaryShard.getTargetRelocatingShard();
         }
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, state);
 
-        final Map<ShardRouting, Throwable> expectedFailures = new HashMap<>();
+        final Map<ShardRouting, Exception> expectedFailures = new HashMap<>();
         final Set<ShardRouting> expectedFailedShards = new HashSet<>();
         for (ShardRouting replica : expectedReplicas) {
             if (randomBoolean()) {
-                Throwable t;
+                Exception t;
                 boolean criticalFailure = randomBoolean();
                 if (criticalFailure) {
                     t = new CorruptIndexException("simulated", (String) null);
@@ -102,7 +101,7 @@ public class ReplicationOperationTests extends ESTestCase {
         }
 
         Request request = new Request(shardId);
-        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         final ClusterState finalState = state;
         final TestReplicaProxy replicasProxy = new TestReplicaProxy(expectedFailures);
         final TestReplicationOperation op = new TestReplicationOperation(request,
@@ -114,7 +113,7 @@ public class ReplicationOperationTests extends ESTestCase {
         assertThat(request.processedOnReplicas, equalTo(expectedReplicas));
         assertThat(replicasProxy.failedReplicas, equalTo(expectedFailedShards));
         assertTrue("listener is not marked as done", listener.isDone());
-        Response.ShardInfo shardInfo = listener.actionGet().getShardInfo();
+        ShardInfo shardInfo = listener.actionGet().getShardInfo();
         assertThat(shardInfo.getFailed(), equalTo(expectedFailedShards.size()));
         assertThat(shardInfo.getFailures(), arrayWithSize(expectedFailedShards.size()));
         assertThat(shardInfo.getSuccessful(), equalTo(1 + expectedReplicas.size() - expectedFailures.size()));
@@ -135,15 +134,15 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
 
         Request request = new Request(shardId);
-        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         final TestReplicationOperation op = new TestReplicationOperation(request,
-            new TestPrimary(primaryShard, primaryTerm), listener, false, false,
+            new TestPrimary(primaryShard, primaryTerm), listener, false,
             new TestReplicaProxy(), () -> state, logger, "test");
         op.execute();
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
         assertThat(request.processedOnReplicas, equalTo(Collections.emptySet()));
         assertTrue("listener is not marked as done", listener.isDone());
-        Response.ShardInfo shardInfo = listener.actionGet().getShardInfo();
+        ShardInfo shardInfo = listener.actionGet().getShardInfo();
         assertThat(shardInfo.getFailed(), equalTo(0));
         assertThat(shardInfo.getFailures(), arrayWithSize(0));
         assertThat(shardInfo.getSuccessful(), equalTo(1));
@@ -162,23 +161,23 @@ public class ReplicationOperationTests extends ESTestCase {
             // simulate execution of the replication phase on the relocation target node after relocation source was marked as relocated
             state = ClusterState.builder(state)
                 .nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(primaryShard.relocatingNodeId())).build();
-            primaryShard = primaryShard.buildTargetRelocatingShard();
+            primaryShard = primaryShard.getTargetRelocatingShard();
         }
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, state);
 
-        final Map<ShardRouting, Throwable> expectedFailures = new HashMap<>();
+        final Map<ShardRouting, Exception> expectedFailures = new HashMap<>();
         final ShardRouting failedReplica = randomFrom(new ArrayList<>(expectedReplicas));
         expectedFailures.put(failedReplica, new CorruptIndexException("simulated", (String) null));
 
         Request request = new Request(shardId);
-        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         final ClusterState finalState = state;
         final TestReplicaProxy replicasProxy = new TestReplicaProxy(expectedFailures) {
             @Override
-            public void failShard(ShardRouting replica, ShardRouting primary, String message, Throwable throwable,
-                                  Runnable onSuccess, Consumer<Throwable> onPrimaryDemoted,
-                                  Consumer<Throwable> onIgnoredFailure) {
+            public void failShard(ShardRouting replica, long primaryTerm, String message, Exception exception,
+                                  Runnable onSuccess, Consumer<Exception> onPrimaryDemoted,
+                                  Consumer<Exception> onIgnoredFailure) {
                 assertThat(replica, equalTo(failedReplica));
                 onPrimaryDemoted.accept(new ElasticsearchException("the king is dead"));
             }
@@ -186,7 +185,7 @@ public class ReplicationOperationTests extends ESTestCase {
         AtomicBoolean primaryFailed = new AtomicBoolean();
         final TestPrimary primary = new TestPrimary(primaryShard, primaryTerm) {
             @Override
-            public void failShard(String message, Throwable throwable) {
+            public void failShard(String message, Exception exception) {
                 assertTrue(primaryFailed.compareAndSet(false, true));
             }
         };
@@ -233,16 +232,16 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardRouting primaryShard = state.get().routingTable().shardRoutingTable(shardId).primaryShard();
         final TestPrimary primary = new TestPrimary(primaryShard, primaryTerm) {
             @Override
-            public Tuple<Response, Request> perform(Request request) throws Exception {
-                final Tuple<Response, Request> tuple = super.perform(request);
+            public Result perform(Request request) throws Exception {
+                Result result = super.perform(request);
                 state.set(changedState);
                 logger.debug("--> state after primary operation:\n{}", state.get().prettyPrint());
-                return tuple;
+                return result;
             }
         };
 
         Request request = new Request(shardId);
-        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         final TestReplicationOperation op = new TestReplicationOperation(request, primary, listener,
             new TestReplicaProxy(), state::get);
         op.execute();
@@ -252,34 +251,17 @@ public class ReplicationOperationTests extends ESTestCase {
         assertThat(request.processedOnReplicas, equalTo(expectedReplicas));
     }
 
-    public void testWriteConsistency() throws Exception {
+    public void testWaitForActiveShards() throws Exception {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
         final int assignedReplicas = randomInt(2);
         final int unassignedReplicas = randomInt(2);
         final int totalShards = 1 + assignedReplicas + unassignedReplicas;
-        final boolean passesWriteConsistency;
-        Request request = new Request(shardId).consistencyLevel(randomFrom(WriteConsistencyLevel.values()));
-        switch (request.consistencyLevel()) {
-            case ONE:
-                passesWriteConsistency = true;
-                break;
-            case DEFAULT:
-            case QUORUM:
-                if (totalShards <= 2) {
-                    passesWriteConsistency = true; // primary is enough
-                } else {
-                    passesWriteConsistency = assignedReplicas + 1 >= (totalShards / 2) + 1;
-                }
-                // we have to reset default (as the transport replication action will do)
-                request.consistencyLevel(WriteConsistencyLevel.QUORUM);
-                break;
-            case ALL:
-                passesWriteConsistency = unassignedReplicas == 0;
-                break;
-            default:
-                throw new RuntimeException("unknown consistency level [" + request.consistencyLevel() + "]");
-        }
+        final int activeShardCount = randomIntBetween(0, totalShards);
+        Request request = new Request(shardId).waitForActiveShards(
+            activeShardCount == totalShards ? ActiveShardCount.ALL : ActiveShardCount.from(activeShardCount));
+        final boolean passesActiveShardCheck = activeShardCount <= assignedReplicas + 1;
+
         ShardRoutingState[] replicaStates = new ShardRoutingState[assignedReplicas + unassignedReplicas];
         for (int i = 0; i < assignedReplicas; i++) {
             replicaStates[i] = randomFrom(ShardRoutingState.STARTED, ShardRoutingState.RELOCATING);
@@ -289,28 +271,28 @@ public class ReplicationOperationTests extends ESTestCase {
         }
 
         final ClusterState state = state(index, true, ShardRoutingState.STARTED, replicaStates);
-        logger.debug("using consistency level of [{}], assigned shards [{}], total shards [{}]." +
+        logger.debug("using active shard count of [{}], assigned shards [{}], total shards [{}]." +
                 " expecting op to [{}]. using state: \n{}",
-            request.consistencyLevel(), 1 + assignedReplicas, 1 + assignedReplicas + unassignedReplicas,
-            passesWriteConsistency ? "succeed" : "retry",
+            request.waitForActiveShards(), 1 + assignedReplicas, 1 + assignedReplicas + unassignedReplicas,
+            passesActiveShardCheck ? "succeed" : "retry",
             state.prettyPrint());
         final long primaryTerm = state.metaData().index(index).primaryTerm(shardId.id());
         final IndexShardRoutingTable shardRoutingTable = state.routingTable().index(index).shard(shardId.id());
-        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         final ShardRouting primaryShard = shardRoutingTable.primaryShard();
         final TestReplicationOperation op = new TestReplicationOperation(request,
             new TestPrimary(primaryShard, primaryTerm),
-            listener, randomBoolean(), true, new TestReplicaProxy(), () -> state, logger, "test");
+            listener, randomBoolean(), new TestReplicaProxy(), () -> state, logger, "test");
 
-        if (passesWriteConsistency) {
-            assertThat(op.checkWriteConsistency(), nullValue());
+        if (passesActiveShardCheck) {
+            assertThat(op.checkActiveShardCount(), nullValue());
             op.execute();
-            assertTrue("operations should have been performed, consistency level is met",
+            assertTrue("operations should have been performed, active shard count is met",
                 request.processedOnPrimary.get());
         } else {
-            assertThat(op.checkWriteConsistency(), notNullValue());
+            assertThat(op.checkActiveShardCount(), notNullValue());
             op.execute();
-            assertFalse("operations should not have been perform, consistency level is *NOT* met",
+            assertFalse("operations should not have been perform, active shard count is *NOT* met",
                 request.processedOnPrimary.get());
             assertListenerThrows("should throw exception to trigger retry", listener, UnavailableShardsException.class);
         }
@@ -329,7 +311,7 @@ public class ReplicationOperationTests extends ESTestCase {
                 }
 
                 if (shardRouting.relocating() && localNodeId.equals(shardRouting.relocatingNodeId()) == false) {
-                    expectedReplicas.add(shardRouting.buildTargetRelocatingShard());
+                    expectedReplicas.add(shardRouting.getTargetRelocatingShard());
                 }
             }
         }
@@ -348,6 +330,7 @@ public class ReplicationOperationTests extends ESTestCase {
             this();
             this.shardId = shardId;
             this.index = shardId.getIndexName();
+            this.waitForActiveShards = ActiveShardCount.NONE;
             // keep things simple
         }
 
@@ -362,10 +345,7 @@ public class ReplicationOperationTests extends ESTestCase {
         }
     }
 
-    static class Response extends ReplicationResponse {
-    }
-
-    static class TestPrimary implements ReplicationOperation.Primary<Request, Request, Response> {
+    static class TestPrimary implements ReplicationOperation.Primary<Request, Request, TestPrimary.Result> {
         final ShardRouting routing;
         final long term;
 
@@ -380,23 +360,46 @@ public class ReplicationOperationTests extends ESTestCase {
         }
 
         @Override
-        public void failShard(String message, Throwable throwable) {
-            throw new AssertionError("should shouldn't be failed with [" + message + "]", throwable);
+        public void failShard(String message, Exception exception) {
+            throw new AssertionError("should shouldn't be failed with [" + message + "]", exception);
         }
 
         @Override
-        public Tuple<Response, Request> perform(Request request) throws Exception {
+        public Result perform(Request request) throws Exception {
             if (request.processedOnPrimary.compareAndSet(false, true) == false) {
                 fail("processed [" + request + "] twice");
             }
             request.primaryTerm(term);
-            return new Tuple<>(new Response(), request);
+            return new Result(request);
+        }
+
+        static class Result implements ReplicationOperation.PrimaryResult<Request> {
+            private final Request request;
+            private ShardInfo shardInfo;
+
+            public Result(Request request) {
+                this.request = request;
+            }
+
+            @Override
+            public Request replicaRequest() {
+                return request;
+            }
+
+            @Override
+            public void setShardInfo(ShardInfo shardInfo) {
+                this.shardInfo = shardInfo;
+            }
+
+            public ShardInfo getShardInfo() {
+                return shardInfo;
+            }
         }
     }
 
     static class TestReplicaProxy implements ReplicationOperation.Replicas<Request> {
 
-        final Map<ShardRouting, Throwable> opFailures;
+        final Map<ShardRouting, Exception> opFailures;
 
         final Set<ShardRouting> failedReplicas = ConcurrentCollections.newConcurrentSet();
 
@@ -404,7 +407,7 @@ public class ReplicationOperationTests extends ESTestCase {
             this(Collections.emptyMap());
         }
 
-        TestReplicaProxy(Map<ShardRouting, Throwable> opFailures) {
+        TestReplicaProxy(Map<ShardRouting, Exception> opFailures) {
             this.opFailures = opFailures;
         }
 
@@ -419,8 +422,8 @@ public class ReplicationOperationTests extends ESTestCase {
         }
 
         @Override
-        public void failShard(ShardRouting replica, ShardRouting primary, String message, Throwable throwable, Runnable onSuccess,
-                              Consumer<Throwable> onPrimaryDemoted, Consumer<Throwable> onIgnoredFailure) {
+        public void failShard(ShardRouting replica, long primaryTerm, String message, Exception exception, Runnable onSuccess,
+                              Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
             if (failedReplicas.add(replica) == false) {
                 fail("replica [" + replica + "] was failed twice");
             }
@@ -436,16 +439,16 @@ public class ReplicationOperationTests extends ESTestCase {
         }
     }
 
-    class TestReplicationOperation extends ReplicationOperation<Request, Request, Response> {
-        public TestReplicationOperation(Request request, Primary<Request, Request, Response> primary, ActionListener<Response> listener,
-                                        Replicas<Request> replicas, Supplier<ClusterState> clusterStateSupplier) {
-            this(request, primary, listener, true, false, replicas, clusterStateSupplier, ReplicationOperationTests.this.logger, "test");
+    class TestReplicationOperation extends ReplicationOperation<Request, Request, TestPrimary.Result> {
+        public TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
+                ActionListener<TestPrimary.Result> listener, Replicas<Request> replicas, Supplier<ClusterState> clusterStateSupplier) {
+            this(request, primary, listener, true, replicas, clusterStateSupplier, ReplicationOperationTests.this.logger, "test");
         }
 
-        public TestReplicationOperation(Request request, Primary<Request, Request, Response> primary, ActionListener<Response> listener,
-                                        boolean executeOnReplicas, boolean checkWriteConsistency, Replicas<Request> replicas,
-                                        Supplier<ClusterState> clusterStateSupplier, ESLogger logger, String opType) {
-            super(request, primary, listener, executeOnReplicas, checkWriteConsistency, replicas, clusterStateSupplier, logger, opType);
+        public TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
+                ActionListener<TestPrimary.Result> listener, boolean executeOnReplicas,
+                Replicas<Request> replicas, Supplier<ClusterState> clusterStateSupplier, ESLogger logger, String opType) {
+            super(request, primary, listener, executeOnReplicas, replicas, clusterStateSupplier, logger, opType);
         }
     }
 

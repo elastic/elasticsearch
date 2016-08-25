@@ -32,11 +32,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchHitField;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -45,10 +44,13 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -58,11 +60,11 @@ import static org.hamcrest.CoreMatchers.equalTo;
 /**
  *
  */
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
+@ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class FetchSubPhasePluginIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(FetchTermVectorsPlugin.class);
+        return Arrays.asList(FetchTermVectorsPlugin.class);
     }
 
     public void testPlugin() throws Exception {
@@ -79,7 +81,6 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                                 .endObject()
                                 .endObject()
                                 .endObject().endObject()).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         client().index(
                 indexRequest("test").type("type1").id("1")
@@ -99,24 +100,14 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 equalTo(1));
     }
 
-    public static class FetchTermVectorsPlugin extends Plugin {
-
+    public static class FetchTermVectorsPlugin extends Plugin implements SearchPlugin {
         @Override
-        public String name() {
-            return "fetch-term-vectors";
-        }
-
-        @Override
-        public String description() {
-            return "fetch plugin to test if the plugin mechanism works";
-        }
-
-        public void onModule(SearchModule searchModule) {
-            searchModule.registerFetchSubPhase(TermVectorsFetchSubPhase.class);
+        public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
+            return singletonList(new TermVectorsFetchSubPhase());
         }
     }
 
-    public static class TermVectorsFetchSubPhase implements FetchSubPhase {
+    public static final class TermVectorsFetchSubPhase implements FetchSubPhase {
 
         public static final ContextFactory<TermVectorsFetchContext> CONTEXT_FACTORY = new ContextFactory<TermVectorsFetchContext>() {
 
@@ -139,21 +130,10 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         }
 
         @Override
-        public boolean hitsExecutionNeeded(SearchContext context) {
-            return false;
-        }
-
-        @Override
-        public void hitsExecute(SearchContext context, InternalSearchHit[] hits) {
-        }
-
-        @Override
-        public boolean hitExecutionNeeded(SearchContext context) {
-            return context.getFetchSubPhaseContext(CONTEXT_FACTORY).hitExecutionNeeded();
-        }
-
-        @Override
         public void hitExecute(SearchContext context, HitContext hitContext) {
+            if (context.getFetchSubPhaseContext(CONTEXT_FACTORY).hitExecutionNeeded() == false) {
+                return;
+            }
             String field = context.getFetchSubPhaseContext(CONTEXT_FACTORY).getField();
 
             if (hitContext.hit().fieldsOrNull() == null) {

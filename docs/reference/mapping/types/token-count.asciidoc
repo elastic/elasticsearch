@@ -96,11 +96,6 @@ The following parameters are accepted by `token_count` fields:
     substituted for any explicit `null` values.  Defaults to `null`, which
     means the field is treated as missing.
 
-<<precision-step,`precision_step`>>::
-
-    Controls the number of extra terms that are indexed to make
-    <<query-dsl-range-query,`range` queries>> faster. Defaults to `32`.
-
 <<mapping-store,`store`>>::
 
     Whether the field value should be stored and retrievable separately from

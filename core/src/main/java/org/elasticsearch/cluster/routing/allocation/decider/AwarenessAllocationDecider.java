@@ -19,20 +19,19 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * This {@link AllocationDecider} controls shard allocation based on
@@ -104,7 +103,6 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         this(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
 
-    @Inject
     public AwarenessAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         this.awarenessAttributes = CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
@@ -124,15 +122,6 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             }
         }
         this.forcedAwarenessAttributes = forcedAwarenessAttributes;
-    }
-
-    /**
-     * Get the attributes defined by this instance
-     *
-     * @return attributes defined by this instance
-     */
-    public String[] awarenessAttributes() {
-        return this.awarenessAttributes;
     }
 
     private void setAwarenessAttributes(String[] awarenessAttributes) {
@@ -167,7 +156,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
             // build the count of shards per attribute value
             ObjectIntHashMap<String> shardPerAttribute = new ObjectIntHashMap<>();
-            for (ShardRouting assignedShard : allocation.routingNodes().assignedShards(shardRouting)) {
+            for (ShardRouting assignedShard : allocation.routingNodes().assignedShards(shardRouting.shardId())) {
                 if (assignedShard.started() || assignedShard.initializing()) {
                     // Note: this also counts relocation targets as that will be the new location of the shard.
                     // Relocation sources should not be counted as the shard is moving away

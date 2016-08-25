@@ -23,13 +23,14 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
-import org.elasticsearch.cloud.gce.GceComputeServiceImpl;
+import org.elasticsearch.cloud.gce.GceInstancesServiceImpl;
+import org.elasticsearch.cloud.gce.GceMetadataService;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugin.discovery.gce.GceDiscoveryPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -48,6 +49,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -57,27 +59,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
 
 
 @ESIntegTestCase.SuppressLocalMode
-@ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numDataNodes = 2, numClientNodes = 0)
 @SuppressForbidden(reason = "use http server")
 // TODO this should be a IT but currently all ITs in this project run against a real cluster
 public class GceDiscoverTests extends ESIntegTestCase {
 
     public static class TestPlugin extends Plugin {
-
         @Override
-        public String name() {
-            return "GceDiscoverTests";
-        }
-
-        @Override
-        public String description() {
-            return "GceDiscoverTests";
-        }
-
-        public void onModule(SettingsModule module) {
-            module.registerSetting(GceComputeServiceImpl.GCE_HOST);
-            module.registerSetting(GceComputeServiceImpl.GCE_ROOT_URL);
-            module.registerSetting(GceComputeServiceImpl.GCE_VALIDATE_CERTIFICATES);
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(GceMetadataService.GCE_HOST, GceInstancesServiceImpl.GCE_ROOT_URL,
+                GceInstancesServiceImpl.GCE_VALIDATE_CERTIFICATES);
         }
     }
 
@@ -87,7 +78,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(GceDiscoveryPlugin.class, TestPlugin.class);
+        return Arrays.asList(GceDiscoveryPlugin.class, TestPlugin.class);
     }
 
     @Override
@@ -122,7 +113,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
         httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0), 0);
         httpsServer.setHttpsConfigurator(new HttpsConfigurator(sslContext));
         httpServer.createContext("/computeMetadata/v1/instance/service-accounts/default/token", (s) -> {
-            String response = GceComputeServiceMock.readGoogleInternalJsonResponse(
+            String response = GceMockUtils.readGoogleInternalJsonResponse(
                 "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token");
             byte[] responseAsBytes = response.getBytes(StandardCharsets.UTF_8);
             s.sendResponseHeaders(200, responseAsBytes.length);

@@ -27,11 +27,9 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.Template;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -57,7 +55,7 @@ public abstract class QueryBuilders {
      * @param text The query text (to be analyzed).
      */
     public static MatchQueryBuilder matchQuery(String name, Object text) {
-        return new MatchQueryBuilder(name, text).type(MatchQuery.Type.BOOLEAN);
+        return new MatchQueryBuilder(name, text);
     }
 
     /**
@@ -86,8 +84,8 @@ public abstract class QueryBuilders {
      * @param name The field name.
      * @param text The query text (to be analyzed).
      */
-    public static MatchQueryBuilder matchPhraseQuery(String name, Object text) {
-        return new MatchQueryBuilder(name, text).type(MatchQuery.Type.PHRASE);
+    public static MatchPhraseQueryBuilder matchPhraseQuery(String name, Object text) {
+        return new MatchPhraseQueryBuilder(name, text);
     }
 
     /**
@@ -96,8 +94,8 @@ public abstract class QueryBuilders {
      * @param name The field name.
      * @param text The query text (to be analyzed).
      */
-    public static MatchQueryBuilder matchPhrasePrefixQuery(String name, Object text) {
-        return new MatchQueryBuilder(name, text).type(MatchQuery.Type.PHRASE_PREFIX);
+    public static MatchPhrasePrefixQueryBuilder matchPhrasePrefixQuery(String name, Object text) {
+        return new MatchPhrasePrefixQueryBuilder(name, text);
     }
 
     /**
@@ -623,27 +621,6 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * Facilitates creating template query requests using an inline script
-     */
-    public static TemplateQueryBuilder templateQuery(Template template) {
-        return new TemplateQueryBuilder(template);
-    }
-
-    /**
-     * Facilitates creating template query requests using an inline script
-     */
-    public static TemplateQueryBuilder templateQuery(String template, Map<String, Object> vars) {
-        return new TemplateQueryBuilder(new Template(template, ScriptService.ScriptType.INLINE, null, null, vars));
-    }
-
-    /**
-     * Facilitates creating template query requests
-     */
-    public static TemplateQueryBuilder templateQuery(String template, ScriptService.ScriptType templateType, Map<String, Object> vars) {
-        return new TemplateQueryBuilder(new Template(template, templateType, null, null, vars));
-    }
-
-    /**
      * A filter based on doc/mapping type.
      */
     public static TypeQueryBuilder typeQuery(String type) {
@@ -837,24 +814,6 @@ public abstract class QueryBuilders {
      */
     public static ExistsQueryBuilder existsQuery(String name) {
         return new ExistsQueryBuilder(name);
-    }
-
-    public static PercolateQueryBuilder percolateQuery(String queryField, String documentType, BytesReference document) {
-        return new PercolateQueryBuilder(queryField, documentType, document);
-    }
-
-    public static PercolateQueryBuilder percolateQuery(String queryField, String documentType, String indexedDocumentIndex,
-                                                       String indexedDocumentType, String indexedDocumentId) {
-        return new PercolateQueryBuilder(queryField, documentType, indexedDocumentIndex, indexedDocumentType, indexedDocumentId,
-                null, null, null);
-    }
-
-    public static PercolateQueryBuilder percolateQuery(String queryField, String documentType, String indexedDocumentIndex,
-                                                       String indexedDocumentType, String indexedDocumentId,
-                                                       String indexedDocumentRouting, String indexedDocumentPreference,
-                                                       Long indexedDocumentVersion) {
-        return new PercolateQueryBuilder(queryField, documentType, indexedDocumentIndex, indexedDocumentType, indexedDocumentId,
-                indexedDocumentRouting, indexedDocumentPreference, indexedDocumentVersion);
     }
 
     private QueryBuilders() {

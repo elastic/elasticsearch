@@ -34,21 +34,21 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.LegacyDateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.LegacyDateFieldMapper;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A Query that matches documents within an range of terms.
  */
 public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "range";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
@@ -297,7 +297,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         builder.endObject();
     }
 
-    public static RangeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<RangeQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -318,6 +318,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
                 // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
+                throwParsingExceptionOnMultipleFields(NAME, parser.getTokenLocation(), fieldName, currentFieldName);
                 fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -381,7 +382,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (format != null) {
             rangeQuery.format(format);
         }
-        return rangeQuery;
+        return Optional.of(rangeQuery);
     }
 
     @Override

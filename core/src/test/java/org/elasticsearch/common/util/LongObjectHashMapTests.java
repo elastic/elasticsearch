@@ -20,15 +20,14 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.LongObjectHashMap;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 public class LongObjectHashMapTests extends ESSingleNodeTestCase {
 
     private BigArrays randombigArrays() {
-        final PageCacheRecycler recycler = randomBoolean() ? null : getInstanceFromNode(PageCacheRecycler.class);
-        return new MockBigArrays(recycler, new NoneCircuitBreakerService());
+        return new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
     }
 
     public void testDuel() {

@@ -148,18 +148,11 @@ public class ClusterChangedEvent {
      * has changed between the previous cluster state and the new cluster state.
      * Note that this is an object reference equality test, not an equals test.
      */
-    public boolean indexMetaDataChanged(IndexMetaData current) {
-        MetaData previousMetaData = previousState.metaData();
-        if (previousMetaData == null) {
-            return true;
-        }
-        IndexMetaData previousIndexMetaData = previousMetaData.index(current.getIndex());
+    public static boolean indexMetaDataChanged(IndexMetaData metaData1, IndexMetaData metaData2) {
+        assert metaData1 != null && metaData2 != null;
         // no need to check on version, since disco modules will make sure to use the
         // same instance if its a version match
-        if (previousIndexMetaData == current) {
-            return false;
-        }
-        return true;
+        return metaData1 != metaData2;
     }
 
     /**
@@ -206,10 +199,14 @@ public class ClusterChangedEvent {
         return nodesRemoved() || nodesAdded();
     }
 
-    // Determines whether or not the current cluster state represents an entirely
-    // different cluster from the previous cluster state, which will happen when a
-    // master node is elected that has never been part of the cluster before.
-    private boolean isNewCluster() {
+    /**
+     * Determines whether or not the current cluster state represents an entirely
+     * new cluster, either when a node joins a cluster for the first time or when
+     * the node receives a cluster state update from a brand new cluster (different
+     * UUID from the previous cluster), which will happen when a master node is
+     * elected that has never been part of the cluster before.
+     */
+    public boolean isNewCluster() {
         final String prevClusterUUID = previousState.metaData().clusterUUID();
         final String currClusterUUID = state.metaData().clusterUUID();
         return prevClusterUUID.equals(currClusterUUID) == false;

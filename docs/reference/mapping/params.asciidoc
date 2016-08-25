@@ -80,8 +80,6 @@ include::params/null-value.asciidoc[]
 
 include::params/position-increment-gap.asciidoc[]
 
-include::params/precision-step.asciidoc[]
-
 include::params/properties.asciidoc[]
 
 include::params/search-analyzer.asciidoc[]

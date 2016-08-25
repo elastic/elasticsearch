@@ -21,17 +21,14 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
-import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregatorBuilder;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregationBuilder;
 
-public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregatorBuilder> {
-
-    private final static String[] timeZoneIds = DateTimeZone.getAvailableIDs().toArray(new String[DateTimeZone.getAvailableIDs().size()]);
+public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregationBuilder> {
 
     @Override
-    protected DateRangeAggregatorBuilder createTestAggregatorBuilder() {
+    protected DateRangeAggregationBuilder createTestAggregatorBuilder() {
         int numRanges = randomIntBetween(1, 10);
-        DateRangeAggregatorBuilder factory = new DateRangeAggregatorBuilder("foo");
+        DateRangeAggregationBuilder factory = new DateRangeAggregationBuilder("foo");
         for (int i = 0; i < numRanges; i++) {
             String key = null;
             if (randomBoolean()) {
@@ -60,7 +57,7 @@ public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregatorB
             factory.missing(randomIntBetween(0, 10));
         }
         if (randomBoolean()) {
-            factory.timeZone(DateTimeZone.forID(randomFrom(timeZoneIds)));
+            factory.timeZone(randomDateTimeZone());
         }
         return factory;
     }

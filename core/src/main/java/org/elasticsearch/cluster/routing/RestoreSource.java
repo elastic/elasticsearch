@@ -20,7 +20,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -28,13 +28,14 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Represents snapshot and index from which a recovering index should be restored
  */
 public class RestoreSource implements Streamable, ToXContent {
 
-    private SnapshotId snapshotId;
+    private Snapshot snapshot;
 
     private String index;
 
@@ -43,14 +44,14 @@ public class RestoreSource implements Streamable, ToXContent {
     RestoreSource() {
     }
 
-    public RestoreSource(SnapshotId snapshotId, Version version, String index) {
-        this.snapshotId = snapshotId;
-        this.version = version;
-        this.index = index;
+    public RestoreSource(Snapshot snapshot, Version version, String index) {
+        this.snapshot = Objects.requireNonNull(snapshot);
+        this.version = Objects.requireNonNull(version);
+        this.index = Objects.requireNonNull(index);
     }
 
-    public SnapshotId snapshotId() {
-        return snapshotId;
+    public Snapshot snapshot() {
+        return snapshot;
     }
 
     public String index() {
@@ -61,26 +62,20 @@ public class RestoreSource implements Streamable, ToXContent {
         return version;
     }
 
-    public static RestoreSource readRestoreSource(StreamInput in) throws IOException {
-        RestoreSource restoreSource = new RestoreSource();
-        restoreSource.readFrom(in);
-        return restoreSource;
-    }
-
     public static RestoreSource readOptionalRestoreSource(StreamInput in) throws IOException {
         return in.readOptionalStreamable(RestoreSource::new);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        snapshotId = SnapshotId.readSnapshotId(in);
+        snapshot = new Snapshot(in);
         version = Version.readVersion(in);
         index = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        snapshotId.writeTo(out);
+        snapshot.writeTo(out);
         Version.writeVersion(version, out);
         out.writeString(index);
     }
@@ -88,8 +83,8 @@ public class RestoreSource implements Streamable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject()
-                .field("repository", snapshotId.getRepository())
-                .field("snapshot", snapshotId.getSnapshot())
+                .field("repository", snapshot.getRepository())
+                .field("snapshot", snapshot.getSnapshotId().getName())
                 .field("version", version.toString())
                 .field("index", index)
                 .endObject();
@@ -97,26 +92,24 @@ public class RestoreSource implements Streamable, ToXContent {
 
     @Override
     public String toString() {
-        return snapshotId.toString();
+        return snapshot.toString();
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
-        RestoreSource that = (RestoreSource) o;
-
-        if (!index.equals(that.index)) return false;
-        if (!snapshotId.equals(that.snapshotId)) return false;
-
-        return true;
+        @SuppressWarnings("unchecked") RestoreSource that = (RestoreSource) o;
+        return snapshot.equals(that.snapshot) && index.equals(that.index);
     }
 
     @Override
     public int hashCode() {
-        int result = snapshotId.hashCode();
-        result = 31 * result + index.hashCode();
-        return result;
+        return Objects.hash(snapshot, index);
     }
 }

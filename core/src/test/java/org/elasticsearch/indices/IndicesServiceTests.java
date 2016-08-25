@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
 import org.elasticsearch.gateway.MetaStateService;
@@ -49,6 +50,7 @@ import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
@@ -131,7 +133,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
 
         test = createIndex("test");
-        client().prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).get();
+        client().prepareIndex("test", "type", "1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         client().admin().indices().prepareFlush("test").get();
         assertHitCount(client().prepareSearch("test").get(), 1);
         IndexMetaData secondMetaData = clusterService.state().metaData().index("test");
@@ -171,7 +173,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         try {
             indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
             fail("can't get lock");
-        } catch (LockObtainFailedException ex) {
+        } catch (ShardLockObtainFailedException ex) {
 
         }
         assertTrue(path.exists());
@@ -190,10 +192,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertTrue(path.exists());
 
         assertEquals(indicesService.numPendingDeletes(test.index()), numPending);
+        assertTrue(indicesService.hasUncompletedPendingDeletes());
 
         // shard lock released... we can now delete
         indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
         assertEquals(indicesService.numPendingDeletes(test.index()), 0);
+        assertFalse(indicesService.hasUncompletedPendingDeletes());
         assertFalse(path.exists());
 
         if (randomBoolean()) {
@@ -201,9 +205,11 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             indicesService.addPendingDelete(new ShardId(test.index(), 1), test.getIndexSettings());
             indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), test.getIndexSettings());
             assertEquals(indicesService.numPendingDeletes(test.index()), 2);
+            assertTrue(indicesService.hasUncompletedPendingDeletes());
             // shard lock released... we can now delete
             indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
             assertEquals(indicesService.numPendingDeletes(test.index()), 0);
+            assertTrue(indicesService.hasUncompletedPendingDeletes()); // "bogus" index has not been removed
         }
         assertAcked(client().admin().indices().prepareOpen("test"));
 
@@ -280,9 +286,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         listener.latch.await();
         assertThat(clusterService.state(), not(originalState));
         assertNotNull(clusterService.state().getMetaData().index(alias));
-
-        // cleanup
-        indicesService.deleteIndex(test.index(), "finished with test");
     }
 
     /**

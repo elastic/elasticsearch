@@ -34,6 +34,7 @@ import java.util.stream.Stream;
 
 import static java.lang.Math.abs;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -55,7 +56,7 @@ public class TermVectorsServiceTests extends ESSingleNodeTestCase {
         createIndex("test", Settings.EMPTY, "type1", mapping);
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "0").setSource("field", "foo bar").setRefresh(true).execute().get();
+        client().prepareIndex("test", "type1", "0").setSource("field", "foo bar").setRefreshPolicy(IMMEDIATE).get();
 
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService test = indicesService.indexService(resolveIndex("test"));

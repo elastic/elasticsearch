@@ -19,13 +19,13 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.FileSwitchDirectory;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.RateLimitedFSDirectory;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.store.SleepingLockWrapper;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -36,6 +36,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 
 public class FsDirectoryServiceTests extends ESTestCase {
 
@@ -72,5 +73,44 @@ public class FsDirectoryServiceTests extends ESTestCase {
         Directory delegate = rateLimitingDirectory.getDelegate();
         assertFalse(delegate instanceof SleepingLockWrapper);
         assertTrue(delegate instanceof SimpleFSDirectory);
+    }
+
+    public void testPreload() throws IOException {
+        doTestPreload();
+        doTestPreload("nvd", "dvd", "tim");
+        doTestPreload("*");
+    }
+
+    private void doTestPreload(String...preload) throws IOException {
+        Settings build = Settings.builder()
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), "mmapfs")
+                .putArray(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), preload)
+                .build();
+        IndexSettings settings = IndexSettingsModule.newIndexSettings("foo", build);
+        IndexStoreConfig config = new IndexStoreConfig(settings.getSettings());
+        IndexStore store = new IndexStore(settings, config);
+        Path tempDir = createTempDir().resolve(settings.getUUID()).resolve("0");
+        Files.createDirectories(tempDir);
+        ShardPath path = new ShardPath(false, tempDir, tempDir, new ShardId(settings.getIndex(), 0));
+        FsDirectoryService fsDirectoryService = new FsDirectoryService(settings, store, path);
+        Directory directory = fsDirectoryService.newDirectory();
+        assertTrue(directory instanceof RateLimitedFSDirectory);
+        RateLimitedFSDirectory rateLimitingDirectory = (RateLimitedFSDirectory) directory;
+        Directory delegate = rateLimitingDirectory.getDelegate();
+        assertFalse(delegate instanceof SleepingLockWrapper);
+        if (preload.length == 0) {
+            assertTrue(delegate.toString(), delegate instanceof MMapDirectory);
+            assertFalse(((MMapDirectory) delegate).getPreload());
+        } else if (Arrays.asList(preload).contains("*")) {
+            assertTrue(delegate.toString(), delegate instanceof MMapDirectory);
+            assertTrue(((MMapDirectory) delegate).getPreload());
+        } else {
+            assertTrue(delegate.toString(), delegate instanceof FileSwitchDirectory);
+            FileSwitchDirectory fsd = (FileSwitchDirectory) delegate;
+            assertTrue(fsd.getPrimaryDir() instanceof MMapDirectory);
+            assertTrue(((MMapDirectory) fsd.getPrimaryDir()).getPreload());
+            assertTrue(fsd.getSecondaryDir() instanceof MMapDirectory);
+            assertFalse(((MMapDirectory) fsd.getSecondaryDir()).getPreload());
+        }
     }
 }

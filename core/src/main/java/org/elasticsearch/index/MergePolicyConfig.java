@@ -157,7 +157,6 @@ public final class MergePolicyConfig {
 
     MergePolicyConfig(ESLogger logger, IndexSettings indexSettings) {
         this.logger = logger;
-        IndexScopedSettings scopedSettings = indexSettings.getScopedSettings();
         double forceMergeDeletesPctAllowed = indexSettings.getValue(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING); // percentage
         ByteSizeValue floorSegment = indexSettings.getValue(INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING);
         int maxMergeAtOnce = indexSettings.getValue(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING);

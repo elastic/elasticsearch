@@ -32,18 +32,21 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.internal.IdFieldMapper;
-import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.mapper.ParentFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.TTLFieldMapper;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Map;
+import java.util.function.BiFunction;
 
 public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateByQueryRequest, BulkIndexByScrollResponse> {
     private final Client client;
@@ -65,8 +68,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
     protected void doExecute(Task task, UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
         ClusterState state = clusterService.state();
         ParentTaskAssigningClient client = new ParentTaskAssigningClient(this.client, clusterService.localNode(), task);
-        new AsyncIndexBySearchAction((BulkByScrollTask) task, logger, scriptService, client, threadPool, state, request, listener)
-                .start();
+        new AsyncIndexBySearchAction((BulkByScrollTask) task, logger, client, threadPool, request, listener, scriptService, state).start();
     }
 
     @Override
@@ -78,63 +80,90 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
      * Simple implementation of update-by-query using scrolling and bulk.
      */
     static class AsyncIndexBySearchAction extends AbstractAsyncBulkIndexByScrollAction<UpdateByQueryRequest> {
-        public AsyncIndexBySearchAction(BulkByScrollTask task, ESLogger logger, ScriptService scriptService,
-                ParentTaskAssigningClient client, ThreadPool threadPool, ClusterState clusterState, UpdateByQueryRequest request,
-                ActionListener<BulkIndexByScrollResponse> listener) {
-            super(task, logger, scriptService, clusterState, client, threadPool, request, request.getSearchRequest(), listener);
+
+        public AsyncIndexBySearchAction(BulkByScrollTask task, ESLogger logger, ParentTaskAssigningClient client, ThreadPool threadPool,
+                                        UpdateByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener,
+                                        ScriptService scriptService, ClusterState clusterState) {
+            super(task, logger, client, threadPool, request, listener, scriptService, clusterState);
         }
 
         @Override
-        protected IndexRequest buildIndexRequest(SearchHit doc) {
+        protected boolean needsSourceDocumentVersions() {
+            /*
+             * We always need the version of the source document so we can report a version conflict if we try to delete it and it has been
+             * changed.
+             */
+            return true;
+        }
+
+        @Override
+        protected BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
+            Script script = mainRequest.getScript();
+            if (script != null) {
+                return new UpdateByQueryScriptApplier(task, scriptService, script, script.getParams());
+            }
+            return super.buildScriptApplier();
+        }
+
+        @Override
+        protected RequestWrapper<IndexRequest> buildRequest(ScrollableHitSource.Hit doc) {
             IndexRequest index = new IndexRequest();
-            index.index(doc.index());
-            index.type(doc.type());
-            index.id(doc.id());
-            index.source(doc.sourceRef());
+            index.index(doc.getIndex());
+            index.type(doc.getType());
+            index.id(doc.getId());
+            index.source(doc.getSource());
             index.versionType(VersionType.INTERNAL);
-            index.version(doc.version());
+            index.version(doc.getVersion());
             index.setPipeline(mainRequest.getPipeline());
-            return index;
+            return wrap(index);
         }
 
-        @Override
-        protected void scriptChangedIndex(IndexRequest index, Object to) {
-            throw new IllegalArgumentException("Modifying [" + IndexFieldMapper.NAME + "] not allowed");
-        }
+        class UpdateByQueryScriptApplier extends ScriptApplier {
 
-        @Override
-        protected void scriptChangedType(IndexRequest index, Object to) {
-            throw new IllegalArgumentException("Modifying [" + TypeFieldMapper.NAME + "] not allowed");
-        }
+            UpdateByQueryScriptApplier(BulkByScrollTask task, ScriptService scriptService, Script script,
+                                 Map<String, Object> params) {
+                super(task, scriptService, script, params);
+            }
 
-        @Override
-        protected void scriptChangedId(IndexRequest index, Object to) {
-            throw new IllegalArgumentException("Modifying [" + IdFieldMapper.NAME + "] not allowed");
-        }
+            @Override
+            protected void scriptChangedIndex(RequestWrapper<?> request, Object to) {
+                throw new IllegalArgumentException("Modifying [" + IndexFieldMapper.NAME + "] not allowed");
+            }
 
-        @Override
-        protected void scriptChangedVersion(IndexRequest index, Object to) {
-            throw new IllegalArgumentException("Modifying [_version] not allowed");
-        }
+            @Override
+            protected void scriptChangedType(RequestWrapper<?> request, Object to) {
+                throw new IllegalArgumentException("Modifying [" + TypeFieldMapper.NAME + "] not allowed");
+            }
 
-        @Override
-        protected void scriptChangedRouting(IndexRequest index, Object to) {
-            throw new IllegalArgumentException("Modifying [" + RoutingFieldMapper.NAME + "] not allowed");
-        }
+            @Override
+            protected void scriptChangedId(RequestWrapper<?> request, Object to) {
+                throw new IllegalArgumentException("Modifying [" + IdFieldMapper.NAME + "] not allowed");
+            }
 
-        @Override
-        protected void scriptChangedParent(IndexRequest index, Object to) {
-            throw new IllegalArgumentException("Modifying [" + ParentFieldMapper.NAME + "] not allowed");
-        }
+            @Override
+            protected void scriptChangedVersion(RequestWrapper<?> request, Object to) {
+                throw new IllegalArgumentException("Modifying [_version] not allowed");
+            }
 
-        @Override
-        protected void scriptChangedTimestamp(IndexRequest index, Object to) {
-            throw new IllegalArgumentException("Modifying [" + TimestampFieldMapper.NAME + "] not allowed");
-        }
+            @Override
+            protected void scriptChangedRouting(RequestWrapper<?> request, Object to) {
+                throw new IllegalArgumentException("Modifying [" + RoutingFieldMapper.NAME + "] not allowed");
+            }
 
-        @Override
-        protected void scriptChangedTTL(IndexRequest index, Object to) {
-            throw new IllegalArgumentException("Modifying [" + TTLFieldMapper.NAME + "] not allowed");
+            @Override
+            protected void scriptChangedParent(RequestWrapper<?> request, Object to) {
+                throw new IllegalArgumentException("Modifying [" + ParentFieldMapper.NAME + "] not allowed");
+            }
+
+            @Override
+            protected void scriptChangedTimestamp(RequestWrapper<?> request, Object to) {
+                throw new IllegalArgumentException("Modifying [" + TimestampFieldMapper.NAME + "] not allowed");
+            }
+
+            @Override
+            protected void scriptChangedTTL(RequestWrapper<?> request, Object to) {
+                throw new IllegalArgumentException("Modifying [" + TTLFieldMapper.NAME + "] not allowed");
+            }
         }
     }
 }

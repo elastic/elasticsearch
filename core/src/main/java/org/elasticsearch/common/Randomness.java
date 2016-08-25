@@ -54,7 +54,7 @@ public final class Randomness {
             Class<?> clazz = Class.forName("com.carrotsearch.randomizedtesting.RandomizedContext");
             maybeCurrentMethod = clazz.getMethod("current");
             maybeGetRandomMethod = clazz.getMethod("getRandom");
-        } catch (Throwable t) {
+        } catch (Exception e) {
             maybeCurrentMethod = null;
             maybeGetRandomMethod = null;
         }

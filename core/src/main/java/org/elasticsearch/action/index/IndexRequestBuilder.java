@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.index;
 
+import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
@@ -33,7 +34,8 @@ import java.util.Map;
 /**
  * An index document action request builder.
  */
-public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest, IndexResponse, IndexRequestBuilder> {
+public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest, IndexResponse, IndexRequestBuilder>
+        implements WriteRequestBuilder<IndexRequestBuilder> {
 
     public IndexRequestBuilder(ElasticsearchClient client, IndexAction action) {
         super(client, action, new IndexRequest());
@@ -217,16 +219,6 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      */
     public IndexRequestBuilder setCreate(boolean create) {
         request.create(create);
-        return this;
-    }
-
-    /**
-     * Should a refresh be executed post this index operation causing the operation to
-     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
-     */
-    public IndexRequestBuilder setRefresh(boolean refresh) {
-        request.refresh(refresh);
         return this;
     }
 

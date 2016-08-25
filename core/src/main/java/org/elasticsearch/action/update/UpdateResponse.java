@@ -29,11 +29,8 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- */
 public class UpdateResponse extends DocWriteResponse {
 
-    private boolean created;
     private GetResult getResult;
 
     public UpdateResponse() {
@@ -43,14 +40,14 @@ public class UpdateResponse extends DocWriteResponse {
      * Constructor to be used when a update didn't translate in a write.
      * For example: update script with operation set to none
      */
-    public UpdateResponse(ShardId shardId, String type, String id, long version, boolean created) {
-        this(new ShardInfo(0, 0), shardId, type, id, version, created);
+    public UpdateResponse(ShardId shardId, String type, String id, long version, Result result) {
+        this(new ShardInfo(0, 0), shardId, type, id, version, result);
     }
 
-    public UpdateResponse(ShardInfo shardInfo, ShardId shardId, String type, String id, long version, boolean created) {
-        super(shardId, type, id, version);
+    public UpdateResponse(ShardInfo shardInfo, ShardId shardId, String type, String id,
+                          long version, Result result) {
+        super(shardId, type, id, version, result);
         setShardInfo(shardInfo);
-        this.created = created;
     }
 
     public void setGetResult(GetResult getResult) {
@@ -61,26 +58,14 @@ public class UpdateResponse extends DocWriteResponse {
         return this.getResult;
     }
 
-    /**
-     * Returns true if document was created due to an UPSERT operation
-     */
-    public boolean isCreated() {
-        return this.created;
-
-    }
-
     @Override
     public RestStatus status() {
-        if (created) {
-            return RestStatus.CREATED;
-        }
-        return super.status();
+        return this.result == Result.CREATED ? RestStatus.CREATED : super.status();
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        created = in.readBoolean();
         if (in.readBoolean()) {
             getResult = GetResult.readGetResult(in);
         }
@@ -89,7 +74,6 @@ public class UpdateResponse extends DocWriteResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(created);
         if (getResult == null) {
             out.writeBoolean(false);
         } else {
@@ -122,7 +106,7 @@ public class UpdateResponse extends DocWriteResponse {
         builder.append(",type=").append(getType());
         builder.append(",id=").append(getId());
         builder.append(",version=").append(getVersion());
-        builder.append(",created=").append(created);
+        builder.append(",result=").append(getResult().getLowercase());
         builder.append(",shards=").append(getShardInfo());
         return builder.append("]").toString();
     }

@@ -36,7 +36,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.hamcrest.Matchers;
@@ -70,17 +69,15 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FieldSortIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class);
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/9421")
@@ -97,7 +94,6 @@ public class FieldSortIT extends ESIntegTestCase {
                 client().prepareIndex("test_" + i, "foo", "" + i).setSource("{\"entry\": " + i + "}").get();
             }
         }
-        ensureYellow();
         refresh();
         // sort DESC
         SearchResponse searchResponse = client().prepareSearch()
@@ -149,7 +145,6 @@ public class FieldSortIT extends ESIntegTestCase {
         }
         int docs = builders.size();
         indexRandom(true, builders);
-        ensureYellow();
         SearchResponse allDocsResponse = client().prepareSearch().setQuery(
                 QueryBuilders.boolQuery().must(QueryBuilders.termQuery("foo", "bar")).must(
                         QueryBuilders.rangeQuery("timeUpdated").gte("2014/0" + randomIntBetween(1, 7) + "/01")))
@@ -861,7 +856,6 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testIgnoreUnmapped() throws Exception {
         createIndex("test");
-        ensureYellow();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("id", "1")
@@ -892,7 +886,7 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testSortMVField() throws Exception {
         assertAcked(prepareCreate("test")
-.addMapping("type1",
+                        .addMapping("type1",
                 XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("long_values")
                         .field("type", "long").endObject().startObject("int_values").field("type", "integer").endObject()
                         .startObject("short_values").field("type", "short").endObject().startObject("byte_values")
@@ -1340,16 +1334,12 @@ public class FieldSortIT extends ESIntegTestCase {
     }
 
     public void testSortMetaField() throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_timestamp").field("enabled", true).endObject()
-                .endObject().endObject();
-        assertAcked(prepareCreate("test")
-            .addMapping("type", mapping));
+        createIndex("test");
         ensureGreen();
         final int numDocs = randomIntBetween(10, 20);
         IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; ++i) {
-            indexReqs[i] = client().prepareIndex("test", "type", Integer.toString(i)).setTimestamp(Integer.toString(randomInt(1000)))
+            indexReqs[i] = client().prepareIndex("test", "type", Integer.toString(i))
                     .setSource();
         }
         indexRandom(true, indexReqs);
@@ -1367,37 +1357,6 @@ public class FieldSortIT extends ESIntegTestCase {
             final BytesRef uid = new BytesRef(Uid.createUid(hits[i].type(), hits[i].id()));
             assertThat(previous, order == SortOrder.ASC ? lessThan(uid) : greaterThan(uid));
             previous = uid;
-        }
-
-        /*
-        searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .setSize(randomIntBetween(1, numDocs + 5))
-                .addSort("_id", order)
-                .execute().actionGet();
-        assertNoFailures(searchResponse);
-        hits = searchResponse.getHits().hits();
-        previous = order == SortOrder.ASC ? new BytesRef() : UnicodeUtil.BIG_TERM;
-        for (int i = 0; i < hits.length; ++i) {
-            final BytesRef id = new BytesRef(Uid.createUid(hits[i].type(), hits[i].id()));
-            assertThat(previous, order == SortOrder.ASC ? lessThan(id) : greaterThan(id));
-            previous = id;
-        }*/
-
-        searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .setSize(randomIntBetween(1, numDocs + 5))
-                .addSort("_timestamp", order)
-                .addField("_timestamp")
-                .execute().actionGet();
-        assertNoFailures(searchResponse);
-        hits = searchResponse.getHits().hits();
-        Long previousTs = order == SortOrder.ASC ? 0 : Long.MAX_VALUE;
-        for (int i = 0; i < hits.length; ++i) {
-            SearchHitField timestampField = hits[i].getFields().get("_timestamp");
-            Long timestamp = timestampField.<Long>getValue();
-            assertThat(previousTs, order == SortOrder.ASC ? lessThanOrEqualTo(timestamp) : greaterThanOrEqualTo(timestamp));
-            previousTs = timestamp;
         }
     }
 

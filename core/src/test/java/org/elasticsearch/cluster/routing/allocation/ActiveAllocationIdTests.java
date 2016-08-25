@@ -25,7 +25,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.test.ESAllocationTestCase;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -50,11 +51,12 @@ public class ActiveAllocationIdTests extends ESAllocationTestCase {
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
                 .build();
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
+            .getDefault(Settings.EMPTY)).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("adding three nodes and performing rerouting");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(
-                newNode("node1")).put(newNode("node2")).put(newNode("node3"))).build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(
+                newNode("node1")).add(newNode("node2")).add(newNode("node3"))).build();
         RoutingAllocation.Result rerouteResult = allocation.reroute(clusterState, "reroute");
         clusterState = ClusterState.builder(clusterState).routingResult(rerouteResult).build();
 
@@ -81,7 +83,7 @@ public class ActiveAllocationIdTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .remove("node1"))
                 .build();
-        rerouteResult = allocation.reroute(clusterState, "reroute");
+        rerouteResult = allocation.deassociateDeadNodes(clusterState, true, "reroute");
         clusterState = ClusterState.builder(clusterState).routingResult(rerouteResult).build();
 
         assertThat(clusterState.metaData().index("test").activeAllocationIds(0).size(), equalTo(2));
@@ -90,7 +92,7 @@ public class ActiveAllocationIdTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .remove("node2").remove("node3"))
                 .build();
-        rerouteResult = allocation.reroute(clusterState, "reroute");
+        rerouteResult = allocation.deassociateDeadNodes(clusterState, true, "reroute");
         clusterState = ClusterState.builder(clusterState).routingResult(rerouteResult).build();
 
         // active allocation ids should not be updated

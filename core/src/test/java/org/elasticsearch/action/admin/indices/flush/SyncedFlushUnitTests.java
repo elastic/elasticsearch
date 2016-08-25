@@ -84,7 +84,7 @@ public class SyncedFlushUnitTests extends ESTestCase {
         assertThat(testPlan.result.restStatus(), equalTo(testPlan.totalCounts.failed > 0 ? RestStatus.CONFLICT : RestStatus.OK));
         BytesStreamOutput out = new BytesStreamOutput();
         testPlan.result.writeTo(out);
-        StreamInput in = StreamInput.wrap(out.bytes());
+        StreamInput in = out.bytes().streamInput();
         SyncedFlushResponse readResponse = new SyncedFlushResponse();
         readResponse.readFrom(in);
         assertThat(readResponse.totalShards(), equalTo(testPlan.totalCounts.total));

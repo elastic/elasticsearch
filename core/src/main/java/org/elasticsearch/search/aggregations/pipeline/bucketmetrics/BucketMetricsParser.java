@@ -44,7 +44,7 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public final BucketMetricsPipelineAggregatorBuilder<?> parse(String pipelineAggregatorName, QueryParseContext context)
+    public final BucketMetricsPipelineAggregationBuilder<?> parse(String pipelineAggregatorName, QueryParseContext context)
             throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token;
@@ -88,7 +88,7 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
                     "Missing required field [" + BUCKETS_PATH.getPreferredName() + "] for aggregation [" + pipelineAggregatorName + "]");
         }
 
-        BucketMetricsPipelineAggregatorBuilder<?> factory  = buildFactory(pipelineAggregatorName, bucketsPaths[0], params);
+        BucketMetricsPipelineAggregationBuilder<?> factory  = buildFactory(pipelineAggregatorName, bucketsPaths[0], params);
         if (format != null) {
             factory.format(format);
         }
@@ -101,7 +101,7 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
         return factory;
     }
 
-    protected abstract BucketMetricsPipelineAggregatorBuilder<?> buildFactory(String pipelineAggregatorName, String bucketsPaths,
+    protected abstract BucketMetricsPipelineAggregationBuilder<?> buildFactory(String pipelineAggregatorName, String bucketsPaths,
                                                                               Map<String, Object> params);
 
     protected boolean token(XContentParser parser, QueryParseContext context, String field,

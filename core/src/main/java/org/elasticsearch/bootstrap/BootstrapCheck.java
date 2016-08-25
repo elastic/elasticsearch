@@ -20,7 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.SuppressForbidden;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -104,9 +104,16 @@ final class BootstrapCheck {
         final List<String> errors = new ArrayList<>();
         final List<String> ignoredErrors = new ArrayList<>();
 
+        if (enforceLimits) {
+            logger.info("bound or publishing to a non-loopback or non-link-local address, enforcing bootstrap checks");
+        }
+        if (enforceLimits && ignoreSystemChecks) {
+            logger.warn("enforcing bootstrap checks but ignoring system bootstrap checks, consider not ignoring system checks");
+        }
+
         for (final Check check : checks) {
             if (check.check()) {
-                if (!enforceLimits || (check.isSystemCheck() && ignoreSystemChecks)) {
+                if ((!enforceLimits || (check.isSystemCheck() && ignoreSystemChecks)) && !check.alwaysEnforce()) {
                     ignoredErrors.add(check.errorMessage());
                 } else {
                     errors.add(check.errorMessage());
@@ -152,18 +159,19 @@ final class BootstrapCheck {
         final FileDescriptorCheck fileDescriptorCheck
             = Constants.MAC_OS_X ? new OsXFileDescriptorCheck() : new FileDescriptorCheck();
         checks.add(fileDescriptorCheck);
-        checks.add(new MlockallCheck(BootstrapSettings.MLOCKALL_SETTING.get(settings)));
+        checks.add(new MlockallCheck(BootstrapSettings.MEMORY_LOCK_SETTING.get(settings)));
         if (Constants.LINUX) {
             checks.add(new MaxNumberOfThreadsCheck());
         }
         if (Constants.LINUX || Constants.MAC_OS_X) {
             checks.add(new MaxSizeVirtualMemoryCheck());
         }
-        checks.add(new MinMasterNodesCheck(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.exists(settings)));
         if (Constants.LINUX) {
             checks.add(new MaxMapCountCheck());
         }
         checks.add(new ClientJvmCheck());
+        checks.add(new OnErrorCheck());
+        checks.add(new OnOutOfMemoryErrorCheck());
         return Collections.unmodifiableList(checks);
     }
 
@@ -193,6 +201,10 @@ final class BootstrapCheck {
          * to an Elasticsearch-level check
          */
         boolean isSystemCheck();
+
+        default boolean alwaysEnforce() {
+            return false;
+        }
 
     }
 
@@ -245,7 +257,6 @@ final class BootstrapCheck {
 
     }
 
-    // visible for testing
     static class FileDescriptorCheck implements Check {
 
         private final int limit;
@@ -288,7 +299,6 @@ final class BootstrapCheck {
 
     }
 
-    // visible for testing
     static class MlockallCheck implements Check {
 
         private final boolean mlockallSet;
@@ -315,32 +325,6 @@ final class BootstrapCheck {
         @Override
         public final boolean isSystemCheck() {
             return true;
-        }
-
-    }
-
-    static class MinMasterNodesCheck implements Check {
-
-        final boolean minMasterNodesIsSet;
-
-        MinMasterNodesCheck(boolean minMasterNodesIsSet) {
-            this.minMasterNodesIsSet = minMasterNodesIsSet;
-        }
-
-        @Override
-        public boolean check() {
-            return minMasterNodesIsSet == false;
-        }
-
-        @Override
-        public String errorMessage() {
-            return "please set [" + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() +
-                "] to a majority of the number of master eligible nodes in your cluster.";
-        }
-
-        @Override
-        public final boolean isSystemCheck() {
-            return false;
         }
 
     }
@@ -500,6 +484,83 @@ final class BootstrapCheck {
         @Override
         public final boolean isSystemCheck() {
             return false;
+        }
+
+    }
+
+    abstract static class MightForkCheck implements BootstrapCheck.Check {
+
+        @Override
+        public boolean check() {
+            return isSeccompInstalled() && mightFork();
+        }
+
+        // visible for testing
+        boolean isSeccompInstalled() {
+            return Natives.isSeccompInstalled();
+        }
+
+        // visible for testing
+        abstract boolean mightFork();
+
+        @Override
+        public final boolean isSystemCheck() {
+            return false;
+        }
+
+        @Override
+        public final boolean alwaysEnforce() {
+            return true;
+        }
+
+    }
+
+    static class OnErrorCheck extends MightForkCheck {
+
+        @Override
+        boolean mightFork() {
+            final String onError = onError();
+            return onError != null && !onError.equals("");
+        }
+
+        // visible for testing
+        String onError() {
+            return JvmInfo.jvmInfo().onError();
+        }
+
+        @Override
+        public String errorMessage() {
+            return String.format(
+                Locale.ROOT,
+                "OnError [%s] requires forking but is prevented by system call filters ([%s=true]);" +
+                    " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError",
+                onError(),
+                BootstrapSettings.SECCOMP_SETTING.getKey());
+        }
+
+    }
+
+    static class OnOutOfMemoryErrorCheck extends MightForkCheck {
+
+        @Override
+        boolean mightFork() {
+            final String onOutOfMemoryError = onOutOfMemoryError();
+            return onOutOfMemoryError != null && !onOutOfMemoryError.equals("");
+        }
+
+        // visible for testing
+        String onOutOfMemoryError() {
+            return JvmInfo.jvmInfo().onOutOfMemoryError();
+        }
+
+        @Override
+        public String errorMessage() {
+            return String.format(
+                Locale.ROOT,
+                "OnOutOfMemoryError [%s] requires forking but is prevented by system call filters ([%s=true]);" +
+                    " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError",
+                onOutOfMemoryError(),
+                BootstrapSettings.SECCOMP_SETTING.getKey());
         }
 
     }

@@ -31,8 +31,8 @@ import java.util.EnumSet;
  */
 public class CommonStatsFlags implements Streamable, Cloneable {
 
-    public final static CommonStatsFlags ALL = new CommonStatsFlags().all();
-    public final static CommonStatsFlags NONE = new CommonStatsFlags().clear();
+    public static final CommonStatsFlags ALL = new CommonStatsFlags().all();
+    public static final CommonStatsFlags NONE = new CommonStatsFlags().clear();
 
     private EnumSet<Flag> flags = EnumSet.allOf(Flag.class);
     private String[] types = null;
@@ -240,7 +240,6 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         FieldData("fielddata"),
         Docs("docs"),
         Warmer("warmer"),
-        PercolatorCache("percolator_cache"),
         Completion("completion"),
         Segments("segments"),
         Translog("translog"),

@@ -33,7 +33,6 @@
 ################################################################
 
 ## GC configuration
--XX:+UseParNewGC
 -XX:+UseConcMarkSweepGC
 -XX:CMSInitiatingOccupancyFraction=75
 -XX:+UseCMSInitiatingOccupancyOnly
@@ -59,6 +58,9 @@
 
 # use our provided JNA always versus the system one
 -Djna.nosys=true
+
+# flag to explicitly tell Netty to not use unsafe
+-Dio.netty.noUnsafe=true
 
 ## heap dumps
 

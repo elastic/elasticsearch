@@ -62,7 +62,7 @@ All attribute values can be specified with wildcards, eg:
 PUT _cluster/settings
 {
   "transient": {
-    "cluster.routing.allocation.include._ip": "192.168.2.*"
+    "cluster.routing.allocation.exclude._ip": "192.168.2.*"
   }
 }
 ------------------------

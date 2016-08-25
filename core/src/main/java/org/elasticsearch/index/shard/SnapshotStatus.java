@@ -43,8 +43,6 @@ public class SnapshotStatus {
 
     private Translog translog = new Translog();
 
-    private Throwable failure;
-
     public Stage stage() {
         return this.stage;
     }
@@ -68,10 +66,6 @@ public class SnapshotStatus {
 
     public void time(long time) {
         this.time = time;
-    }
-
-    public void failed(Throwable failure) {
-        this.failure = failure;
     }
 
     public Index index() {

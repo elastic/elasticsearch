@@ -60,7 +60,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * An action that lists the relevant shard data that needs to be fetched.
      */
     public interface Lister<NodesResponse extends BaseNodesResponse<NodeResponse>, NodeResponse extends BaseNodeResponse> {
-        void list(ShardId shardId, String[] nodesIds, ActionListener<NodesResponse> listener);
+        void list(ShardId shardId, DiscoveryNode[] nodes, ActionListener<NodesResponse> listener);
     }
 
     protected final ESLogger logger;
@@ -116,12 +116,9 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             for (NodeEntry<T> nodeEntry : nodesToFetch) {
                 nodeEntry.markAsFetching();
             }
-            String[] nodesIds = new String[nodesToFetch.size()];
-            int index = 0;
-            for (NodeEntry<T> nodeEntry : nodesToFetch) {
-                nodesIds[index++] = nodeEntry.getNodeId();
-            }
-            asyncFetch(shardId, nodesIds);
+            DiscoveryNode[] discoNodesToFetch = nodesToFetch.stream().map(NodeEntry::getNodeId).map(nodes::get)
+                .toArray(DiscoveryNode[]::new);
+            asyncFetch(shardId, discoNodesToFetch);
         }
 
         // if we are still fetching, return null to indicate it
@@ -187,7 +184,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                 if (nodeEntry.isFailed()) {
                     logger.trace("{} node {} has failed for [{}] (failure [{}])", shardId, nodeEntry.getNodeId(), type, nodeEntry.getFailure());
                 } else {
-                    logger.trace("{} marking {} as done for [{}]", shardId, nodeEntry.getNodeId(), type);
+                    logger.trace("{} marking {} as done for [{}], result is [{}]", shardId, nodeEntry.getNodeId(), type, response);
                     nodeEntry.doneFetching(response);
                 }
             }
@@ -268,19 +265,19 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * Async fetches data for the provided shard with the set of nodes that need to be fetched from.
      */
     // visible for testing
-    void asyncFetch(final ShardId shardId, final String[] nodesIds) {
-        logger.trace("{} fetching [{}] from {}", shardId, type, nodesIds);
-        action.list(shardId, nodesIds, new ActionListener<BaseNodesResponse<T>>() {
+    void asyncFetch(final ShardId shardId, final DiscoveryNode[] nodes) {
+        logger.trace("{} fetching [{}] from {}", shardId, type, nodes);
+        action.list(shardId, nodes, new ActionListener<BaseNodesResponse<T>>() {
             @Override
             public void onResponse(BaseNodesResponse<T> response) {
                 processAsyncFetch(shardId, response.getNodes(), response.failures());
             }
 
             @Override
-            public void onFailure(Throwable e) {
-                List<FailedNodeException> failures = new ArrayList<>(nodesIds.length);
-                for (String nodeId : nodesIds) {
-                    failures.add(new FailedNodeException(nodeId, "total failure in fetching", e));
+            public void onFailure(Exception e) {
+                List<FailedNodeException> failures = new ArrayList<>(nodes.length);
+                for (final DiscoveryNode node: nodes) {
+                    failures.add(new FailedNodeException(node.getId(), "total failure in fetching", e));
                 }
                 processAsyncFetch(shardId, null, failures);
             }

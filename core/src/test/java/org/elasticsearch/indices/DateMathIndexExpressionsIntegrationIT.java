@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -74,15 +75,15 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         assertThat(indicesStatsResponse.getIndex(index3), notNullValue());
 
         DeleteResponse deleteResponse = client().prepareDelete(dateMathExp1, "type", "1").get();
-        assertThat(deleteResponse.isFound(), equalTo(true));
+        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         assertThat(deleteResponse.getId(), equalTo("1"));
 
         deleteResponse = client().prepareDelete(dateMathExp2, "type", "2").get();
-        assertThat(deleteResponse.isFound(), equalTo(true));
+        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         assertThat(deleteResponse.getId(), equalTo("2"));
 
         deleteResponse = client().prepareDelete(dateMathExp3, "type", "3").get();
-        assertThat(deleteResponse.isFound(), equalTo(true));
+        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
         assertThat(deleteResponse.getId(), equalTo("3"));
     }
 

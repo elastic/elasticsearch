@@ -20,26 +20,24 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.LowerCaseFilter;
+import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.LowerCaseFilter;
-import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
 import org.apache.lucene.analysis.miscellaneous.FingerprintFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.apache.lucene.analysis.util.CharArraySet;
 
 /** OpenRefine Fingerprinting, which uses a Standard tokenizer and lowercase + stop + fingerprint + asciifolding filters */
 public final class FingerprintAnalyzer extends Analyzer {
     private final char separator;
     private final int maxOutputSize;
-    private final boolean preserveOriginal;
     private final CharArraySet stopWords;
 
-    public FingerprintAnalyzer(CharArraySet stopWords, char separator, int maxOutputSize, boolean preserveOriginal) {
+    public FingerprintAnalyzer(CharArraySet stopWords, char separator, int maxOutputSize) {
         this.separator = separator;
         this.maxOutputSize = maxOutputSize;
-        this.preserveOriginal = preserveOriginal;
         this.stopWords = stopWords;
     }
 
@@ -48,7 +46,7 @@ public final class FingerprintAnalyzer extends Analyzer {
         final Tokenizer tokenizer = new StandardTokenizer();
         TokenStream stream = tokenizer;
         stream = new LowerCaseFilter(stream);
-        stream = new ASCIIFoldingFilter(stream, preserveOriginal);
+        stream = new ASCIIFoldingFilter(stream, false);
         stream = new StopFilter(stream, stopWords);
         stream = new FingerprintFilter(stream, maxOutputSize, separator);
         return new TokenStreamComponents(tokenizer, stream);

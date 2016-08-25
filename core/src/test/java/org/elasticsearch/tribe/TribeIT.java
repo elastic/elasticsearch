@@ -32,24 +32,25 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.TestCluster;
 import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
@@ -74,31 +75,16 @@ public class TribeIT extends ESIntegTestCase {
     private Node tribeNode;
     private Client tribeClient;
 
-    @BeforeClass
-    public static void setupSecondCluster() throws Exception {
-        ESIntegTestCase.beforeClass();
-        NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
-            @Override
-            public Settings nodeSettings(int nodeOrdinal) {
-                return Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).build();
-            }
-
-            @Override
-            public Collection<Class<? extends Plugin>> nodePlugins() {
-                return Collections.emptyList();
-            }
-
-            @Override
-            public Settings transportClientSettings() {
-                return null;
-            }
-
-        };
-        cluster2 = new InternalTestCluster(InternalTestCluster.configuredNodeMode(), randomLong(), createTempDir(), 2, 2,
-                UUIDs.randomBase64UUID(random()), nodeConfigurationSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, Collections.emptyList(), Function.identity());
-
-        cluster2.beforeTest(random(), 0.1);
-        cluster2.ensureAtLeastNumDataNodes(2);
+    @Before
+    public  void setupSecondCluster() throws Exception {
+        if (cluster2 == null) {
+            final  NodeConfigurationSource configSource = getNodeConfigSource();
+            cluster2 = new InternalTestCluster(randomLong(), createTempDir(), true, 2, 2,
+                UUIDs.randomBase64UUID(random()), configSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(),
+                Function.identity());
+            cluster2.beforeTest(random(), 0.1);
+            cluster2.ensureAtLeastNumDataNodes(2);
+        }
     }
 
     @AfterClass
@@ -143,13 +129,21 @@ public class TribeIT extends ESIntegTestCase {
         tribe1Defaults.putArray("tribe.t2." + UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(), getUnicastHosts(cluster2.client()));
 
         Settings merged = Settings.builder()
+                .put(internalCluster().getDefaultSettings())
                 .put("tribe.t1.cluster.name", internalCluster().getClusterName())
                 .put("tribe.t2.cluster.name", cluster2.getClusterName())
+                .put("tribe.t1.transport.type", "local")
+                .put("tribe.t2.transport.type", "local")
+                .put("tribe.t1.discovery.type", "local")
+                .put("tribe.t2.discovery.type", "local")
+                .put("transport.type", "local")
+                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "local")
                 .put("tribe.blocks.write", false)
+                .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(settings)
+
                 .put(tribe1Defaults.build())
                 .put(tribe2Defaults.build())
-                .put(internalCluster().getDefaultSettings())
                 .put("node.name", "tribe_node") // make sure we can identify threads from this node
                 .build();
 

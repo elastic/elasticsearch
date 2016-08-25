@@ -22,7 +22,7 @@ package org.elasticsearch.discovery.zen;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -35,21 +35,18 @@ import java.util.Set;
 public class ElectMasterServiceTests extends ESTestCase {
 
     ElectMasterService electMasterService() {
-        return new ElectMasterService(Settings.EMPTY, Version.CURRENT);
+        return new ElectMasterService(Settings.EMPTY);
     }
 
     List<DiscoveryNode> generateRandomNodes() {
         int count = scaledRandomIntBetween(1, 100);
         ArrayList<DiscoveryNode> nodes = new ArrayList<>(count);
-
-
-
         for (int i = 0; i < count; i++) {
             Set<DiscoveryNode.Role> roles = new HashSet<>();
             if (randomBoolean()) {
                 roles.add(DiscoveryNode.Role.MASTER);
             }
-            DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, DummyTransportAddress.INSTANCE, Collections.emptyMap(),
+            DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
                     roles, Version.CURRENT);
             nodes.add(node);
         }

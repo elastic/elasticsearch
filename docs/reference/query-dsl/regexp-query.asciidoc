@@ -15,40 +15,52 @@ matchers like `.*?+` will mostly lower performance.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "regexp":{
-        "name.first": "s.*y"
+    "query": {
+        "regexp":{
+            "name.first": "s.*y"
+        }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 Boosting is also supported
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "regexp":{
-        "name.first":{
-            "value":"s.*y",
-            "boost":1.2
+    "query": {
+        "regexp":{
+            "name.first":{
+                "value":"s.*y",
+                "boost":1.2
+            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 You can also use special flags
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "regexp":{
-        "name.first": {
-            "value": "s.*y",
-            "flags" : "INTERSECTION|COMPLEMENT|EMPTY"
+    "query": {
+        "regexp":{
+            "name.first": {
+                "value": "s.*y",
+                "flags" : "INTERSECTION|COMPLEMENT|EMPTY"
+            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 Possible flags are `ALL` (default), `ANYSTRING`, `COMPLEMENT`,
 `EMPTY`, `INTERSECTION`, `INTERVAL`, or `NONE`. Please check the
@@ -64,16 +76,19 @@ this limit to allow more complex regular expressions to execute.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "regexp":{
-        "name.first": {
-            "value": "s.*y",
-            "flags" : "INTERSECTION|COMPLEMENT|EMPTY",
-	    "max_determinized_states": 20000
+    "query": {
+        "regexp":{
+            "name.first": {
+                "value": "s.*y",
+                "flags" : "INTERSECTION|COMPLEMENT|EMPTY",
+                "max_determinized_states": 20000
+            }
         }
     }
 }
 --------------------------------------------------
-
+// CONSOLE
 
 include::regexp-syntax.asciidoc[]

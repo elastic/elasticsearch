@@ -28,7 +28,6 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -55,19 +54,18 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
         TransportClusterStatsAction.ClusterStatsNodeRequest, ClusterStatsNodeResponse> {
 
     private static final CommonStatsFlags SHARD_STATS_FLAGS = new CommonStatsFlags(CommonStatsFlags.Flag.Docs, CommonStatsFlags.Flag.Store,
-            CommonStatsFlags.Flag.FieldData, CommonStatsFlags.Flag.QueryCache, CommonStatsFlags.Flag.Completion, CommonStatsFlags.Flag.Segments,
-            CommonStatsFlags.Flag.PercolatorCache);
+            CommonStatsFlags.Flag.FieldData, CommonStatsFlags.Flag.QueryCache, CommonStatsFlags.Flag.Completion, CommonStatsFlags.Flag.Segments);
 
     private final NodeService nodeService;
     private final IndicesService indicesService;
 
 
     @Inject
-    public TransportClusterStatsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+    public TransportClusterStatsAction(Settings settings, ThreadPool threadPool,
                                        ClusterService clusterService, TransportService transportService,
                                        NodeService nodeService, IndicesService indicesService,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ClusterStatsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
+        super(settings, ClusterStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
               indexNameExpressionResolver, ClusterStatsRequest::new, ClusterStatsNodeRequest::new, ThreadPool.Names.MANAGEMENT,
               ClusterStatsNodeResponse.class);
         this.nodeService = nodeService;
@@ -77,8 +75,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
     @Override
     protected ClusterStatsResponse newResponse(ClusterStatsRequest request,
                                                List<ClusterStatsNodeResponse> responses, List<FailedNodeException> failures) {
-        return new ClusterStatsResponse(System.currentTimeMillis(), clusterName, clusterService.state().metaData().clusterUUID(),
-                                        responses, failures);
+        return new ClusterStatsResponse(System.currentTimeMillis(), clusterService.getClusterName(),
+            clusterService.state().metaData().clusterUUID(), responses, failures);
     }
 
     @Override
@@ -93,14 +91,14 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
 
     @Override
     protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest) {
-        NodeInfo nodeInfo = nodeService.info(false, true, false, true, false, true, false, true, false);
+        NodeInfo nodeInfo = nodeService.info(false, true, false, true, false, true, false, true, false, false);
         NodeStats nodeStats = nodeService.stats(CommonStatsFlags.NONE, false, true, true, false, true, false, false, false, false, false, false);
         List<ShardStats> shardsStats = new ArrayList<>();
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
                 if (indexShard.routingEntry() != null && indexShard.routingEntry().active()) {
                     // only report on fully started shards
-                    shardsStats.add(new ShardStats(indexShard.routingEntry(), indexShard.shardPath(), new CommonStats(indicesService.getIndicesQueryCache(), indexService.cache().getPercolatorQueryCache(), indexShard, SHARD_STATS_FLAGS), indexShard.commitStats()));
+                    shardsStats.add(new ShardStats(indexShard.routingEntry(), indexShard.shardPath(), new CommonStats(indicesService.getIndicesQueryCache(), indexShard, SHARD_STATS_FLAGS), indexShard.commitStats()));
                 }
             }
         }

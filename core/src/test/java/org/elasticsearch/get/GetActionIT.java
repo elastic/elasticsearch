@@ -20,7 +20,7 @@
 package org.elasticsearch.get;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -30,7 +30,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetRequestBuilder;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -39,16 +38,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.singleton;
@@ -57,7 +52,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -76,6 +70,10 @@ public class GetActionIT extends ESIntegTestCase {
 
         logger.info("--> index doc 1");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
+
+        logger.info("--> non realtime get 1");
+        response = client().prepareGet(indexOrAlias(), "type1", "1").setRealtime(false).get();
+        assertThat(response.isExists(), equalTo(false));
 
         logger.info("--> realtime get 1");
         response = client().prepareGet(indexOrAlias(), "type1", "1").get();
@@ -108,10 +106,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getIndex(), equalTo("test"));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2"));
-
-        logger.info("--> non realtime get 1");
-        response = client().prepareGet(indexOrAlias(), "type1", "1").setRealtime(false).get();
-        assertThat(response.isExists(), equalTo(false));
 
         logger.info("--> realtime fetch of field (requires fetching parsing source)");
         response = client().prepareGet(indexOrAlias(), "type1", "1").setFields("field1").get();
@@ -183,7 +177,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2_2"));
 
         DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "1").get();
-        assertThat(deleteResponse.isFound(), equalTo(true));
+        assertEquals(DocWriteResponse.Result.DELETED, deleteResponse.getResult());
 
         response = client().prepareGet(indexOrAlias(), "type1", "1").get();
         assertThat(response.isExists(), equalTo(false));
@@ -536,7 +530,7 @@ public class GetActionIT extends ESIntegTestCase {
     public void testGetFieldsMetaData() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("parent")
-                .addMapping("my-type1", "_timestamp", "enabled=true", "_ttl", "enabled=true", "_parent", "type=parent")
+                .addMapping("my-type1", "_parent", "type=parent")
                 .addAlias(new Alias("alias"))
                 .setSettings(Settings.builder().put("index.refresh_interval", -1)));
 
@@ -557,12 +551,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(getResponse.getField("field1").getValue().toString(), equalTo("value"));
         assertThat(getResponse.getField("_routing").isMetadataField(), equalTo(true));
         assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
-        assertThat(getResponse.getField("_timestamp").isMetadataField(), equalTo(true));
-        assertThat(getResponse.getField("_timestamp").getValue().toString(), equalTo("205097"));
-        assertThat(getResponse.getField("_ttl").isMetadataField(), equalTo(true));
-        // TODO: _ttl should return the original value, but it does not work today because
-        // it would use now() instead of the value of _timestamp to rebase
-        // assertThat(getResponse.getField("_ttl").getValue().toString(), equalTo("10000000205097"));
         assertThat(getResponse.getField("_parent").isMetadataField(), equalTo(true));
         assertThat(getResponse.getField("_parent").getValue().toString(), equalTo("parent_1"));
 
@@ -577,12 +565,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(getResponse.getField("field1").getValue().toString(), equalTo("value"));
         assertThat(getResponse.getField("_routing").isMetadataField(), equalTo(true));
         assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
-        assertThat(getResponse.getField("_timestamp").isMetadataField(), equalTo(true));
-        assertThat(getResponse.getField("_timestamp").getValue().toString(), equalTo("205097"));
-        assertThat(getResponse.getField("_ttl").isMetadataField(), equalTo(true));
-        // TODO: _ttl should return the original value, but it does not work today because
-        // it would use now() instead of the value of _timestamp to rebase
-        //assertThat(getResponse.getField("_ttl").getValue().toString(), equalTo("10000000000000"));
         assertThat(getResponse.getField("_parent").isMetadataField(), equalTo(true));
         assertThat(getResponse.getField("_parent").getValue().toString(), equalTo("parent_1"));
     }
@@ -627,7 +609,7 @@ public class GetActionIT extends ESIntegTestCase {
                                     .startObject("field4").field("type", "text").field("store", true)
                                 .endObject().endObject()
                             .endObject().endObject()
-                        .endObject().endObject()
+                        .endObject().endObject().endObject()
                         .endObject().endObject().endObject()));
 
         BytesReference source = jsonBuilder().startObject()
@@ -779,16 +761,10 @@ public class GetActionIT extends ESIntegTestCase {
                 "  },\n" +
                 "  \"mappings\": {\n" +
                 "    \"parentdoc\": {\n" +
-                "      \"_ttl\": {\n" +
-                "        \"enabled\": true\n" +
-                "      }\n" +
                 "    },\n" +
                 "    \"doc\": {\n" +
                 "      \"_parent\": {\n" +
                 "        \"type\": \"parentdoc\"\n" +
-                "      },\n" +
-                "      \"_ttl\": {\n" +
-                "        \"enabled\": true\n" +
                 "      }\n" +
                 "    }\n" +
                 "  }\n" +
@@ -798,7 +774,7 @@ public class GetActionIT extends ESIntegTestCase {
 
         client().prepareIndex("test", "doc").setId("1").setSource("{}").setParent("1").setTTL(TimeValue.timeValueHours(1).getMillis()).get();
 
-        String[] fieldsList = {"_ttl", "_parent"};
+        String[] fieldsList = {"_parent"};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
         refresh();
@@ -814,14 +790,6 @@ public class GetActionIT extends ESIntegTestCase {
             "  \"settings\": {\n" +
             "    \"index.translog.flush_threshold_size\": \"1pb\",\n" +
             "    \"refresh_interval\": \"-1\"\n" +
-            "  },\n" +
-            "  \"mappings\": {\n" +
-            "    \"parentdoc\": {},\n" +
-            "    \"doc\": {\n" +
-            "      \"_timestamp\": {\n" +
-            "        \"enabled\": true\n" +
-            "      }\n" +
-            "    }\n" +
             "  }\n" +
             "}";
 
@@ -831,7 +799,7 @@ public class GetActionIT extends ESIntegTestCase {
             "  \"text\": \"some text.\"\n" +
             "}\n";
         client().prepareIndex("test", "doc").setId("1").setSource(doc).setRouting("1").get();
-        String[] fieldsList = {"_timestamp", "_routing"};
+        String[] fieldsList = {"_routing"};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
         refresh();
@@ -859,12 +827,6 @@ public class GetActionIT extends ESIntegTestCase {
         indexSingleDocumentWithStringFieldsGeneratedFromText(true, randomBoolean());
         String[] fieldsList = {"_all"};
         String[] alwaysNotStoredFieldsList = {"_field_names"};
-        // before refresh - document is only in translog
-        assertGetFieldsNull(indexOrAlias(), "doc", "1", fieldsList);
-        assertGetFieldsException(indexOrAlias(), "doc", "1", fieldsList);
-        assertGetFieldsNull(indexOrAlias(), "doc", "1", alwaysNotStoredFieldsList);
-        refresh();
-        //after refresh - document is in translog and also indexed
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
         assertGetFieldsNull(indexOrAlias(), "doc", "1", alwaysNotStoredFieldsList);
         flush();
@@ -914,11 +876,6 @@ public class GetActionIT extends ESIntegTestCase {
     public void testGeneratedNumberFieldsStored() throws IOException {
         indexSingleDocumentWithNumericFieldsGeneratedFromText(true, randomBoolean());
         String[] fieldsList = {"token_count", "text.token_count"};
-        // before refresh - document is only in translog
-        assertGetFieldsNull(indexOrAlias(), "doc", "1", fieldsList);
-        assertGetFieldsException(indexOrAlias(), "doc", "1", fieldsList);
-        refresh();
-        //after refresh - document is in translog and also indexed
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
         flush();
         //after flush - document is in not anymore translog - only indexed

@@ -56,6 +56,8 @@ public final class ShardRouting implements Writeable, ToXContent {
     private final AllocationId allocationId;
     private final transient List<ShardRouting> asList;
     private final long expectedShardSize;
+    @Nullable
+    private final ShardRouting targetRelocatingShard;
 
     /**
      * A constructor to internally create shard routing instances, note, the internal flag should only be set to true
@@ -74,9 +76,20 @@ public final class ShardRouting implements Writeable, ToXContent {
         this.unassignedInfo = unassignedInfo;
         this.allocationId = allocationId;
         this.expectedShardSize = expectedShardSize;
+        this.targetRelocatingShard = initializeTargetRelocatingShard();
         assert expectedShardSize == UNAVAILABLE_EXPECTED_SHARD_SIZE || state == ShardRoutingState.INITIALIZING || state == ShardRoutingState.RELOCATING : expectedShardSize + " state: " + state;
         assert expectedShardSize >= 0 || state != ShardRoutingState.INITIALIZING || state != ShardRoutingState.RELOCATING : expectedShardSize + " state: " + state;
         assert !(state == ShardRoutingState.UNASSIGNED && unassignedInfo == null) : "unassigned shard must be created with meta";
+    }
+
+    @Nullable
+    private ShardRouting initializeTargetRelocatingShard() {
+        if (state == ShardRoutingState.RELOCATING) {
+            return new ShardRouting(shardId, relocatingNodeId, currentNodeId, restoreSource, primary,
+                ShardRoutingState.INITIALIZING, unassignedInfo, AllocationId.newTargetRelocation(allocationId), expectedShardSize);
+        } else {
+            return null;
+        }
     }
 
     /**
@@ -177,14 +190,13 @@ public final class ShardRouting implements Writeable, ToXContent {
     }
 
     /**
-     * Creates a shard routing representing the target shard.
+     * Returns a shard routing representing the target shard.
      * The target shard routing will be the INITIALIZING state and have relocatingNodeId set to the
      * source node.
      */
-    public ShardRouting buildTargetRelocatingShard() {
+    public ShardRouting getTargetRelocatingShard() {
         assert relocating();
-        return new ShardRouting(shardId, relocatingNodeId, currentNodeId, restoreSource, primary, ShardRoutingState.INITIALIZING, unassignedInfo,
-            AllocationId.newTargetRelocation(allocationId), expectedShardSize);
+        return targetRelocatingShard;
     }
 
     /**
@@ -237,10 +249,9 @@ public final class ShardRouting implements Writeable, ToXContent {
             return true;
         }
 
-        // unassigned info is only cleared when a shard moves to started, so
-        // for unassigned and initializing (we checked for active() before),
-        // we can safely assume it is there
-        if (unassignedInfo.getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
+        // initializing replica might not have unassignedInfo
+        assert unassignedInfo != null || (primary == false && state == ShardRoutingState.INITIALIZING);
+        if (unassignedInfo != null && unassignedInfo.getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
             return false;
         }
 
@@ -250,6 +261,13 @@ public final class ShardRouting implements Writeable, ToXContent {
         }
 
         return true;
+    }
+
+    /**
+     * returns true for initializing shards that recover their data from another shard copy
+     */
+    public boolean isPeerRecovery() {
+        return state == ShardRoutingState.INITIALIZING && (primary() == false || relocatingNodeId != null);
     }
 
     /**
@@ -276,6 +294,7 @@ public final class ShardRouting implements Writeable, ToXContent {
         }
         expectedShardSize = shardSize;
         asList = Collections.singletonList(this);
+        targetRelocatingShard = initializeTargetRelocatingShard();
     }
 
     public ShardRouting(StreamInput in) throws IOException {
@@ -309,6 +328,7 @@ public final class ShardRouting implements Writeable, ToXContent {
 
     public ShardRouting updateUnassignedInfo(UnassignedInfo unassignedInfo) {
         assert this.unassignedInfo != null : "can only update unassign info if they are already set";
+        assert this.unassignedInfo.isDelayed() || (unassignedInfo.isDelayed() == false) : "cannot transition from non-delayed to delayed";
         return new ShardRouting(shardId, currentNodeId, relocatingNodeId, restoreSource, primary, state,
             unassignedInfo, allocationId, expectedShardSize);
     }
@@ -361,6 +381,20 @@ public final class ShardRouting implements Writeable, ToXContent {
         assert relocatingNodeId != null : this;
         return new ShardRouting(shardId, currentNodeId, null, restoreSource, primary, ShardRoutingState.STARTED,
             null, AllocationId.cancelRelocation(allocationId), UNAVAILABLE_EXPECTED_SHARD_SIZE);
+    }
+
+    /**
+     * Removes relocation source of a non-primary shard. The shard state must be <code>INITIALIZING</code>.
+     * This allows the non-primary shard to continue recovery from the primary even though its non-primary
+     * relocation source has failed.
+     */
+    public ShardRouting removeRelocationSource() {
+        assert primary == false : this;
+        assert state == ShardRoutingState.INITIALIZING : this;
+        assert assignedToNode() : this;
+        assert relocatingNodeId != null : this;
+        return new ShardRouting(shardId, currentNodeId, null, restoreSource, primary, state, unassignedInfo,
+            AllocationId.finishRelocation(allocationId), expectedShardSize);
     }
 
     /**
@@ -432,7 +466,7 @@ public final class ShardRouting implements Writeable, ToXContent {
     }
 
     /**
-     * Returns <code>true</code> if this shard is a relocation target for another shard (i.e., was created with {@link #buildTargetRelocatingShard()}
+     * Returns <code>true</code> if this shard is a relocation target for another shard (i.e., was created with {@link #initializeTargetRelocatingShard()}
      */
     public boolean isRelocationTarget() {
         return state == ShardRoutingState.INITIALIZING && relocatingNodeId != null;

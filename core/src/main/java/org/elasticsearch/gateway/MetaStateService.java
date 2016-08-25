@@ -40,7 +40,6 @@ public class MetaStateService extends AbstractComponent {
 
     private final NodeEnvironment nodeEnv;
 
-    @Inject
     public MetaStateService(Settings settings, NodeEnvironment nodeEnv) {
         super(settings);
         this.nodeEnv = nodeEnv;
@@ -125,9 +124,9 @@ public class MetaStateService extends AbstractComponent {
         final Index index = indexMetaData.getIndex();
         logger.trace("[{}] writing state, reason [{}]", index, reason);
         try {
-            IndexMetaData.FORMAT.write(indexMetaData, indexMetaData.getVersion(),
+            IndexMetaData.FORMAT.write(indexMetaData,
                 nodeEnv.indexPaths(indexMetaData.getIndex()));
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             logger.warn("[{}]: failed to write index state", ex, index);
             throw new IOException("failed to write state for [" + index + "]", ex);
         }
@@ -139,8 +138,8 @@ public class MetaStateService extends AbstractComponent {
     void writeGlobalState(String reason, MetaData metaData) throws Exception {
         logger.trace("[_global] writing state, reason [{}]",  reason);
         try {
-            MetaData.FORMAT.write(metaData, metaData.version(), nodeEnv.nodeDataPaths());
-        } catch (Throwable ex) {
+            MetaData.FORMAT.write(metaData, nodeEnv.nodeDataPaths());
+        } catch (Exception ex) {
             logger.warn("[_global]: failed to write global state", ex);
             throw new IOException("failed to write global state", ex);
         }

@@ -52,15 +52,15 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.geohashGrid;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public class GeoHashGridIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class); // uses index.version.created
+        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
     }
 
     private Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
@@ -201,7 +201,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
     public void testFiltered() throws Exception {
         GeoBoundingBoxQueryBuilder bbox = new GeoBoundingBoxQueryBuilder("location");
-        bbox.setCorners(smallestGeoHash, smallestGeoHash).queryName("bbox");
+        bbox.setCorners(smallestGeoHash).queryName("bbox");
         for (int precision = 1; precision <= PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx")
                     .addAggregation(
@@ -305,24 +305,24 @@ public class GeoHashGridIT extends ESIntegTestCase {
         }
     }
 
-    // making sure this doesn't runs into an OOME
     public void testSizeIsZero() {
-        for (int precision = 1; precision <= PRECISION; precision++) {
-            final int size = randomBoolean() ? 0 : randomIntBetween(1, Integer.MAX_VALUE);
-            final int shardSize = randomBoolean() ? -1 : 0;
-            SearchResponse response = client().prepareSearch("idx")
-                    .addAggregation(geohashGrid("geohashgrid")
-                            .field("location")
-                            .size(size)
-                            .shardSize(shardSize)
-                            .precision(precision)
-                    )
-                    .execute().actionGet();
+        final int size = 0;
+        final int shardSize = 10000;
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> client().prepareSearch("idx")
+                        .addAggregation(geohashGrid("geohashgrid").field("location").size(size).shardSize(shardSize)).execute()
+                        .actionGet());
+        assertThat(exception.getMessage(), containsString("[size] must be greater than 0. Found [0] in [geohashgrid]"));
+    }
 
-            assertSearchResponse(response);
-            GeoHashGrid geoGrid = response.getAggregations().get("geohashgrid");
-            assertThat(geoGrid.getBuckets().size(), greaterThanOrEqualTo(1));
-        }
+    public void testShardSizeIsZero() {
+        final int size = 100;
+        final int shardSize = 0;
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> client().prepareSearch("idx")
+                        .addAggregation(geohashGrid("geohashgrid").field("location").size(size).shardSize(shardSize))
+                        .execute().actionGet());
+        assertThat(exception.getMessage(), containsString("[shardSize] must be greater than 0. Found [0] in [geohashgrid]"));
     }
 
 }

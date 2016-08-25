@@ -39,7 +39,11 @@ public class RethrottleTests extends ReindexTestCase {
         testCase(updateByQuery().source("test"), UpdateByQueryAction.NAME);
     }
 
-    private void testCase(AbstractBulkIndexByScrollRequestBuilder<?, ? extends BulkIndexByScrollResponse, ?> request, String actionName)
+    public void testDeleteByQuery() throws Exception {
+        testCase(deleteByQuery().source("test"), DeleteByQueryAction.NAME);
+    }
+
+    private void testCase(AbstractBulkByScrollRequestBuilder<?, ?> request, String actionName)
             throws Exception {
         // Use a single shard so the reindex has to happen in multiple batches
         client().admin().indices().prepareCreate("test").setSettings("index.number_of_shards", 1).get();
@@ -49,13 +53,18 @@ public class RethrottleTests extends ReindexTestCase {
                 client().prepareIndex("test", "test", "3").setSource("foo", "bar"));
 
         // Start a request that will never finish unless we rethrottle it
-        request.setRequestsPerSecond(.000001f);  // Throttle forever
+        request.setRequestsPerSecond(.000001f);  // Throttle "forever"
         request.source().setSize(1);             // Make sure we use multiple batches
         ListenableActionFuture<? extends BulkIndexByScrollResponse> responseListener = request.execute();
+
+        // Wait for the task to start
+        assertBusy(() -> assertEquals(1, client().admin().cluster().prepareListTasks().setActions(actionName).get().getTasks().size()));
 
         // Now rethrottle it so it'll finish
         ListTasksResponse rethrottleResponse = rethrottle().setActions(actionName).setRequestsPerSecond(Float.POSITIVE_INFINITY).get();
         assertThat(rethrottleResponse.getTasks(), hasSize(1));
+        BulkByScrollTask.Status status = (BulkByScrollTask.Status) rethrottleResponse.getTasks().get(0).getStatus();
+        assertEquals(Float.POSITIVE_INFINITY, status.getRequestsPerSecond(), Float.MIN_NORMAL);
 
         // Now the response should come back quickly because we've rethrottled the request
         BulkIndexByScrollResponse response = responseListener.get();

@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class MappingCharFilterFactory extends AbstractCharFilterFactory {
+public class MappingCharFilterFactory extends AbstractCharFilterFactory implements MultiTermAwareComponent {
 
     private final NormalizeCharMap normMap;
 
@@ -113,5 +113,10 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory {
             out[writePos++] = c;
         }
         return new String(out, 0, writePos);
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }

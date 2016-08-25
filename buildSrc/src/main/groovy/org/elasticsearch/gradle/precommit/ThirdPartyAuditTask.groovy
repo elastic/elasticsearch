@@ -203,8 +203,7 @@ public class ThirdPartyAuditTask extends AntTask {
         Set<String> sheistySet = getSheistyClasses(tmpDir.toPath());
 
         try {
-            ant.thirdPartyAudit(internalRuntimeForbidden: false,
-                            failOnUnsupportedJava: false,
+            ant.thirdPartyAudit(failOnUnsupportedJava: false,
                             failOnMissingClasses: false,
                             signaturesFile: new File(getClass().getResource('/forbidden/third-party-audit.txt').toURI()),
                             classpath: classpath.asPath) {

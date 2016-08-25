@@ -31,7 +31,9 @@ import java.util.Set;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -42,31 +44,30 @@ public class SettingsTests extends ESTestCase {
         String value = System.getProperty("java.home");
         assertFalse(value.isEmpty());
         Settings settings = Settings.builder()
-                 .put("setting1", "${java.home}")
+                 .put("property.placeholder", value)
+                 .put("setting1", "${property.placeholder}")
                  .replacePropertyPlaceholders()
                  .build();
         assertThat(settings.get("setting1"), equalTo(value));
-
-        assertNull(System.getProperty("_test_property_should_not_exist"));
-        settings = Settings.builder()
-                .put("setting1", "${_test_property_should_not_exist:defaultVal1}")
-                .replacePropertyPlaceholders()
-                .build();
-        assertThat(settings.get("setting1"), equalTo("defaultVal1"));
-
-        settings = Settings.builder()
-                .put("setting1", "${_test_property_should_not_exist:}")
-                .replacePropertyPlaceholders()
-                .build();
-        assertThat(settings.get("setting1"), is(nullValue()));
     }
 
-    public void testReplacePropertiesPlaceholderIgnoreEnvUnset() {
-        Settings settings = Settings.builder()
-                .put("setting1", "${env.UNSET_ENV_VAR}")
+    public void testReplacePropertiesPlaceholderSystemVariablesHaveNoEffect() {
+        final String value = System.getProperty("java.home");
+        assertNotNull(value);
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Settings.builder()
+                .put("setting1", "${java.home}")
                 .replacePropertyPlaceholders()
-                .build();
-        assertThat(settings.get("setting1"), is(nullValue()));
+                .build());
+        assertThat(e, hasToString(containsString("Could not resolve placeholder 'java.home'")));
+    }
+
+    public void testReplacePropertiesPlaceholderByEnvironmentVariables() {
+        final String hostname = randomAsciiOfLength(16);
+        final Settings implicitEnvSettings = Settings.builder()
+            .put("setting1", "${HOSTNAME}")
+            .replacePropertyPlaceholders(name -> "HOSTNAME".equals(name) ? hostname : null)
+            .build();
+        assertThat(implicitEnvSettings.get("setting1"), equalTo(hostname));
     }
 
     public void testReplacePropertiesPlaceholderIgnoresPrompt() {

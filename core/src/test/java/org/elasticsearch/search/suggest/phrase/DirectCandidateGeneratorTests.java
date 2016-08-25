@@ -206,7 +206,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
     private static DirectCandidateGeneratorBuilder serializedCopy(DirectCandidateGeneratorBuilder original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
-            try (StreamInput in = StreamInput.wrap(output.bytes())) {
+            try (StreamInput in = output.bytes().streamInput()) {
                 return new DirectCandidateGeneratorBuilder(in);
             }
         }

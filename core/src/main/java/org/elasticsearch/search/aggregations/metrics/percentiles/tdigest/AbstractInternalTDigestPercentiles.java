@@ -33,11 +33,9 @@ import java.util.Map;
 
 abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
-    protected double[] keys;
-    protected TDigestState state;
-    private boolean keyed;
-
-    AbstractInternalTDigestPercentiles() {} // for serialization
+    protected final double[] keys;
+    protected final TDigestState state;
+    private final boolean keyed;
 
     public AbstractInternalTDigestPercentiles(String name, double[] keys, TDigestState state, boolean keyed, DocValueFormat formatter,
             List<PipelineAggregator> pipelineAggregators,
@@ -47,6 +45,25 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         this.state = state;
         this.keyed = keyed;
         this.format = formatter;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected AbstractInternalTDigestPercentiles(StreamInput in) throws IOException {
+        super(in);
+        format = in.readNamedWriteable(DocValueFormat.class);
+        keys = in.readDoubleArray();
+        state = TDigestState.read(in);
+        keyed = in.readBoolean();
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(format);
+        out.writeDoubleArray(keys);
+        TDigestState.write(state, out);
+        out.writeBoolean(keyed);
     }
 
     @Override
@@ -75,28 +92,6 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
 
     protected abstract AbstractInternalTDigestPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData);
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        format = in.readNamedWriteable(DocValueFormat.class);
-        keys = new double[in.readInt()];
-        for (int i = 0; i < keys.length; ++i) {
-            keys[i] = in.readDouble();
-        }
-        state = TDigestState.read(in);
-        keyed = in.readBoolean();
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(format);
-        out.writeInt(keys.length);
-        for (int i = 0 ; i < keys.length; ++i) {
-            out.writeDouble(keys[i]);
-        }
-        TDigestState.write(state, out);
-        out.writeBoolean(keyed);
-    }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {

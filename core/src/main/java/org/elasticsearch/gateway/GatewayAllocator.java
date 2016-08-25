@@ -62,6 +62,24 @@ public class GatewayAllocator extends AbstractComponent {
         this.replicaShardAllocator = new InternalReplicaShardAllocator(settings, storeAction);
     }
 
+    /**
+     * Returns true if the given shard has an async fetch pending
+     */
+    public boolean hasFetchPending(ShardId shardId, boolean primary) {
+        if (primary) {
+            AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetch = asyncFetchStarted.get(shardId);
+            if (fetch != null) {
+                return fetch.getNumberOfInFlightFetches() > 0;
+            }
+        } else {
+            AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetch = asyncFetchStore.get(shardId);
+            if (fetch != null) {
+                return fetch.getNumberOfInFlightFetches() > 0;
+            }
+        }
+        return false;
+    }
+
     public void setReallocation(final ClusterService clusterService, final RoutingService routingService) {
         this.routingService = routingService;
         clusterService.add(new ClusterStateListener() {
@@ -106,21 +124,18 @@ public class GatewayAllocator extends AbstractComponent {
 
     public void applyFailedShards(FailedRerouteAllocation allocation) {
         for (FailedRerouteAllocation.FailedShard shard : allocation.failedShards()) {
-            Releasables.close(asyncFetchStarted.remove(shard.shard.shardId()));
-            Releasables.close(asyncFetchStore.remove(shard.shard.shardId()));
+            Releasables.close(asyncFetchStarted.remove(shard.routingEntry.shardId()));
+            Releasables.close(asyncFetchStore.remove(shard.routingEntry.shardId()));
         }
     }
 
-    public boolean allocateUnassigned(final RoutingAllocation allocation) {
-        boolean changed = false;
-
+    public void allocateUnassigned(final RoutingAllocation allocation) {
         RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
         unassigned.sort(PriorityComparator.getAllocationComparator(allocation)); // sort for priority ordering
 
-        changed |= primaryShardAllocator.allocateUnassigned(allocation);
-        changed |= replicaShardAllocator.processExistingRecoveries(allocation);
-        changed |= replicaShardAllocator.allocateUnassigned(allocation);
-        return changed;
+        primaryShardAllocator.allocateUnassigned(allocation);
+        replicaShardAllocator.processExistingRecoveries(allocation);
+        replicaShardAllocator.allocateUnassigned(allocation);
     }
 
     class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {

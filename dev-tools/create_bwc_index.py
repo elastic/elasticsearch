@@ -31,7 +31,6 @@ DEFAULT_HTTP_TCP_PORT = 9200
 if sys.version_info[0] < 3:
   print('%s must use python 3.x (for the ES python client)' % sys.argv[0])
 
-from datetime import datetime
 try:
   from elasticsearch import Elasticsearch
   from elasticsearch.exceptions import ConnectionError
@@ -134,16 +133,19 @@ def start_node(version, release_dir, data_dir, repo_dir, tcp_port=DEFAULT_TRANSP
   logging.info('Starting node from %s on port %s/%s, data_dir %s' % (release_dir, tcp_port, http_port, data_dir))
   if cluster_name is None:
     cluster_name = 'bwc_index_' + version
-    
+  if parse_version(version) < parse_version("5.0.0-alpha1"):
+    prefix = '-Des.'
+  else:
+    prefix = '-E'
   cmd = [
     os.path.join(release_dir, 'bin/elasticsearch'),
-    '-Des.path.data=%s' % data_dir,
-    '-Des.path.logs=logs',
-    '-Des.cluster.name=%s' % cluster_name,
-    '-Des.network.host=localhost',
-    '-Des.transport.tcp.port=%s' % tcp_port,
-    '-Des.http.port=%s' % http_port,
-    '-Des.path.repo=%s' % repo_dir
+    '%spath.data=%s' % (prefix, data_dir),
+    '%spath.logs=logs' % prefix,
+    '%scluster.name=%s' % (prefix, cluster_name),
+    '%snetwork.host=localhost' % prefix,
+    '%stransport.tcp.port=%s' % (prefix, tcp_port),
+    '%shttp.port=%s' % (prefix, http_port),
+    '%spath.repo=%s' % (prefix, repo_dir)
   ]
   if version.startswith('0.') or version.startswith('1.0.0.Beta') :
     cmd.append('-f') # version before 1.0 start in background automatically
@@ -178,9 +180,15 @@ def generate_index(client, version, index_name):
   logging.info('Create single shard test index')
 
   mappings = {}
-  if not version.startswith('2.'):
-    # TODO: we need better "before/onOr/after" logic in python
-
+  warmers = {}
+  if parse_version(version) < parse_version('2.0.0-alpha1'):
+    warmers['warmer1'] = {
+      'source': {
+        'query': {
+          'match_all': {}
+        }
+      }
+    }
     # backcompat test for legacy type level analyzer settings, see #8874
     mappings['analyzer_type1'] = {
       'analyzer': 'standard',
@@ -219,15 +227,9 @@ def generate_index(client, version, index_name):
       }
     }
     mappings['meta_fields'] = {
-      '_id': {
-        'path': 'myid'
-      },
       '_routing': {
-        'path': 'myrouting'
+        'required': 'false'
       },
-      '_boost': {
-        'null_value': 2.0
-      }     
     }
     mappings['custom_formats'] = {
       'properties': {
@@ -246,34 +248,57 @@ def generate_index(client, version, index_name):
         'auto_boost': True
       }
     }
-
-  mappings['norms'] = {
-    'properties': {
-      'string_with_norms_disabled': {
-        'type': 'string',
-        'norms': {
-          'enabled': False
-        }
-      },
-      'string_with_norms_enabled': {
-        'type': 'string',
-        'index': 'not_analyzed',
-        'norms': {
-          'enabled': True,
-          'loading': 'eager'
+  if parse_version(version) < parse_version("5.0.0-alpha1"):
+    mappings['norms'] = {
+      'properties': {
+        'string_with_norms_disabled': {
+          'type': 'string',
+          'norms' : {
+            'enabled' : False
+          }
+        },
+        'string_with_norms_enabled': {
+          'type': 'string',
+          'index': 'not_analyzed',
+          'norms': {
+            'enabled' : True,
+            'loading': 'eager'
+          }
         }
       }
     }
-  }
 
-  mappings['doc'] = {
-    'properties': {
-      'string': {
-        'type': 'string',
-        'boost': 4
+    mappings['doc'] = {
+      'properties': {
+        'string': {
+          'type': 'string',
+          'boost': 4
+        }
       }
     }
-  }
+  else: # current version of the norms mapping
+    mappings['norms'] = {
+      'properties': {
+        'string_with_norms_disabled': {
+          'type': 'text',
+          'norms' : False
+        },
+        'string_with_norms_enabled': {
+          'type': 'keyword',
+          'index': 'not_analyzed',
+          'norms': True,
+          'eager_global_ordinals' : True
+        }
+      }
+    }
+    mappings['doc'] = {
+      'properties': {
+        'string': {
+          'type': 'text',
+          'boost': 4
+        }
+      }
+    }
 
   settings = {
     'number_of_shards': 1,
@@ -284,21 +309,14 @@ def generate_index(client, version, index_name):
     settings['gc_deletes'] = '60000',
     # Same as ES default (5 GB), but missing the units to make sure they are inserted on upgrade:
     settings['merge.policy.max_merged_segment'] = '5368709120'
-    
-  warmers = {}
-  warmers['warmer1'] = {
-    'source': {
-      'query': {
-        'match_all': {}
-      }
-    }
+  body = {
+    'settings': settings,
+    'mappings': mappings,
   }
 
-  client.indices.create(index=index_name, body={
-      'settings': settings,
-      'mappings': mappings,
-      'warmers': warmers
-  })
+  if warmers:
+    body['warmers'] = warmers
+  client.indices.create(index=index_name, body=body)
   health = client.cluster.health(wait_for_status='green', wait_for_relocating_shards=0)
   assert health['timed_out'] == False, 'cluster health timed out %s' % health
 
@@ -313,15 +331,17 @@ def generate_index(client, version, index_name):
   run_basic_asserts(client, index_name, 'doc', num_docs)
 
 def snapshot_index(client, version, repo_dir):
+  persistent = {
+    'cluster.routing.allocation.exclude.version_attr': version
+  }
+  if parse_version(version) < parse_version('5.0.0-alpha1'):
+    # Same as ES default (30 seconds), but missing the units to make sure they are inserted on upgrade:
+    persistent['discovery.zen.publish_timeout'] = '30000'
+    # Same as ES default (512 KB), but missing the units to make sure they are inserted on upgrade:
+    persistent['indices.recovery.file_chunk_size'] = '524288'
   # Add bogus persistent settings to make sure they can be restored
   client.cluster.put_settings(body={
-    'persistent': {
-      'cluster.routing.allocation.exclude.version_attr': version,
-      # Same as ES default (30 seconds), but missing the units to make sure they are inserted on upgrade:
-      'discovery.zen.publish_timeout': '30000',
-      # Same as ES default (512 KB), but missing the units to make sure they are inserted on upgrade:
-      'indices.recovery.file_chunk_size': '524288',
-    }
+    'persistent': persistent
   })
   client.indices.put_template(name='template_' + version.lower(), order=0, body={
     "template": "te*",
@@ -446,7 +466,24 @@ def shutdown_node(node):
   logging.info('Shutting down node with pid %d', node.pid)
   node.terminate()
   node.wait()
-    
+
+def parse_version(version):
+  import re
+  splitted = re.split('[.-]', version)
+  if len(splitted) == 3:
+    splitted = splitted + ['GA']
+  splitted = [s.lower() for s in splitted]
+  assert len(splitted) == 4;
+  return splitted
+
+assert parse_version('5.0.0-alpha1') == parse_version('5.0.0-alpha1')
+assert parse_version('5.0.0-alpha1') < parse_version('5.0.0-alpha2')
+assert parse_version('5.0.0-alpha1') < parse_version('5.0.0-beta1')
+assert parse_version('5.0.0-beta1') < parse_version('5.0.0')
+assert parse_version('1.2.3') < parse_version('2.1.0')
+assert parse_version('1.2.3') < parse_version('1.2.4')
+assert parse_version('1.1.0') < parse_version('1.2.0')
+
 def main():
   logging.basicConfig(format='[%(levelname)s] [%(asctime)s] %(message)s', level=logging.INFO,
                       datefmt='%Y-%m-%d %I:%M:%S %p')
@@ -461,3 +498,4 @@ if __name__ == '__main__':
     main()
   except KeyboardInterrupt:
     print('Caught keyboard interrupt, exiting...')
+

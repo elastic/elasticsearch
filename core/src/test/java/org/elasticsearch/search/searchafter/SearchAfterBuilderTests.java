@@ -45,7 +45,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SearchAfterBuilderTests extends ESTestCase {
     private static final int NUMBER_OF_TESTBUILDERS = 20;
-    private static NamedWriteableRegistry namedWriteableRegistry;
     private static IndicesQueriesRegistry indicesQueriesRegistry;
 
     /**
@@ -53,19 +52,17 @@ public class SearchAfterBuilderTests extends ESTestCase {
      */
     @BeforeClass
     public static void init() {
-        namedWriteableRegistry = new NamedWriteableRegistry();
         indicesQueriesRegistry = new IndicesQueriesRegistry();
         QueryParser<MatchAllQueryBuilder> parser = MatchAllQueryBuilder::fromXContent;
-        indicesQueriesRegistry.register(parser, MatchAllQueryBuilder.QUERY_NAME_FIELD);
+        indicesQueriesRegistry.register(parser, MatchAllQueryBuilder.NAME);
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
-        namedWriteableRegistry = null;
         indicesQueriesRegistry = null;
     }
 
-    private final SearchAfterBuilder randomSearchFromBuilder() throws IOException {
+    private SearchAfterBuilder randomSearchFromBuilder() throws IOException {
         int numSearchFrom = randomIntBetween(1, 10);
         SearchAfterBuilder searchAfterBuilder = new SearchAfterBuilder();
         Object[] values = new Object[numSearchFrom];
@@ -112,7 +109,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
     // ensure that every number type remain the same before/after xcontent (de)serialization.
     // This is not a problem because the final type of each field value is extracted from associated sort field.
     // This little trick ensure that equals and hashcode are the same when using the xcontent serialization.
-    private final SearchAfterBuilder randomJsonSearchFromBuilder() throws IOException {
+    private SearchAfterBuilder randomJsonSearchFromBuilder() throws IOException {
         int numSearchAfter = randomIntBetween(1, 10);
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         jsonBuilder.startObject();
@@ -164,7 +161,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
     private static SearchAfterBuilder serializedCopy(SearchAfterBuilder original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = output.bytes().streamInput()) {
                 return new SearchAfterBuilder(in);
             }
         }

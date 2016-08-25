@@ -22,7 +22,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
 
@@ -49,7 +49,7 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
     public SimulateDocumentBaseResult(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             ingestDocument = null;
-            failure = in.readThrowable();
+            failure = in.readException();
         } else {
             ingestDocument = new WriteableIngestDocument(in);
             failure = null;
@@ -63,7 +63,7 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
             ingestDocument.writeTo(out);
         } else {
             out.writeBoolean(true);
-            out.writeThrowable(failure);
+            out.writeException(failure);
         }
     }
 
@@ -84,7 +84,7 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
         if (failure == null) {
             ingestDocument.toXContent(builder, params);
         } else {
-            ElasticsearchException.renderThrowable(builder, params, failure);
+            ElasticsearchException.renderException(builder, params, failure);
         }
         builder.endObject();
         return builder;

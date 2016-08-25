@@ -142,6 +142,6 @@ public class AutoCreateIndexTests extends ESTestCase {
         for (String index : indices) {
             metaData.put(IndexMetaData.builder(index).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1));
         }
-        return ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).build();
+        return ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).metaData(metaData).build();
     }
 }

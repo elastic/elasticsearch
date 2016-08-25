@@ -62,7 +62,7 @@ public interface Terms extends MultiBucketsAggregation {
     /**
      * A bucket that is associated with a single term
      */
-    static abstract class Bucket extends InternalMultiBucketAggregation.InternalBucket {
+    abstract static class Bucket extends InternalMultiBucketAggregation.InternalBucket {
 
         public abstract Number getKeyAsNumber();
 
@@ -97,7 +97,7 @@ public interface Terms extends MultiBucketsAggregation {
     /**
      * Determines the order by which the term buckets will be sorted
      */
-    static abstract class Order implements ToXContent {
+    abstract static class Order implements ToXContent {
 
         /**
          * @return a bucket ordering strategy that sorts buckets by their document counts (ascending or descending)

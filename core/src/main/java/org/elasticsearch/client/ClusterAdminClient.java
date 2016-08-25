@@ -39,6 +39,9 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -96,9 +99,6 @@ import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRespo
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateRequest;
-import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateRequestBuilder;
-import org.elasticsearch.action.admin.cluster.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequestBuilder;
 import org.elasticsearch.action.ingest.GetPipelineRequest;
@@ -112,6 +112,7 @@ import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.tasks.TaskId;
 
 /**
  * Administrative actions/operations against indices.
@@ -302,6 +303,34 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * List active tasks
      */
     ListTasksRequestBuilder prepareListTasks(String... nodesIds);
+
+    /**
+     * Get a task.
+     *
+     * @param request the request
+     * @return the result future
+     * @see org.elasticsearch.client.Requests#getTaskRequest()
+     */
+    ActionFuture<GetTaskResponse> getTask(GetTaskRequest request);
+
+    /**
+     * Get a task.
+     *
+     * @param request the request
+     * @param listener A listener to be notified with the result
+     * @see org.elasticsearch.client.Requests#getTaskRequest()
+     */
+    void getTask(GetTaskRequest request, ActionListener<GetTaskResponse> listener);
+
+    /**
+     * Fetch a task by id.
+     */
+    GetTaskRequestBuilder prepareGetTask(String taskId);
+
+    /**
+     * Fetch a task by id.
+     */
+    GetTaskRequestBuilder prepareGetTask(TaskId taskId);
 
     /**
      * Cancel tasks
@@ -503,28 +532,6 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Get snapshot status.
      */
     SnapshotsStatusRequestBuilder prepareSnapshotStatus();
-
-
-    /**
-     * Return the rendered search request for a given search template.
-     *
-     * @param request The request
-     * @return The result future
-     */
-    ActionFuture<RenderSearchTemplateResponse> renderSearchTemplate(RenderSearchTemplateRequest request);
-
-    /**
-     * Return the rendered search request for a given search template.
-     *
-     * @param request  The request
-     * @param listener A listener to be notified of the result
-     */
-    void renderSearchTemplate(RenderSearchTemplateRequest request, ActionListener<RenderSearchTemplateResponse> listener);
-
-    /**
-     * Return the rendered search request for a given search template.
-     */
-    RenderSearchTemplateRequestBuilder prepareRenderSearchTemplate();
 
     /**
      * Stores an ingest pipeline

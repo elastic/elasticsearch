@@ -48,7 +48,6 @@
                     merges.total_docs                .+   \n
                     merges.total_size                .+   \n
                     merges.total_time                .+   \n
-                    percolate.queries                .+   \n
                     refresh.total                    .+   \n
                     refresh.time                     .+   \n
                     search.fetch_current             .+   \n
@@ -64,7 +63,6 @@
                     segments.count                   .+   \n
                     segments.memory                  .+   \n
                     segments.index_writer_memory     .+   \n
-                    segments.index_writer_max_memory .+   \n
                     segments.version_map_memory      .+   \n
                     segments.fixed_bitset_memory     .+   \n
                     warmer.current                   .+   \n
@@ -89,9 +87,6 @@
             number_of_shards: 5
             number_of_replicas: 0
 
-  - do:
-      cluster.health:
-        wait_for_status: green
   - do:
       indices.flush_synced:
         index: sync_id_test
@@ -119,10 +114,6 @@
             number_of_replicas: 0
 
   - do:
-      cluster.health:
-        wait_for_status: green
-
-  - do:
       cat.shards:
         index: sync_id_no_flush_test
         h: index,state,sync_id
@@ -142,9 +133,6 @@
             number_of_shards: "5"
             number_of_replicas: "1"
   - do:
-       cluster.health:
-         wait_for_status: yellow
-  - do:
       cat.shards: {}
 
   - match:
@@ -158,10 +146,6 @@
           settings:
             number_of_shards: "5"
             number_of_replicas: "0"
-  - do:
-       cluster.health:
-         wait_for_status: yellow
-         wait_for_relocating_shards: 0
 
   - do:
       cat.shards: {}
@@ -185,10 +169,6 @@
             number_of_replicas: "1"
             shadow_replicas: true
             shared_filesystem: false
-  - do:
-       cluster.health:
-         wait_for_status: yellow
-         wait_for_relocating_shards: 0
 
   - do:
       cat.shards:
@@ -196,3 +176,50 @@
   - match:
       $body: |
                /^(index3 \s+ \d \s+ (p|s) \s+ ((STARTED|INITIALIZING|RELOCATING) \s+ (\d \s+ (\d+|\d+[.]\d+)(kb|b) \s+)? \d{1,3}.\d{1,3}.\d{1,3}.\d{1,3} \s+ .+|UNASSIGNED \s+) \n?){2}$/
+
+---
+"Test cat shards using wildcards":
+
+  - do:
+      indices.create:
+        index: foo
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: bar
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      indices.create:
+        index: baz
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+      cat.shards:
+        index: f*
+        v: false
+        h: i
+
+  - match:
+      $body: |
+               /^(foo \n?)$/
+
+  - do:
+      cat.shards:
+        index: ba*
+        v: false
+        h: i
+
+  - match:
+      $body: |
+               /^(ba(r|z) \n?){2}$/

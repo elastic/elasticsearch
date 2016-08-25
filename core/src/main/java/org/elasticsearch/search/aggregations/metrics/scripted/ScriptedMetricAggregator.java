@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
@@ -34,6 +33,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -52,13 +52,12 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         super(name, context, parent, pipelineAggregators, metaData);
         this.params = params;
         ScriptService scriptService = context.searchContext().scriptService();
-        ClusterState state = context.searchContext().getQueryShardContext().getClusterState();
         if (initScript != null) {
-            scriptService.executable(initScript, ScriptContext.Standard.AGGS, Collections.emptyMap(), state).run();
+            scriptService.executable(initScript, ScriptContext.Standard.AGGS, Collections.emptyMap()).run();
         }
-        this.mapScript = scriptService.search(context.searchContext().lookup(), mapScript, ScriptContext.Standard.AGGS, Collections.emptyMap(), state);
+        this.mapScript = scriptService.search(context.searchContext().lookup(), mapScript, ScriptContext.Standard.AGGS, Collections.emptyMap());
         if (combineScript != null) {
-            this.combineScript = scriptService.executable(combineScript, ScriptContext.Standard.AGGS, Collections.emptyMap(), state);
+            this.combineScript = scriptService.executable(combineScript, ScriptContext.Standard.AGGS, Collections.emptyMap());
         } else {
             this.combineScript = null;
         }

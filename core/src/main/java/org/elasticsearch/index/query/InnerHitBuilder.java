@@ -28,17 +28,18 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
-import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
-import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
-import org.elasticsearch.search.fetch.source.FetchSourceContext;
-import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -60,8 +61,9 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
 
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
+    public static final QueryBuilder DEFAULT_INNER_HIT_QUERY = new MatchAllQueryBuilder();
 
-    private final static ObjectParser<InnerHitBuilder, QueryParseContext> PARSER = new ObjectParser<>("inner_hits", InnerHitBuilder::new);
+    private static final ObjectParser<InnerHitBuilder, QueryParseContext> PARSER = new ObjectParser<>("inner_hits", InnerHitBuilder::new);
 
     static {
         PARSER.declareString(InnerHitBuilder::setName, NAME_FIELD);
@@ -70,8 +72,14 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         PARSER.declareBoolean(InnerHitBuilder::setExplain, SearchSourceBuilder.EXPLAIN_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setVersion, SearchSourceBuilder.VERSION_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setTrackScores, SearchSourceBuilder.TRACK_SCORES_FIELD);
-        PARSER.declareStringArray(InnerHitBuilder::setFieldNames, SearchSourceBuilder.FIELDS_FIELD);
-        PARSER.declareStringArray(InnerHitBuilder::setFieldDataFields, SearchSourceBuilder.FIELDDATA_FIELDS_FIELD);
+        PARSER.declareStringArray(InnerHitBuilder::setStoredFieldNames, SearchSourceBuilder.STORED_FIELDS_FIELD);
+        PARSER.declareField((p, i, c) -> {
+            throw new ParsingException(p.getTokenLocation(), "The field [" +
+                SearchSourceBuilder.FIELDS_FIELD + "] is no longer supported, please use [" +
+                SearchSourceBuilder.STORED_FIELDS_FIELD + "] to retrieve stored fields or _source filtering " +
+                "if the field is not stored");
+        }, SearchSourceBuilder.FIELDS_FIELD, ObjectParser.ValueType.STRING_ARRAY);
+        PARSER.declareStringArray(InnerHitBuilder::setDocValueFields, SearchSourceBuilder.DOCVALUE_FIELDS_FIELD);
         PARSER.declareField((p, i, c) -> {
             try {
                 Set<ScriptField> scriptFields = new HashSet<>();
@@ -130,56 +138,16 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
     private boolean version;
     private boolean trackScores;
 
-    private List<String> fieldNames;
-    private QueryBuilder query = new MatchAllQueryBuilder();
+    private StoredFieldsContext storedFieldsContext;
+    private QueryBuilder query = DEFAULT_INNER_HIT_QUERY;
     private List<SortBuilder<?>> sorts;
-    private List<String> fieldDataFields;
+    private List<String> docValueFields;
     private Set<ScriptField> scriptFields;
     private HighlightBuilder highlightBuilder;
     private FetchSourceContext fetchSourceContext;
     private Map<String, InnerHitBuilder> childInnerHits;
 
     public InnerHitBuilder() {
-    }
-
-    /**
-     * Read from a stream.
-     */
-    public InnerHitBuilder(StreamInput in) throws IOException {
-        name = in.readOptionalString();
-        nestedPath = in.readOptionalString();
-        parentChildType = in.readOptionalString();
-        from = in.readVInt();
-        size = in.readVInt();
-        explain = in.readBoolean();
-        version = in.readBoolean();
-        trackScores = in.readBoolean();
-        fieldNames = (List<String>) in.readGenericValue();
-        fieldDataFields = (List<String>) in.readGenericValue();
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            scriptFields = new HashSet<>(size);
-            for (int i = 0; i < size; i++) {
-                scriptFields.add(new ScriptField(in));
-            }
-        }
-        fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            sorts = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                sorts.add(in.readNamedWriteable(SortBuilder.class));
-            }
-        }
-        highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
-        query = in.readNamedWriteable(QueryBuilder.class);
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            childInnerHits = new HashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                childInnerHits.put(in.readString(), new InnerHitBuilder(in));
-            }
-        }
     }
 
     private InnerHitBuilder(InnerHitBuilder other) {
@@ -189,14 +157,14 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         explain = other.explain;
         version = other.version;
         trackScores = other.trackScores;
-        if (other.fieldNames != null) {
-            fieldNames = new ArrayList<>(other.fieldNames);
+        if (other.storedFieldsContext != null) {
+            storedFieldsContext = new StoredFieldsContext(other.storedFieldsContext);
         }
-        if (other.fieldDataFields != null) {
-            fieldDataFields = new ArrayList<>(other.fieldDataFields);
+        if (other.docValueFields != null) {
+            docValueFields = new ArrayList<> (other.docValueFields);
         }
         if (other.scriptFields != null) {
-            scriptFields = new HashSet<>(other.scriptFields);
+            scriptFields = new HashSet<> (other.scriptFields);
         }
         if (other.fetchSourceContext != null) {
             fetchSourceContext = new FetchSourceContext(
@@ -231,6 +199,46 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         }
     }
 
+    /**
+     * Read from a stream.
+     */
+    public InnerHitBuilder(StreamInput in) throws IOException {
+        name = in.readOptionalString();
+        nestedPath = in.readOptionalString();
+        parentChildType = in.readOptionalString();
+        from = in.readVInt();
+        size = in.readVInt();
+        explain = in.readBoolean();
+        version = in.readBoolean();
+        trackScores = in.readBoolean();
+        storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
+        docValueFields = (List<String>) in.readGenericValue();
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            scriptFields = new HashSet<>(size);
+            for (int i = 0; i < size; i++) {
+                scriptFields.add(new ScriptField(in));
+            }
+        }
+        fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            sorts = new ArrayList<>(size);
+            for (int i = 0; i < size; i++) {
+                sorts.add(in.readNamedWriteable(SortBuilder.class));
+            }
+        }
+        highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
+        query = in.readNamedWriteable(QueryBuilder.class);
+        if (in.readBoolean()) {
+            int size = in.readVInt();
+            childInnerHits = new HashMap<>(size);
+            for (int i = 0; i < size; i++) {
+                childInnerHits.put(in.readString(), new InnerHitBuilder(in));
+            }
+        }
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(name);
@@ -241,14 +249,14 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         out.writeBoolean(explain);
         out.writeBoolean(version);
         out.writeBoolean(trackScores);
-        out.writeGenericValue(fieldNames);
-        out.writeGenericValue(fieldDataFields);
+        out.writeOptionalWriteable(storedFieldsContext);
+        out.writeGenericValue(docValueFields);
         boolean hasScriptFields = scriptFields != null;
         out.writeBoolean(hasScriptFields);
         if (hasScriptFields) {
             out.writeVInt(scriptFields.size());
             for (ScriptField scriptField : scriptFields) {
-                scriptField.writeTo(out);;
+                scriptField.writeTo(out);
             }
         }
         out.writeOptionalStreamable(fetchSourceContext);
@@ -333,29 +341,106 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         return this;
     }
 
+    /**
+     * Gets the stored fields to load and return.
+     *
+     * @deprecated Use {@link InnerHitBuilder#getStoredFieldsContext()} instead.
+     */
+    @Deprecated
     public List<String> getFieldNames() {
-        return fieldNames;
+        return storedFieldsContext == null ? null : storedFieldsContext.fieldNames();
     }
 
+    /**
+     * Sets the stored fields to load and return.
+     * If none are specified, the source of the document will be returned.
+     *
+     * @deprecated Use {@link InnerHitBuilder#setStoredFieldNames(List)} instead.
+     */
+    @Deprecated
     public InnerHitBuilder setFieldNames(List<String> fieldNames) {
-        this.fieldNames = fieldNames;
-        return this;
+        return setStoredFieldNames(fieldNames);
     }
 
-    public List<String> getFieldDataFields() {
-        return fieldDataFields;
+
+    /**
+     * Gets the stored fields context.
+     */
+    public StoredFieldsContext getStoredFieldsContext() {
+        return storedFieldsContext;
     }
 
-    public InnerHitBuilder setFieldDataFields(List<String> fieldDataFields) {
-        this.fieldDataFields = fieldDataFields;
-        return this;
-    }
-
-    public InnerHitBuilder addFieldDataField(String field) {
-        if (fieldDataFields == null) {
-            fieldDataFields = new ArrayList<>();
+    /**
+     * Sets the stored fields to load and return.
+     * If none are specified, the source of the document will be returned.
+     */
+    public InnerHitBuilder setStoredFieldNames(List<String> fieldNames) {
+        if (storedFieldsContext == null) {
+            storedFieldsContext = StoredFieldsContext.fromList(fieldNames);
+        } else {
+            storedFieldsContext.addFieldNames(fieldNames);
         }
-        fieldDataFields.add(field);
+        return this;
+    }
+
+    /**
+     * Gets the docvalue fields.
+     *
+     * @deprecated Use {@link InnerHitBuilder#getDocValueFields()} instead.
+     */
+    @Deprecated
+    public List<String> getFieldDataFields() {
+        return docValueFields;
+    }
+
+    /**
+     * Sets the stored fields to load from the docvalue and return.
+     *
+     * @deprecated Use {@link InnerHitBuilder#setDocValueFields(List)} instead.
+     */
+    @Deprecated
+    public InnerHitBuilder setFieldDataFields(List<String> fieldDataFields) {
+        this.docValueFields = fieldDataFields;
+        return this;
+    }
+
+    /**
+     * Adds a field to load from the docvalue and return.
+     *
+     * @deprecated Use {@link InnerHitBuilder#addDocValueField(String)} instead.
+     */
+    @Deprecated
+    public InnerHitBuilder addFieldDataField(String field) {
+        if (docValueFields == null) {
+            docValueFields = new ArrayList<>();
+        }
+        docValueFields.add(field);
+        return this;
+    }
+
+    /**
+     * Gets the docvalue fields.
+     */
+    public List<String> getDocValueFields() {
+        return docValueFields;
+    }
+
+    /**
+     * Sets the stored fields to load from the docvalue and return.
+     */
+    public InnerHitBuilder setDocValueFields(List<String> docValueFields) {
+        this.docValueFields = docValueFields;
+        return this;
+    }
+
+    /**
+     * Adds a field to load from the docvalue and return.
+     */
+    public InnerHitBuilder addDocValueField(String field) {
+        if (docValueFields == null) {
+            docValueFields = new ArrayList<>();
+        }
+        docValueFields.add(field);
         return this;
     }
 
@@ -394,7 +479,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         return this;
     }
 
-    public InnerHitBuilder addSort(SortBuilder sort) {
+    public InnerHitBuilder addSort(SortBuilder<?> sort) {
         if (sorts == null) {
             sorts = new ArrayList<>();
         }
@@ -483,28 +568,22 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         innerHitsContext.explain(explain);
         innerHitsContext.version(version);
         innerHitsContext.trackScores(trackScores);
-        if (fieldNames != null) {
-            if (fieldNames.isEmpty()) {
-                innerHitsContext.emptyFieldNames();
-            } else {
-                for (String fieldName : fieldNames) {
-                    innerHitsContext.fieldNames().add(fieldName);
-                }
-            }
+        if (storedFieldsContext != null) {
+            innerHitsContext.storedFieldsContext(storedFieldsContext);
         }
-        if (fieldDataFields != null) {
-            FieldDataFieldsContext fieldDataFieldsContext = innerHitsContext
-                    .getFetchSubPhaseContext(FieldDataFieldsFetchSubPhase.CONTEXT_FACTORY);
-            for (String field : fieldDataFields) {
-                fieldDataFieldsContext.add(new FieldDataFieldsContext.FieldDataField(field));
+        if (docValueFields != null) {
+            DocValueFieldsContext docValueFieldsContext = innerHitsContext
+                    .getFetchSubPhaseContext(DocValueFieldsFetchSubPhase.CONTEXT_FACTORY);
+            for (String field : docValueFields) {
+                docValueFieldsContext.add(new DocValueFieldsContext.DocValueField(field));
             }
-            fieldDataFieldsContext.setHitExecutionNeeded(true);
+            docValueFieldsContext.setHitExecutionNeeded(true);
         }
         if (scriptFields != null) {
             for (ScriptField field : scriptFields) {
                 SearchScript searchScript = innerHitsContext.scriptService().search(innerHitsContext.lookup(), field.script(),
-                        ScriptContext.Standard.SEARCH, Collections.emptyMap(), context.getClusterState());
-                innerHitsContext.scriptFields().add(new org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField(
+                        ScriptContext.Standard.SEARCH, Collections.emptyMap());
+                innerHitsContext.scriptFields().add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                         field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }
@@ -552,20 +631,12 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         if (fetchSourceContext != null) {
             builder.field(SearchSourceBuilder._SOURCE_FIELD.getPreferredName(), fetchSourceContext, params);
         }
-        if (fieldNames != null) {
-            if (fieldNames.size() == 1) {
-                builder.field(SearchSourceBuilder.FIELDS_FIELD.getPreferredName(), fieldNames.get(0));
-            } else {
-                builder.startArray(SearchSourceBuilder.FIELDS_FIELD.getPreferredName());
-                for (String fieldName : fieldNames) {
-                    builder.value(fieldName);
-                }
-                builder.endArray();
-            }
+        if (storedFieldsContext != null) {
+            storedFieldsContext.toXContent(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), builder);
         }
-        if (fieldDataFields != null) {
-            builder.startArray(SearchSourceBuilder.FIELDDATA_FIELDS_FIELD.getPreferredName());
-            for (String fieldDataField : fieldDataFields) {
+        if (docValueFields != null) {
+            builder.startArray(SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.getPreferredName());
+            for (String fieldDataField : docValueFields) {
                 builder.value(fieldDataField);
             }
             builder.endArray();
@@ -612,8 +683,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
                 Objects.equals(explain, that.explain) &&
                 Objects.equals(version, that.version) &&
                 Objects.equals(trackScores, that.trackScores) &&
-                Objects.equals(fieldNames, that.fieldNames) &&
-                Objects.equals(fieldDataFields, that.fieldDataFields) &&
+                Objects.equals(storedFieldsContext, that.storedFieldsContext) &&
+                Objects.equals(docValueFields, that.docValueFields) &&
                 Objects.equals(scriptFields, that.scriptFields) &&
                 Objects.equals(fetchSourceContext, that.fetchSourceContext) &&
                 Objects.equals(sorts, that.sorts) &&
@@ -624,8 +695,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, nestedPath, parentChildType, from, size, explain, version, trackScores, fieldNames,
-                fieldDataFields, scriptFields, fetchSourceContext, sorts, highlightBuilder, query, childInnerHits);
+        return Objects.hash(name, nestedPath, parentChildType, from, size, explain, version, trackScores, storedFieldsContext,
+            docValueFields, scriptFields, fetchSourceContext, sorts, highlightBuilder, query, childInnerHits);
     }
 
     public static InnerHitBuilder fromXContent(QueryParseContext context) throws IOException {
@@ -639,6 +710,18 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
             throw new IllegalStateException("provided query builder [" + query.getClass() +
                     "] class should inherit from AbstractQueryBuilder, but it doesn't");
         }
+    }
+
+    static InnerHitBuilder rewrite(InnerHitBuilder original, QueryBuilder rewrittenQuery) {
+        if (original == null) {
+            return null;
+        }
+
+        InnerHitBuilder copy = new InnerHitBuilder(original);
+        copy.query = rewrittenQuery;
+        copy.parentChildType = original.parentChildType;
+        copy.nestedPath = original.nestedPath;
+        return copy;
     }
 
 }

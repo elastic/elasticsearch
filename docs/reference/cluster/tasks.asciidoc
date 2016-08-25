@@ -58,15 +58,26 @@ The result will look similar to the following:
 }
 --------------------------------------------------
 
-It is also possible to retrieve information for a particular task, or all children of a particular
-tasks using the following two commands:
+It is also possible to retrieve information for a particular task:
 
 [source,js]
 --------------------------------------------------
-GET _tasks/taskId:1
-GET _tasks?parent_task_id=parentTaskId:1
+GET _tasks/taskId:1 <1>
 --------------------------------------------------
 // CONSOLE
+// TEST[catch:missing]
+
+<1> This will return a 404 if the task isn't found.
+
+Or to retrieve all children of a particular task:
+
+[source,js]
+--------------------------------------------------
+GET _tasks?parent_task_id=parentTaskId:1 <1>
+--------------------------------------------------
+// CONSOLE
+
+<1> This won't return a 404 if the parent isn't found.
 
 The task API can be also used to wait for completion of a particular task. The following call will
 block for 10 seconds or until the task with id `oTUltX4IQMOUUVeiohTt8A:12345` is completed.
@@ -74,6 +85,16 @@ block for 10 seconds or until the task with id `oTUltX4IQMOUUVeiohTt8A:12345` is
 [source,js]
 --------------------------------------------------
 GET _tasks/oTUltX4IQMOUUVeiohTt8A:12345?wait_for_completion=true&timeout=10s
+--------------------------------------------------
+// CONSOLE
+// TEST[catch:missing]
+
+You can also wait for all tasks for certain action types to finish. This
+command will wait for all `reindex` tasks to finish:
+
+[source,js]
+--------------------------------------------------
+GET _tasks?actions=*reindex&wait_for_completion=true&timeout=10s
 --------------------------------------------------
 // CONSOLE
 

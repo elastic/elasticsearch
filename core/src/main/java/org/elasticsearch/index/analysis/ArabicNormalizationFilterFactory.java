@@ -27,7 +27,7 @@ import org.elasticsearch.index.IndexSettings;
 /**
  *
  */
-public class ArabicNormalizationFilterFactory extends AbstractTokenFilterFactory {
+public class ArabicNormalizationFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
     public ArabicNormalizationFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
@@ -36,5 +36,10 @@ public class ArabicNormalizationFilterFactory extends AbstractTokenFilterFactory
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new ArabicNormalizationFilter(tokenStream);
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
     }
 }

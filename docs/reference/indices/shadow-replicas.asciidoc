@@ -10,12 +10,12 @@ index.
 
 In order to fully utilize the `index.data_path` and `index.shadow_replicas`
 settings, you need to allow Elasticsearch to use the same data directory for
-multiple instances by setting `node.add_id_to_custom_path` to false in
+multiple instances by setting `node.add_lock_id_to_custom_path` to false in
 elasticsearch.yml:
 
 [source,yaml]
 --------------------------------------------------
-node.add_id_to_custom_path: false
+node.add_lock_id_to_custom_path: false
 --------------------------------------------------
 
 You will also need to indicate to the security manager where the custom indices
@@ -114,7 +114,7 @@ settings API:
 
 These are non-dynamic settings that need to be configured in `elasticsearch.yml`
 
-`node.add_id_to_custom_path`::
+`node.add_lock_id_to_custom_path`::
     Boolean setting indicating whether Elasticsearch should append the node's
     ordinal to the custom data path. For example, if this is enabled and a path
     of "/tmp/foo" is used, the first locally-running node will use "/tmp/foo/0",

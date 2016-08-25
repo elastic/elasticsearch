@@ -24,7 +24,7 @@
 #ES_JAVA_OPTS=
 
 # Configure restart on package upgrade (true, every other setting will lead to not restarting)
-#ES_RESTART_ON_UPGRADE=true
+#RESTART_ON_UPGRADE=true
 
 ################################
 # Elasticsearch service
@@ -53,7 +53,7 @@ ES_STARTUP_SLEEP_TIME=5
 #MAX_OPEN_FILES=65536
 
 # The maximum number of bytes of memory that may be locked into RAM
-# Set to "unlimited" if you use the 'bootstrap.mlockall: true' option
+# Set to "unlimited" if you use the 'bootstrap.memory_lock: true' option
 # in elasticsearch.yml.
 # When using Systemd, the LimitMEMLOCK property must be set
 # in /usr/lib/systemd/system/elasticsearch.service

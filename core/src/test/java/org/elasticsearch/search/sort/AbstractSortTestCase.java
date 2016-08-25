@@ -41,10 +41,10 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.LegacyDoubleFieldMapper.DoubleFieldType;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
-import org.elasticsearch.index.mapper.core.LegacyDoubleFieldMapper.DoubleFieldType;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.mapper.object.ObjectMapper.Nested;
+import org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -75,6 +75,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -95,19 +96,19 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
                 .build();
         Environment environment = new Environment(baseSettings);
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry
-                .ScriptEngineRegistration(TestEngineService.class, TestEngineService.TYPES)));
+        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new TestEngineService()));
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        scriptService = new ScriptService(baseSettings, environment, Collections.singleton(new TestEngineService()),
+        scriptService = new ScriptService(baseSettings, environment,
                 new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
-            public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params, ClusterState state) {
+            public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params) {
                 return new CompiledScript(ScriptType.INLINE, "mockName", "test", script);
             }
         };
 
-        namedWriteableRegistry = new NamedWriteableRegistry();
-        indicesQueriesRegistry = new SearchModule(Settings.EMPTY, namedWriteableRegistry).getQueryParserRegistry();
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
+        namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+        indicesQueriesRegistry = searchModule.getQueryParserRegistry();
     }
 
     @AfterClass
@@ -232,7 +233,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             }
         });
         return new QueryShardContext(idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
-                indicesQueriesRegistry, null, null, null, null) {
+                indicesQueriesRegistry, null, null, null) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);
@@ -273,7 +274,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     private T copyItem(T original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 return (T) namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName()).read(in);
             }
         }

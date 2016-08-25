@@ -40,11 +40,10 @@ import java.util.List;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
     public void testRepositoryCreation() throws Exception {
@@ -153,7 +152,9 @@ public class RepositoriesIT extends AbstractSnapshotIntegTestCase {
                     .get();
             fail("Shouldn't be here");
         } catch (RepositoryException ex) {
-            assertThat(ex.toString(), containsString("unsupported url protocol [netdoc]"));
+            assertThat(ex.toString(),
+                either(containsString("unsupported url protocol [netdoc]"))
+                    .or(containsString("unknown protocol: netdoc"))); // newer versions of JDK 9
         }
 
         logger.info("--> trying creating url repository with location that is not registered in path.repo setting");

@@ -19,25 +19,6 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import com.maxmind.geoip2.DatabaseReader;
-import com.maxmind.geoip2.exception.AddressNotFoundException;
-import com.maxmind.geoip2.model.CityResponse;
-import com.maxmind.geoip2.model.CountryResponse;
-import com.maxmind.geoip2.record.City;
-import com.maxmind.geoip2.record.Continent;
-import com.maxmind.geoip2.record.Country;
-import com.maxmind.geoip2.record.Location;
-import com.maxmind.geoip2.record.Subdivision;
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.network.InetAddresses;
-import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.ingest.core.AbstractProcessor;
-import org.elasticsearch.ingest.core.AbstractProcessorFactory;
-import org.elasticsearch.ingest.core.IngestDocument;
-
-import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.security.AccessController;
@@ -51,9 +32,26 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.ingest.core.ConfigurationUtils.newConfigurationException;
-import static org.elasticsearch.ingest.core.ConfigurationUtils.readOptionalList;
-import static org.elasticsearch.ingest.core.ConfigurationUtils.readStringProperty;
+import com.maxmind.geoip2.DatabaseReader;
+import com.maxmind.geoip2.exception.AddressNotFoundException;
+import com.maxmind.geoip2.model.CityResponse;
+import com.maxmind.geoip2.model.CountryResponse;
+import com.maxmind.geoip2.record.City;
+import com.maxmind.geoip2.record.Continent;
+import com.maxmind.geoip2.record.Country;
+import com.maxmind.geoip2.record.Location;
+import com.maxmind.geoip2.record.Subdivision;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.ingest.AbstractProcessor;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Processor;
+
+import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
+import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public final class GeoIpProcessor extends AbstractProcessor {
 
@@ -96,7 +94,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 }
                 break;
             default:
-                throw new ElasticsearchParseException("Unsupported database type [" + dbReader.getMetadata().getDatabaseType() + "]", new IllegalStateException());
+                throw new ElasticsearchParseException("Unsupported database type [" + dbReader.getMetadata().getDatabaseType()
+                        + "]", new IllegalStateException());
         }
         ingestDocument.setFieldValue(targetField, geoData);
     }
@@ -216,7 +215,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    public static final class Factory extends AbstractProcessorFactory<GeoIpProcessor> implements Closeable {
+    public static final class Factory implements Processor.Factory {
         static final Set<Property> DEFAULT_CITY_PROPERTIES = EnumSet.of(
             Property.CONTINENT_NAME, Property.COUNTRY_ISO_CODE, Property.REGION_NAME,
             Property.CITY_NAME, Property.LOCATION
@@ -230,15 +229,17 @@ public final class GeoIpProcessor extends AbstractProcessor {
         }
 
         @Override
-        public GeoIpProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public GeoIpProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+                                       Map<String, Object> config) throws Exception {
             String ipField = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "geoip");
-            String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb");
+            String databaseFile = readStringProperty(TYPE, processorTag, config, "database_file", "GeoLite2-City.mmdb.gz");
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
 
             DatabaseReader databaseReader = databaseReaders.get(databaseFile);
             if (databaseReader == null) {
-                throw newConfigurationException(TYPE, processorTag, "database_file", "database file [" + databaseFile + "] doesn't exist");
+                throw newConfigurationException(TYPE, processorTag,
+                    "database_file", "database file [" + databaseFile + "] doesn't exist");
             }
 
             String databaseType = databaseReader.getMetadata().getDatabaseType();
@@ -259,23 +260,19 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 } else if (COUNTRY_DB_TYPE.equals(databaseType)) {
                     properties = DEFAULT_COUNTRY_PROPERTIES;
                 } else {
-                    throw newConfigurationException(TYPE, processorTag, "database_file", "Unsupported database type [" + databaseType + "]");
+                    throw newConfigurationException(TYPE, processorTag, "database_file", "Unsupported database type ["
+                            + databaseType + "]");
                 }
             }
 
             return new GeoIpProcessor(processorTag, ipField, databaseReader, targetField, properties);
-        }
-
-        @Override
-        public void close() throws IOException {
-            IOUtils.close(databaseReaders.values());
         }
     }
 
     // Geoip2's AddressNotFoundException is checked and due to the fact that we need run their code
     // inside a PrivilegedAction code block, we are forced to catch any checked exception and rethrow
     // it with an unchecked exception.
-    private final static class AddressNotFoundRuntimeException extends RuntimeException {
+    private static final class AddressNotFoundRuntimeException extends RuntimeException {
 
         public AddressNotFoundRuntimeException(Throwable cause) {
             super(cause);
@@ -312,7 +309,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 }
                 return property;
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("illegal property value [" + value + "]. valid values are " + Arrays.toString(validProperties.toArray()));
+                throw new IllegalArgumentException("illegal property value [" + value + "]. valid values are " +
+                        Arrays.toString(validProperties.toArray()));
             }
         }
     }

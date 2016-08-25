@@ -36,9 +36,18 @@ import java.util.function.Supplier;
  */
 public abstract class HandledTransportAction<Request extends ActionRequest<Request>, Response extends ActionResponse>
         extends TransportAction<Request, Response> {
-    protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
+    protected HandledTransportAction(Settings settings, String actionName, ThreadPool threadPool, TransportService transportService,
+                                     ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                     Supplier<Request> request) {
+        this(settings, actionName, true, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
+    }
+
+    protected HandledTransportAction(Settings settings, String actionName, boolean canTripCircuitBreaker, ThreadPool threadPool,
+                                     TransportService transportService, ActionFilters actionFilters,
+                                     IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
         super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver, transportService.getTaskManager());
-        transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, new TransportHandler());
+        transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, false, canTripCircuitBreaker,
+            new TransportHandler());
     }
 
     class TransportHandler implements TransportRequestHandler<Request> {
@@ -50,19 +59,19 @@ public abstract class HandledTransportAction<Request extends ActionRequest<Reque
 
         @Override
         public final void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
-            // We already got the task created on the netty layer - no need to create it again on the transport layer
+            // We already got the task created on the network layer - no need to create it again on the transport layer
             execute(task, request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {
                     try {
                         channel.sendResponse(response);
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         onFailure(e);
                     }
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     try {
                         channel.sendResponse(e);
                     } catch (Exception e1) {

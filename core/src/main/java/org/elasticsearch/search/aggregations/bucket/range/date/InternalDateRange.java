@@ -20,11 +20,8 @@ package org.elasticsearch.search.aggregations.bucket.range.date;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
-import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -39,40 +36,6 @@ import java.util.Map;
  *
  */
 public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, InternalDateRange> {
-
-    public final static Type TYPE = new Type("date_range", "drange");
-
-    private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalDateRange readResult(StreamInput in) throws IOException {
-            InternalDateRange ranges = new InternalDateRange();
-            ranges.readFrom(in);
-            return ranges;
-        }
-    };
-
-    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
-        @Override
-        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
-            Bucket buckets = new Bucket(context.keyed(), context.format());
-            buckets.readFrom(in);
-            return buckets;
-        }
-
-        @Override
-        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
-            BucketStreamContext context = new BucketStreamContext();
-            context.format(bucket.format());
-            context.keyed(bucket.keyed());
-            return context;
-        }
-    };
-
-    public static void registerStream() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
-    }
-
     public static final Factory FACTORY = new Factory();
 
     public static class Bucket extends InternalRange.Bucket {
@@ -81,11 +44,13 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
             super(keyed, formatter);
         }
 
-        public Bucket(String key, double from, double to, long docCount, List<InternalAggregation> aggregations, boolean keyed, DocValueFormat formatter) {
+        public Bucket(String key, double from, double to, long docCount, List<InternalAggregation> aggregations, boolean keyed,
+                DocValueFormat formatter) {
             super(key, from, to, docCount, new InternalAggregations(aggregations), keyed, formatter);
         }
 
-        public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed, DocValueFormat formatter) {
+        public Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
+                DocValueFormat formatter) {
             super(key, from, to, docCount, aggregations, keyed, formatter);
         }
 
@@ -97,6 +62,14 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
         @Override
         public Object getTo() {
             return Double.isInfinite(((Number) to).doubleValue()) ? null : new DateTime(((Number) to).longValue(), DateTimeZone.UTC);
+        }
+
+        private Double internalGetFrom() {
+            return from;
+        }
+
+        private Double internalGetTo() {
+            return to;
         }
 
         @Override
@@ -114,10 +87,9 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
     }
 
     public static class Factory extends InternalRange.Factory<InternalDateRange.Bucket, InternalDateRange> {
-
         @Override
         public Type type() {
-            return TYPE;
+            return DateRangeAggregationBuilder.TYPE;
         }
 
         @Override
@@ -138,27 +110,33 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
         }
 
         @Override
-        public Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed, DocValueFormat formatter) {
+        public Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
+                DocValueFormat formatter) {
             return new Bucket(key, from, to, docCount, aggregations, keyed, formatter);
         }
 
         @Override
         public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
-            return new Bucket(prototype.getKey(), ((Number) prototype.getFrom()).doubleValue(), ((Number) prototype.getTo()).doubleValue(),
-                    prototype.getDocCount(), aggregations, prototype.getKeyed(), prototype.getFormat());
+            return new Bucket(prototype.getKey(), prototype.internalGetFrom(), prototype.internalGetTo(),
+                prototype.getDocCount(), aggregations, prototype.getKeyed(), prototype.getFormat());
         }
     }
-
-    InternalDateRange() {} // for serialization
 
     InternalDateRange(String name, List<InternalDateRange.Bucket> ranges, DocValueFormat formatter, boolean keyed,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, ranges, formatter, keyed, pipelineAggregators, metaData);
     }
 
+    /**
+     * Read from a stream.
+     */
+    public InternalDateRange(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    public String getWriteableName() {
+        return DateRangeAggregationBuilder.NAME;
     }
 
     @Override

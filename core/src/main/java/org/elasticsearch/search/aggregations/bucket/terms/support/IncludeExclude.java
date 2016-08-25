@@ -43,8 +43,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
+import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -134,8 +133,8 @@ public class IncludeExclude implements Writeable, ToXContent {
         }
     }
 
-    public static abstract class OrdinalsFilter {
-        public abstract LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) throws IOException;
+    public abstract static class OrdinalsFilter {
+        public abstract LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals) throws IOException;
 
     }
 
@@ -152,7 +151,8 @@ public class IncludeExclude implements Writeable, ToXContent {
          *
          */
         @Override
-        public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) throws IOException {
+        public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals)
+                throws IOException {
             LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
             TermsEnum globalTermsEnum;
             Terms globalTerms = new DocValuesTerms(globalOrdinals);
@@ -177,16 +177,16 @@ public class IncludeExclude implements Writeable, ToXContent {
         }
 
         @Override
-        public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, WithOrdinals valueSource) throws IOException {
+        public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals) throws IOException {
             LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
-            if(includeValues!=null){
+            if (includeValues != null) {
                 for (BytesRef term : includeValues) {
                     long ord = globalOrdinals.lookupTerm(term);
                     if (ord >= 0) {
                         acceptedGlobalOrdinals.set(ord);
                     }
                 }
-            } else {
+            } else if (acceptedGlobalOrdinals.length() > 0) {
                 // default to all terms being acceptable
                 acceptedGlobalOrdinals.set(0, acceptedGlobalOrdinals.length());
             }
@@ -534,33 +534,46 @@ public class IncludeExclude implements Writeable, ToXContent {
         return a;
     }
 
-    public StringFilter convertToStringFilter() {
+    public StringFilter convertToStringFilter(DocValueFormat format) {
         if (isRegexBased()) {
             return new AutomatonBackedStringFilter(toAutomaton());
         }
-        return new TermListBackedStringFilter(includeValues, excludeValues);
+        return new TermListBackedStringFilter(parseForDocValues(includeValues, format), parseForDocValues(excludeValues, format));
     }
 
-    public OrdinalsFilter convertToOrdinalsFilter() {
+    private static SortedSet<BytesRef> parseForDocValues(SortedSet<BytesRef> endUserFormattedValues, DocValueFormat format) {
+        SortedSet<BytesRef> result = endUserFormattedValues;
+        if (endUserFormattedValues != null) {
+            if (format != DocValueFormat.RAW) {
+                result = new TreeSet<>();
+                for (BytesRef formattedVal : endUserFormattedValues) {
+                    result.add(format.parseBytesRef(formattedVal.utf8ToString()));
+                }
+            }
+        }
+        return result;
+    }
+
+    public OrdinalsFilter convertToOrdinalsFilter(DocValueFormat format) {
 
         if (isRegexBased()) {
             return new AutomatonBackedOrdinalsFilter(toAutomaton());
         }
-        return new TermListBackedOrdinalsFilter(includeValues, excludeValues);
+        return new TermListBackedOrdinalsFilter(parseForDocValues(includeValues, format), parseForDocValues(excludeValues, format));
     }
 
-    public LongFilter convertToLongFilter() {
+    public LongFilter convertToLongFilter(DocValueFormat format) {
         int numValids = includeValues == null ? 0 : includeValues.size();
         int numInvalids = excludeValues == null ? 0 : excludeValues.size();
         LongFilter result = new LongFilter(numValids, numInvalids);
         if (includeValues != null) {
             for (BytesRef val : includeValues) {
-                result.addAccept(Long.parseLong(val.utf8ToString()));
+                result.addAccept(format.parseLong(val.utf8ToString(), false, null));
             }
         }
         if (excludeValues != null) {
             for (BytesRef val : excludeValues) {
-                result.addReject(Long.parseLong(val.utf8ToString()));
+                result.addReject(format.parseLong(val.utf8ToString(), false, null));
             }
         }
         return result;
@@ -572,13 +585,13 @@ public class IncludeExclude implements Writeable, ToXContent {
         LongFilter result = new LongFilter(numValids, numInvalids);
         if (includeValues != null) {
             for (BytesRef val : includeValues) {
-                double dval=Double.parseDouble(val.utf8ToString());
+                double dval = Double.parseDouble(val.utf8ToString());
                 result.addAccept(NumericUtils.doubleToSortableLong(dval));
             }
         }
         if (excludeValues != null) {
             for (BytesRef val : excludeValues) {
-                double dval=Double.parseDouble(val.utf8ToString());
+                double dval = Double.parseDouble(val.utf8ToString());
                 result.addReject(NumericUtils.doubleToSortableLong(dval));
             }
         }

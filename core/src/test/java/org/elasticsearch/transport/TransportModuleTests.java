@@ -36,16 +36,16 @@ public class TransportModuleTests extends ModuleTestCase {
 
     static class FakeTransport extends AssertingLocalTransport {
         @Inject
-        public FakeTransport(Settings settings, CircuitBreakerService circuitBreakerService, ThreadPool threadPool, Version version,
+        public FakeTransport(Settings settings, CircuitBreakerService circuitBreakerService, ThreadPool threadPool,
                              NamedWriteableRegistry namedWriteableRegistry) {
-            super(settings, circuitBreakerService, threadPool, version, namedWriteableRegistry);
+            super(settings, circuitBreakerService, threadPool, namedWriteableRegistry);
         }
     }
 
     static class FakeTransportService extends TransportService {
         @Inject
-        public FakeTransportService(Settings settings, Transport transport, ThreadPool threadPool, ClusterName clusterName) {
-            super(settings, transport, threadPool, clusterName);
+        public FakeTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
+            super(settings, transport, threadPool);
         }
     }
 }

@@ -46,12 +46,12 @@ public class ScriptEngineTests extends ScriptTestCase {
         obj1.put("l", Arrays.asList("2", "1"));
         vars.put("obj1", obj1);
 
-        Object value = exec("return params['obj1'];", vars);
+        Object value = exec("return params['obj1'];", vars, true);
         obj1 = (Map<String, Object>)value;
         assertEquals("value1", obj1.get("prop1"));
         assertEquals("value2", ((Map<String, Object>) obj1.get("obj2")).get("prop2"));
 
-        value = exec("return params.obj1.l.0;", vars);
+        value = exec("return params.obj1.l.0;", vars, true);
         assertEquals("2", value);
     }
 
@@ -65,15 +65,15 @@ public class ScriptEngineTests extends ScriptTestCase {
         obj1.put("obj2", obj2);
         vars.put("l", Arrays.asList("1", "2", "3", obj1));
 
-        assertEquals(4, exec("return params.l.size();", vars));
-        assertEquals("1", exec("return params.l.0;", vars));
+        assertEquals(4, exec("return params.l.size();", vars, true));
+        assertEquals("1", exec("return params.l.0;", vars, true));
 
-        Object value = exec("return params.l.3;", vars);
+        Object value = exec("return params.l.3;", vars, true);
         obj1 = (Map<String, Object>)value;
         assertEquals("value1", obj1.get("prop1"));
         assertEquals("value2", ((Map<String, Object>)obj1.get("obj2")).get("prop2"));
 
-        assertEquals("value1", exec("return params.l.3.prop1;", vars));
+        assertEquals("value1", exec("return params.l.3.prop1;", vars, true));
     }
 
     public void testChangingVarsCrossExecution1() {
@@ -81,7 +81,7 @@ public class ScriptEngineTests extends ScriptTestCase {
         Map<String, Object> ctx = new HashMap<>();
         vars.put("ctx", ctx);
 
-        Object compiledScript = scriptEngine.compile(
+        Object compiledScript = scriptEngine.compile(null,
                 "return ctx.value;", Collections.emptyMap());
         ExecutableScript script = scriptEngine.executable(new CompiledScript(ScriptService.ScriptType.INLINE,
                 "testChangingVarsCrossExecution1", "painless", compiledScript), vars);
@@ -97,7 +97,7 @@ public class ScriptEngineTests extends ScriptTestCase {
 
     public void testChangingVarsCrossExecution2() {
         Map<String, Object> vars = new HashMap<>();
-        Object compiledScript = scriptEngine.compile("return params['value'];", Collections.emptyMap());
+        Object compiledScript = scriptEngine.compile(null, "return params['value'];", Collections.emptyMap());
 
         ExecutableScript script = scriptEngine.executable(new CompiledScript(ScriptService.ScriptType.INLINE,
                 "testChangingVarsCrossExecution2", "painless", compiledScript), vars);

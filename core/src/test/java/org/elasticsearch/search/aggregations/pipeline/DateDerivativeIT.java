@@ -21,15 +21,15 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.pipeline.derivative.Derivative;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -54,6 +54,11 @@ import static org.hamcrest.core.IsNull.nullValue;
 @ESIntegTestCase.SuiteScopeTestCase
 public class DateDerivativeIT extends ESIntegTestCase {
 
+    // some index names used during these tests
+    private static final String IDX_DST_START = "idx_dst_start";
+    private static final String IDX_DST_END = "idx_dst_end";
+    private static final String IDX_DST_KATHMANDU = "idx_dst_kathmandu";
+
     private DateTime date(int month, int day) {
         return new DateTime(2012, month, day, 0, 0, DateTimeZone.UTC);
     }
@@ -66,10 +71,9 @@ public class DateDerivativeIT extends ESIntegTestCase {
         return DateTimeFormat.forPattern(pattern).print(date);
     }
 
-    private IndexRequestBuilder indexDoc(String idx, DateTime date, int value) throws Exception {
+    private static IndexRequestBuilder indexDoc(String idx, DateTime date, int value) throws Exception {
         return client().prepareIndex(idx, "type").setSource(
-                jsonBuilder().startObject().field("date", date).field("value", value).startArray("dates").value(date)
-                        .value(date.plusMonths(1).plusDays(1)).endArray().endObject());
+                jsonBuilder().startObject().field("date", date).field("value", value).endObject());
     }
 
     private IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
@@ -101,7 +105,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
 
     @After
     public void afterEachTest() throws IOException {
-        internalCluster().wipeIndices("idx2");
+        internalCluster().wipeIndices(IDX_DST_START, IDX_DST_END, IDX_DST_KATHMANDU);
     }
 
     public void testSingleValuedField() throws Exception {
@@ -113,7 +117,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram deriv = response.getAggregations().get("histo");
+        Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = deriv.getBuckets();
@@ -156,7 +160,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram deriv = response.getAggregations().get("histo");
+        Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = deriv.getBuckets();
@@ -191,6 +195,145 @@ public class DateDerivativeIT extends ESIntegTestCase {
         assertThat(docCountDeriv.normalizedValue(), closeTo(1d / 29d, 0.00001));
     }
 
+    /**
+     * Do a derivative on a date histogram with time zone CET at DST start
+     */
+    public void testSingleValuedFieldNormalised_timeZone_CET_DstStart() throws Exception {
+        createIndex(IDX_DST_START);
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+
+        DateTimeZone timezone = DateTimeZone.forID("CET");
+        addNTimes(1, IDX_DST_START, new DateTime("2012-03-24T01:00:00", timezone), builders);
+        addNTimes(2, IDX_DST_START, new DateTime("2012-03-25T01:00:00", timezone), builders); // day with dst shift, only 23h long
+        addNTimes(3, IDX_DST_START, new DateTime("2012-03-26T01:00:00", timezone), builders);
+        addNTimes(4, IDX_DST_START, new DateTime("2012-03-27T01:00:00", timezone), builders);
+        indexRandom(true, builders);
+        ensureSearchable();
+
+        SearchResponse response = client()
+                .prepareSearch(IDX_DST_START)
+                .addAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
+                        .timeZone(timezone).minDocCount(0)
+                        .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.HOUR)))
+                .execute()
+                .actionGet();
+
+        assertSearchResponse(response);
+
+        Histogram deriv = response.getAggregations().get("histo");
+        assertThat(deriv, notNullValue());
+        assertThat(deriv.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = deriv.getBuckets();
+        assertThat(buckets.size(), equalTo(4));
+
+        assertBucket(buckets.get(0), new DateTime("2012-03-24", timezone).toDateTime(DateTimeZone.UTC), 1L, nullValue(), null, null);
+        assertBucket(buckets.get(1), new DateTime("2012-03-25", timezone).toDateTime(DateTimeZone.UTC), 2L, notNullValue(), 1d, 1d / 24d);
+        // the following is normalized using a 23h bucket width
+        assertBucket(buckets.get(2), new DateTime("2012-03-26", timezone).toDateTime(DateTimeZone.UTC), 3L, notNullValue(), 1d, 1d / 23d);
+        assertBucket(buckets.get(3), new DateTime("2012-03-27", timezone).toDateTime(DateTimeZone.UTC), 4L, notNullValue(), 1d, 1d / 24d);
+    }
+
+    /**
+     * Do a derivative on a date histogram with time zone CET at DST end
+     */
+    public void testSingleValuedFieldNormalised_timeZone_CET_DstEnd() throws Exception {
+        createIndex(IDX_DST_END);
+        DateTimeZone timezone = DateTimeZone.forID("CET");
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+
+        addNTimes(1, IDX_DST_END, new DateTime("2012-10-27T01:00:00", timezone), builders);
+        addNTimes(2, IDX_DST_END, new DateTime("2012-10-28T01:00:00", timezone), builders); // day with dst shift -1h, 25h long
+        addNTimes(3, IDX_DST_END, new DateTime("2012-10-29T01:00:00", timezone), builders);
+        addNTimes(4, IDX_DST_END, new DateTime("2012-10-30T01:00:00", timezone), builders);
+        indexRandom(true, builders);
+        ensureSearchable();
+
+        SearchResponse response = client()
+                .prepareSearch(IDX_DST_END)
+                .addAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY)
+                        .timeZone(timezone).minDocCount(0)
+                        .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.HOUR)))
+                .execute()
+                .actionGet();
+
+        assertSearchResponse(response);
+
+        Histogram deriv = response.getAggregations().get("histo");
+        assertThat(deriv, notNullValue());
+        assertThat(deriv.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = deriv.getBuckets();
+        assertThat(buckets.size(), equalTo(4));
+
+        assertBucket(buckets.get(0), new DateTime("2012-10-27", timezone).toDateTime(DateTimeZone.UTC), 1L, nullValue(), null, null);
+        assertBucket(buckets.get(1), new DateTime("2012-10-28", timezone).toDateTime(DateTimeZone.UTC), 2L, notNullValue(), 1d, 1d / 24d);
+        // the following is normalized using a 25h bucket width
+        assertBucket(buckets.get(2), new DateTime("2012-10-29", timezone).toDateTime(DateTimeZone.UTC), 3L, notNullValue(), 1d, 1d / 25d);
+        assertBucket(buckets.get(3), new DateTime("2012-10-30", timezone).toDateTime(DateTimeZone.UTC), 4L, notNullValue(), 1d, 1d / 24d);
+    }
+
+    /**
+     * also check for time zone shifts that are not one hour, e.g.
+     * "Asia/Kathmandu, 1 Jan 1986 - Time Zone Change (IST → NPT), at 00:00:00 clocks were turned forward 00:15 minutes
+     */
+    public void testSingleValuedFieldNormalised_timeZone_AsiaKathmandu() throws Exception {
+        createIndex(IDX_DST_KATHMANDU);
+        DateTimeZone timezone = DateTimeZone.forID("Asia/Kathmandu");
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+
+        addNTimes(1, IDX_DST_KATHMANDU, new DateTime("1985-12-31T22:30:00", timezone), builders);
+        // the shift happens during the next bucket, which includes the 45min that do not start on the full hour
+        addNTimes(2, IDX_DST_KATHMANDU, new DateTime("1985-12-31T23:30:00", timezone), builders);
+        addNTimes(3, IDX_DST_KATHMANDU, new DateTime("1986-01-01T01:30:00", timezone), builders);
+        addNTimes(4, IDX_DST_KATHMANDU, new DateTime("1986-01-01T02:30:00", timezone), builders);
+        indexRandom(true, builders);
+        ensureSearchable();
+
+        SearchResponse response = client()
+                .prepareSearch(IDX_DST_KATHMANDU)
+                .addAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.HOUR)
+                        .timeZone(timezone).minDocCount(0)
+                        .subAggregation(derivative("deriv", "_count").unit(DateHistogramInterval.MINUTE)))
+                .execute()
+                .actionGet();
+
+        assertSearchResponse(response);
+
+        Histogram deriv = response.getAggregations().get("histo");
+        assertThat(deriv, notNullValue());
+        assertThat(deriv.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = deriv.getBuckets();
+        assertThat(buckets.size(), equalTo(4));
+
+        assertBucket(buckets.get(0), new DateTime("1985-12-31T22:00:00", timezone).toDateTime(DateTimeZone.UTC), 1L, nullValue(), null,
+                null);
+        assertBucket(buckets.get(1), new DateTime("1985-12-31T23:00:00", timezone).toDateTime(DateTimeZone.UTC), 2L, notNullValue(), 1d,
+                1d / 60d);
+        // the following is normalized using a 105min bucket width
+        assertBucket(buckets.get(2), new DateTime("1986-01-01T01:00:00", timezone).toDateTime(DateTimeZone.UTC), 3L, notNullValue(), 1d,
+                1d / 105d);
+        assertBucket(buckets.get(3), new DateTime("1986-01-01T02:00:00", timezone).toDateTime(DateTimeZone.UTC), 4L, notNullValue(), 1d,
+                1d / 60d);
+    }
+
+    private static void addNTimes(int amount, String index, DateTime dateTime, List<IndexRequestBuilder> builders) throws Exception {
+        for (int i = 0; i < amount; i++) {
+            builders.add(indexDoc(index, dateTime, 1));
+        }
+    }
+
+    private static void assertBucket(Histogram.Bucket bucket, DateTime expectedKey, long expectedDocCount,
+            Matcher<Object> derivativeMatcher, Double derivative, Double normalizedDerivative) {
+        assertThat(bucket, notNullValue());
+        assertThat((DateTime) bucket.getKey(), equalTo(expectedKey));
+        assertThat(bucket.getDocCount(), equalTo(expectedDocCount));
+        Derivative docCountDeriv = bucket.getAggregations().get("deriv");
+        assertThat(docCountDeriv, derivativeMatcher);
+        if (docCountDeriv != null) {
+            assertThat(docCountDeriv.value(), closeTo(derivative, 0.00001));
+            assertThat(docCountDeriv.normalizedValue(), closeTo(normalizedDerivative, 0.00001));
+        }
+    }
+
     public void testSingleValuedFieldWithSubAggregation() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -201,7 +344,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram histo = response.getAggregations().get("histo");
+        Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = histo.getBuckets();
@@ -269,7 +412,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram deriv = response.getAggregations().get("histo");
+        Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = deriv.getBuckets();
@@ -324,7 +467,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram deriv = response.getAggregations().get("histo");
+        Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         assertThat(deriv.getBuckets().size(), equalTo(0));
@@ -339,7 +482,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram deriv = response.getAggregations().get("histo");
+        Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = deriv.getBuckets();

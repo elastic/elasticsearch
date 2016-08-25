@@ -19,10 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
@@ -31,9 +27,14 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.index.reindex.remote.RemoteInfo;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+
+import static java.util.Collections.singletonList;
 import static java.util.Collections.unmodifiableList;
-
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.VersionType.INTERNAL;
 
@@ -48,6 +49,8 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
      * Prototype for index requests.
      */
     private IndexRequest destination;
+
+    private RemoteInfo remoteInfo;
 
     public ReindexRequest() {
     }
@@ -91,6 +94,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (destination.timestamp() != null) {
             e = addValidationError("setting timestamp on destination isn't supported. use scripts instead.", e);
         }
+        if (getRemoteInfo() != null && getSearchRequest().source().query() != null) {
+            e = addValidationError("reindex from remote sources should use RemoteInfo's query instead of source's query", e);
+        }
         return e;
     }
 
@@ -111,23 +117,36 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         return destination;
     }
 
+    public void setRemoteInfo(RemoteInfo remoteInfo) {
+        this.remoteInfo = remoteInfo;
+    }
+
+    public RemoteInfo getRemoteInfo() {
+        return remoteInfo;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         destination = new IndexRequest();
         destination.readFrom(in);
+        remoteInfo = in.readOptionalWriteable(RemoteInfo::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         destination.writeTo(out);
+        out.writeOptionalWriteable(remoteInfo);
     }
 
     @Override
     public String toString() {
         StringBuilder b = new StringBuilder();
         b.append("reindex from ");
+        if (remoteInfo != null) {
+            b.append('[').append(remoteInfo).append(']');
+        }
         searchToString(b);
         b.append(" to [").append(destination.index()).append(']');
         if (destination.type() != null) {
@@ -149,6 +168,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
     public List<? extends IndicesRequest> subRequests() {
         assert getSearchRequest() != null;
         assert getDestination() != null;
+        if (remoteInfo != null) {
+            return singletonList(getDestination());
+        }
         return unmodifiableList(Arrays.asList(getSearchRequest(), getDestination()));
     }
 }

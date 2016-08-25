@@ -25,9 +25,10 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.index.reindex.remote.RemoteInfo;
 
 public class ReindexRequestBuilder extends
-        AbstractBulkIndexByScrollRequestBuilder<ReindexRequest, BulkIndexByScrollResponse, ReindexRequestBuilder> {
+        AbstractBulkIndexByScrollRequestBuilder<ReindexRequest, ReindexRequestBuilder> {
     private final IndexRequestBuilder destination;
 
     public ReindexRequestBuilder(ElasticsearchClient client,
@@ -65,6 +66,14 @@ public class ReindexRequestBuilder extends
      */
     public ReindexRequestBuilder destination(String index, String type) {
         destination.setIndex(index).setType(type);
+        return this;
+    }
+
+    /**
+     * Setup reindexing from a remote cluster.
+     */
+    public ReindexRequestBuilder setRemoteInfo(RemoteInfo remoteInfo) {
+        request().setRemoteInfo(remoteInfo);
         return this;
     }
 }

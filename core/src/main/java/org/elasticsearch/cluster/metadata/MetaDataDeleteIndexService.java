@@ -19,10 +19,11 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexClusterStateUpdateRequest;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -32,16 +33,11 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.SnapshotsService;
-import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Arrays;
 import java.util.Set;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -49,46 +45,37 @@ import java.util.stream.Collectors;
  */
 public class MetaDataDeleteIndexService extends AbstractComponent {
 
-    private final ThreadPool threadPool;
-
     private final ClusterService clusterService;
 
     private final AllocationService allocationService;
 
-    private final NodeIndexDeletedAction nodeIndexDeletedAction;
-
     @Inject
-    public MetaDataDeleteIndexService(Settings settings, ThreadPool threadPool, ClusterService clusterService, AllocationService allocationService,
-                                      NodeIndexDeletedAction nodeIndexDeletedAction) {
+    public MetaDataDeleteIndexService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
         super(settings);
-        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        this.nodeIndexDeletedAction = nodeIndexDeletedAction;
     }
 
-    public void deleteIndices(final Request request, final Listener userListener) {
-        final DeleteIndexListener listener = new DeleteIndexListener(userListener);
+    public void deleteIndices(final DeleteIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+        if (request.indices() == null || request.indices().length == 0) {
+            throw new IllegalArgumentException("Index name is required");
+        }
 
-        clusterService.submitStateUpdateTask("delete-index " + request.indices, new ClusterStateUpdateTask(Priority.URGENT) {
-
-            @Override
-            public TimeValue timeout() {
-                return request.masterTimeout;
-            }
+        clusterService.submitStateUpdateTask("delete-index " + request.indices(),
+            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                listener.onFailure(t);
+            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                return new ClusterStateUpdateResponse(acknowledged);
             }
 
             @Override
             public ClusterState execute(final ClusterState currentState) {
                 final MetaData meta = currentState.metaData();
-                final Set<IndexMetaData> metaDatas = request.indices.stream().map(i -> meta.getIndexSafe(i)).collect(Collectors.toSet());
+                final Index[] indices = request.indices();
+                final Set<IndexMetaData> metaDatas = Arrays.asList(indices).stream().map(i -> meta.getIndexSafe(i)).collect(Collectors.toSet());
                 // Check if index deletion conflicts with any running snapshots
                 SnapshotsService.checkIndexDeletion(currentState, metaDatas);
-                final Set<Index> indices = request.indices;
                 RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
                 MetaData.Builder metaDataBuilder = MetaData.builder(meta);
                 ClusterBlocks.Builder clusterBlocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
@@ -108,40 +95,6 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                 logger.trace("{} tombstones purged from the cluster state. Previous tombstone size: {}. Current tombstone size: {}.",
                     graveyardBuilder.getNumPurged(), previousGraveyardSize, currentGraveyard.getTombstones().size());
 
-                // wait for events from all nodes that it has been removed from their respective metadata...
-                int count = currentState.nodes().getSize();
-                // add the notifications that the store was deleted from *data* nodes
-                count += currentState.nodes().getDataNodes().size();
-                final AtomicInteger counter = new AtomicInteger(count * indices.size());
-
-                // this listener will be notified once we get back a notification based on the cluster state change below.
-                final NodeIndexDeletedAction.Listener nodeIndexDeleteListener = new NodeIndexDeletedAction.Listener() {
-                    @Override
-                    public void onNodeIndexDeleted(Index deleted, String nodeId) {
-                        if (indices.contains(deleted)) {
-                            if (counter.decrementAndGet() == 0) {
-                                listener.onResponse(new Response(true));
-                                nodeIndexDeletedAction.remove(this);
-                            }
-                        }
-                    }
-
-                    @Override
-                    public void onNodeIndexStoreDeleted(Index deleted, String nodeId) {
-                        if (indices.contains(deleted)) {
-                            if (counter.decrementAndGet() == 0) {
-                                listener.onResponse(new Response(true));
-                                nodeIndexDeletedAction.remove(this);
-                            }
-                        }
-                    }
-                };
-                nodeIndexDeletedAction.add(nodeIndexDeleteListener);
-                listener.future = threadPool.schedule(request.timeout, ThreadPool.Names.SAME, () -> {
-                    listener.onResponse(new Response(false));
-                    nodeIndexDeletedAction.remove(nodeIndexDeleteListener);
-                });
-
                 MetaData newMetaData = metaDataBuilder.build();
                 ClusterBlocks blocks = clusterBlocksBuilder.build();
                 RoutingAllocation.Result routingResult = allocationService.reroute(
@@ -149,78 +102,6 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                         "deleted indices [" + indices + "]");
                 return ClusterState.builder(currentState).routingResult(routingResult).metaData(newMetaData).blocks(blocks).build();
             }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-            }
         });
-    }
-
-    class DeleteIndexListener implements Listener {
-
-        private final AtomicBoolean notified = new AtomicBoolean();
-        private final Listener listener;
-        volatile ScheduledFuture<?> future;
-
-        private DeleteIndexListener(Listener listener) {
-            this.listener = listener;
-        }
-
-        @Override
-        public void onResponse(final Response response) {
-            if (notified.compareAndSet(false, true)) {
-                FutureUtils.cancel(future);
-                listener.onResponse(response);
-            }
-        }
-
-        @Override
-        public void onFailure(Throwable t) {
-            if (notified.compareAndSet(false, true)) {
-                FutureUtils.cancel(future);
-                listener.onFailure(t);
-            }
-        }
-    }
-
-    public interface Listener {
-
-        void onResponse(Response response);
-
-        void onFailure(Throwable t);
-    }
-
-    public static class Request {
-
-        final Set<Index> indices;
-
-        TimeValue timeout = TimeValue.timeValueSeconds(10);
-        TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
-
-        public Request(Set<Index> indices) {
-            this.indices = indices;
-        }
-
-        public Request timeout(TimeValue timeout) {
-            this.timeout = timeout;
-            return this;
-        }
-
-        public Request masterTimeout(TimeValue masterTimeout) {
-            this.masterTimeout = masterTimeout;
-            return this;
-        }
-    }
-
-    public static class Response {
-        private final boolean acknowledged;
-
-        public Response(boolean acknowledged) {
-            this.acknowledged = acknowledged;
-        }
-
-        public boolean acknowledged() {
-            return acknowledged;
-        }
     }
 }

@@ -31,20 +31,19 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Constructs a query that only match on documents that the field has a value in them.
  */
 public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder> {
-
     public static final String NAME = "exists";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     public static final ParseField FIELD_FIELD = new ParseField("field");
 
@@ -85,7 +84,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         builder.endObject();
     }
 
-    public static ExistsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<ExistsQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldPattern = null;
@@ -121,7 +120,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         ExistsQueryBuilder builder = new ExistsQueryBuilder(fieldPattern);
         builder.queryName(queryName);
         builder.boost(boost);
-        return builder;
+        return Optional.of(builder);
     }
 
     @Override

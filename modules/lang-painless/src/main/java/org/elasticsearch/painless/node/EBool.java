@@ -19,39 +19,51 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals;
 import org.objectweb.asm.Label;
-import org.objectweb.asm.commons.GeneratorAdapter;
+
+import java.util.Objects;
+import java.util.Set;
+
+import org.elasticsearch.painless.MethodWriter;
+import org.objectweb.asm.Opcodes;
 
 /**
  * Represents a boolean expression.
  */
 public final class EBool extends AExpression {
 
-    final Operation operation;
-    AExpression left;
-    AExpression right;
+    private final Operation operation;
+    private AExpression left;
+    private AExpression right;
 
-    public EBool(final String location, final Operation operation, final AExpression left, final AExpression right) {
+    public EBool(Location location, Operation operation, AExpression left, AExpression right) {
         super(location);
 
-        this.operation = operation;
-        this.left = left;
-        this.right = right;
+        this.operation = Objects.requireNonNull(operation);
+        this.left = Objects.requireNonNull(left);
+        this.right = Objects.requireNonNull(right);
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
-        left.expected = definition.booleanType;
-        left.analyze(settings, definition, variables);
-        left = left.cast(settings, definition, variables);
+    void extractVariables(Set<String> variables) {
+        left.extractVariables(variables);
+        right.extractVariables(variables);
+    }
 
-        right.expected = definition.booleanType;
-        right.analyze(settings, definition, variables);
-        right = right.cast(settings, definition, variables);
+    @Override
+    void analyze(Locals locals) {
+        left.expected = Definition.BOOLEAN_TYPE;
+        left.analyze(locals);
+        left = left.cast(locals);
+
+        right.expected = Definition.BOOLEAN_TYPE;
+        right.analyze(locals);
+        right = right.cast(locals);
 
         if (left.constant != null && right.constant != null) {
             if (operation == Operation.AND) {
@@ -59,81 +71,47 @@ public final class EBool extends AExpression {
             } else if (operation == Operation.OR) {
                 constant = (boolean)left.constant || (boolean)right.constant;
             } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
+                throw createError(new IllegalStateException("Illegal tree structure."));
             }
         }
 
-        actual = definition.booleanType;
+        actual = Definition.BOOLEAN_TYPE;
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        if (tru != null || fals != null) {
-            if (operation == Operation.AND) {
-                final Label localfals = fals == null ? new Label() : fals;
+    void write(MethodWriter writer, Globals globals) {
+        if (operation == Operation.AND) {
+            Label fals = new Label();
+            Label end = new Label();
 
-                left.fals = localfals;
-                right.tru = tru;
-                right.fals = fals;
+            left.write(writer, globals);
+            writer.ifZCmp(Opcodes.IFEQ, fals);
+            right.write(writer, globals);
+            writer.ifZCmp(Opcodes.IFEQ, fals);
 
-                left.write(settings, definition, adapter);
-                right.write(settings, definition, adapter);
+            writer.push(true);
+            writer.goTo(end);
+            writer.mark(fals);
+            writer.push(false);
+            writer.mark(end);
+        } else if (operation == Operation.OR) {
+            Label tru = new Label();
+            Label fals = new Label();
+            Label end = new Label();
 
-                if (fals == null) {
-                    adapter.mark(localfals);
-                }
-            } else if (operation == Operation.OR) {
-                final Label localtru = tru == null ? new Label() : tru;
+            left.write(writer, globals);
+            writer.ifZCmp(Opcodes.IFNE, tru);
+            right.write(writer, globals);
+            writer.ifZCmp(Opcodes.IFEQ, fals);
 
-                left.tru = localtru;
-                right.tru = tru;
-                right.fals = fals;
-
-                left.write(settings, definition, adapter);
-                right.write(settings, definition, adapter);
-
-                if (tru == null) {
-                    adapter.mark(localtru);
-                }
-            } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
-            }
+            writer.mark(tru);
+            writer.push(true);
+            writer.goTo(end);
+            writer.mark(fals);
+            writer.push(false);
+            writer.mark(end);
         } else {
-            if (operation == Operation.AND) {
-                final Label localfals = new Label();
-                final Label end = new Label();
-
-                left.fals = localfals;
-                right.fals = localfals;
-
-                left.write(settings, definition, adapter);
-                right.write(settings, definition, adapter);
-
-                adapter.push(true);
-                adapter.goTo(end);
-                adapter.mark(localfals);
-                adapter.push(false);
-                adapter.mark(end);
-            } else if (operation == Operation.OR) {
-                final Label localtru = new Label();
-                final Label localfals = new Label();
-                final Label end = new Label();
-
-                left.tru = localtru;
-                right.fals = localfals;
-
-                left.write(settings, definition, adapter);
-                right.write(settings, definition, adapter);
-
-                adapter.mark(localtru);
-                adapter.push(true);
-                adapter.goTo(end);
-                adapter.mark(localfals);
-                adapter.push(false);
-                adapter.mark(end);
-            } else {
-                throw new IllegalStateException(error("Illegal tree structure."));
-            }
+            throw createError(new IllegalStateException("Illegal tree structure."));
         }
     }
 }

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -43,7 +42,7 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class InternalAggregations implements Aggregations, ToXContent, Streamable {
 
-    public final static InternalAggregations EMPTY = new InternalAggregations();
+    public static final InternalAggregations EMPTY = new InternalAggregations();
 
     private List<InternalAggregation> aggregations = Collections.emptyList();
 
@@ -198,28 +197,15 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        if (size == 0) {
-            aggregations = Collections.emptyList();
+        aggregations = in.readList(stream -> in.readNamedWriteable(InternalAggregation.class));
+        if (aggregations.isEmpty()) {
             aggregationsAsMap = emptyMap();
-        } else {
-            aggregations = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                BytesReference type = in.readBytesReference();
-                InternalAggregation aggregation = AggregationStreams.stream(type).readResult(in);
-                aggregations.add(aggregation);
-            }
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(aggregations.size());
-        for (Aggregation aggregation : aggregations) {
-            InternalAggregation internal = (InternalAggregation) aggregation;
-            out.writeBytesReference(internal.type().stream());
-            internal.writeTo(out);
-        }
+        out.writeNamedWriteableList(aggregations);
     }
 
 }

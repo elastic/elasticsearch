@@ -32,7 +32,7 @@ import org.gradle.util.ConfigureUtil
  */
 public class RestIntegTestTask extends RandomizedTestingTask {
 
-    ClusterConfiguration clusterConfig = new ClusterConfiguration()
+    ClusterConfiguration clusterConfig
 
     /** Flag indicating whether the rest tests in the rest spec should be run. */
     @Input
@@ -44,6 +44,7 @@ public class RestIntegTestTask extends RandomizedTestingTask {
         dependsOn(project.testClasses)
         classpath = project.sourceSets.test.runtimeClasspath
         testClassesDir = project.sourceSets.test.output.classesDir
+        clusterConfig = new ClusterConfiguration(project)
 
         // start with the common test configuration
         configure(BuildPlugin.commonTestConfig(project))
@@ -62,6 +63,7 @@ public class RestIntegTestTask extends RandomizedTestingTask {
         project.gradle.projectsEvaluated {
             NodeInfo node = ClusterFormationTasks.setup(project, this, clusterConfig)
             systemProperty('tests.rest.cluster', "${-> node.httpUri()}")
+            systemProperty('tests.config.dir', "${-> node.confDir}")
             // TODO: our "client" qa tests currently use the rest-test plugin. instead they should have their own plugin
             // that sets up the test cluster and passes this transport uri instead of http uri. Until then, we pass
             // both as separate sysprops

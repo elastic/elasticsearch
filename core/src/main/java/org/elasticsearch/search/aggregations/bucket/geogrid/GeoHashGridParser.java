@@ -45,10 +45,10 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
     }
 
     @Override
-    protected GeoGridAggregatorBuilder createFactory(
+    protected GeoGridAggregationBuilder createFactory(
             String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        GeoGridAggregatorBuilder factory = new GeoGridAggregatorBuilder(aggregationName);
+        GeoGridAggregationBuilder factory = new GeoGridAggregationBuilder(aggregationName);
         Integer precision = (Integer) otherOptions.get(GeoHashGridParams.FIELD_PRECISION);
         if (precision != null) {
             factory.precision(precision);

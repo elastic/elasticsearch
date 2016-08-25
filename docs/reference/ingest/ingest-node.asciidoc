@@ -46,7 +46,6 @@ PUT _ingest/pipeline/my-pipeline-id
         "value": "bar"
       }
     }
-    // other processors
   ]
 }
 --------------------------------------------------
@@ -72,21 +71,17 @@ Example response:
 [source,js]
 --------------------------------------------------
 {
-  "pipelines": [ {
-    "id": "my-pipeline-id",
-    "config": {
-      "description": "describe pipeline",
-      "processors": [
-        {
-          "set" : {
-            "field": "foo",
-            "value": "bar"
-          }
+  "my-pipeline-id" : {
+    "description" : "describe pipeline",
+    "processors" : [
+      {
+        "set" : {
+          "field" : "foo",
+          "value" : "bar"
         }
-        // other processors
-      ]
-    }
-  } ]
+      }
+    ]
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE
@@ -439,8 +434,7 @@ The following example sets the `_id` metadata field of a document to `1`:
 }
 --------------------------------------------------
 
-The following metadata fields are accessible by a processor: `_index`, `_type`, `_id`, `_routing`, `_parent`,
-`_timestamp`, and `_ttl`.
+The following metadata fields are accessible by a processor: `_index`, `_type`, `_id`, `_routing`, `_parent`.
 
 [float]
 [[accessing-ingest-metadata]]
@@ -565,6 +559,30 @@ the index to which failed documents get sent.
   ]
 }
 --------------------------------------------------
+
+Alternatively instead of defining behaviour in case of processor failure, it is also possible
+to ignore a failure and continue with the next processor by specifying the `ignore_failure` setting.
+
+In case in the example below the field `foo` doesn't exist the failure will be caught and the pipeline
+continues to execute, which in this case means that the pipeline does nothing.
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "my first pipeline with handled exceptions",
+  "processors" : [
+    {
+      "rename" : {
+        "field" : "foo",
+        "target_field" : "bar",
+        "ignore_failure" : true
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+The `ignore_failure` can be set on any processor and defaults to `false`.
 
 [float]
 [[accessing-error-metadata]]
@@ -720,7 +738,7 @@ in the same order they were defined as part of the processor definition.
 | Name                   | Required  | Default             | Description
 | `field`                | yes       | -                   | The field to get the date from.
 | `target_field`         | no        | @timestamp          | The field that will hold the parsed date.
-| `match_formats`        | yes       | -                   | An array of the expected date formats. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
+| `formats`              | yes       | -                   | An array of the expected date formats. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
 | `timezone`             | no        | UTC                 | The timezone to use when parsing the date.
 | `locale`               | no        | ENGLISH             | The locale to use when parsing the date, relevant when parsing month names or week days.
 |======
@@ -736,7 +754,7 @@ Here is an example that adds the parsed date to the `timestamp` field based on t
       "date" : {
         "field" : "initial_date",
         "target_field" : "timestamp",
-        "match_formats" : ["dd/MM/yyyy hh:mm:ss"],
+        "formats" : ["dd/MM/yyyy hh:mm:ss"],
         "timezone" : "Europe/Amsterdam"
       }
     }
@@ -753,7 +771,7 @@ on a date or timestamp field in a document by using the <<date-math-index-names,
 The processor sets the `_index` meta field with a date math index name expression based on the provided index name
 prefix, a date or timestamp field in the documents being processed and the provided date rounding.
 
-First this processor fetches the date or timestamp from a field in the document being processed. Optionally
+First, this processor fetches the date or timestamp from a field in the document being processed. Optionally,
 date formatting can be configured on how the field's value should be parsed into a date. Then this date,
 the provided index name prefix and the provided date rounding get formatted into a date math index name expression.
 Also here optionally date formatting can be specified on how the date should be formatted into a date math index name
@@ -764,32 +782,115 @@ date in the `date1` field:
 
 [source,js]
 --------------------------------------------------
-PUT _ingest/pipeline/1
+PUT _ingest/pipeline/monthlyindex
 {
+  "description": "monthly date-time index naming",
   "processors" : [
     {
       "date_index_name" : {
         "field" : "date1",
         "index_name_prefix" : "myindex-",
-        "date_rounding" : "m"
+        "date_rounding" : "M"
       }
     }
   ]
 }
 --------------------------------------------------
+// CONSOLE
+
 
 Using that pipeline for an index request:
 
 [source,js]
 --------------------------------------------------
-PUT /myindex/type/1?pipeline=1
+PUT /myindex/type/1?pipeline=monthlyindex
 {
   "date1" : "2016-04-25T12:02:01.789Z"
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
-The above request will not index this document into the `myindex` index, but into the `myindex-2016-04-01` index.
-This is because the date is being rounded by month.
+[source,js]
+--------------------------------------------------
+{
+  "_index" : "myindex-2016-04-01",
+  "_type" : "type",
+  "_id" : "1",
+  "_version" : 1,
+  "result" : "created",
+  "_shards" : {
+    "total" : 2,
+    "successful" : 1,
+    "failed" : 0
+  },
+  "created" : true
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+
+The above request will not index this document into the `myindex` index, but into the `myindex-2016-04-01` index because
+it was rounded by month. This is because the date-index-name-processor overrides the `_index` property of the document.
+
+To see the date-math value of the index supplied in the actual index request which resulted in the above document being
+indexed into `myindex-2016-04-01` we can inspect the effects of the processor using a simulate request.
+
+
+[source,js]
+--------------------------------------------------
+POST _ingest/pipeline/_simulate
+{
+  "pipeline" :
+  {
+    "description": "monthly date-time index naming",
+    "processors" : [
+      {
+        "date_index_name" : {
+          "field" : "date1",
+          "index_name_prefix" : "myindex-",
+          "date_rounding" : "M"
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_source": {
+        "date1": "2016-04-25T12:02:01.789Z"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+and the result:
+
+[source,js]
+--------------------------------------------------
+{
+  "docs" : [
+    {
+      "doc" : {
+        "_id" : "_id",
+        "_index" : "<myindex-{2016-04-25||/M{yyyy-MM-dd|UTC}}>",
+        "_type" : "_type",
+        "_source" : {
+          "date1" : "2016-04-25T12:02:01.789Z"
+        },
+        "_ingest" : {
+          "timestamp" : "2016-08-11T12:00:01.222Z"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/2016-08-11T12:00:01.222Z/$body.docs.0.doc._ingest.timestamp/]
+
+The above example shows that `_index` was set to `<myindex-{2016-04-25||/M{yyyy-MM-dd|UTC}}>`. Elasticsearch
+understands this to mean `2016-04-01` as is explained in the <<date-math-index-names, date math index name documentation>>
 
 [[date-index-name-options]]
 .Date index name options
@@ -798,7 +899,7 @@ This is because the date is being rounded by month.
 | Name                   | Required  | Default                      | Description
 | `field`                | yes       | -                            | The field to get the date or timestamp from.
 | `index_name_prefix`    | no        | -                            | A prefix of the index name to be prepended before the printed date.
-| `date_rounding`        | yes       | -                            | How to round the date when formatting the date into the index name. Valid values are: `y` (year), `m` (month), `w` (week), `d` (day), `h` (hour), `m` (minute) and `s` (second).
+| `date_rounding`        | yes       | -                            | How to round the date when formatting the date into the index name. Valid values are: `y` (year), `M` (month), `w` (week), `d` (day), `h` (hour), `m` (minute) and `s` (second).
 | `date_formats `        | no        | yyyy-MM-dd'T'HH:mm:ss.SSSZ   | An array of the expected date formats for parsing dates / timestamps in the document being preprocessed. Can be a Joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, or TAI64N.
 | `timezone`             | no        | UTC                          | The timezone to use when parsing the date and when date math index supports resolves expressions into concrete index names.
 | `locale`               | no        | ENGLISH                      | The locale to use when parsing the date from the document being preprocessed, relevant when parsing month names or week days.
@@ -835,11 +936,19 @@ Processes elements in an array of unknown length.
 All processors can operate on elements inside an array, but if all elements of an array need to
 be processed in the same way, defining a processor for each element becomes cumbersome and tricky
 because it is likely that the number of elements in an array is unknown. For this reason the `foreach`
-processor exists. By specifying the field holding array elements and a list of processors that
-define what should happen to each element, array fields can easily be preprocessed.
+processor exists. By specifying the field holding array elements and a processor that
+defines what should happen to each element, array fields can easily be preprocessed.
 
-Processors inside the foreach processor work in a different context, and the only valid top-level
-field is `_value`, which holds the array element value. Under this field other fields may exist.
+A processor inside the foreach processor works in the array element context and puts that in the ingest metadata
+under the `_ingest._value` key. If the array element is a json object it holds all immediate fields of that json object.
+and if the nested object is a value is `_ingest._value` just holds that value. Note that if a processor prior to the
+`foreach` processor used `_ingest._value` key then the specified value will not be available to the processor inside
+the `foreach` processor. The `foreach` processor does restore the original value, so that value is available to processors
+after the `foreach` processor.
+
+Note that any other field from the document are accessible and modifiable like with all other processors. This processor
+just puts the current array element being read into `_ingest._value` ingest metadata attribute, so that it may be
+pre-processed.
 
 If the `foreach` processor fails to process an element inside the array, and no `on_failure` processor has been specified,
 then it aborts the execution and leaves the array unmodified.
@@ -850,7 +959,7 @@ then it aborts the execution and leaves the array unmodified.
 |======
 | Name          | Required  | Default  | Description
 | `field`       | yes       | -        | The array field
-| `processors`  | yes       | -        | The processors
+| `processor`   | yes       | -        | The processor to execute against each field
 |======
 
 Assume the following document:
@@ -858,7 +967,7 @@ Assume the following document:
 [source,js]
 --------------------------------------------------
 {
-  "value" : ["foo", "bar", "baz"]
+  "values" : ["foo", "bar", "baz"]
 }
 --------------------------------------------------
 
@@ -869,13 +978,11 @@ When this `foreach` processor operates on this sample document:
 {
   "foreach" : {
     "field" : "values",
-    "processors" : [
-      {
-        "uppercase" : {
-          "field" : "_value"
-        }
+    "processor" : {
+      "uppercase" : {
+        "field" : "_ingest._value"
       }
-    ]
+    }
   }
 }
 --------------------------------------------------
@@ -885,7 +992,7 @@ Then the document will look like this after preprocessing:
 [source,js]
 --------------------------------------------------
 {
-  "value" : ["FOO", "BAR", "BAZ"]
+  "values" : ["FOO", "BAR", "BAZ"]
 }
 --------------------------------------------------
 
@@ -915,13 +1022,11 @@ so the following `foreach` processor is used:
 {
   "foreach" : {
     "field" : "persons",
-    "processors" : [
-      {
-        "remove" : {
-          "field" : "_value.id"
-        }
+    "processor" : {
+      "remove" : {
+        "field" : "_ingest._value.id"
       }
-    ]
+    }
   }
 }
 --------------------------------------------------
@@ -942,9 +1047,7 @@ After preprocessing the result is:
 }
 --------------------------------------------------
 
-As for any processor, you can define `on_failure` processors
-in processors that are wrapped inside the `foreach` processor.
-
+The wrapped processor can have a `on_failure` definition.
 For example, the `id` field may not exist on all person objects.
 Instead of failing the index request, you can use an `on_failure`
 block to send the document to the 'failure_index' index for later inspection:
@@ -954,21 +1057,19 @@ block to send the document to the 'failure_index' index for later inspection:
 {
   "foreach" : {
     "field" : "persons",
-    "processors" : [
-      {
-        "remove" : {
-          "field" : "_value.id",
-          "on_failure" : [
-            {
-              "set" : {
-                "field", "_index",
-                "value", "failure_index"
-              }
+    "processor" : {
+      "remove" : {
+        "field" : "_value.id",
+        "on_failure" : [
+          {
+            "set" : {
+              "field", "_index",
+              "value", "failure_index"
             }
-          ]
-        }
+          }
+        ]
       }
-    ]
+    }
   }
 }
 --------------------------------------------------
@@ -987,7 +1088,7 @@ expression that supports aliased expressions that can be reused.
 This tool is perfect for syslog logs, apache and other webserver logs, mysql logs, and in general, any log format
 that is generally written for humans and not computer consumption.
 This processor comes packaged with over
-https://github.com/elastic/elasticsearch/tree/master/modules/ingest-grok/src/main/resources/patterns[120 reusable patterns].
+https://github.com/elastic/elasticsearch/tree/master/modules/ingest-common/src/main/resources/patterns[120 reusable patterns].
 
 If you need help building patterns to match your logs, you will find the <http://grokdebug.herokuapp.com> and
 <http://grokconstructor.appspot.com/> applications quite useful!
@@ -1038,8 +1139,9 @@ Grok expression.
 |======
 | Name                   | Required  | Default             | Description
 | `field`                | yes       | -                   | The field to use for grok expression parsing
-| `pattern`              | yes       | -                   | The grok expression to match and extract named captures with
+| `patterns`             | yes       | -                   | An ordered list of grok expression to match and extract named captures with. Returns on the first expression in the list that matches.
 | `pattern_definitions`  | no        | -                   | A map of pattern-name and pattern tuples defining custom patterns to be used by the current processor. Patterns matching existing names will override the pre-existing definition.
+| `trace_match`          | no        | false               | when true, `_ingest._grok_match_index` will be inserted into your matched document's metadata with the index into the pattern found in `patterns` that matched.
 |======
 
 Here is an example of using the provided patterns to extract out and name structured fields from a string field in
@@ -1069,7 +1171,7 @@ Here is an example pipeline for processing the above document by using Grok:
     {
       "grok": {
         "field": "message",
-        "pattern": "%{IP:client} %{WORD:method} %{URIPATHPARAM:request} %{NUMBER:bytes} %{NUMBER:duration}"
+        "patterns": ["%{IP:client} %{WORD:method} %{URIPATHPARAM:request} %{NUMBER:bytes} %{NUMBER:duration}"]
       }
     }
   ]
@@ -1107,7 +1209,7 @@ Here is an example of a pipeline specifying custom pattern definitions:
     {
       "grok": {
         "field": "message",
-        "pattern": "my %{FAVORITE_DOG:dog} is colored %{RGB:color}"
+        "patterns": ["my %{FAVORITE_DOG:dog} is colored %{RGB:color}"]
         "pattern_definitions" : {
           "FAVORITE_DOG" : "beagle",
           "RGB" : "RED|GREEN|BLUE"
@@ -1233,6 +1335,49 @@ Renames an existing field. If the field doesn't exist or the new name is already
 }
 --------------------------------------------------
 
+[[script-processor]]
+=== Script Processor
+
+Allows inline, stored, and file scripts to be executed within ingest pipelines.
+
+See <<modules-scripting-using, How to use scripts>> to learn more about writing scripts. The Script Processor
+leverages caching of compiled scripts for improved performance. Since the
+script specified within the processor is potentially re-compiled per document, it is important
+to understand how script caching works. To learn more about
+caching see <<modules-scripting-using-caching, Script Caching>>.
+
+[[script-options]]
+.Script Options
+[options="header"]
+|======
+| Name                   | Required  | Default | Description
+| `field`                | yes       | -       | The field to set
+| `lang`                 | no        | -       | The scripting language
+| `file`                 | no        | -       | The script file to refer to
+| `id`                   | no        | -       | The stored script id to refer to
+| `inline`               | no        | -       | An inline script to be executed
+| `params`               | no        | -       | Script Parameters
+|======
+
+You can access the current ingest document from within the script context by using the `ctx` variable.
+
+The following example sets a new field called `field_a_plus_b_times_c` to be the sum of two existing
+numeric fields `field_a` and `field_b` multiplied by the parameter param_c:
+
+[source,js]
+--------------------------------------------------
+{
+  "script": {
+    "lang": "painless",
+    "inline": "ctx.field_a_plus_b_times_c = (ctx.field_a + ctx.field_b) * params.param_c",
+    "params": {
+      "param_c": 10
+    }
+  }
+}
+--------------------------------------------------
+
+
 [[set-processor]]
 === Set Processor
 Sets one field and associates it with the specified value. If the field already exists,
@@ -1281,6 +1426,31 @@ Splits a field into an array using a separator character. Only works on string f
 }
 --------------------------------------------------
 <1> Treat all consecutive whitespace characters as a single separator
+
+[[sort-processor]]
+=== Sort Processor
+Sorts the elements of an array ascending or descending.  Homogeneous arrays of numbers will be sorted
+numerically, while arrays of strings or heterogeneous arrays of strings + numbers will be sorted lexicographically.
+Throws an error when the field is not an array.
+
+[[sort-options]]
+.Sort Options
+[options="header"]
+|======
+| Name    | Required  | Default  | Description
+| `field` | yes       | -        | The field to be sorted
+| `order` | no        | `"asc"`  | The sort order to use. Accepts `"asc"` or `"desc"`.
+|======
+
+[source,js]
+--------------------------------------------------
+{
+  "sort": {
+    "field": "field_to_sort",
+    "order": "desc"
+  }
+}
+--------------------------------------------------
 
 [[trim-processor]]
 === Trim Processor

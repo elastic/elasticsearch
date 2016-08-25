@@ -8,17 +8,49 @@ The ingest-geoip plugin ships by default with the GeoLite2 City and GeoLite2 Cou
 under the CCA-ShareAlike 3.0 license. For more details see, http://dev.maxmind.com/geoip/geoip2/geolite2/
 
 The GeoIP processor can run with other geoip2 databases from Maxmind. The files must be copied into the geoip config directory,
-and the `database_file` option should be used to specify the filename of the custom database. The geoip config directory
-is located at `$ES_HOME/config/ingest/geoip` and holds the shipped databases too.
+and the `database_file` option should be used to specify the filename of the custom database. Custom database files must be compressed
+with gzip. The geoip config directory is located at `$ES_HOME/config/ingest/geoip` and holds the shipped databases too.
 
-[[geoip-options]]
+[[ingest-geoip-install]]
+[float]
+==== Installation
+
+This plugin can be installed using the plugin manager:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/elasticsearch-plugin install ingest-geoip
+----------------------------------------------------------------
+// NOTCONSOLE
+
+The plugin must be installed on every node in the cluster, and each node must
+be restarted after installation.
+
+[[ingest-geoip-remove]]
+[float]
+==== Removal
+
+The plugin can be removed with the following command:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/elasticsearch-plugin remove ingest-geoip
+----------------------------------------------------------------
+// NOTCONSOLE
+
+The node must be stopped before removing the plugin.
+
+[[using-ingest-geoip]]
+==== Using the Geoip Processor in a Pipeline
+
+[[ingest-geoip-options]]
 .Geoip options
 [options="header"]
 |======
 | Name                   | Required  | Default                                                                            | Description
 | `field`                | yes       | -                                                                                  | The field to get the ip address from for the geographical lookup.
 | `target_field`         | no        | geoip                                                                              | The field that will hold the geographical information looked up from the Maxmind database.
-| `database_file`        | no        | GeoLite2-City.mmdb                                                                 | The database filename in the geoip config directory. The ingest-geoip plugin ships with the GeoLite2-City.mmdb and GeoLite2-Country.mmdb files.
+| `database_file`        | no        | GeoLite2-City.mmdb                                                                 | The database filename in the geoip config directory. The ingest-geoip plugin ships with the GeoLite2-City.mmdb.gz and GeoLite2-Country.mmdb.gz files.
 | `properties`           | no        | [`continent_name`, `country_iso_code`, `region_name`, `city_name`, `location`] *   | Controls what properties are added to the `target_field` based on the geoip lookup.
 |======
 
@@ -34,8 +66,9 @@ Here is an example that uses the default city database and adds the geographical
 
 [source,js]
 --------------------------------------------------
+PUT _ingest/pipeline/geoip
 {
-  "description" : "...",
+  "description" : "Add geoip info",
   "processors" : [
     {
       "geoip" : {
@@ -44,22 +77,82 @@ Here is an example that uses the default city database and adds the geographical
     }
   ]
 }
+PUT my_index/my_type/my_id?pipeline=geoip
+{
+  "ip": "8.8.8.8"
+}
+GET my_index/my_type/my_id
 --------------------------------------------------
+// CONSOLE
 
-Here is an example that uses the default country database and adds the geographical information to the `geo` field based on the `ip` field`:
+Which returns:
 
 [source,js]
 --------------------------------------------------
 {
-  "description" : "...",
+  "found": true,
+  "_index": "my_index",
+  "_type": "my_type",
+  "_id": "my_id",
+  "_version": 1,
+  "_source": {
+    "ip": "8.8.8.8",
+    "geoip": {
+      "continent_name": "North America",
+      "country_iso_code": "US",
+      "region_name": "California",
+      "city_name": "Mountain View",
+      "location": { "lat": 37.386, "lon": -122.0838 }
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+Here is an example that uses the default country database and adds the
+geographical information to the `geo` field based on the `ip` field`. Note that
+this database is included in the plugin download. So this:
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/geoip
+{
+  "description" : "Add geoip info",
   "processors" : [
     {
       "geoip" : {
         "field" : "ip",
         "target_field" : "geo",
-        "database_file" : "GeoLite2-Country.mmdb"
+        "database_file" : "GeoLite2-Country.mmdb.gz"
       }
     }
   ]
 }
+PUT my_index/my_type/my_id?pipeline=geoip
+{
+  "ip": "8.8.8.8"
+}
+GET my_index/my_type/my_id
 --------------------------------------------------
+// CONSOLE
+
+returns this:
+
+[source,js]
+--------------------------------------------------
+{
+  "found": true,
+  "_index": "my_index",
+  "_type": "my_type",
+  "_id": "my_id",
+  "_version": 1,
+  "_source": {
+    "ip": "8.8.8.8",
+    "geo": {
+      "continent_name": "North America",
+      "country_iso_code": "US",
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE

@@ -25,13 +25,17 @@ import org.antlr.v4.runtime.NoViableAltException;
 import org.antlr.v4.runtime.Parser;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Token;
-
-import java.text.ParseException;
+import org.elasticsearch.painless.Location;
 
 /**
  * An error strategy that will override the default error behavior to fail on the first parser error.
  */
 final class ParserErrorStrategy extends DefaultErrorStrategy {
+    final String sourceName;
+    
+    ParserErrorStrategy(String sourceName) {
+        this.sourceName = sourceName;
+    }
 
     @Override
     public void recover(final Parser recognizer, final RecognitionException re) {
@@ -39,38 +43,32 @@ final class ParserErrorStrategy extends DefaultErrorStrategy {
         String message;
 
         if (token == null) {
-            message = "Error: no parse token found.";
+            message = "no parse token found.";
         } else if (re instanceof InputMismatchException) {
-            message = "Error[" + token.getLine() + ":" + token.getCharPositionInLine() + "]:" +
-                    " unexpected token [" + getTokenErrorDisplay(token) + "]" +
+            message = "unexpected token [" + getTokenErrorDisplay(token) + "]" +
                     " was expecting one of [" + re.getExpectedTokens().toString(recognizer.getVocabulary()) + "].";
         } else if (re instanceof NoViableAltException) {
             if (token.getType() == PainlessParser.EOF) {
-                message = "Error: unexpected end of script.";
+                message = "unexpected end of script.";
             } else {
-                message = "Error[" + token.getLine() + ":" + token.getCharPositionInLine() + "]:" +
-                        "invalid sequence of tokens near [" + getTokenErrorDisplay(token) + "].";
+                message = "invalid sequence of tokens near [" + getTokenErrorDisplay(token) + "].";
             }
         } else {
-            message = "Error[" + token.getLine() + ":" + token.getCharPositionInLine() + "]:" +
-                    " unexpected token near [" + getTokenErrorDisplay(token) + "].";
+            message =  "unexpected token near [" + getTokenErrorDisplay(token) + "].";
         }
 
-        final ParseException parseException = new ParseException(message, token == null ? -1 : token.getStartIndex());
-        parseException.initCause(re);
-
-        throw new RuntimeException(parseException);
+        Location location = new Location(sourceName, token == null ? -1 : token.getStartIndex());
+        throw location.createError(new IllegalArgumentException(message, re));
     }
 
     @Override
     public Token recoverInline(final Parser recognizer) throws RecognitionException {
         final Token token = recognizer.getCurrentToken();
-        final String message = "Error[" + token.getLine() + ":" + token.getCharPositionInLine() + "]:" +
-            " unexpected token [" + getTokenErrorDisplay(token) + "]" +
+        final String message = "unexpected token [" + getTokenErrorDisplay(token) + "]" +
             " was expecting one of [" + recognizer.getExpectedTokens().toString(recognizer.getVocabulary()) + "].";
-        final ParseException parseException = new ParseException(message, token.getStartIndex());
 
-        throw new RuntimeException(parseException);
+        Location location = new Location(sourceName, token.getStartIndex());
+        throw location.createError(new IllegalArgumentException(message));
     }
 
     @Override

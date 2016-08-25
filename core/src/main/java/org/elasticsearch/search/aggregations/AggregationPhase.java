@@ -30,8 +30,8 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.CollectorResult;
-import org.elasticsearch.search.profile.InternalProfileCollector;
+import org.elasticsearch.search.profile.query.CollectorResult;
+import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
@@ -125,7 +125,7 @@ public class AggregationPhase implements SearchPhase {
                             Collections.emptyList());
                     collector = profileCollector;
                     // start a new profile with this collector
-                    context.getProfilers().addProfiler().setCollector(profileCollector);
+                    context.getProfilers().addQueryProfiler().setCollector(profileCollector);
                 }
                 globalsCollector.preCollection();
                 context.searcher().search(query, collector);
@@ -154,8 +154,8 @@ public class AggregationPhase implements SearchPhase {
                     siblingPipelineAggregators.add((SiblingPipelineAggregator) pipelineAggregator);
                 } else {
                     throw new AggregationExecutionException("Invalid pipeline aggregation named [" + pipelineAggregator.name()
-                            + "] of type [" + pipelineAggregator.type().name()
-                            + "]. Only sibling pipeline aggregations are allowed at the top level");
+                            + "] of type [" + pipelineAggregator.getWriteableName() + "]. Only sibling pipeline aggregations are "
+                            + "allowed at the top level");
                 }
             }
             context.queryResult().pipelineAggregators(siblingPipelineAggregators);

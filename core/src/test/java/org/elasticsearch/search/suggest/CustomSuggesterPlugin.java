@@ -19,25 +19,15 @@
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.plugins.SearchPlugin;
 
-/**
- *
- */
-public class CustomSuggesterPlugin extends Plugin {
+import java.util.Map;
 
+import static java.util.Collections.singletonMap;
+
+public class CustomSuggesterPlugin extends Plugin implements SearchPlugin {
     @Override
-    public String name() {
-        return "test-plugin-custom-suggester";
+    public Map<String, Suggester<?>> getSuggesters() {
+        return singletonMap("custom", CustomSuggester.INSTANCE);
     }
-
-    @Override
-    public String description() {
-        return "Custom suggester to test pluggable implementation";
-    }
-
-    public void onModule(SearchModule searchModule) {
-        searchModule.registerSuggester("custom", CustomSuggester.INSTANCE);
-    }
-
 }

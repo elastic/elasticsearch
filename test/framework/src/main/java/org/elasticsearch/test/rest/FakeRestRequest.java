@@ -28,42 +28,29 @@ import java.util.Map;
 public class FakeRestRequest extends RestRequest {
 
     private final Map<String, String> headers;
-
-    private final Map<String, String> params;
-
     private final BytesReference content;
+    private final Method method;
+
 
     public FakeRestRequest() {
-        this(new HashMap<>());
+        this(new HashMap<>(), new HashMap<>(), null, Method.GET, "/");
     }
 
-    public FakeRestRequest(Map<String, String> headers) {
-        this(headers, new HashMap<>());
-    }
-
-    public FakeRestRequest(Map<String, String> headers, Map<String, String> params) {
-        this(headers, params, null);
-    }
-
-    public FakeRestRequest(Map<String, String> headers, Map<String, String> params, BytesReference content) {
+    private FakeRestRequest(Map<String, String> headers, Map<String, String> params, BytesReference content, Method method, String path) {
+        super(params, path);
         this.headers = headers;
-        this.params = params;
         this.content = content;
+        this.method = method;
     }
 
     @Override
     public Method method() {
-        return Method.GET;
+        return method;
     }
 
     @Override
     public String uri() {
-        return "/";
-    }
-
-    @Override
-    public String rawPath() {
-        return "/";
+        return rawPath();
     }
 
     @Override
@@ -86,27 +73,47 @@ public class FakeRestRequest extends RestRequest {
         return headers.entrySet();
     }
 
-    @Override
-    public boolean hasParam(String key) {
-        return params.containsKey(key);
-    }
+    public static class Builder {
 
-    @Override
-    public String param(String key) {
-        return params.get(key);
-    }
+        private Map<String, String> headers = new HashMap<>();
 
-    @Override
-    public String param(String key, String defaultValue) {
-        String value = params.get(key);
-        if (value == null) {
-            return defaultValue;
+        private Map<String, String> params = new HashMap<>();
+
+        private BytesReference content;
+
+        private String path = "/";
+
+        private Method method = Method.GET;
+
+        public Builder withHeaders(Map<String, String> headers) {
+            this.headers = headers;
+            return this;
         }
-        return value;
+
+        public Builder withParams(Map<String, String> params) {
+            this.params = params;
+            return this;
+        }
+
+        public Builder withContent(BytesReference content) {
+            this.content = content;
+            return this;
+        }
+
+        public Builder withPath(String path) {
+            this.path = path;
+            return this;
+        }
+
+        public Builder withMethod(Method method) {
+            this.method = method;
+            return this;
+        }
+
+        public FakeRestRequest build() {
+            return new FakeRestRequest(headers, params, content, method, path);
+        }
+
     }
 
-    @Override
-    public Map<String, String> params() {
-        return params;
-    }
 }

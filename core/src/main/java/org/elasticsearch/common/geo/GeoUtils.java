@@ -26,9 +26,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-
-import static org.apache.lucene.spatial.util.GeoDistanceUtils.maxRadialDistanceMeters;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 
 import java.io.IOException;
 
@@ -66,6 +64,9 @@ public class GeoUtils {
 
     /** Earth ellipsoid polar distance in meters */
     public static final double EARTH_POLAR_DISTANCE = Math.PI * EARTH_SEMI_MINOR_AXIS;
+
+    /** rounding error for quantized latitude and longitude values */
+    public static final double TOLERANCE = 1E-6;
 
     /** Returns the minimum between the provided distance 'initialRadius' and the
      * maximum distance/radius from the point 'center' before overlapping
@@ -466,6 +467,29 @@ public class GeoUtils {
         } else {
             return point.resetFromGeoHash(data);
         }
+    }
+
+    /** Returns the maximum distance/radius (in meters) from the point 'center' before overlapping */
+    public static double maxRadialDistanceMeters(final double centerLat, final double centerLon) {
+      if (Math.abs(centerLat) == MAX_LAT) {
+        return SloppyMath.haversinMeters(centerLat, centerLon, 0, centerLon);
+      }
+      return SloppyMath.haversinMeters(centerLat, centerLon, centerLat, (MAX_LON + centerLon) % 360);
+    }
+
+    /** Return the distance (in meters) between 2 lat,lon geo points using the haversine method implemented by lucene */
+    public static double arcDistance(double lat1, double lon1, double lat2, double lon2) {
+        return SloppyMath.haversinMeters(lat1, lon1, lat2, lon2);
+    }
+
+    /**
+     * Return the distance (in meters) between 2 lat,lon geo points using a simple tangential plane
+     * this provides a faster alternative to {@link GeoUtils#arcDistance} when points are within 5 km
+     */
+    public static double planeDistance(double lat1, double lon1, double lat2, double lon2) {
+        double x = (lon2 - lon1) * SloppyMath.TO_RADIANS * Math.cos((lat2 + lat1) / 2.0 * SloppyMath.TO_RADIANS);
+        double y = (lat2 - lat1) * SloppyMath.TO_RADIANS;
+        return Math.sqrt(x * x + y * y) * EARTH_MEAN_RADIUS;
     }
 
     private GeoUtils() {

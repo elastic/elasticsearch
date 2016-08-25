@@ -19,11 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
-import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Variables;
+import org.elasticsearch.painless.Locals.Variable;
+import org.elasticsearch.painless.Location;
 import org.objectweb.asm.Label;
-import org.objectweb.asm.commons.GeneratorAdapter;
 
 /**
  * The superclass for all S* (statement) nodes.
@@ -89,7 +87,7 @@ public abstract class AStatement extends ANode {
      * Set to the loop counter variable slot as a shortcut if loop statements
      * are being counted.
      */
-    int loopCounterSlot = -1;
+    Variable loopCounter = null;
 
     /**
      * Set to the approximate number of statements in a loop block to prevent
@@ -109,17 +107,10 @@ public abstract class AStatement extends ANode {
      */
     Label brake = null;
 
-    AStatement(final String location) {
+    /**
+     * Standard constructor with location used for error tracking.
+     */
+    AStatement(Location location) {
         super(location);
     }
-
-    /**
-     * Checks for errors and collects data for the writing phase.
-     */
-    abstract void analyze(final CompilerSettings settings, final Definition definition, final Variables variables);
-
-    /**
-     * Writes ASM based on the data collected during the analysis phase.
-     */
-    abstract void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter);
 }

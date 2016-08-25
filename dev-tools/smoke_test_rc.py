@@ -63,8 +63,7 @@ DEFAULT_PLUGINS = ["analysis-icu",
                    "analysis-phonetic",
                    "analysis-smartcn",
                    "analysis-stempel",
-                   "delete-by-query",
-                   "discovery-azure",
+                   "discovery-azure-classic",
                    "discovery-ec2",
                    "discovery-gce",
                    "ingest-attachment",
@@ -75,6 +74,7 @@ DEFAULT_PLUGINS = ["analysis-icu",
                    "mapper-murmur3",
                    "mapper-size",
                    "repository-azure",
+                   "repository-gcs",
                    "repository-hdfs",
                    "repository-s3",
                    "store-smb"]
@@ -191,7 +191,7 @@ def smoke_test_release(release, files, expected_hash, plugins):
     plugin_names = {}
     for plugin  in plugins:
       print('     Install plugin [%s]' % (plugin))
-      run('%s; %s -Des.plugins.staging=true %s %s' % (java_exe(), es_plugin_path, 'install -b', plugin))
+      run('%s; export ES_JAVA_OPTS="-Des.plugins.staging=%s"; %s %s %s' % (java_exe(), expected_hash, es_plugin_path, 'install -b', plugin))
       plugin_names[plugin] = True
     if 'x-pack' in plugin_names:
       headers = { 'Authorization' : 'Basic %s' % base64.b64encode(b"es_admin:foobar").decode("UTF-8") }
@@ -202,7 +202,7 @@ def smoke_test_release(release, files, expected_hash, plugins):
       headers = {}
     print('  Starting elasticsearch deamon from [%s]' % es_dir)
     try:
-      run('%s; %s -Ees.node.name=smoke_tester -Ees.cluster.name=prepare_release -Ees.script.inline=true -Ees.script.stored=true -Ees.repositories.url.allowed_urls=http://snapshot.test* %s -Ees.pidfile=%s -Ees.node.portsfile=true'
+      run('%s; %s -Enode.name=smoke_tester -Ecluster.name=prepare_release -Escript.inline=true -Escript.stored=true -Erepositories.url.allowed_urls=http://snapshot.test* %s -Epidfile=%s -Enode.portsfile=true'
           % (java_exe(), es_run_path, '-d', os.path.join(es_dir, 'es-smoke.pid')))
       if not wait_for_node_startup(es_dir, header=headers):
         print("elasticsearch logs:")

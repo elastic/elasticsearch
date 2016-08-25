@@ -1,8 +1,25 @@
 [[java-query-percolate-query]]
 ==== Percolate query
 
-See:
- * {ref}/query-dsl-percolate-query.html[Percolate Query]
+See: {ref}/query-dsl-percolate-query.html[Percolate Query]
+
+In order to use the `percolate` query from the Java API your
+the percolator module dependency should be on the classpath and
+the transport client should be loaded with the percolator plugin:
+
+[source,java]
+--------------------------------------------------
+TransportClient transportClient = TransportClient.builder()
+        .settings(Settings.builder().put("node.name", "node"))
+        .addPlugin(PercolatorPlugin.class)
+        .build();
+transportClient.addTransportAddress(
+        new InetSocketTransportAddress(new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 9300))
+);
+--------------------------------------------------
+
+Before the `percolate` query can be used an `percolator` mapping should be added and
+a document containing a percolator query should be indexed:
 
 [source,java]
 --------------------------------------------------

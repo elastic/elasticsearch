@@ -39,9 +39,9 @@ public class CompiledScript {
     public CompiledScript(ScriptService.ScriptType type, String name, String lang, Object compiled) {
         this.type = type;
         this.name = name;
-            this.lang = lang;
-            this.compiled = compiled;
-        }
+        this.lang = lang;
+        this.compiled = compiled;
+    }
 
     /**
      * Method to get the type of language.

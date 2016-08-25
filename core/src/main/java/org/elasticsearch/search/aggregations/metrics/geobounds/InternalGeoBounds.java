@@ -23,7 +23,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -33,28 +32,14 @@ import java.util.List;
 import java.util.Map;
 
 public class InternalGeoBounds extends InternalMetricsAggregation implements GeoBounds {
+    private final double top;
+    private final double bottom;
+    private final double posLeft;
+    private final double posRight;
+    private final double negLeft;
+    private final double negRight;
+    private final boolean wrapLongitude;
 
-    public final static Type TYPE = new Type("geo_bounds");
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalGeoBounds readResult(StreamInput in) throws IOException {
-            InternalGeoBounds result = new InternalGeoBounds();
-            result.readFrom(in);
-            return result;
-        }
-    };
-    
-    private double top;
-    private double bottom;
-    private double posLeft;
-    private double posRight;
-    private double negLeft;
-    private double negRight;
-    private boolean wrapLongitude;
-
-    InternalGeoBounds() {
-    }
-    
     InternalGeoBounds(String name, double top, double bottom, double posLeft, double posRight,
             double negLeft, double negRight, boolean wrapLongitude,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
@@ -68,9 +53,34 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
         this.wrapLongitude = wrapLongitude;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public InternalGeoBounds(StreamInput in) throws IOException {
+        super(in);
+        top = in.readDouble();
+        bottom = in.readDouble();
+        posLeft = in.readDouble();
+        posRight = in.readDouble();
+        negLeft = in.readDouble();
+        negRight = in.readDouble();
+        wrapLongitude = in.readBoolean();
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeDouble(top);
+        out.writeDouble(bottom);
+        out.writeDouble(posLeft);
+        out.writeDouble(posRight);
+        out.writeDouble(negLeft);
+        out.writeDouble(negRight);
+        out.writeBoolean(wrapLongitude);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return GeoBoundsAggregationBuilder.NAME;
     }
     
     @Override
@@ -104,7 +114,8 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
                 negRight = bounds.negRight;
             }
         }
-        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, pipelineAggregators(), getMetaData());
+        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, pipelineAggregators(),
+                getMetaData());
     }
 
     @Override
@@ -173,32 +184,6 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
         return builder;
     }
 
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        top = in.readDouble();
-        bottom = in.readDouble();
-        posLeft = in.readDouble();
-        posRight = in.readDouble();
-        negLeft = in.readDouble();
-        negRight = in.readDouble();
-        wrapLongitude = in.readBoolean();
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeDouble(top);
-        out.writeDouble(bottom);
-        out.writeDouble(posLeft);
-        out.writeDouble(posRight);
-        out.writeDouble(negLeft);
-        out.writeDouble(negRight);
-        out.writeBoolean(wrapLongitude);
-    }
-
-    public static void registerStream() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-    }
-    
     private static class BoundingBox {
         private final GeoPoint topLeft;
         private final GeoPoint bottomRight;

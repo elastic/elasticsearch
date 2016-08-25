@@ -41,6 +41,29 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertEquals(xcontentType(), XContentFactory.xContentType(data));
     }
 
+    public void testMissingEndObject() throws IOException {
+        IOException e = expectThrows(IOException.class, () -> {
+            ByteArrayOutputStream os = new ByteArrayOutputStream();
+            try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
+                generator.writeStartObject();
+                generator.writeFieldName("foo");
+                generator.writeNumber(2L);
+            }
+        });
+        assertEquals(e.getMessage(), "unclosed object or array found");
+    }
+
+    public void testMissingEndArray() throws IOException {
+        IOException e = expectThrows(IOException.class, () -> {
+            ByteArrayOutputStream os = new ByteArrayOutputStream();
+            try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
+                generator.writeStartArray();
+                generator.writeNumber(2L);
+            }
+        });
+        assertEquals(e.getMessage(), "unclosed object or array found");
+    }
+
     public void testRawField() throws Exception {
         for (boolean useStream : new boolean[] {false, true}) {
             for (XContentType xcontentType : XContentType.values()) {
@@ -111,5 +134,26 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertEquals(Token.VALUE_NULL, parser.nextToken());
         assertEquals(Token.END_OBJECT, parser.nextToken());
         assertNull(parser.nextToken());
+
+        os = new ByteArrayOutputStream();
+        try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
+            generator.writeStartObject();
+            generator.writeFieldName("test");
+            generator.writeRawValue(new BytesArray(rawData));
+            generator.writeEndObject();
+        }
+
+        parser = xcontentType().xContent().createParser(os.toByteArray());
+        assertEquals(Token.START_OBJECT, parser.nextToken());
+        assertEquals(Token.FIELD_NAME, parser.nextToken());
+        assertEquals("test", parser.currentName());
+        assertEquals(Token.START_OBJECT, parser.nextToken());
+        assertEquals(Token.FIELD_NAME, parser.nextToken());
+        assertEquals("foo", parser.currentName());
+        assertEquals(Token.VALUE_NULL, parser.nextToken());
+        assertEquals(Token.END_OBJECT, parser.nextToken());
+        assertEquals(Token.END_OBJECT, parser.nextToken());
+        assertNull(parser.nextToken());
+
     }
 }

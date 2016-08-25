@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.TreeMap;
 
 /**
@@ -92,7 +93,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     /** Name for (de-)serialization. */
     public static final String NAME = "simple_query_string";
-    public static final ParseField QUERY_NAME_FIELD = new ParseField(NAME);
 
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
@@ -186,7 +186,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Add a field to run the query against. */
     public SimpleQueryStringBuilder field(String field) {
         if (Strings.isEmpty(field)) {
-            throw new IllegalArgumentException("supplied field is null or empty.");
+            throw new IllegalArgumentException("supplied field is null or empty");
         }
         this.fieldsAndWeights.put(field, AbstractQueryBuilder.DEFAULT_BOOST);
         return this;
@@ -195,7 +195,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     /** Add a field to run the query against with a specific boost. */
     public SimpleQueryStringBuilder field(String field, float boost) {
         if (Strings.isEmpty(field)) {
-            throw new IllegalArgumentException("supplied field is null or empty.");
+            throw new IllegalArgumentException("supplied field is null or empty");
         }
         this.fieldsAndWeights.put(field, boost);
         return this;
@@ -417,7 +417,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         builder.endObject();
     }
 
-    public static SimpleQueryStringBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static Optional<SimpleQueryStringBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String currentFieldName = null;
@@ -514,7 +514,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         qb.boost(boost).fields(fieldsAndWeights).analyzer(analyzerName).queryName(queryName).minimumShouldMatch(minimumShouldMatch);
         qb.flags(flags).defaultOperator(defaultOperator).locale(locale).lowercaseExpandedTerms(lowercaseExpandedTerms);
         qb.lenient(lenient).analyzeWildcard(analyzeWildcard).boost(boost);
-        return qb;
+        return Optional.of(qb);
     }
 
     @Override

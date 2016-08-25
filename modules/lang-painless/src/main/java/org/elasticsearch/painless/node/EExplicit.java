@@ -19,52 +19,59 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.Definition;
-import org.elasticsearch.painless.Definition.Cast;
-import org.elasticsearch.painless.Variables;
-import org.objectweb.asm.commons.GeneratorAdapter;
+import org.elasticsearch.painless.Globals;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.Locals;
+import org.elasticsearch.painless.MethodWriter;
+
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents an explicit cast.
  */
 public final class EExplicit extends AExpression {
 
-    final String type;
-    AExpression child;
+    private final String type;
+    private AExpression child;
 
-    Cast cast = null;
-
-    public EExplicit(final String location, final String type, final AExpression child) {
+    public EExplicit(Location location, String type, AExpression child) {
         super(location);
 
-        this.type = type;
-        this.child = child;
+        this.type = Objects.requireNonNull(type);
+        this.child = Objects.requireNonNull(child);
     }
 
     @Override
-    void analyze(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    void extractVariables(Set<String> variables) {
+        child.extractVariables(variables);
+    }
+
+    @Override
+    void analyze(Locals locals) {
         try {
-            actual = definition.getType(this.type);
-        } catch (final IllegalArgumentException exception) {
-            throw new IllegalArgumentException(error("Not a type [" + this.type + "]."));
+            actual = Definition.getType(this.type);
+        } catch (IllegalArgumentException exception) {
+            throw createError(new IllegalArgumentException("Not a type [" + this.type + "]."));
         }
 
         child.expected = actual;
         child.explicit = true;
-        child.analyze(settings, definition, variables);
-        child = child.cast(settings, definition, variables);
+        child.analyze(locals);
+        child = child.cast(locals);
     }
 
     @Override
-    void write(final CompilerSettings settings, final Definition definition, final GeneratorAdapter adapter) {
-        throw new IllegalArgumentException(error("Illegal tree structure."));
+    void write(MethodWriter writer, Globals globals) {
+        throw createError(new IllegalStateException("Illegal tree structure."));
     }
 
-    AExpression cast(final CompilerSettings settings, final Definition definition, final Variables variables) {
+    AExpression cast(Locals locals) {
         child.expected = expected;
         child.explicit = explicit;
+        child.internal = internal;
 
-        return child.cast(settings, definition, variables);
+        return child.cast(locals);
     }
 }

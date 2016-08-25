@@ -25,6 +25,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Collection;

@@ -26,7 +26,7 @@ import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
@@ -37,9 +37,8 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestActionListener;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.RestActionListener;
+import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.List;
 import java.util.Map;
@@ -49,14 +48,14 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestSegmentsAction extends AbstractCatAction {
 
     @Inject
-    public RestSegmentsAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestSegmentsAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_cat/segments", this);
         controller.registerHandler(GET, "/_cat/segments/{index}", this);
     }
 
     @Override
-    protected void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    protected void doRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
 
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();

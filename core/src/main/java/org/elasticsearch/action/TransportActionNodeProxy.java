@@ -35,7 +35,6 @@ public class TransportActionNodeProxy<Request extends ActionRequest, Response ex
     private final GenericAction<Request, Response> action;
     private final TransportRequestOptions transportOptions;
 
-    @Inject
     public TransportActionNodeProxy(Settings settings, GenericAction<Request, Response> action, TransportService transportService) {
         super(settings);
         this.action = action;

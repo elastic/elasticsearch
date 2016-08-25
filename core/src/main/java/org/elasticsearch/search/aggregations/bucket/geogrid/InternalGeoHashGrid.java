@@ -18,28 +18,26 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
-import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.unmodifiableList;
 
 /**
  * Represents a grid of cells where each cell's location is determined by a geohash.
@@ -48,55 +46,34 @@ import java.util.Map;
  */
 public class InternalGeoHashGrid extends InternalMultiBucketAggregation<InternalGeoHashGrid, InternalGeoHashGrid.Bucket> implements
         GeoHashGrid {
-
-    public static final Type TYPE = new Type("geohash_grid", "ghcells");
-
-    public static final AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalGeoHashGrid readResult(StreamInput in) throws IOException {
-            InternalGeoHashGrid buckets = new InternalGeoHashGrid();
-            buckets.readFrom(in);
-            return buckets;
-        }
-    };
-
-
-    public static final BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
-        @Override
-        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
-            Bucket bucket = new Bucket();
-            bucket.readFrom(in);
-            return bucket;
-        }
-
-        @Override
-        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
-            BucketStreamContext context = new BucketStreamContext();
-            return context;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
-        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
-    }
-
-
     static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements GeoHashGrid.Bucket, Comparable<Bucket> {
 
         protected long geohashAsLong;
         protected long docCount;
         protected InternalAggregations aggregations;
 
-        public Bucket() {
-            // For Serialization only
-        }
-
         public Bucket(long geohashAsLong, long docCount, InternalAggregations aggregations) {
             this.docCount = docCount;
             this.aggregations = aggregations;
             this.geohashAsLong = geohashAsLong;
         }
+
+        /**
+         * Read from a stream.
+         */
+        private Bucket(StreamInput in) throws IOException {
+            geohashAsLong = in.readLong();
+            docCount = in.readVLong();
+            aggregations = InternalAggregations.readAggregations(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(geohashAsLong);
+            out.writeVLong(docCount);
+            aggregations.writeTo(out);
+        }
+
 
         @Override
         public String getKeyAsString() {
@@ -141,20 +118,6 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            geohashAsLong = in.readLong();
-            docCount = in.readVLong();
-            aggregations = InternalAggregations.readAggregations(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeLong(geohashAsLong);
-            out.writeVLong(docCount);
-            aggregations.writeTo(out);
-        }
-
-        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CommonFields.KEY, getKeyAsString());
@@ -164,23 +127,35 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
             return builder;
         }
     }
-    private int requiredSize;
-    private Collection<Bucket> buckets;
-    protected Map<String, Bucket> bucketMap;
 
-    InternalGeoHashGrid() {
-    } // for serialization
+    private final int requiredSize;
+    private final List<Bucket> buckets;
 
-    public InternalGeoHashGrid(String name, int requiredSize, Collection<Bucket> buckets, List<PipelineAggregator> pipelineAggregators,
+    public InternalGeoHashGrid(String name, int requiredSize, List<Bucket> buckets, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.requiredSize = requiredSize;
         this.buckets = buckets;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public InternalGeoHashGrid(StreamInput in) throws IOException {
+        super(in);
+        requiredSize = readSize(in);
+        buckets = in.readList(Bucket::new);
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        writeSize(requiredSize, out);
+        out.writeList(buckets);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return GeoGridAggregationBuilder.NAME;
     }
 
     @Override
@@ -193,11 +168,9 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
         return new Bucket(prototype.geohashAsLong, prototype.docCount, aggregations);
     }
 
-    @SuppressWarnings("unchecked")
     @Override
     public List<GeoHashGrid.Bucket> getBuckets() {
-        Object o = buckets;
-        return (List<GeoHashGrid.Bucket>) o;
+        return unmodifiableList(buckets);
     }
 
     @Override
@@ -231,29 +204,6 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
             list[i] = ordered.pop();
         }
         return new InternalGeoHashGrid(getName(), requiredSize, Arrays.asList(list), pipelineAggregators(), getMetaData());
-    }
-
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        this.requiredSize = readSize(in);
-        int size = in.readVInt();
-        List<Bucket> buckets = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            Bucket bucket = new Bucket();
-            bucket.readFrom(in);
-            buckets.add(bucket);
-        }
-        this.buckets = buckets;
-        this.bucketMap = null;
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        writeSize(requiredSize, out);
-        out.writeVInt(buckets.size());
-        for (Bucket bucket : buckets) {
-            bucket.writeTo(out);
-        }
     }
 
     @Override

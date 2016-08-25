@@ -42,20 +42,20 @@ import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.CollectorResult;
-import org.elasticsearch.search.profile.InternalProfileCollector;
 import org.elasticsearch.search.profile.ProfileShardResult;
-import org.elasticsearch.search.profile.Profiler;
+import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.query.CollectorResult;
+import org.elasticsearch.search.profile.query.InternalProfileCollector;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -76,11 +76,10 @@ public class QueryPhase implements SearchPhase {
     private final SuggestPhase suggestPhase;
     private RescorePhase rescorePhase;
 
-    @Inject
-    public QueryPhase(AggregationPhase aggregationPhase, SuggestPhase suggestPhase, RescorePhase rescorePhase) {
-        this.aggregationPhase = aggregationPhase;
-        this.suggestPhase = suggestPhase;
-        this.rescorePhase = rescorePhase;
+    public QueryPhase(Settings settings) {
+        this.aggregationPhase = new AggregationPhase();
+        this.suggestPhase = new SuggestPhase(settings);
+        this.rescorePhase = new RescorePhase(settings);
     }
 
     @Override
@@ -112,7 +111,8 @@ public class QueryPhase implements SearchPhase {
         aggregationPhase.execute(searchContext);
 
         if (searchContext.getProfilers() != null) {
-            List<ProfileShardResult> shardResults = Profiler.buildShardResults(searchContext.getProfilers().getProfilers());
+            ProfileShardResult shardResults = SearchProfileShardResults
+                    .buildShardResults(searchContext.getProfilers());
             searchContext.queryResult().profileResults(shardResults);
         }
     }
@@ -349,12 +349,12 @@ public class QueryPhase implements SearchPhase {
                 }
             }
 
-            final boolean timeoutSet = searchContext.timeoutInMillis() != SearchService.NO_TIMEOUT.millis();
+            final boolean timeoutSet = searchContext.timeout() != null && !searchContext.timeout().equals(SearchService.NO_TIMEOUT);
             if (timeoutSet && collector != null) { // collector might be null if no collection is actually needed
                 final Collector child = collector;
                 // TODO: change to use our own counter that uses the scheduler in ThreadPool
                 // throws TimeLimitingCollector.TimeExceededException when timeout has reached
-                collector = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeEstimateCounter(), searchContext.timeoutInMillis());
+                collector = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeEstimateCounter(), searchContext.timeout().millis());
                 if (doProfile) {
                     collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_TIMEOUT,
                             Collections.singletonList((InternalProfileCollector) child));
@@ -364,7 +364,7 @@ public class QueryPhase implements SearchPhase {
             try {
                 if (collector != null) {
                     if (doProfile) {
-                        searchContext.getProfilers().getCurrent().setCollector((InternalProfileCollector) collector);
+                        searchContext.getProfilers().getCurrentQueryProfiler().setCollector((InternalProfileCollector) collector);
                     }
                     searcher.search(query, collector);
                 }
@@ -384,13 +384,14 @@ public class QueryPhase implements SearchPhase {
             queryResult.topDocs(topDocsCallable.call(), sortValueFormats);
 
             if (searchContext.getProfilers() != null) {
-                List<ProfileShardResult> shardResults = Profiler.buildShardResults(searchContext.getProfilers().getProfilers());
+                ProfileShardResult shardResults = SearchProfileShardResults
+                        .buildShardResults(searchContext.getProfilers());
                 searchContext.queryResult().profileResults(shardResults);
             }
 
             return rescore;
 
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext, "Failed to execute main query", e);
         }
     }

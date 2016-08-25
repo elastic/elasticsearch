@@ -26,10 +26,12 @@ import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -239,14 +241,14 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return getWriteableName();
     }
 
-    protected final static void writeQueries(StreamOutput out, List<? extends QueryBuilder> queries) throws IOException {
+    protected static final void writeQueries(StreamOutput out, List<? extends QueryBuilder> queries) throws IOException {
         out.writeVInt(queries.size());
         for (QueryBuilder query : queries) {
             out.writeNamedWriteable(query);
         }
     }
 
-    protected final static List<QueryBuilder> readQueries(StreamInput in) throws IOException {
+    protected static final List<QueryBuilder> readQueries(StreamInput in) throws IOException {
         List<QueryBuilder> queries = new ArrayList<>();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
@@ -289,5 +291,13 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
             throw new IllegalArgumentException(message);
         }
         return value;
+    }
+
+    protected static void throwParsingExceptionOnMultipleFields(String queryName, XContentLocation contentLocation,
+                                                                String processedFieldName, String currentFieldName) {
+        if (processedFieldName != null) {
+            throw new ParsingException(contentLocation, "[" + queryName + "] query doesn't support multiple fields, found ["
+                    + processedFieldName + "] and [" + currentFieldName + "]");
+        }
     }
 }

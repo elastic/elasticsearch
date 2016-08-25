@@ -25,7 +25,7 @@ import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -41,8 +41,7 @@ public class BytesRefHashTests extends ESSingleNodeTestCase {
     BytesRefHash hash;
 
     private BigArrays randombigArrays() {
-        final PageCacheRecycler recycler = randomBoolean() ? null : getInstanceFromNode(PageCacheRecycler.class);
-        return new MockBigArrays(recycler, new NoneCircuitBreakerService());
+        return new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
     }
 
     private void newHash() {

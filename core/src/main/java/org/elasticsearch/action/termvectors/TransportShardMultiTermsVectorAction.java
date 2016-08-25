@@ -83,7 +83,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
             try {
                 TermVectorsResponse termVectorsResponse = TermVectorsService.getTermVectors(indexShard, termVectorsRequest);
                 response.add(request.locations.get(i), termVectorsResponse);
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 if (TransportActions.isShardNotAvailableException(t)) {
                     throw (ElasticsearchException) t;
                 } else {

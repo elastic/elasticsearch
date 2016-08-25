@@ -111,7 +111,7 @@ public class GeoPolygonQuery extends Query {
 
     @Override
     public boolean equals(Object obj) {
-        if (super.equals(obj) == false) {
+        if (sameClassAs(obj) == false) {
             return false;
         }
         GeoPolygonQuery that = (GeoPolygonQuery) obj;
@@ -121,7 +121,7 @@ public class GeoPolygonQuery extends Query {
 
     @Override
     public int hashCode() {
-        int h = super.hashCode();
+        int h = classHash();
         h = 31 * h + indexFieldData.getFieldName().hashCode();
         h = 31 * h + Arrays.hashCode(points);
         return h;

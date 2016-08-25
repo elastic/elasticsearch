@@ -21,6 +21,7 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -64,12 +65,14 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -94,7 +97,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     private Settings nodeSettings(String dataPath) {
         return Settings.builder()
-                .put(NodeEnvironment.ADD_NODE_ID_TO_CUSTOM_PATH.getKey(), false)
+                .put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), false)
                 .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath)
                 .put(FsDirectoryService.INDEX_LOCK_FACTOR_SETTING.getKey(), randomFrom("native", "simple"))
                 .build();
@@ -102,7 +105,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(MockTransportService.TestPlugin.class);
+        return Arrays.asList(MockTransportService.TestPlugin.class);
     }
 
     public void testCannotCreateWithBadPath() throws Exception {
@@ -224,8 +227,8 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         // Check that we can get doc 1 and 2, because we are doing realtime
         // gets and getting from the primary
-        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setRealtime(true).setFields("foo").get();
-        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setRealtime(true).setFields("foo").get();
+        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
+        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
         assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
         assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
 
@@ -277,7 +280,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .build();
 
         prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
-        ensureYellow(IDX);
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
 
@@ -335,7 +337,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .build();
 
         prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
-        ensureYellow(IDX);
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
 
@@ -379,7 +380,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
     }
 
-    public void testPrimaryRelocationWithConcurrentIndexing() throws Throwable {
+    public void testPrimaryRelocationWithConcurrentIndexing() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
 
@@ -395,7 +396,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .build();
 
         prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
-        ensureYellow(IDX);
         // Node1 has the primary, now node2 has the replica
         String node2 = internalCluster().startNode(nodeSettings);
         ensureGreen(IDX);
@@ -408,7 +408,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         final int numPhase2Docs = scaledRandomIntBetween(25, 200);
         final CountDownLatch phase1finished = new CountDownLatch(1);
         final CountDownLatch phase2finished = new CountDownLatch(1);
-        final CopyOnWriteArrayList<Throwable> exceptions = new CopyOnWriteArrayList<>();
+        final CopyOnWriteArrayList<Exception> exceptions = new CopyOnWriteArrayList<>();
         Thread thread = new Thread() {
             @Override
             public void run() {
@@ -417,9 +417,9 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                     try {
                         final IndexResponse indexResponse = client().prepareIndex(IDX, "doc",
                                 Integer.toString(counter.incrementAndGet())).setSource("foo", "bar").get();
-                        assertTrue(indexResponse.isCreated());
-                    } catch (Throwable t) {
-                        exceptions.add(t);
+                        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+                    } catch (Exception e) {
+                        exceptions.add(e);
                     }
                     final int docCount = counter.get();
                     if (docCount == numPhase1Docs) {
@@ -454,7 +454,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
     public void testPrimaryRelocationWhereRecoveryFails() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = Settings.builder()
-                .put("node.add_id_to_custom_path", false)
+                .put("node.add_lock_id_to_custom_path", false)
                 .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath)
                 .build();
 
@@ -470,7 +470,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 .build();
 
         prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
-        ensureYellow(IDX);
         // Node1 has the primary, now node2 has the replica
         String node2 = internalCluster().startNode(nodeSettings);
         ensureGreen(IDX);
@@ -511,7 +510,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 while (counter.get() < (numPhase1Docs + numPhase2Docs + numPhase3Docs)) {
                     final IndexResponse indexResponse = client().prepareIndex(IDX, "doc",
                             Integer.toString(counter.incrementAndGet())).setSource("foo", "bar").get();
-                    assertTrue(indexResponse.isCreated());
+                    assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
                     final int docCount = counter.get();
                     if (docCount == numPhase1Docs) {
                         phase1finished.countDown();
@@ -585,9 +584,8 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         logger.info("--> deleting index " + IDX);
         assertAcked(client().admin().indices().prepareDelete(IDX));
-
+        assertAllIndicesRemovedAndDeletionCompleted(internalCluster().getInstances(IndicesService.class));
         assertPathHasBeenCleared(dataPath);
-        //norelease
         //TODO: uncomment the test below when https://github.com/elastic/elasticsearch/issues/17695 is resolved.
         //assertIndicesDirsDeleted(nodes);
     }
@@ -646,9 +644,8 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertHitCount(resp, docCount);
 
         assertAcked(client().admin().indices().prepareDelete(IDX));
-
+        assertAllIndicesRemovedAndDeletionCompleted(internalCluster().getInstances(IndicesService.class));
         assertPathHasBeenCleared(dataPath);
-        //norelease
         //TODO: uncomment the test below when https://github.com/elastic/elasticsearch/issues/17695 is resolved.
         //assertIndicesDirsDeleted(nodes);
     }
@@ -677,7 +674,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         client().prepareIndex(IDX, "doc", "4").setSource("foo", "eggplant").get();
         flushAndRefresh(IDX);
 
-        SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).addFieldDataField("foo").addSort("foo", SortOrder.ASC).get();
+        SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).addDocValueField("foo").addSort("foo", SortOrder.ASC).get();
         assertHitCount(resp, 4);
         assertOrderedSearchHits(resp, "2", "3", "4", "1");
         SearchHit[] hits = resp.getHits().hits();
@@ -701,7 +698,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                     }
                 }
             }
-        });
+        }, 1, TimeUnit.MINUTES);
     }
 
     /** wait until the node has the specified number of shards allocated on it */
@@ -718,7 +715,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                     }
                 }
             }
-        });
+        }, 1, TimeUnit.MINUTES);
     }
 
     public void testIndexOnSharedFSRecoversToAnyNode() throws Exception {
@@ -838,7 +835,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         logger.info("--> deleting closed index");
         client().admin().indices().prepareDelete(IDX).get();
-
+        assertAllIndicesRemovedAndDeletionCompleted(internalCluster().getInstances(IndicesService.class));
         assertPathHasBeenCleared(dataPath);
         assertIndicesDirsDeleted(nodes);
     }
@@ -859,7 +856,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                                        .build();
 
         prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=text").get();
-        ensureYellow(IDX);
 
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();

@@ -22,6 +22,7 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
 
 import java.util.Arrays;
 import java.util.concurrent.BlockingQueue;
@@ -83,13 +84,15 @@ public class EsExecutors {
     }
 
     public static String threadName(Settings settings, String namePrefix) {
-        String name = settings.get("node.name");
-        if (name == null) {
-            name = "elasticsearch";
+        if (Node.NODE_NAME_SETTING.exists(settings)) {
+            return threadName(Node.NODE_NAME_SETTING.get(settings), namePrefix);
         } else {
-            name = "elasticsearch[" + name + "]";
+            return threadName("", namePrefix);
         }
-        return name + "[" + namePrefix + "]";
+    }
+
+    public static String threadName(final String nodeName, final String namePrefix) {
+        return "elasticsearch" + (nodeName.isEmpty() ? "" : "[") + nodeName + (nodeName.isEmpty() ? "" : "]") + "[" + namePrefix + "]";
     }
 
     public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {

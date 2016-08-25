@@ -19,50 +19,67 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Scorer;
 
-import java.util.Collection;
+import java.io.IOException;
+import java.util.Collections;
 
-public class ScoreTests extends ESSingleNodeTestCase {
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(PainlessPlugin.class);
+public class ScoreTests extends ScriptTestCase {
+
+    /** Most of a dummy scorer impl that requires overriding just score(). */
+    abstract class MockScorer extends Scorer {
+        MockScorer() {
+            super(null);
+        }
+        @Override
+        public int docID() {
+            return 0;
+        }
+        @Override
+        public int freq() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+        @Override
+        public DocIdSetIterator iterator() {
+            throw new UnsupportedOperationException();
+        }
     }
 
-    public void testScore() {
-        createIndex("test", Settings.EMPTY, "type", "t", "type=text");
-        ensureGreen("test");
+    public void testScoreWorks() {
+        assertEquals(2.5, exec("_score", Collections.emptyMap(), Collections.emptyMap(),
+            new MockScorer() {
+                @Override
+                public float score() throws IOException {
+                    return 2.5f;
+                }
+            },
+            true));
+    }
 
-        client().prepareIndex("test", "type", "1").setSource("t", "a").get();
-        client().prepareIndex("test", "type", "2").setSource("t", "a a b").get();
-        client().prepareIndex("test", "type", "3").setSource("t", "a a a b c").get();
-        client().prepareIndex("test", "type", "4").setSource("t", "a b c d").get();
-        client().prepareIndex("test", "type", "5").setSource("t", "a a b c d e").get();
-        client().admin().indices().prepareRefresh("test").get();
+    public void testScoreNotUsed() {
+        assertEquals(3.5, exec("3.5", Collections.emptyMap(), Collections.emptyMap(),
+            new MockScorer() {
+                @Override
+                public float score() throws IOException {
+                    throw new AssertionError("score() should not be called");
+                }
+            },
+            true));
+    }
 
-        final Script script = new Script("_score + 1", ScriptService.ScriptType.INLINE, "painless", null);
-
-        final SearchResponse sr = client().prepareSearch("test").setQuery(
-            QueryBuilders.functionScoreQuery(QueryBuilders.matchQuery("t", "a"),
-                ScoreFunctionBuilders.scriptFunction(script))).get();
-        final SearchHit[] hits = sr.getHits().getHits();
-
-        for (final SearchHit hit : hits) {
-            assertTrue(hit.score() > 0.9999F && hit.score() < 2.0001F);
-        }
-
-        assertEquals("1", hits[0].getId());
-        assertEquals("3", hits[1].getId());
-        assertEquals("2", hits[2].getId());
-        assertEquals("5", hits[3].getId());
-        assertEquals("4", hits[4].getId());
+    public void testScoreCached() {
+        assertEquals(9.0, exec("_score + _score", Collections.emptyMap(), Collections.emptyMap(),
+            new MockScorer() {
+                private boolean used = false;
+                @Override
+                public float score() throws IOException {
+                    if (used == false) {
+                        return 4.5f;
+                    }
+                    throw new AssertionError("score() should not be called twice");
+                }
+            },
+            true));
     }
 }

@@ -110,7 +110,7 @@ public class KeyedLock<T> {
     }
 
     @SuppressWarnings("serial")
-    private final static class KeyLock extends ReentrantLock {
+    private static final class KeyLock extends ReentrantLock {
         KeyLock(boolean fair) {
             super(fair);
         }

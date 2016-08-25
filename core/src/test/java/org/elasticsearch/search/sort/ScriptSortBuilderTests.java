@@ -192,16 +192,13 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertNull(builder.getNestedPath());
     }
 
-    public void testParseJsonOldStyle() throws IOException {
+    public void testParseJson_simple() throws IOException {
         String scriptSort = "{\n" +
                 "\"_script\" : {\n" +
-                    "\"type\" : \"number\",\n" +
-                    "\"script\" : \"doc['field_name'].value * factor\",\n" +
-                    "\"params\" : {\n" +
-                        "\"factor\" : 1.1\n" +
-                    "},\n" +
-                    "\"mode\" : \"max\",\n" +
-                    "\"order\" : \"asc\"\n" +
+                "\"type\" : \"number\",\n" +
+                "\"script\" : \"doc['field_name'].value\",\n" +
+                "\"mode\" : \"max\",\n" +
+                "\"order\" : \"asc\"\n" +
                 "} }\n";
         XContentParser parser = XContentFactory.xContent(scriptSort).createParser(scriptSort);
         parser.nextToken();
@@ -210,9 +207,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
 
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(context, null);
-        assertEquals("doc['field_name'].value * factor", builder.script().getScript());
+        assertEquals("doc['field_name'].value", builder.script().getScript());
         assertNull(builder.script().getLang());
-        assertEquals(1.1, builder.script().getParams().get("factor"));
+        assertNull(builder.script().getParams());
         assertEquals(ScriptType.INLINE, builder.script().getType());
         assertEquals(ScriptSortType.NUMBER, builder.type());
         assertEquals(SortOrder.ASC, builder.order());

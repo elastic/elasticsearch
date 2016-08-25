@@ -23,47 +23,32 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-@ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0)
+@ClusterScope(scope = SUITE, supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0)
 public class SettingsListenerIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(SettingsListenerPlugin.class);
+        return Arrays.asList(SettingsListenerPlugin.class);
     }
 
     public static class SettingsListenerPlugin extends Plugin {
         private final SettingsTestingService service = new SettingsTestingService();
-        private static final Setting<Integer> SETTING = Setting.intSetting("index.test.new.setting", 0,
-            Property.Dynamic, Property.IndexScope);
-        /**
-         * The name of the plugin.
-         */
-        @Override
-        public String name() {
-            return "settings-listener";
-        }
 
-        /**
-         * The description of the plugin.
-         */
         @Override
-        public String description() {
-            return "Settings Listenern Plugin";
-        }
-
-        public void onModule(SettingsModule settingsModule) {
-            settingsModule.registerSetting(SettingsTestingService.VALUE);
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(SettingsTestingService.VALUE);
         }
 
         @Override
@@ -75,7 +60,7 @@ public class SettingsListenerIT extends ESIntegTestCase {
         }
 
         @Override
-        public Collection<Module> nodeModules() {
+        public Collection<Module> createGuiceModules() {
             return Collections.<Module>singletonList(new SettingsListenerModule(service));
         }
     }
@@ -109,13 +94,13 @@ public class SettingsListenerIT extends ESIntegTestCase {
                 .put("index.test.new.setting", 21)
                 .build()).get());
 
-        for (SettingsTestingService instance : internalCluster().getInstances(SettingsTestingService.class)) {
+        for (SettingsTestingService instance : internalCluster().getDataNodeInstances(SettingsTestingService.class)) {
             assertEquals(21, instance.value);
         }
 
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
                 .put("index.test.new.setting", 42)).get();
-        for (SettingsTestingService instance : internalCluster().getInstances(SettingsTestingService.class)) {
+        for (SettingsTestingService instance : internalCluster().getDataNodeInstances(SettingsTestingService.class)) {
             assertEquals(42, instance.value);
         }
 
@@ -123,14 +108,14 @@ public class SettingsListenerIT extends ESIntegTestCase {
                 .put("index.test.new.setting", 21)
                 .build()).get());
 
-        for (SettingsTestingService instance : internalCluster().getInstances(SettingsTestingService.class)) {
+        for (SettingsTestingService instance : internalCluster().getDataNodeInstances(SettingsTestingService.class)) {
             assertEquals(42, instance.value);
         }
 
         client().admin().indices().prepareUpdateSettings("other").setSettings(Settings.builder()
                 .put("index.test.new.setting", 84)).get();
 
-        for (SettingsTestingService instance : internalCluster().getInstances(SettingsTestingService.class)) {
+        for (SettingsTestingService instance : internalCluster().getDataNodeInstances(SettingsTestingService.class)) {
             assertEquals(42, instance.value);
         }
 

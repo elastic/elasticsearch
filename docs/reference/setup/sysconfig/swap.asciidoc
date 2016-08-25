@@ -13,7 +13,7 @@ disconnect from the cluster.
 There are three approaches to disabling swapping:
 
 [[mlockall]]
-==== Enable `bootstrap.mlockall`
+==== Enable `bootstrap.memory_lock`
 
 The first option is to use
 http://opengroup.org/onlinepubs/007908799/xsh/mlockall.html[mlockall] on Linux/Unix systems, or https://msdn.microsoft.com/en-us/library/windows/desktop/aa366895%28v=vs.85%29.aspx[VirtualLock] on Windows, to
@@ -23,7 +23,7 @@ to the `config/elasticsearch.yml` file:
 
 [source,yaml]
 --------------
-bootstrap.mlockall: true
+bootstrap.memory_lock: true
 --------------
 
 WARNING: `mlockall` might cause the JVM or shell session to exit if it tries

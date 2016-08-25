@@ -128,12 +128,11 @@ public final class SimilarityService extends AbstractIndexComponent {
     static class PerFieldSimilarity extends PerFieldSimilarityWrapper {
 
         private final Similarity defaultSimilarity;
-        private final Similarity baseSimilarity;
         private final MapperService mapperService;
 
         PerFieldSimilarity(Similarity defaultSimilarity, Similarity baseSimilarity, MapperService mapperService) {
+            super(baseSimilarity);
             this.defaultSimilarity = defaultSimilarity;
-            this.baseSimilarity = baseSimilarity;
             this.mapperService = mapperService;
         }
 

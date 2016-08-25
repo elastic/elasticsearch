@@ -45,6 +45,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
@@ -62,6 +63,8 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
@@ -113,6 +116,7 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -126,6 +130,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
@@ -314,22 +319,41 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Test that adding an additional object within each object of the otherwise correct query always triggers some kind of
      * parse exception. Some specific objects do not cause any exception as they can hold arbitrary content; they can be
-     * declared by overriding {@link #getObjectsHoldingArbitraryContent()}
+     * declared by overriding {@link #getObjectsHoldingArbitraryContent()}.
      */
     public final void testUnknownObjectException() throws IOException {
-        String validQuery = createTestQueryBuilder().toString();
-        unknownObjectExceptionTest(validQuery);
-        for (String query : getAlternateVersions().keySet()) {
-            unknownObjectExceptionTest(query);
+        Set<String> candidates = new HashSet<>();
+        // Adds the valid query to the list of queries to modify and test
+        candidates.add(createTestQueryBuilder().toString());
+        // Adds the alternates versions of the query too
+        candidates.addAll(getAlternateVersions().keySet());
+
+        List<Tuple<String, Boolean>> testQueries = alterateQueries(candidates, getObjectsHoldingArbitraryContent());
+        for (Tuple<String, Boolean> testQuery : testQueries) {
+            boolean expectedException = testQuery.v2();
+            try {
+                parseQuery(testQuery.v1());
+                if (expectedException) {
+                    fail("some parsing exception expected for query: " + testQuery);
+                }
+            } catch (ParsingException | ElasticsearchParseException e) {
+                // different kinds of exception wordings depending on location
+                // of mutation, so no simple asserts possible here
+                if (expectedException == false) {
+                    throw new AssertionError("unexpected exception when parsing query:\n" + testQuery, e);
+                }
+            } catch (IllegalArgumentException e) {
+                if (expectedException == false) {
+                    throw new AssertionError("unexpected exception when parsing query:\n" + testQuery, e);
+                }
+                assertThat(e.getMessage(), containsString("unknown field [newField], parser not found"));
+            }
         }
     }
 
     /**
-     * Traverses the json tree of the valid query provided as argument and mutates it by adding one object within each object
-     * encountered. Every mutation is a separate iteration, which will be followed by its corresponding assertions to verify that
-     * a parse exception is thrown when parsing the modified query. Some specific objects do not cause any exception as they can
-     * hold arbitrary content; they can be declared by overriding {@link #getObjectsHoldingArbitraryContent()}, and for those we
-     * will verify that no exception gets thrown instead.
+     * Traverses the json tree of the valid query provided as argument and mutates it one or more times by adding one object within each
+     * object encountered.
      *
      * For instance given the following valid term query:
      * {
@@ -360,97 +384,73 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      *         }
      *     }
      * }
+     *
+     * Every mutation is then added to the list of results with a boolean flag indicating if a parsing exception is expected or not
+     * for the mutation. Some specific objects do not cause any exception as they can hold arbitrary content; they are passed using the
+     * arbitraryMarkers parameter.
      */
-    private void unknownObjectExceptionTest(String validQuery) throws IOException {
-        //TODO building json by concatenating strings makes the code unmaintainable, we should rewrite this test
-        assertThat(validQuery, containsString("{"));
-        int level = 0;
-        //track whether we are within quotes as we may have randomly generated strings containing curly brackets
-        boolean withinQuotes = false;
-        boolean expectedException = true;
-        int objectHoldingArbitraryContentLevel = 0;
-        for (int insertionPosition = 0; insertionPosition < validQuery.length(); insertionPosition++) {
-            if (validQuery.charAt(insertionPosition) == '"') {
-                withinQuotes = withinQuotes == false;
-            } else if (withinQuotes == false && validQuery.charAt(insertionPosition) == '}') {
-                level--;
-                if (expectedException == false) {
-                    //track where we are within the object that holds arbitrary content
-                    objectHoldingArbitraryContentLevel--;
-                }
-                if (objectHoldingArbitraryContentLevel == 0) {
-                    //reset the flag once we have traversed the whole object that holds arbitrary content
-                    expectedException = true;
-                }
-            } else if (withinQuotes == false && validQuery.charAt(insertionPosition) == '{') {
-                //keep track of which level we are within the json so that we can properly close the additional object
-                level++;
-                //if we don't expect an exception, it means that we are within an object that can contain arbitrary content.
-                //in that case we ignore the whole object including its children, no need to even check where we are.
-                if (expectedException) {
-                    int startCurrentObjectName = -1;
-                    int endCurrentObjectName = -1;
-                    //look backwards for the current object name, to find out whether we expect an exception following its mutation
-                    for (int i = insertionPosition; i >= 0; i--) {
-                        if (validQuery.charAt(i) == '}') {
-                            break;
-                        } else if (validQuery.charAt(i) == '"') {
-                            if (endCurrentObjectName == -1) {
-                                endCurrentObjectName = i;
-                            } else if (startCurrentObjectName == -1) {
-                                startCurrentObjectName = i + 1;
-                            } else {
-                                break;
+    static List<Tuple<String, Boolean>> alterateQueries(Set<String> queries, Set<String> arbitraryMarkers) throws IOException {
+        List<Tuple<String, Boolean>> results = new ArrayList<>();
+
+        // Indicate if a part of the query can hold any arbitrary content
+        boolean hasArbitraryContent = (arbitraryMarkers != null && arbitraryMarkers.isEmpty() == false);
+
+        for (String query : queries) {
+            // Track the number of query mutations
+            int mutation = 0;
+
+            while (true) {
+                boolean expectedException = true;
+                BytesStreamOutput out = new BytesStreamOutput();
+                try (
+                        XContentGenerator generator = XContentType.JSON.xContent().createGenerator(out);
+                        XContentParser parser = XContentHelper.createParser(new BytesArray(query));
+                ) {
+                    // Parse the valid query and inserts a new object level called "newField"
+                    int objectIndex = -1;
+
+                    XContentParser.Token token;
+                    while ((token = parser.nextToken()) != null) {
+                        if (token == XContentParser.Token.START_OBJECT) {
+                            objectIndex++;
+
+                            if (hasArbitraryContent) {
+                                // The query has one or more fields that hold arbitrary content. If the current
+                                // field is one of those, no exception is expected when parsing the mutated query.
+                                expectedException = arbitraryMarkers.contains(parser.currentName()) == false;
+                            }
+
+                            if (objectIndex == mutation) {
+                                // We reached the place in the object tree where we want to insert a new object level
+                                generator.writeStartObject();
+                                generator.writeFieldName("newField");
+                                XContentHelper.copyCurrentStructure(generator, parser);
+                                generator.writeEndObject();
+
+                                // Jump to next token
+                                continue;
                             }
                         }
-                    }
-                    if (startCurrentObjectName >= 0  && endCurrentObjectName > 0) {
-                        String currentObjectName = validQuery.substring(startCurrentObjectName, endCurrentObjectName);
-                        expectedException = getObjectsHoldingArbitraryContent().contains(currentObjectName) == false;
-                    }
-                }
-                if (expectedException == false) {
-                    objectHoldingArbitraryContentLevel++;
-                }
-                //inject the start of the new object
-                String testQuery = validQuery.substring(0, insertionPosition) + "{ \"newField\" : ";
-                String secondPart = validQuery.substring(insertionPosition);
-                int currentLevel = level;
-                boolean quotes = false;
-                for (int i = 0; i < secondPart.length(); i++) {
-                    if (secondPart.charAt(i) == '"') {
-                        quotes = quotes == false;
-                    } else if (quotes == false && secondPart.charAt(i) == '{') {
-                        currentLevel++;
-                    } else if (quotes == false && secondPart.charAt(i) == '}') {
-                        currentLevel--;
-                        if (currentLevel == level) {
-                            //close the additional object in the right place
-                            testQuery += secondPart.substring(0, i - 1) + "}" + secondPart.substring(i);
-                            break;
-                        }
-                    }
-                }
 
-                try {
-                    parseQuery(testQuery);
-                    if (expectedException) {
-                        fail("some parsing exception expected for query: " + testQuery);
+                        // We are walking through the object tree, so we can safely copy the current node
+                        XContentHelper.copyCurrentEvent(generator, parser);
                     }
-                } catch (ParsingException | ElasticsearchParseException e) {
-                    // different kinds of exception wordings depending on location
-                    // of mutation, so no simple asserts possible here
-                    if (expectedException == false) {
-                        throw new AssertionError("unexpected exception when parsing query:\n" + testQuery, e);
-                    }
-                } catch(IllegalArgumentException e) {
-                    assertThat(e.getMessage(), containsString("unknown field [newField], parser not found"));
-                    if (expectedException == false) {
-                        throw new AssertionError("unexpected exception when parsing query:\n" + testQuery, e);
+
+                    // Check that the parser consumed all the tokens
+                    assertThat(token, nullValue());
+
+                    if (objectIndex == mutation) {
+                        // We reached the expected insertion point, so next time we'll try one level deeper
+                        mutation++;
+                    } else {
+                        // We did not reached the insertion point, there's no more mutation to try
+                        break;
                     }
                 }
+                results.add(new Tuple<>(out.bytes().utf8ToString(), expectedException));
             }
         }
+        return results;
     }
 
     /**

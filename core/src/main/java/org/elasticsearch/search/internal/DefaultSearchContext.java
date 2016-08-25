@@ -50,6 +50,7 @@ import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -106,7 +107,7 @@ public class DefaultSearchContext extends SearchContext {
     private ScrollContext scrollContext;
     private boolean explain;
     private boolean version = false; // by default, we don't return versions
-    private List<String> fieldNames;
+    private StoredFieldsContext storedFields;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
     private int from = -1;
@@ -651,21 +652,29 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasFieldNames() {
-        return fieldNames != null;
+    public boolean hasStoredFields() {
+        return storedFields != null && storedFields.fieldNames() != null;
     }
 
     @Override
-    public List<String> fieldNames() {
-        if (fieldNames == null) {
-            fieldNames = new ArrayList<>();
-        }
-        return fieldNames;
+    public boolean hasStoredFieldsContext() {
+        return storedFields != null;
     }
 
     @Override
-    public void emptyFieldNames() {
-        this.fieldNames = Collections.emptyList();
+    public StoredFieldsContext storedFieldsContext() {
+        return storedFields;
+    }
+
+    @Override
+    public SearchContext storedFieldsContext(StoredFieldsContext storedFieldsContext) {
+        this.storedFields = storedFieldsContext;
+        return this;
+    }
+
+    @Override
+    public boolean storedFieldsRequested() {
+        return storedFields == null || storedFields.fetchFields();
     }
 
     @Override

@@ -31,7 +31,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxQuery;
+import org.elasticsearch.index.search.geo.LegacyInMemoryGeoBoundingBoxQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.locationtech.spatial4j.io.GeohashUtils;
@@ -242,7 +242,8 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                     }
                 }
             } else {
-                assertTrue("memory queries should result in InMemoryGeoBoundingBoxQuery", query instanceof InMemoryGeoBoundingBoxQuery);
+                assertTrue("memory queries should result in LegacyInMemoryGeoBoundingBoxQuery",
+                    query instanceof LegacyInMemoryGeoBoundingBoxQuery);
             }
         }
     }
@@ -253,7 +254,8 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     @Override
-    protected void doAssertLuceneQuery(GeoBoundingBoxQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(GeoBoundingBoxQueryBuilder queryBuilder, Query query, QueryShardContext context)
+        throws IOException {
         MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
         if (fieldType == null) {
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
@@ -262,7 +264,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 if (queryBuilder.type() == GeoExecType.INDEXED) {
                     assertTrue("Found no indexed geo query.", query instanceof ConstantScoreQuery);
                 } else {
-                    assertTrue("Found no indexed geo query.", query instanceof InMemoryGeoBoundingBoxQuery);
+                    assertTrue("Found no indexed geo query.", query instanceof LegacyInMemoryGeoBoundingBoxQuery);
                 }
             } else {
                 assertTrue("Found no indexed geo query.", query instanceof GeoPointInBBoxQuery);
@@ -421,7 +423,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         QueryShardContext shardContext = createShardContext();
         Query parsedQuery = parseQuery(query).toQuery(shardContext);
         if (shardContext.indexVersionCreated().before(Version.V_2_2_0)) {
-            InMemoryGeoBoundingBoxQuery filter = (InMemoryGeoBoundingBoxQuery) parsedQuery;
+            LegacyInMemoryGeoBoundingBoxQuery filter = (LegacyInMemoryGeoBoundingBoxQuery) parsedQuery;
             assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
             assertThat(filter.topLeft().lat(), closeTo(40, 1E-5));
             assertThat(filter.topLeft().lon(), closeTo(-70, 1E-5));

@@ -1,5 +1,5 @@
 {
-  "reindex.rethrottle": {
+  "reindex_rethrottle": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-reindex.html",
     "methods": ["POST"],
     "url": {
@@ -15,7 +15,7 @@
         "requests_per_second": {
           "type": "float",
           "required": true,
-          "description": "The throttle to set on this request in sub-requests per second. -1 means set no throttle as does \"unlimited\" which is the only non-float this accepts."
+          "description": "The throttle to set on this request in floating sub-requests per second. -1 means set no throttle."
         }
       }
     },

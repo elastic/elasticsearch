@@ -245,7 +245,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
 
     /**
-     * Renames all the given files form the key of the map to the
+     * Renames all the given files from the key of the map to the
      * value of the map. All successfully renamed files are removed from the map in-place.
      */
     public void renameTempFilesSafe(Map<String, String> tempFileMap) throws IOException {
@@ -282,10 +282,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     logger.debug("failed to delete file [{}]", ex, origFile);
                 }
                 // now, rename the files... and fail it it won't work
-                this.renameFile(tempFile, origFile);
+                directory.rename(tempFile, origFile);
                 final String remove = tempFileMap.remove(tempFile);
                 assert remove != null;
             }
+            directory.syncMetaData();
         } finally {
             metadataLock.writeLock().unlock();
         }
@@ -295,11 +296,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public StoreStats stats() throws IOException {
         ensureOpen();
         return statsCache.getOrRefresh();
-    }
-
-    public void renameFile(String from, String to) throws IOException {
-        ensureOpen();
-        directory.renameFile(from, to);
     }
 
     /**

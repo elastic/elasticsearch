@@ -184,7 +184,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder;
             if (parserContext.indexVersionCreated().before(Version.V_2_2_0)) {
-                builder = new GeoPointFieldMapperLegacy.Builder(name);
+                builder = new LegacyGeoPointFieldMapper.Builder(name);
             } else {
                 builder = new GeoPointFieldMapper.Builder(name);
             }
@@ -232,8 +232,8 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                 }
             }
 
-            if (builder instanceof GeoPointFieldMapperLegacy.Builder) {
-                return GeoPointFieldMapperLegacy.parse((GeoPointFieldMapperLegacy.Builder) builder, node, parserContext);
+            if (builder instanceof LegacyGeoPointFieldMapper.Builder) {
+                return LegacyGeoPointFieldMapper.parse((LegacyGeoPointFieldMapper.Builder) builder, node, parserContext);
             }
 
             return (GeoPointFieldMapper.Builder) builder;

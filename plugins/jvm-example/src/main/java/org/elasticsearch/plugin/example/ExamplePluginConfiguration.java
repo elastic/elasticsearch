@@ -32,26 +32,25 @@ import java.util.Locale;
  * Example configuration.
  */
 public class ExamplePluginConfiguration {
-    
-    private final Settings settings;
-    
-    private final Setting<String> TEST_SETTING;
-    
+
+    private final Settings customSettings;
+
+    public static final Setting<String> TEST_SETTING =
+      new Setting<String>("test", "default_value",
+      (value) -> value.toLowerCase(Locale.ROOT), Setting.Property.Dynamic);
+
     @Inject
     public ExamplePluginConfiguration(Environment env) throws IOException {
         // The directory part of the location matches the artifactId of this plugin
         Path path = env.configFile().resolve("jvm-example/example.yaml");
-        settings = Settings.builder().loadFromPath(path).build();
-       
-        // asserts for tests
-        assert settings != null;
-        assert settings.get("test") != null;
+        customSettings = Settings.builder().loadFromPath(path).build();
 
-        String testValue = settings.get("test", "default_value");
-        TEST_SETTING = new Setting<String>("test", testValue, (value) -> value.toLowerCase(Locale.ROOT), Setting.Property.Dynamic);   
+        // asserts for tests
+        assert customSettings != null;
+        assert TEST_SETTING.get(customSettings) != null;
     }
 
-    public Setting<String> getTestConfig() {
-        return TEST_SETTING;
+    public String getTestConfig() {
+        return TEST_SETTING.get(customSettings);
     }
 }

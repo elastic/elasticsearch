@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.apache.lucene.util.LegacyNumericUtils;
@@ -139,7 +140,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
 
         public abstract Y build(BuilderContext context, String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
                                 Settings indexSettings, FieldMapper latMapper, FieldMapper lonMapper,
-                                KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo);
+                                FieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo);
 
         public Y build(Mapper.BuilderContext context) {
             GeoPointFieldType geoPointFieldType = (GeoPointFieldType)fieldType;
@@ -166,10 +167,17 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
                 }
                 geoPointFieldType.setLatLonEnabled(latMapper.fieldType(), lonMapper.fieldType());
             }
-            KeywordFieldMapper geoHashMapper = null;
+            FieldMapper geoHashMapper = null;
             if (enableGeoHash || enableGeoHashPrefix) {
                 // TODO: possible also implicitly enable geohash if geohash precision is set
-                geoHashMapper = new KeywordFieldMapper.Builder(Names.GEOHASH).index(true).includeInAll(false).store(fieldType.stored()).build(context);
+                if (context.indexCreatedVersion().onOrAfter(Version.V_5_0_0_alpha1)) {
+                    geoHashMapper = new KeywordFieldMapper.Builder(Names.GEOHASH)
+                            .index(true).includeInAll(false).store(fieldType.stored()).build(context);
+                } else {
+                    geoHashMapper = new StringFieldMapper.Builder(Names.GEOHASH)
+                            .tokenized(false).index(true).omitNorms(true).indexOptions(IndexOptions.DOCS)
+                            .includeInAll(false).store(fieldType.stored()).build(context);
+                }
                 geoPointFieldType.setGeoHashEnabled(geoHashMapper.fieldType(), geoHashPrecision, enableGeoHashPrefix);
             }
             context.path().remove();
@@ -376,12 +384,12 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
 
     protected FieldMapper lonMapper;
 
-    protected KeywordFieldMapper geoHashMapper;
+    protected FieldMapper geoHashMapper;
 
     protected Explicit<Boolean> ignoreMalformed;
 
     protected BaseGeoPointFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings,
-                                      FieldMapper latMapper, FieldMapper lonMapper, KeywordFieldMapper geoHashMapper,
+                                      FieldMapper latMapper, FieldMapper lonMapper, FieldMapper geoHashMapper,
                                       MultiFields multiFields, Explicit<Boolean> ignoreMalformed, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         this.latMapper = latMapper;
@@ -552,7 +560,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
     @Override
     public FieldMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
         BaseGeoPointFieldMapper updated = (BaseGeoPointFieldMapper) super.updateFieldType(fullNameToFieldType);
-        KeywordFieldMapper geoUpdated = geoHashMapper == null ? null : (KeywordFieldMapper) geoHashMapper.updateFieldType(fullNameToFieldType);
+        FieldMapper geoUpdated = geoHashMapper == null ? null : geoHashMapper.updateFieldType(fullNameToFieldType);
         FieldMapper latUpdated = latMapper == null ? null : latMapper.updateFieldType(fullNameToFieldType);
         FieldMapper lonUpdated = lonMapper == null ? null : lonMapper.updateFieldType(fullNameToFieldType);
         if (updated == this

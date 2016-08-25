@@ -31,7 +31,7 @@ grant codeBase "${codebase.securesm-1.1.jar}" {
 //// Very special jar permissions:
 //// These are dangerous permissions that we don't want to grant to everything.
 
-grant codeBase "${codebase.lucene-core-6.1.0.jar}" {
+grant codeBase "${codebase.lucene-core-6.2.0.jar}" {
   // needed to allow MMapDirectory's "unmap hack" (die unmap hack, die)
   // java 8 package
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
@@ -42,7 +42,7 @@ grant codeBase "${codebase.lucene-core-6.1.0.jar}" {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
-grant codeBase "${codebase.lucene-misc-6.1.0.jar}" {
+grant codeBase "${codebase.lucene-misc-6.2.0.jar}" {
   // needed to allow shard shrinking to use hard-links if possible via lucenes HardlinkCopyDirectoryWrapper
   permission java.nio.file.LinkPermission "hard";
 };

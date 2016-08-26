@@ -784,7 +784,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         /**
          * Reads the type and the operation from the given stream. The operatino must be written with
-         * {@link #writeType(Operation, StreamOutput)}
+         * {@link Operation#writeType(Operation, StreamOutput)}
          */
         static Operation readType(StreamInput input) throws IOException {
             Translog.Operation.Type type = Translog.Operation.Type.fromId(input.readByte());

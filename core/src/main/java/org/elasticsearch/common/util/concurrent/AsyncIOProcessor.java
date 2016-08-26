@@ -50,7 +50,6 @@ public abstract class AsyncIOProcessor<Item> {
      * Adds the given item to the queue. The listener is notified once the item is processed
      */
     public final void put(Item item, Consumer<Exception> listener) {
-        ensureOpen();
         Objects.requireNonNull(item, "item must not be null");
         Objects.requireNonNull(listener, "listener must not be null");
         // the algorithm here tires to reduce the load on each individual caller.
@@ -74,18 +73,23 @@ public abstract class AsyncIOProcessor<Item> {
         // while we are draining that mean we might exit below too early in the while loop if the drainAndSync call is fast.
         if (promised || promiseSemaphore.tryAcquire()) {
             final List<Tuple<Item, Consumer<Exception>>> candidates = new ArrayList<>();
-            if (promised) {
-                // we are responsible for processing we don't need to add the tuple to the queue we can just add it to the candidates
-                candidates.add(itemTuple);
-            }
-            // since we made the promise to process we gotta do it here at least once
             try {
+                if (promised) {
+                    // we are responsible for processing we don't need to add the tuple to the queue we can just add it to the candidates
+                    candidates.add(itemTuple);
+                }
+                // since we made the promise to process we gotta do it here at least once
                 drainAndProcess(candidates);
             } finally {
                 promiseSemaphore.release(); // now to ensure we are passing it on we release the promise so another thread can take over
-                while (queue.isEmpty() == false && promiseSemaphore.availablePermits() > 0) {
-                    // yet if the queue is not empty AND nobody else has yet made the promise to take over we continue processing
+            }
+            while (queue.isEmpty() == false && promiseSemaphore.tryAcquire()) {
+                logger.warn(Thread.currentThread().getName());
+                // yet if the queue is not empty AND nobody else has yet made the promise to take over we continue processing
+                try {
                     drainAndProcess(candidates);
+                } finally {
+                    promiseSemaphore.release();
                 }
             }
         }
@@ -122,9 +126,4 @@ public abstract class AsyncIOProcessor<Item> {
      * Writes or processes the items out or to disk.
      */
     protected abstract void write(List<Tuple<Item, Consumer<Exception>>> candidates) throws IOException;
-
-    /**
-     * method called before entering the {@link #put(Object, Consumer)} section to ensure this processor can still process items
-     */
-    protected abstract void ensureOpen();
 }

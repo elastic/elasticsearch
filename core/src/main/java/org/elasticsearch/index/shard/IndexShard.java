@@ -1639,11 +1639,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     throw ex;
                 }
         }
-
-        @Override
-        protected void ensureOpen() {
-            verifyNotClosed();
-        }
     };
 
     /**
@@ -1656,6 +1651,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * listener handles all exception cases internally.
      */
     public final void sync(Translog.Location location, Consumer<Exception> syncListener) {
+        verifyNotClosed();
         translogSyncProcessor.put(location, syncListener);
     }
 

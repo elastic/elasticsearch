@@ -46,11 +46,6 @@ public class AsyncIOProcessorTests extends ESTestCase {
                     received.addAndGet(candidates.size());
                 }
             }
-
-            @Override
-            protected void ensureOpen() {
-                //
-            }
         };
         Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
         final int count = randomIntBetween(1000, 20000);
@@ -99,11 +94,6 @@ public class AsyncIOProcessorTests extends ESTestCase {
                     }
                 }
             }
-
-            @Override
-            protected void ensureOpen() {
-                //
-            }
         };
         Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
         final int count = randomIntBetween(1000, 20000);
@@ -150,11 +140,6 @@ public class AsyncIOProcessorTests extends ESTestCase {
             protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {
                 received.addAndGet(candidates.size());
             }
-
-            @Override
-            protected void ensureOpen() {
-                //
-            }
         };
         processor.put(new Object(), (e) -> {notified.incrementAndGet();throw new RuntimeException();});
         processor.put(new Object(), (e) -> {notified.incrementAndGet();throw new RuntimeException();});
@@ -166,11 +151,6 @@ public class AsyncIOProcessorTests extends ESTestCase {
         AsyncIOProcessor<Object> processor = new AsyncIOProcessor<Object>(logger, scaledRandomIntBetween(1, 2024)) {
             @Override
             protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {
-            }
-
-            @Override
-            protected void ensureOpen() {
-                //
             }
         };
 

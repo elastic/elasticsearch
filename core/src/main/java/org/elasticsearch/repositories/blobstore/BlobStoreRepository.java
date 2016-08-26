@@ -1638,8 +1638,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     stream = new RateLimitingInputStream(partSliceStream, restoreRateLimiter, restoreRateLimitingTimeInNanos::inc);
                 }
 
-                // TODO: why does the target file sometimes already exist?  Simon says: I think, this can happen if you fail a shard and
-                // it's not cleaned up yet, the restore process tries to reuse files
+                // A restore could possibly overwrite existing segment files due to any number of reasons,
+                // for example if the primary was snapshotted and then the replica was promoted to primary
+                // with different segment files. In this case, the goal of the restore is to forget about
+                // what is currently in the index and just restore the state to whatever is in the snapshot.
+                // Hence, we are deleting files here if they already exist before writing to them. A better
+                // long term solution would be to use recovery for restoring, so we have more robust restoring
+                // of files (copying to temporary files first and then moving them over).
                 IOUtils.deleteFilesIgnoringExceptions(store.directory(), fileInfo.physicalName());
                 
                 try (final IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {

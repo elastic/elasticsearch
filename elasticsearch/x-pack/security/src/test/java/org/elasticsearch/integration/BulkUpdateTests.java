@@ -42,8 +42,8 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
     public void testThatBulkUpdateDoesNotLoseFields() {
         assertEquals(DocWriteResponse.Result.CREATED,
                 client().prepareIndex("index1", "type").setSource("{\"test\": \"test\"}").setId("1").get().getResult());
-        GetResponse getResponse = internalCluster().transportClient().prepareGet("index1", "type", "1").setFields("test").get();
-        assertThat(getResponse.getField("test").getValue(), equalTo("test"));
+        GetResponse getResponse = internalCluster().transportClient().prepareGet("index1", "type", "1").get();
+        assertEquals("test", getResponse.getSource().get("test"));
 
         if (randomBoolean()) {
             flushAndRefresh();
@@ -52,9 +52,9 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         // update with a new field
         assertEquals(DocWriteResponse.Result.UPDATED, internalCluster().transportClient().prepareUpdate("index1", "type", "1")
                 .setDoc("{\"not test\": \"not test\"}").get().getResult());
-        getResponse = internalCluster().transportClient().prepareGet("index1", "type", "1").setFields("test", "not test").get();
-        assertThat(getResponse.getField("test").getValue(), equalTo("test"));
-        assertThat(getResponse.getField("not test").getValue(), equalTo("not test"));
+        getResponse = internalCluster().transportClient().prepareGet("index1", "type", "1").get();
+        assertEquals("test", getResponse.getSource().get("test"));
+        assertEquals("not test", getResponse.getSource().get("not test"));
 
         // this part is important. Without this, the document may be read from the translog which would bypass the bug where
         // FLS kicks in because the request can't be found and only returns meta fields
@@ -64,11 +64,10 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         BulkResponse response = internalCluster().transportClient().prepareBulk().add(client().prepareUpdate("index1", "type", "1")
                 .setDoc("{\"bulk updated\": \"bulk updated\"}")).get();
         assertEquals(DocWriteResponse.Result.UPDATED, response.getItems()[0].getResponse().getResult());
-        getResponse = internalCluster().transportClient().prepareGet("index1", "type", "1").
-                setFields("test", "not test", "bulk updated").get();
-        assertThat(getResponse.getField("test").getValue(), equalTo("test"));
-        assertThat(getResponse.getField("not test").getValue(), equalTo("not test"));
-        assertThat(getResponse.getField("bulk updated").getValue(), equalTo("bulk updated"));
+        getResponse = internalCluster().transportClient().prepareGet("index1", "type", "1").get();
+        assertEquals("test", getResponse.getSource().get("test"));
+        assertEquals("not test", getResponse.getSource().get("not test"));
+        assertEquals("bulk updated", getResponse.getSource().get("bulk updated"));
     }
 
     public void testThatBulkUpdateDoesNotLoseFieldsHttp() throws IOException {

@@ -157,7 +157,6 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
      * from the in-sync set.
      */
     public void testDeadNodesBeforeReplicaFailed() throws Exception {
-        AllocationService allocation = createAllocationService();
         ClusterState clusterState = createOnePrimaryOneReplicaClusterState(allocation);
 
         logger.info("remove replica node");
@@ -190,7 +189,6 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
      * into the primary but not the replica but the replica is still considered non-stale.
      */
     public void testPrimaryFailureBatchedWithReplicaFailure() throws Exception {
-        AllocationService allocation = createAllocationService();
         ClusterState clusterState = createOnePrimaryOneReplicaClusterState(allocation);
 
         IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index("test").shard(0);
@@ -225,7 +223,6 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
      * We use number_of_replicas + 1 (= possible active shard copies) to bound the inSyncAllocationIds set
      */
     public void testInSyncIdsNotGrowingWithoutBounds() throws Exception {
-        AllocationService allocation = createAllocationService();
         ClusterState clusterState = createOnePrimaryOneReplicaClusterState(allocation);
 
         Set<String> inSyncSet = clusterState.metaData().index("test").inSyncAllocationIds(0);

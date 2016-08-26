@@ -80,6 +80,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * Requests can be either synchronous or asynchronous. The asynchronous variants all end with {@code Async}.
  * <p>
  * Requests can be traced by enabling trace logging for "tracer". The trace logger outputs requests and responses in curl format.
+ *
+ * @see RestClientBuilder
  */
 public class RestClient implements Closeable {
 

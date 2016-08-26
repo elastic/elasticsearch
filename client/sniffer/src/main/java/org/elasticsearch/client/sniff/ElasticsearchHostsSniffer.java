@@ -28,6 +28,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.Scheme;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -63,7 +64,7 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
      *                   client that was used to fetch them.
      */
     public ElasticsearchHostsSniffer(RestClient restClient) {
-        this(restClient, DEFAULT_SNIFF_REQUEST_TIMEOUT, ElasticsearchHostsSniffer.Scheme.HTTP);
+        this(restClient, DEFAULT_SNIFF_REQUEST_TIMEOUT, Scheme.HTTP);
     }
 
     /**
@@ -153,18 +154,4 @@ public final class ElasticsearchHostsSniffer implements HostsSniffer {
         return httpHost;
     }
 
-    public enum Scheme {
-        HTTP("http"), HTTPS("https");
-
-        private final String name;
-
-        Scheme(String name) {
-            this.name = name;
-        }
-
-        @Override
-        public String toString() {
-            return name;
-        }
-    }
 }

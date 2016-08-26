@@ -287,7 +287,7 @@ public abstract class TransportWriteAction<
                     respond.onSuccess(refreshed.get());
                 }
             }
-            assert numPending == 0 || numPending == 1: "numPending must either 1 or 0 but was " + numPending ;
+            assert numPending >= 0 && numPending <= 2: "numPending must either 2, 1 or 0 but was " + numPending ;
         }
 
         void run() {

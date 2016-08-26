@@ -16,29 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.benchmark.metrics;
+package org.elasticsearch.plugin.noop.action.bulk;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- * Stores measurement samples.
- *
- * This class is NOT threadsafe.
- */
-public final class SampleRecorder {
-    private final List<Sample> samples;
+public class NoopBulkAction extends Action<BulkRequest, BulkResponse, NoopBulkRequestBuilder> {
+    public static final String NAME = "mock:data/write/bulk";
 
-    public SampleRecorder(int iterations) {
-        this.samples = new ArrayList<>(iterations);
+    public static final NoopBulkAction INSTANCE = new NoopBulkAction();
+
+    private NoopBulkAction() {
+        super(NAME);
     }
 
-    public void addSample(Sample sample) {
-        samples.add(sample);
+    @Override
+    public NoopBulkRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new NoopBulkRequestBuilder(client, this);
     }
 
-    public List<Sample> getSamples() {
-        return Collections.unmodifiableList(samples);
+    @Override
+    public BulkResponse newResponse() {
+        return new BulkResponse(null, 0);
     }
 }

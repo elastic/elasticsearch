@@ -16,29 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.benchmark.metrics;
+package org.elasticsearch.plugin.noop.action.search;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- * Stores measurement samples.
- *
- * This class is NOT threadsafe.
- */
-public final class SampleRecorder {
-    private final List<Sample> samples;
+public class NoopSearchAction extends Action<SearchRequest, SearchResponse, NoopSearchRequestBuilder> {
+    public static final NoopSearchAction INSTANCE = new NoopSearchAction();
+    public static final String NAME = "mock:data/read/search";
 
-    public SampleRecorder(int iterations) {
-        this.samples = new ArrayList<>(iterations);
+    public NoopSearchAction() {
+        super(NAME);
     }
 
-    public void addSample(Sample sample) {
-        samples.add(sample);
+    @Override
+    public NoopSearchRequestBuilder newRequestBuilder(ElasticsearchClient client) {
+        return new NoopSearchRequestBuilder(client, this);
     }
 
-    public List<Sample> getSamples() {
-        return Collections.unmodifiableList(samples);
+    @Override
+    public SearchResponse newResponse() {
+        return new SearchResponse();
     }
 }

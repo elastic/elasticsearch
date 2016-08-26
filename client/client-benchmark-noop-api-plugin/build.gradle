@@ -16,29 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.client.benchmark.metrics;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+group = 'org.elasticsearch.plugin'
 
-/**
- * Stores measurement samples.
- *
- * This class is NOT threadsafe.
- */
-public final class SampleRecorder {
-    private final List<Sample> samples;
+apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'com.bmuschko.nexus'
 
-    public SampleRecorder(int iterations) {
-        this.samples = new ArrayList<>(iterations);
-    }
-
-    public void addSample(Sample sample) {
-        samples.add(sample);
-    }
-
-    public List<Sample> getSamples() {
-        return Collections.unmodifiableList(samples);
-    }
+esplugin {
+  name 'client-benchmark-noop-api'
+  description 'Stubbed out Elasticsearch actions that can be used for client-side benchmarking'
+  classname 'org.elasticsearch.plugin.noop.NoopPlugin'
 }
+
+compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
+
+// no unit tests
+test.enabled = false
+integTest.enabled = false
+

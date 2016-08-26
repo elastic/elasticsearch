@@ -580,27 +580,23 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                     add = false;
                     expression = expression.substring(1);
                 }
+                if (result == null) {
+                    // add all the previous ones...
+                    result = new HashSet<>(expressions.subList(0, i));
+                }
                 if (!Regex.isSimpleMatchPattern(expression)) {
                     if (!options.ignoreUnavailable() && !metaData.getAliasAndIndexLookup().containsKey(expression)) {
                         IndexNotFoundException infe = new IndexNotFoundException(expression);
                         infe.setResources("index_or_alias", expression);
                         throw infe;
                     }
-                    if (result != null) {
-                        if (add) {
-                            result.add(expression);
-                        } else {
-                            result.remove(expression);
-                        }
+                    if (add) {
+                        result.add(expression);
+                    } else {
+                        result.remove(expression);
                     }
                     continue;
                 }
-                if (result == null) {
-                    // add all the previous ones...
-                    result = new HashSet<>();
-                    result.addAll(expressions.subList(0, i));
-                }
-
                 final IndexMetaData.State excludeState;
                 if (options.expandWildcardsOpen() && options.expandWildcardsClosed()){
                     excludeState = null;

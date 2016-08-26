@@ -134,13 +134,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -1639,10 +1640,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private final ReentrantLock fsyncLock = new ReentrantLock(); // lock order --> fsyncLock --> monitor
-    private final Object syncConsumerLock = new Object(); // guards access to the two below
-    private List<Tuple<Translog.Location, Consumer<Exception>>> syncConsumerList = new ArrayList<>();
-    private List<Tuple<Translog.Location, Consumer<Exception>>> syncConsumerListSpare = new ArrayList<>();
+    private final ArrayBlockingQueue<Tuple<Translog.Location, Consumer<Exception>>> fsyncQueue = new ArrayBlockingQueue<>(1024);
+    private final Semaphore promiseSync = new Semaphore(1);
 
     /**
      * Syncs the given location with the underlying storage unless already synced. This method might return immediately without
@@ -1653,59 +1652,67 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public final void sync(Translog.Location location, Consumer<Exception> syncListener) {
         verifyNotClosed();
-        // we first add the location and the listener to the list and then try to accquire the
-        // fsync lock. if we get it we run fsync for the further most location such that we only fsync once
-        // for all pending operations.
-        synchronized (syncConsumerLock) {
-            // TODO should we make this bounded and block the caller thread?
-            // I assume this won't grow to anything crazy but it might be good to have an upperbound here to prevent OOM?
-            syncConsumerList.add(new Tuple<>(location, syncListener));
-        }
-        while (fsyncLock.tryLock()) {
-            try {
-                List<Tuple<Translog.Location, Consumer<Exception>>> candidates;
-                synchronized (syncConsumerLock) {
-                    candidates = syncConsumerList;
-                    syncConsumerList = syncConsumerListSpare;
+        // the algorithm here tires to reduce the load on each individual caller.
+        // we try to have only one caller that syncs pending locations to disc while others just add to the queue but
+        // at the same time never overload the node by pushing too many items into the queue.
 
-                    syncConsumerListSpare = candidates;
-                    if (syncConsumerListSpare.size() > 1024) {
-                        // we limit the size to 1024 elements to ensure we don't hold on to too large lists from peak times
-                        syncConsumerListSpare = new ArrayList<>();
-                    }
-                }
-                Exception exception = null;
-                if (candidates.isEmpty() == false) {
-                    try {
-                        final Engine engine = getEngine();
-                        engine.getTranslog().ensureSynced(candidates.stream().map(Tuple::v1));
-                    } catch (EngineClosedException ex) {
-                        // that's fine since we already synced everything on engine close - this also is conform with the methods
-                        // documentation
-                    } catch (IOException ex) { // if this fails we are in deep shit - fail the request
-                        logger.debug("failed to sync translog", ex);
-                        // this exception is passed to all listeners - we don't retry. if this doesn't work we are in deep shit
-                        exception = ex;
-                    }
-                }
-                for (Tuple<Translog.Location, Consumer<Exception>> tuple : candidates) {
-                    Consumer<Exception> consumer = tuple.v2();
-                    try {
-                        consumer.accept(exception);
-                    } catch (Exception ex) {
-                        exception.addSuppressed(ex);
-                    }
-                }
-                candidates.clear(); // now clear the list, we are done.
-            } finally {
-                fsyncLock.unlock();
+        // we first try make a promise that we are responsible for the sync
+        final boolean promised = promiseSync.tryAcquire();
+        final List<Tuple<Translog.Location, Consumer<Exception>>> candidates = new ArrayList<>();
+        if (promised) {
+            // if we are responsible we can't wait for others to make space - we have to sync until we can add to the queue
+            while (fsyncQueue.offer(new Tuple<>(location, syncListener)) == false) {
+                drainAndSync(candidates);
             }
-            synchronized (syncConsumerLock) {
-                // only step out of this iff the list is empty - it's crucial to not hold both locks here to give other threads
-                // a chance to take over processing
-                if (syncConsumerList.isEmpty()) {
-                    break;
-                }
+        } else {
+            // in this case we are not responsible and can just block until there is space
+            try {
+                fsyncQueue.put(new Tuple<>(location, syncListener));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        // here we have to try to make the promise again otherwise there is a race when a thread puts an entry without making the promise
+        // while we are draining that mean we might exit below too early in the while loop if the drainAndSync call is fast.
+        if (promised || promiseSync.tryAcquire()) {
+            // since we made the promise to sync we gotta do it here at least once
+            drainAndSync(candidates);
+            promiseSync.release(); // now to ensure we are passing it on we release the promise so another thread can take over
+            while (fsyncQueue.isEmpty() == false && promiseSync.availablePermits() > 0) {
+                // yet if the queue is not empty AND nobody else has yet made the promise to take over we continue syncing to disk
+                drainAndSync(candidates);
+            }
+        }
+    }
+
+    private void drainAndSync(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) {
+        candidates.clear();
+        fsyncQueue.drainTo(candidates);
+        syncList(candidates);
+    }
+
+    private void syncList(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) {
+        Exception exception = null;
+        if (candidates.isEmpty() == false) {
+            try {
+                final Engine engine = getEngine();
+                engine.getTranslog().ensureSynced(candidates.stream().map(Tuple::v1));
+            } catch (EngineClosedException ex) {
+                // that's fine since we already synced everything on engine close - this also is conform with the methods
+                // documentation
+            } catch (IOException ex) { // if this fails we are in deep shit - fail the request
+                logger.debug("failed to sync translog", ex);
+                // this exception is passed to all listeners - we don't retry. if this doesn't work we are in deep shit
+                exception = ex;
+            }
+        }
+        for (Tuple<Translog.Location, Consumer<Exception>> tuple : candidates) {
+            Consumer<Exception> consumer = tuple.v2();
+            try {
+                consumer.accept(exception);
+            } catch (Exception ex) {
+                logger.warn("translog sync consumer failed", ex);
             }
         }
     }

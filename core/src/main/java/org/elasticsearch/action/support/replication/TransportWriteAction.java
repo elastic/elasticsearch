@@ -235,7 +235,7 @@ public abstract class TransportWriteAction<
         private final Location location;
         private final boolean waitUntilRefresh;
         private final boolean sync;
-        private final AtomicInteger pendingOps = new AtomicInteger(0);
+        private final AtomicInteger pendingOps = new AtomicInteger(1);
         private final AtomicBoolean refreshed = new AtomicBoolean(false);
         private final AtomicReference<Exception> syncFailure = new AtomicReference<>(null);
         private final RespondingWriteResult respond;
@@ -274,7 +274,7 @@ public abstract class TransportWriteAction<
                 pendingOps.incrementAndGet();
             }
             this.logger = logger;
-            assert pendingOps.get() >= 0 && pendingOps.get() <= 2 : "pendingOpts was: " + pendingOps.get();
+            assert pendingOps.get() >= 0 && pendingOps.get() <= 3 : "pendingOpts was: " + pendingOps.get();
         }
 
         /** calls the response listener if all pending operations have returned otherwise it just decrements the pending opts counter.*/
@@ -294,24 +294,23 @@ public abstract class TransportWriteAction<
             // we either respond immediately ie. if we we don't fsync per request or wait for refresh
             // OR we got an pass async operations on and wait for them to return to respond.
             indexShard.maybeFlush();
-            if (pendingOps.get() == 0) {
-                respond.onSuccess(refreshed.get());
-            } else {
-                if (sync) { // this is potentially slow so we do that first since it could safe us time on the waiting on refresh
-                    indexShard.sync(location, (ex) -> {
-                        syncFailure.set(ex);
-                        maybeFinish();
-                    });
-                }
-                if (waitUntilRefresh) {
-                    indexShard.addRefreshListener(location, forcedRefresh -> {
-                        if (forcedRefresh) {
-                            logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
-                        }
-                        refreshed.set(forcedRefresh);
-                        maybeFinish();
-                    });
-                }
+            maybeFinish(); // decrement the pendingOpts by one, if there is nothing else to do we just respond with success.
+            if (sync) { // this is potentially slow so we do that first since it could safe us time on the waiting on refresh
+                assert pendingOps.get() > 0;
+                indexShard.sync(location, (ex) -> {
+                    syncFailure.set(ex);
+                    maybeFinish();
+                });
+            }
+            if (waitUntilRefresh) {
+                assert pendingOps.get() > 0;
+                indexShard.addRefreshListener(location, forcedRefresh -> {
+                    if (forcedRefresh) {
+                        logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
+                    }
+                    refreshed.set(forcedRefresh);
+                    maybeFinish();
+                });
             }
         }
     }

@@ -95,27 +95,4 @@ public class SourceFetchingIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getSource().size(), equalTo(1));
         assertThat((String) response.getHits().getAt(0).getSource().get("field"), equalTo("value"));
     }
-
-    public void testSourceDisabled() {
-        prepareCreate("test").addMapping("type1", "_source", "enabled=false").get();
-        ensureGreen();
-
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value", "field2", "value2").get();
-        refresh();
-
-        SearchResponse response = client().prepareSearch("test").setFetchSource(false).get();
-        assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
-
-        response = client().prepareSearch("test").setFetchSource(true).get();
-        assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
-
-        response = client().prepareSearch("test").setFetchSource("field1", null).get();
-        assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
-
-        response = client().prepareSearch("test").setFetchSource("hello", null).get();
-        assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
-
-        response = client().prepareSearch("test").setFetchSource(new String[]{"*"}, new String[]{"field2"}).get();
-        assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
-    }
 }

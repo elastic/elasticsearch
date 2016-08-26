@@ -57,10 +57,10 @@ public final class Script implements ToXContent, Writeable {
      * @param script The inline script to execute.
      */
     public Script(String script) {
-        this(script, ScriptType.INLINE, null, null);
+        this(script, null, null, null);
     }
 
-    public Script(String script, ScriptType type, @Nullable String lang, @Nullable Map<String, ?> params) {
+    public Script(String script, @Nullable ScriptType type, @Nullable String lang, @Nullable Map<String, ?> params) {
         this(script, type, lang, params, null);
     }
 
@@ -78,13 +78,13 @@ public final class Script implements ToXContent, Writeable {
      *                      when serializing the script back to xcontent.
      */
     @SuppressWarnings("unchecked")
-    public Script(String script, ScriptType type, @Nullable String lang, @Nullable Map<String, ?> params,
+    public Script(String script, @Nullable ScriptType type, @Nullable String lang, @Nullable Map<String, ?> params,
                   @Nullable XContentType  contentType) {
         if (contentType != null && type != ScriptType.INLINE) {
             throw new IllegalArgumentException("The parameter contentType only makes sense for inline scripts");
         }
         this.script = Objects.requireNonNull(script);
-        this.type = Objects.requireNonNull(type);
+        this.type = type;
         this.lang = lang;
         this.params = (Map<String, Object>) params;
         this.contentType = contentType;

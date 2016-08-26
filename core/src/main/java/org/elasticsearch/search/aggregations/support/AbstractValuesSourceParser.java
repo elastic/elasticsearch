@@ -118,7 +118,9 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource>
                 } else if (formattable && "format".equals(currentFieldName)) {
                     format = parser.text();
                 } else if (scriptable) {
-                    if ("value_type".equals(currentFieldName) || "valueType".equals(currentFieldName)) {
+                    if (context.getParseFieldMatcher().match(currentFieldName, ScriptField.SCRIPT)) {
+                        script = Script.parse(parser, context.getParseFieldMatcher());
+                    } else if ("value_type".equals(currentFieldName) || "valueType".equals(currentFieldName)) {
                         valueType = ValueType.resolveForScript(parser.text());
                         if (targetValueType != null && valueType.isNotA(targetValueType)) {
                             throw new ParsingException(parser.getTokenLocation(),

@@ -20,6 +20,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -36,6 +37,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ScriptTests extends ESTestCase {
@@ -49,6 +51,21 @@ public class ScriptTests extends ESTestCase {
                 Script actualScript = Script.parse(parser, ParseFieldMatcher.STRICT);
                 assertThat(actualScript, equalTo(expectedScript));
             }
+        }
+    }
+
+    public void testScriptSimpleParsing() throws IOException {
+        String simpleScript = "{\"script\":\"_score + doc['field']\"}";
+        try (XContentParser parser = XContentHelper.createParser(new BytesArray(simpleScript))) {
+            parser.nextToken();
+            parser.nextToken();
+            parser.nextToken();
+            Script script = Script.parse(parser, ParseFieldMatcher.STRICT);
+            XContentBuilder builder = jsonBuilder().startObject();
+            builder.field("script");
+            script.toXContent(builder, null);
+            builder.endObject();
+            assertThat(builder.string(), equalTo(simpleScript));
         }
     }
 

@@ -313,8 +313,8 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         AllocationId allocationId2P = AllocationId.newInitializing();
         AllocationId allocationId2R = AllocationId.newInitializing();
         MetaData metaData = MetaData.builder()
-            .put(IndexMetaData.builder(shard1.getIndexName()).settings(settings(Version.CURRENT).put(Settings.EMPTY)).numberOfShards(1).numberOfReplicas(1).putActiveAllocationIds(0, Sets.newHashSet(allocationId1P.getId(), allocationId1R.getId())))
-            .put(IndexMetaData.builder(shard2.getIndexName()).settings(settings(Version.CURRENT).put(Settings.EMPTY)).numberOfShards(1).numberOfReplicas(1).putActiveAllocationIds(0, Sets.newHashSet(allocationId2P.getId(), allocationId2R.getId())))
+            .put(IndexMetaData.builder(shard1.getIndexName()).settings(settings(Version.CURRENT).put(Settings.EMPTY)).numberOfShards(1).numberOfReplicas(1).putInSyncAllocationIds(0, Sets.newHashSet(allocationId1P.getId(), allocationId1R.getId())))
+            .put(IndexMetaData.builder(shard2.getIndexName()).settings(settings(Version.CURRENT).put(Settings.EMPTY)).numberOfShards(1).numberOfReplicas(1).putInSyncAllocationIds(0, Sets.newHashSet(allocationId2P.getId(), allocationId2R.getId())))
             .build();
         RoutingTable routingTable = RoutingTable.builder()
             .add(IndexRoutingTable.builder(shard1.getIndex())

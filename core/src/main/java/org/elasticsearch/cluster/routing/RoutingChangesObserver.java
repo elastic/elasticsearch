@@ -26,7 +26,7 @@ public interface RoutingChangesObserver {
     /**
      * Called when unassigned shard is initialized. Does not include initializing relocation target shards.
      */
-    void shardInitialized(ShardRouting unassignedShard);
+    void shardInitialized(ShardRouting unassignedShard, ShardRouting initializedShard);
 
     /**
      * Called when an initializing shard is started.
@@ -77,7 +77,7 @@ public interface RoutingChangesObserver {
     class AbstractRoutingChangesObserver implements RoutingChangesObserver {
 
         @Override
-        public void shardInitialized(ShardRouting unassignedShard) {
+        public void shardInitialized(ShardRouting unassignedShard, ShardRouting initializedShard) {
 
         }
 
@@ -131,9 +131,9 @@ public interface RoutingChangesObserver {
         }
 
         @Override
-        public void shardInitialized(ShardRouting unassignedShard) {
+        public void shardInitialized(ShardRouting unassignedShard, ShardRouting initializedShard) {
             for (RoutingChangesObserver routingChangesObserver : routingChangesObservers) {
-                routingChangesObserver.shardInitialized(unassignedShard);
+                routingChangesObserver.shardInitialized(unassignedShard, initializedShard);
             }
         }
 

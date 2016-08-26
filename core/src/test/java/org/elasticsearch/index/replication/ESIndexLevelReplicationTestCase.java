@@ -425,6 +425,12 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
         }
 
         @Override
+        protected Set<String> getInSyncAllocationIds(ShardId shardId, ClusterState clusterState) {
+            return replicationGroup.shardRoutings().stream().filter(ShardRouting::active)
+                .map(shr -> shr.allocationId().getId()).collect(Collectors.toSet());
+        }
+
+        @Override
         protected String checkActiveShardCount() {
             return null;
         }
@@ -479,6 +485,12 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
         @Override
         public void failShard(ShardRouting replica, long primaryTerm, String message, Exception exception, Runnable onSuccess,
                               Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void markShardCopyAsStale(ShardId shardId, String allocationId, long primaryTerm, Runnable onSuccess,
+                                         Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
             throw new UnsupportedOperationException();
         }
     }

@@ -288,7 +288,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(Version.CURRENT).put(settings))
                     .numberOfShards(1).numberOfReplicas(1)
-                    .putActiveAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId())))
+                    .putInSyncAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId())))
             .build();
         // mark shard as delayed if reason is NODE_LEFT
         boolean delayed = reason == UnassignedInfo.Reason.NODE_LEFT &&
@@ -316,7 +316,7 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder(shardId.getIndexName()).settings(settings(Version.CURRENT))
                     .numberOfShards(1).numberOfReplicas(1)
-                    .putActiveAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId())))
+                    .putInSyncAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId())))
                 .build();
         RoutingTable routingTable = RoutingTable.builder()
                 .add(IndexRoutingTable.builder(shardId.getIndex())

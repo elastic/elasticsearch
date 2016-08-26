@@ -25,11 +25,14 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -40,10 +43,13 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class ReplicationOperation<
             Request extends ReplicationRequest<Request>,
@@ -65,7 +71,7 @@ public class ReplicationOperation<
      * operations and the primary finishes.</li>
      * </ul>
      */
-    private final AtomicInteger pendingShards = new AtomicInteger();
+    private final AtomicInteger pendingActions = new AtomicInteger();
     private final AtomicInteger successfulShards = new AtomicInteger();
     private final boolean executeOnReplicas;
     private final Primary<Request, ReplicaRequest, PrimaryResultT> primary;
@@ -102,7 +108,7 @@ public class ReplicationOperation<
         }
 
         totalShards.incrementAndGet();
-        pendingShards.incrementAndGet();
+        pendingActions.incrementAndGet();
         primaryResult = primary.perform(request);
         final ReplicaRequest replicaRequest = primaryResult.replicaRequest();
         assert replicaRequest.primaryTerm() > 0 : "replicaRequest doesn't have a primary term";
@@ -110,19 +116,45 @@ public class ReplicationOperation<
             logger.trace("[{}] op [{}] completed on primary for request [{}]", primaryId, opType, request);
         }
 
-        performOnReplicas(primaryId, replicaRequest);
+        // we have to get a new state after successfully indexing into the primary in order to honour recovery semantics.
+        // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
+        // to the recovery target. If we use an old cluster state, we may miss a relocation that has started since then.
+        ClusterState clusterState = clusterStateSupplier.get();
+        final List<ShardRouting> shards = getShards(primaryId, clusterState);
+        Set<String> inSyncAllocationIds = getInSyncAllocationIds(primaryId, clusterState);
+
+        markUnavailableShardsAsStale(replicaRequest, inSyncAllocationIds, shards);
+
+        performOnReplicas(replicaRequest, shards);
 
         successfulShards.incrementAndGet();
         decPendingAndFinishIfNeeded();
     }
 
-    private void performOnReplicas(ShardId primaryId, ReplicaRequest replicaRequest) {
-        // we have to get a new state after successfully indexing into the primary in order to honour recovery semantics.
-        // we have to make sure that every operation indexed into the primary after recovery start will also be replicated
-        // to the recovery target. If we use an old cluster state, we may miss a relocation that has started since then.
-        // If the index gets deleted after primary operation, we skip replication
-        final List<ShardRouting> shards = getShards(primaryId, clusterStateSupplier.get());
+    private void markUnavailableShardsAsStale(ReplicaRequest replicaRequest, Set<String> inSyncAllocationIds, List<ShardRouting> shards) {
+        if (inSyncAllocationIds.isEmpty() == false && shards.isEmpty() == false) {
+            Set<String> availableAllocationIds = shards.stream()
+                .map(ShardRouting::allocationId)
+                .filter(Objects::nonNull)
+                .map(AllocationId::getId)
+                .collect(Collectors.toSet());
+
+            // if inSyncAllocationIds contains allocation ids of shards that don't exist in RoutingTable, mark copies as stale
+            for (String allocationId : Sets.difference(inSyncAllocationIds, availableAllocationIds)) {
+                // mark copy as stale
+                pendingActions.incrementAndGet();
+                replicasProxy.markShardCopyAsStale(replicaRequest.shardId(), allocationId, replicaRequest.primaryTerm(),
+                    ReplicationOperation.this::decPendingAndFinishIfNeeded,
+                    ReplicationOperation.this::onPrimaryDemoted,
+                    throwable -> decPendingAndFinishIfNeeded()
+                );
+            }
+        }
+    }
+
+    private void performOnReplicas(ReplicaRequest replicaRequest, List<ShardRouting> shards) {
         final String localNodeId = primary.routingEntry().currentNodeId();
+        // If the index gets deleted after primary operation, we skip replication
         for (final ShardRouting shard : shards) {
             if (executeOnReplicas == false || shard.unassigned()) {
                 if (shard.primary() == false) {
@@ -147,7 +179,7 @@ public class ReplicationOperation<
         }
 
         totalShards.incrementAndGet();
-        pendingShards.incrementAndGet();
+        pendingActions.incrementAndGet();
         replicasProxy.performOn(shard, replicaRequest, new ActionListener<TransportResponse.Empty>() {
             @Override
             public void onResponse(TransportResponse.Empty empty) {
@@ -222,6 +254,14 @@ public class ReplicationOperation<
         }
     }
 
+    protected Set<String> getInSyncAllocationIds(ShardId shardId, ClusterState clusterState) {
+        IndexMetaData indexMetaData = clusterState.metaData().index(shardId.getIndex());
+        if (indexMetaData != null) {
+            return indexMetaData.inSyncAllocationIds(shardId.id());
+        }
+        return Collections.emptySet();
+    }
+
     protected List<ShardRouting> getShards(ShardId shardId, ClusterState state) {
         // can be null if the index is deleted / closed on us..
         final IndexShardRoutingTable shardRoutingTable = state.getRoutingTable().shardRoutingTableOrNull(shardId);
@@ -230,8 +270,8 @@ public class ReplicationOperation<
     }
 
     private void decPendingAndFinishIfNeeded() {
-        assert pendingShards.get() > 0;
-        if (pendingShards.decrementAndGet() == 0) {
+        assert pendingActions.get() > 0;
+        if (pendingActions.decrementAndGet() == 0) {
             finish();
         }
     }
@@ -337,6 +377,20 @@ public class ReplicationOperation<
          */
         void failShard(ShardRouting replica, long primaryTerm, String message, Exception exception, Runnable onSuccess,
                        Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure);
+
+        /**
+         * Marks shard copy as stale, removing its allocation id from the set of in-sync allocation ids.
+         *
+         * @param shardId          shard id
+         * @param allocationId     allocation id to remove from the set of in-sync allocation ids
+         * @param primaryTerm      the primary term of the primary shard when requesting the failure
+         * @param onSuccess        a callback to call when the allocation id has been successfully removed from the in-sync set.
+         * @param onPrimaryDemoted a callback to call when the request failed because the current primary was already demoted
+         *                         by the master.
+         * @param onIgnoredFailure a callback to call when the request failed, but the failure can be safely ignored.
+         */
+        void markShardCopyAsStale(ShardId shardId, String allocationId, long primaryTerm, Runnable onSuccess,
+                                  Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure);
     }
 
     public static class RetryOnPrimaryException extends ElasticsearchException {

@@ -330,7 +330,7 @@ public class ClusterStateHealthTests extends ESTestCase {
             boolean atLeastOne = false;
             for (int i = 0; i < numberOfShards; i++) {
                 if (atLeastOne == false || randomBoolean()) {
-                    idxMetaWithAllocationIds.putActiveAllocationIds(i, Sets.newHashSet(UUIDs.randomBase64UUID()));
+                    idxMetaWithAllocationIds.putInSyncAllocationIds(i, Sets.newHashSet(UUIDs.randomBase64UUID()));
                     atLeastOne = true;
                 }
             }
@@ -400,7 +400,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
         IndexMetaData.Builder idxMetaBuilder = IndexMetaData.builder(clusterState.metaData().index(indexName));
         for (final IntObjectCursor<Set<String>> entry : allocationIds.build()) {
-            idxMetaBuilder.putActiveAllocationIds(entry.key, entry.value);
+            idxMetaBuilder.putInSyncAllocationIds(entry.key, entry.value);
         }
         MetaData.Builder metaDataBuilder = MetaData.builder(clusterState.metaData()).put(idxMetaBuilder);
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metaData(metaDataBuilder).build();
@@ -447,7 +447,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
         idxMetaBuilder = IndexMetaData.builder(clusterState.metaData().index(indexName));
         for (final IntObjectCursor<Set<String>> entry : allocationIds.build()) {
-            idxMetaBuilder.putActiveAllocationIds(entry.key, entry.value);
+            idxMetaBuilder.putInSyncAllocationIds(entry.key, entry.value);
         }
         metaDataBuilder = MetaData.builder(clusterState.metaData()).put(idxMetaBuilder);
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metaData(metaDataBuilder).build();
@@ -523,7 +523,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : clusterState.routingTable().index(indexName).shards()) {
             final ShardRouting primaryShard = shardRouting.value.primaryShard();
             if (primaryShard.active() == false) {
-                if (clusterState.metaData().index(indexName).activeAllocationIds(shardRouting.key).isEmpty() == false) {
+                if (clusterState.metaData().index(indexName).inSyncAllocationIds(shardRouting.key).isEmpty() == false) {
                     return false;
                 }
                 if (primaryShard.unassignedInfo() != null &&

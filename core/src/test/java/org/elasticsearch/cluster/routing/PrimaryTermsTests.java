@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -152,7 +153,8 @@ public class PrimaryTermsTests extends ESAllocationTestCase {
             failedShards.add(new FailedRerouteAllocation.FailedShard(indexShardRoutingTable.shard(shard).primaryShard(), "test", null));
             incrementPrimaryTerm(index, shard); // the primary failure should increment the primary term;
         }
-        RoutingAllocation.Result rerouteResult = allocationService.applyFailedShards(this.clusterState, failedShards);
+        RoutingAllocation.Result rerouteResult = allocationService.applyFailedShards(this.clusterState, failedShards,
+            Collections.emptyList());
         applyRerouteResult(rerouteResult);
     }
 

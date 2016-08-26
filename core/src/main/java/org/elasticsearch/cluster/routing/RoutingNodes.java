@@ -420,7 +420,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }
         addRecovery(initializedShard);
         assignedShardsAdd(initializedShard);
-        routingChangesObserver.shardInitialized(unassignedShard);
+        routingChangesObserver.shardInitialized(unassignedShard, initializedShard);
         return initializedShard;
     }
 

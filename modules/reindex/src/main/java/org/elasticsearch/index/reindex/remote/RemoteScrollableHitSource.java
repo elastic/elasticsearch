@@ -98,7 +98,6 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
     void lookupRemoteVersion(Consumer<Version> onVersion) {
         execute("GET", "", emptyMap(), null, MAIN_ACTION_PARSER, onVersion);
-        
     }
 
     private void onStartResponse(Consumer<? super Response> onResponse, Response response) {
@@ -119,7 +118,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     @Override
     protected void clearScroll(String scrollId) {
         // Need to throw out response....
-        client.performRequest("DELETE", scrollPath(), emptyMap(), scrollEntity(scrollId), new ResponseListener() {
+        client.performRequestAsync("DELETE", scrollPath(), emptyMap(), scrollEntity(scrollId), new ResponseListener() {
             @Override
             public void onSuccess(org.elasticsearch.client.Response response) {
                 logger.debug("Successfully cleared [{}]", scrollId);
@@ -141,7 +140,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
             @Override
             protected void doRun() throws Exception {
-                client.performRequest(method, uri, params, entity, new ResponseListener() {
+                client.performRequestAsync(method, uri, params, entity, new ResponseListener() {
                     @Override
                     public void onSuccess(org.elasticsearch.client.Response response) {
                         // Restore the thread context to get the precious headers

@@ -18,20 +18,6 @@
  */
 package org.elasticsearch.index.query;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.sameInstance;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
-
-import static java.util.Collections.emptyList;
-
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -59,6 +45,21 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Supplier;
+
+import static java.util.Collections.emptyList;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class InnerHitBuilderTests extends ESTestCase {
 
@@ -221,7 +222,9 @@ public class InnerHitBuilderTests extends ESTestCase {
         innerHits.setExplain(randomBoolean());
         innerHits.setVersion(randomBoolean());
         innerHits.setTrackScores(randomBoolean());
-        innerHits.setStoredFieldNames(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
+        if (randomBoolean()) {
+            innerHits.setStoredFieldNames(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
+        }
         innerHits.setDocValueFields(randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16)));
         // Random script fields deduped on their field name.
         Map<String, SearchSourceBuilder.ScriptField> scriptFields = new HashMap<>();
@@ -344,12 +347,13 @@ public class InnerHitBuilderTests extends ESTestCase {
                         HighlightBuilderTests::randomHighlighterBuilder));
                 break;
             case 11:
-                if (instance.getStoredFieldNames() == null || randomBoolean()) {
-                    instance.setStoredFieldNames(randomValueOtherThan(instance.getStoredFieldNames(), () -> {
-                        return randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16));
-                    }));
+                if (instance.getStoredFieldsContext() == null || randomBoolean()) {
+                    List<String> previous = instance.getStoredFieldsContext() == null ?
+                        Collections.emptyList() : instance.getStoredFieldsContext().fieldNames();
+                    instance.setStoredFieldNames(randomValueOtherThan(previous,
+                        () -> randomListStuff(16, () -> randomAsciiOfLengthBetween(1, 16))));
                 } else {
-                    instance.getStoredFieldNames().add(randomAsciiOfLengthBetween(1, 16));
+                    instance.getStoredFieldsContext().addFieldName(randomAsciiOfLengthBetween(1, 16));
                 }
                 break;
             default:

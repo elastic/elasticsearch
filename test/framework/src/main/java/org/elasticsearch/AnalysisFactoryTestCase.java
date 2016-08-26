@@ -228,6 +228,8 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("fingerprint",               Void.class)
         // for tee-sinks
         .put("daterecognizer",            Void.class)
+        .put("minhash",                   Void.class)
+
         .immutableMap();
     
     static final Map<String,Class<?>> KNOWN_CHARFILTERS = new MapBuilder<String,Class<?>>()

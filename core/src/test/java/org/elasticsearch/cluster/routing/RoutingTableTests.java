@@ -338,7 +338,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
             for (ShardRouting shardRouting : shardTable) {
                 Set<String> activeAllocations = shardTable.activeShards().stream().map(
                     shr -> shr.allocationId().getId()).collect(Collectors.toSet());
-                imdBuilder.putActiveAllocationIds(shardRouting.id(), activeAllocations);
+                imdBuilder.putInSyncAllocationIds(shardRouting.id(), activeAllocations);
             }
         }
         return imdBuilder.build();

@@ -258,7 +258,7 @@ public class TransportClusterAllocationExplainAction
             Float weight = weights.get(node);
             IndicesShardStoresResponse.StoreStatus storeStatus = nodeToStatus.get(node);
             NodeExplanation nodeExplanation = calculateNodeExplanation(shard, indexMetaData, node, decision, weight,
-                    storeStatus, shard.currentNodeId(), indexMetaData.activeAllocationIds(shard.getId()),
+                    storeStatus, shard.currentNodeId(), indexMetaData.inSyncAllocationIds(shard.getId()),
                     allocation.hasPendingAsyncFetch());
             explanations.put(node, nodeExplanation);
         }

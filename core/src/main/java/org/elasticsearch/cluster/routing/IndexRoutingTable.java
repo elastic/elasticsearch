@@ -129,10 +129,10 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                                                     "from the routing table");
                 }
                 if (shardRouting.active() &&
-                    indexMetaData.activeAllocationIds(shardRouting.id()).contains(shardRouting.allocationId().getId()) == false) {
-                        throw new IllegalStateException("active shard routing " + shardRouting + " has no corresponding entry in the " +
-                            "in-sync allocation set " + indexMetaData.activeAllocationIds(shardRouting.id()));
-                    }
+                    indexMetaData.inSyncAllocationIds(shardRouting.id()).contains(shardRouting.allocationId().getId()) == false) {
+                    throw new IllegalStateException("active shard routing " + shardRouting + " has no corresponding entry in the in-sync " +
+                        "allocation set " + indexMetaData.inSyncAllocationIds(shardRouting.id()));
+                }
             }
         }
         return true;

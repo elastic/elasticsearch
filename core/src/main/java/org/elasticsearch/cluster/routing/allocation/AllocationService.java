@@ -111,7 +111,7 @@ public class AllocationService extends AbstractComponent {
         RoutingTable oldRoutingTable = allocation.routingTable();
         RoutingNodes newRoutingNodes = allocation.routingNodes();
         final RoutingTable newRoutingTable = new RoutingTable.Builder().updateNodes(oldRoutingTable.version(), newRoutingNodes).build();
-        MetaData newMetaData = allocation.updateMetaDataWithRoutingChanges();
+        MetaData newMetaData = allocation.updateMetaDataWithRoutingChanges(newRoutingTable);
         assert newRoutingTable.validate(newMetaData); // validates the routing table is coherent with the cluster state metadata
         logClusterHealthStateChange(
             new ClusterStateHealth(ClusterState.builder(clusterName).
@@ -124,20 +124,29 @@ public class AllocationService extends AbstractComponent {
     }
 
     public Result applyFailedShard(ClusterState clusterState, ShardRouting failedShard) {
-        return applyFailedShards(clusterState, Collections.singletonList(new FailedRerouteAllocation.FailedShard(failedShard, null, null)));
+        return applyFailedShards(clusterState, Collections.singletonList(new FailedRerouteAllocation.FailedShard(failedShard, null, null)),
+            Collections.emptyList());
+    }
+
+    public Result applyFailedShards(ClusterState clusterState, List<FailedRerouteAllocation.FailedShard> failedShards) {
+        return applyFailedShards(clusterState, failedShards, Collections.emptyList());
     }
 
     /**
      * Applies the failed shards. Note, only assigned ShardRouting instances that exist in the routing table should be
-     * provided as parameter and no duplicates should be contained.
+     * provided as parameter. Also applies a list of allocation ids to remove from the in-sync set for shard copies for which there
+     * are no routing entries in the routing table.
      *
      * <p>
      * If the same instance of the routing table is returned, then no change has been made.</p>
      */
-    public Result applyFailedShards(ClusterState clusterState, List<FailedRerouteAllocation.FailedShard> failedShards) {
-        if (failedShards.isEmpty()) {
+    public Result applyFailedShards(ClusterState clusterState, List<FailedRerouteAllocation.FailedShard> failedShards,
+                                    List<FailedRerouteAllocation.StaleShard> staleShards) {
+        if (staleShards.isEmpty() && failedShards.isEmpty()) {
             return Result.unchanged(clusterState);
         }
+        clusterState = IndexMetaDataUpdater.removeStaleIdsWithoutRoutings(clusterState, staleShards);
+
         RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();

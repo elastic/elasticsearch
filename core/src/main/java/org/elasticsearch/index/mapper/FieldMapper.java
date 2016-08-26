@@ -660,14 +660,4 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
-    /**
-     * Fields might not be available before indexing, for example _all, token_count,...
-     * When get is called and these fields are requested, this case needs special treatment.
-     *
-     * @return If the field is available before indexing or not.
-     */
-    public boolean isGenerated() {
-        return false;
-    }
-
 }

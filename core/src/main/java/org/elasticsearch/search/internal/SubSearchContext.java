@@ -22,6 +22,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -33,8 +34,6 @@ import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -58,7 +57,7 @@ public class SubSearchContext extends FilteredSearchContext {
     private int docsIdsToLoadFrom;
     private int docsIdsToLoadSize;
 
-    private List<String> fieldNames;
+    private StoredFieldsContext storedFields;
     private ScriptFieldsContext scriptFields;
     private FetchSourceContext fetchSourceContext;
     private SearchContextHighlight highlight;
@@ -239,21 +238,29 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public boolean hasFieldNames() {
-        return fieldNames != null;
+    public boolean hasStoredFields() {
+        return storedFields != null && storedFields.fieldNames() != null;
     }
 
     @Override
-    public List<String> fieldNames() {
-        if (fieldNames == null) {
-            fieldNames = new ArrayList<>();
-        }
-        return fieldNames;
+    public boolean hasStoredFieldsContext() {
+        return storedFields != null;
     }
 
     @Override
-    public void emptyFieldNames() {
-        this.fieldNames = Collections.emptyList();
+    public boolean storedFieldsRequested() {
+        return storedFields != null && storedFields.fetchFields();
+    }
+
+    @Override
+    public StoredFieldsContext storedFieldsContext() {
+        return storedFields;
+    }
+
+    @Override
+    public SearchContext storedFieldsContext(StoredFieldsContext storedFieldsContext) {
+        this.storedFields = storedFieldsContext;
+        return this;
     }
 
     @Override

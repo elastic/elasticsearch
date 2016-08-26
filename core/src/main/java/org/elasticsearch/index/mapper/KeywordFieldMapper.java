@@ -160,6 +160,16 @@ public final class KeywordFieldMapper extends FieldMapper {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder();
         }
+
+        @Override
+        public Object valueForSearch(Object value) {
+            if (value == null) {
+                return null;
+            }
+            // keywords are internally stored as utf8 bytes
+            BytesRef binaryValue = (BytesRef) value;
+            return binaryValue.utf8ToString();
+        }
     }
 
     private Boolean includeInAll;
@@ -212,12 +222,14 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.allEntries().addText(fieldType().name(), value, fieldType().boost());
         }
 
+        // convert to utf8 only once before feeding postings/dv/stored fields
+        final BytesRef binaryValue = new BytesRef(value);
         if (fieldType().indexOptions() != IndexOptions.NONE || fieldType().stored()) {
-            Field field = new Field(fieldType().name(), value, fieldType());
+            Field field = new Field(fieldType().name(), binaryValue, fieldType());
             fields.add(field);
         }
         if (fieldType().hasDocValues()) {
-            fields.add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(value)));
+            fields.add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
         }
     }
 

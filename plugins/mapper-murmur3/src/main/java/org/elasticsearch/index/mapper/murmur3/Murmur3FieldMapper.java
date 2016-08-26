@@ -162,9 +162,4 @@ public class Murmur3FieldMapper extends FieldMapper {
         }
     }
 
-    @Override
-    public boolean isGenerated() {
-        return true;
-    }
-
 }

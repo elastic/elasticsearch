@@ -97,9 +97,25 @@ public class ScriptSettings {
                 }
                 final boolean defaultIfNothingSet = defaultLangAndType;
 
+                Function<Settings, String> defaultLangAndTypeFn = settings -> {
+                    final Setting<Boolean> globalTypeSetting = scriptTypeSettingMap.get(scriptType);
+                    final Setting<Boolean> langAndTypeSetting = Setting.boolSetting(ScriptModes.getGlobalKey(language, scriptType),
+                            defaultIfNothingSet, Property.NodeScope);
+
+                    if (langAndTypeSetting.exists(settings)) {
+                        // fine-grained e.g. script.engine.groovy.inline
+                        return langAndTypeSetting.get(settings).toString();
+                    } else if (globalTypeSetting.exists(settings)) {
+                        // global type - script.inline
+                        return globalTypeSetting.get(settings).toString();
+                    } else {
+                        return Boolean.toString(defaultIfNothingSet);
+                    }
+                };
+
                 // Setting for something like "script.engine.groovy.inline"
                 final Setting<Boolean> langAndTypeSetting = Setting.boolSetting(ScriptModes.getGlobalKey(language, scriptType),
-                        defaultLangAndType, Property.NodeScope);
+                        defaultLangAndTypeFn, Property.NodeScope);
                 scriptModeSettings.add(langAndTypeSetting);
 
                 for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {

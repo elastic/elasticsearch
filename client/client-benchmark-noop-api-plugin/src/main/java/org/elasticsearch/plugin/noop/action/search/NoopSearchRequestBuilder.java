@@ -249,14 +249,6 @@ public class NoopSearchRequestBuilder extends ActionRequestBuilder<SearchRequest
     }
 
     /**
-     * Sets no fields to be loaded, resulting in only id and type to be returned per field.
-     */
-    public NoopSearchRequestBuilder setNoStoredFields() {
-        sourceBuilder().noStoredFields();
-        return this;
-    }
-
-    /**
      * Indicates whether the response should contain the stored _source for every hit
      */
     public NoopSearchRequestBuilder setFetchSource(boolean fetch) {

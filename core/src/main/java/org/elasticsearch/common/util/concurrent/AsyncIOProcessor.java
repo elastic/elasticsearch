@@ -84,7 +84,6 @@ public abstract class AsyncIOProcessor<Item> {
                 promiseSemaphore.release(); // now to ensure we are passing it on we release the promise so another thread can take over
             }
             while (queue.isEmpty() == false && promiseSemaphore.tryAcquire()) {
-                logger.warn(Thread.currentThread().getName());
                 // yet if the queue is not empty AND nobody else has yet made the promise to take over we continue processing
                 try {
                     drainAndProcess(candidates);

@@ -61,6 +61,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -134,9 +135,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1640,8 +1639,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private final ArrayBlockingQueue<Tuple<Translog.Location, Consumer<Exception>>> fsyncQueue = new ArrayBlockingQueue<>(1024);
-    private final Semaphore promiseSync = new Semaphore(1);
+    private final AsyncIOProcessor<Translog.Location> translogSyncProcessor = new AsyncIOProcessor<Translog.Location>(logger, 1024) {
+        @Override
+        protected void write(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) throws IOException {
+                try {
+                    final Engine engine = getEngine();
+                    engine.getTranslog().ensureSynced(candidates.stream().map(Tuple::v1));
+                } catch (EngineClosedException ex) {
+                    // that's fine since we already synced everything on engine close - this also is conform with the methods
+                    // documentation
+                } catch (IOException ex) { // if this fails we are in deep shit - fail the request
+                    logger.debug("failed to sync translog", ex);
+                    throw ex;
+                }
+        }
+
+        @Override
+        protected void ensureOpen() {
+            verifyNotClosed();
+        }
+    };
 
     /**
      * Syncs the given location with the underlying storage unless already synced. This method might return immediately without
@@ -1651,70 +1668,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * one thread blocking on the sync an all others can continue indexing.
      */
     public final void sync(Translog.Location location, Consumer<Exception> syncListener) {
-        verifyNotClosed();
-        // the algorithm here tires to reduce the load on each individual caller.
-        // we try to have only one caller that syncs pending locations to disc while others just add to the queue but
-        // at the same time never overload the node by pushing too many items into the queue.
-
-        // we first try make a promise that we are responsible for the sync
-        final boolean promised = promiseSync.tryAcquire();
-        final List<Tuple<Translog.Location, Consumer<Exception>>> candidates = new ArrayList<>();
-        if (promised) {
-            // if we are responsible we can't wait for others to make space - we have to sync until we can add to the queue
-            while (fsyncQueue.offer(new Tuple<>(location, syncListener)) == false) {
-                drainAndSync(candidates);
-            }
-        } else {
-            // in this case we are not responsible and can just block until there is space
-            try {
-                fsyncQueue.put(new Tuple<>(location, syncListener));
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-        }
-
-        // here we have to try to make the promise again otherwise there is a race when a thread puts an entry without making the promise
-        // while we are draining that mean we might exit below too early in the while loop if the drainAndSync call is fast.
-        if (promised || promiseSync.tryAcquire()) {
-            // since we made the promise to sync we gotta do it here at least once
-            drainAndSync(candidates);
-            promiseSync.release(); // now to ensure we are passing it on we release the promise so another thread can take over
-            while (fsyncQueue.isEmpty() == false && promiseSync.availablePermits() > 0) {
-                // yet if the queue is not empty AND nobody else has yet made the promise to take over we continue syncing to disk
-                drainAndSync(candidates);
-            }
-        }
-    }
-
-    private void drainAndSync(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) {
-        candidates.clear();
-        fsyncQueue.drainTo(candidates);
-        syncList(candidates);
-    }
-
-    private void syncList(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) {
-        Exception exception = null;
-        if (candidates.isEmpty() == false) {
-            try {
-                final Engine engine = getEngine();
-                engine.getTranslog().ensureSynced(candidates.stream().map(Tuple::v1));
-            } catch (EngineClosedException ex) {
-                // that's fine since we already synced everything on engine close - this also is conform with the methods
-                // documentation
-            } catch (IOException ex) { // if this fails we are in deep shit - fail the request
-                logger.debug("failed to sync translog", ex);
-                // this exception is passed to all listeners - we don't retry. if this doesn't work we are in deep shit
-                exception = ex;
-            }
-        }
-        for (Tuple<Translog.Location, Consumer<Exception>> tuple : candidates) {
-            Consumer<Exception> consumer = tuple.v2();
-            try {
-                consumer.accept(exception);
-            } catch (Exception ex) {
-                logger.warn("translog sync consumer failed", ex);
-            }
-        }
+        translogSyncProcessor.put(location, syncListener);
     }
 
     /**

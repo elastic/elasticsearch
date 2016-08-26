@@ -592,8 +592,6 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndexShard shard = test.getShardOrNull(0);
         Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
         Thread[] thread = new Thread[randomIntBetween(3, 5)];
-        AtomicBoolean running = new AtomicBoolean(true);
-        AtomicInteger count = new AtomicInteger(0);
         CountDownLatch latch = new CountDownLatch(thread.length);
         for (int i = 0; i < thread.length; i++) {
             thread[i] = new Thread() {

@@ -15,7 +15,7 @@ including array types, but adds some additional built-in types.
 ==== Def
 
 The dynamic type `def` serves as a placeholder for any other type. It adopts the behavior
-of whatever runtime type it represents. 
+of whatever runtime type it represents.
 
 [float]
 [[painless-strings]]
@@ -23,7 +23,7 @@ of whatever runtime type it represents.
 
 String constants can be declared with single quotes, to avoid escaping horrors with JSON:
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 def mystring = 'foo';
 ---------------------------------------------------------
@@ -34,14 +34,14 @@ def mystring = 'foo';
 
 Lists can be created explicitly (e.g. `new ArrayList()`) or initialized similar to Groovy:
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 def list = [1,2,3];
 ---------------------------------------------------------
 
 Lists can also be accessed similar to arrays: they support subscript and `.length`:
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 def list = [1,2,3];
 return list[0]
@@ -53,14 +53,14 @@ return list[0]
 
 Maps can be created explicitly (e.g. `new HashMap()`) or initialized similar to Groovy:
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 def person = ['name': 'Joe', 'age': 63];
 ---------------------------------------------------------
 
 Map keys can also be accessed as properties.
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 def person = ['name': 'Joe', 'age': 63];
 person.retired = true;
@@ -69,7 +69,7 @@ return person.name
 
 Map keys can also be accessed via subscript (for keys containing special characters):
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 return map['something-absurd!']
 ---------------------------------------------------------
@@ -80,13 +80,13 @@ return map['something-absurd!']
 
 Regular expression constants are directly supported:
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 Pattern p = /[aeiou]/
 ---------------------------------------------------------
 
 Patterns can only be created via this mechanism. This ensures fast performance, regular expressions
-are always constants and compiled efficiently a single time. 
+are always constants and compiled efficiently a single time.
 
 [float]
 [[modules-scripting-painless-regex-flags]]
@@ -116,7 +116,7 @@ using these characters:
 === Operators
 
 All of Java's https://docs.oracle.com/javase/tutorial/java/nutsandbolts/operators.html[operators] are
-supported with the same precedence, promotion, and semantics. 
+supported with the same precedence, promotion, and semantics.
 
 There are only a few minor differences and add-ons:
 
@@ -134,7 +134,7 @@ of the `switch` statement.
 
 In addition to Java's `enhanced for` loop, the `for in` syntax from groovy can also be used:
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 for (item : list) {
   ...
@@ -147,7 +147,7 @@ for (item : list) {
 
 Functions can be declared at the beginning of the script, for example:
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 boolean isNegative(def x) { x < 0 }
 ...
@@ -161,7 +161,7 @@ if (isNegative(someVar)) {
 === Lambda expressions
 Lambda expressions and method references work the same as https://docs.oracle.com/javase/tutorial/java/javaOO/lambdaexpressions.html[Java's].
 
-[source,js]
+[source,painless]
 ---------------------------------------------------------
 list.removeIf(item -> item == 2);
 list.removeIf((int item) -> item == 2);

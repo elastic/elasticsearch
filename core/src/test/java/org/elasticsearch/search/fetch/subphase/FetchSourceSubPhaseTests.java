@@ -32,11 +32,6 @@ import org.elasticsearch.test.TestSearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class FetchSourceSubPhaseTests extends ESTestCase {
 
@@ -69,14 +64,12 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
         }
     }
 
-    public void test() throws IOException {
+    public void testFetchSource() throws IOException {
         XContentBuilder source = XContentFactory.jsonBuilder().startObject()
             .field("field", "value")
             .endObject();
         FetchSubPhase.HitContext hitContext = hitExecute(source, true, null, null);
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("field", "value");
-        assertThat(hitContext.hit().sourceAsMap(), equalTo(expected));
+        assertEquals(Collections.singletonMap("field","value"), hitContext.hit().sourceAsMap());
     }
 
     public void testBasicFiltering() throws IOException {
@@ -85,20 +78,16 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
             .field("field2", "value2")
             .endObject();
         FetchSubPhase.HitContext hitContext = hitExecute(source, false, null, null);
-        assertThat(hitContext.hit().sourceAsMap(), nullValue());
+        assertNull(hitContext.hit().sourceAsMap());
 
         hitContext = hitExecute(source, true, "field1", null);
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("field1", "value");
-        assertThat(hitContext.hit().sourceAsMap(), equalTo(expected));
+        assertEquals(Collections.singletonMap("field1","value"), hitContext.hit().sourceAsMap());
 
         hitContext = hitExecute(source, true, "hello", null);
-        assertThat(hitContext.hit().sourceAsMap(), equalTo(Collections.emptyMap()));
+        assertEquals(Collections.emptyMap(), hitContext.hit().sourceAsMap());
 
         hitContext = hitExecute(source, true, "*", "field2");
-        expected = new HashMap<>();
-        expected.put("field1", "value");
-        assertThat(hitContext.hit().sourceAsMap(), equalTo(expected));
+        assertEquals(Collections.singletonMap("field1","value"), hitContext.hit().sourceAsMap());
     }
 
     public void testMultipleFiltering() throws IOException {
@@ -107,28 +96,24 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
             .field("field2", "value2")
             .endObject();
         FetchSubPhase.HitContext hitContext = hitExecuteMultiple(source, true, new String[]{"*.notexisting", "field"}, null);
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("field", "value");
-        assertThat(hitContext.hit().sourceAsMap(), equalTo(expected));
+        assertEquals(Collections.singletonMap("field","value"), hitContext.hit().sourceAsMap());
 
         hitContext = hitExecuteMultiple(source, true, new String[]{"field.notexisting.*", "field"}, null);
-        expected = new HashMap<>();
-        expected.put("field", "value");
-        assertThat(hitContext.hit().sourceAsMap(), equalTo(expected));
+        assertEquals(Collections.singletonMap("field","value"), hitContext.hit().sourceAsMap());
     }
 
     public void testSourceDisabled() throws IOException {
         FetchSubPhase.HitContext hitContext = hitExecute(null, true, null, null);
-        assertThat(hitContext.hit().sourceAsMap(), nullValue());
+        assertNull(hitContext.hit().sourceAsMap());
 
         hitContext = hitExecute(null, false, null, null);
-        assertThat(hitContext.hit().sourceAsMap(), nullValue());
+        assertNull(hitContext.hit().sourceAsMap());
 
         hitContext = hitExecute(null, true, "field1", null);
-        assertThat(hitContext.hit().sourceAsMap(), nullValue());
+        assertNull(hitContext.hit().sourceAsMap());
 
         hitContext = hitExecuteMultiple(null, true, new String[]{"*"}, new String[]{"field2"});
-        assertThat(hitContext.hit().sourceAsMap(), nullValue());
+        assertNull(hitContext.hit().sourceAsMap());
     }
 
     private FetchSubPhase.HitContext hitExecute(XContentBuilder source, boolean fetchSource, String include, String exclude) {

@@ -8,6 +8,7 @@ package org.elasticsearch.license;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -34,11 +35,15 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackTransportClient;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.action.user.GetUsersResponse;
+import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.Before;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
@@ -160,13 +165,50 @@ public class LicensingTests extends SecurityIntegTestCase {
         Response response = getRestClient().performRequest("GET", "/");
         // the default of the licensing tests is basic
         assertThat(response.getStatusLine().getStatusCode(), is(200));
+        ResponseException e = expectThrows(ResponseException.class,
+                () -> getRestClient().performRequest("GET", "/_xpack/security/_authenticate"));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(403));
 
         // generate a new license with a mode that enables auth
         License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.TRIAL,
             License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
         enableLicensing(mode);
-        ResponseException e = expectThrows(ResponseException.class, () -> getRestClient().performRequest("GET", "/"));
+        e = expectThrows(ResponseException.class, () -> getRestClient().performRequest("GET", "/"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
+        e = expectThrows(ResponseException.class, () -> getRestClient().performRequest("GET", "/_xpack/security/_authenticate"));
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
+
+        final String basicAuthValue = UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
+                new SecuredString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()));
+        response = getRestClient().performRequest("GET", "/", new BasicHeader("Authorization", basicAuthValue));
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+        response = getRestClient()
+                .performRequest("GET", "/_xpack/security/_authenticate", new BasicHeader("Authorization", basicAuthValue));
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+
+    }
+
+    public void testSecurityActionsByLicenseType() throws Exception {
+        // security actions should not work!
+        try (TransportClient client = new XPackTransportClient(internalCluster().transportClient().settings())) {
+            client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
+            new SecurityClient(client).prepareGetUsers().get();
+            fail("security actions should not be enabled!");
+        } catch (ElasticsearchSecurityException e) {
+            assertThat(e.status(), is(RestStatus.FORBIDDEN));
+            assertThat(e.getMessage(), containsString("non-compliant"));
+        }
+
+        // enable a license that enables security
+        License.OperationMode mode = randomFrom(License.OperationMode.GOLD, License.OperationMode.TRIAL,
+                License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
+        enableLicensing(mode);
+        // security actions should not work!
+        try (TransportClient client = new XPackTransportClient(internalCluster().transportClient().settings())) {
+            client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
+            GetUsersResponse response = new SecurityClient(client).prepareGetUsers().get();
+            assertNotNull(response);
+        }
     }
 
     public void testTransportClientAuthenticationByLicenseType() throws Exception {

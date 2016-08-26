@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
+import org.elasticsearch.xpack.security.authz.privilege.GeneralPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.HealthAndStatsPrivilege;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.user.SystemUser;
@@ -48,6 +49,8 @@ import static org.elasticsearch.xpack.security.support.Exceptions.authorizationE
 public class SecurityActionFilter extends AbstractComponent implements ActionFilter {
 
     private static final Predicate<String> LICENSE_EXPIRATION_ACTION_MATCHER = HealthAndStatsPrivilege.INSTANCE.predicate();
+    private static final Predicate<String> SECURITY_ACTION_MATCHER =
+            new GeneralPrivilege("_security_matcher", "cluster:admin/xpack/security*").predicate();
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
@@ -104,6 +107,8 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
                     applyInternal(task, action, request,
                             new SigningListener(this, listener, restoreOriginalContext ? original : null), chain);
                 }
+            } else if (SECURITY_ACTION_MATCHER.test(action)) {
+                throw LicenseUtils.newComplianceException(XPackPlugin.SECURITY);
             } else {
                 chain.proceed(task, action, request, listener);
             }

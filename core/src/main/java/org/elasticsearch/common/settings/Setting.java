@@ -107,8 +107,6 @@ public class Setting<T> extends ToXContentToBytes {
         IndexScope
     }
 
-    private static DeprecationLogger deprecationLogger;
-
     private final Key key;
     protected final Function<Settings, String> defaultValue;
     @Nullable
@@ -320,11 +318,8 @@ public class Setting<T> extends ToXContentToBytes {
     public String getRaw(Settings settings) {
         // They're using the setting, so we need to tell them to stop
         if (this.isDeprecated() && this.exists(settings)) {
-            // it does not matter if this is set twice
-            if (deprecationLogger == null) {
-                deprecationLogger = new DeprecationLogger(Loggers.getLogger(Setting.class));
-            }
             // It would be convenient to show its replacement key, but replacement is often not so simple
+            final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(getClass()));
             deprecationLogger.deprecated("[{}] setting was deprecated in Elasticsearch and it will be removed in a future release! " +
                     "See the breaking changes lists in the documentation for details", getKey());
         }

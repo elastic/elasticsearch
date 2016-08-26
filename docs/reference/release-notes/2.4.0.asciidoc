@@ -1,0 +1,265 @@
+[[release-notes-2.4.0]]
+== 2.4.0 Release Notes
+
+[[breaking-2.4.0]]
+[float]
+=== Breaking changes
+
+Network::
+* Single comma-delimited response header for multiple values {pull}19872[#19872] (issue: {issue}19841[#19841])
+
+
+
+[[deprecation-2.4.0]]
+[float]
+=== Deprecations
+
+Geo::
+* Deprecate optimize_bbox on geodistance queries {pull}20032[#20032] (issue: {issue}20014[#20014])
+* Deprecate geohash parameters for geo_point parser {pull}20030[#20030] (issue: {issue}20009[#20009])
+
+Mapping::
+* Add deprecation logging for `_timestamp` and `_ttl`. {pull}19031[#19031] (issue: {issue}18980[#18980])
+
+Query DSL::
+* Deprecate soon-to-be-unsupported queries. {pull}18376[#18376] (issue: {issue}18276[#18276])
+
+REST::
+* Deprecate camelCase usages {pull}17800[#17800] (issue: {issue}8988[#8988])
+
+Search::
+* Deprecate sort option reverse. {pull}17378[#17378] (issue: {issue}17047[#17047])
+
+Settings::
+* Deprecate bootstrap.mlockall {pull}18671[#18671] (issue: {issue}18669[#18669])
+* Deprecate camelCase settings magic {pull}17875[#17875] (issue: {issue}8988[#8988])
+
+Snapshot/Restore::
+* Adds deprecation notices on removed BlobContainer methods {pull}19729[#19729] (issues: {issue}18813[#18813], {issue}19727[#19727])
+
+
+
+[[feature-2.4.0]]
+[float]
+=== New features
+
+Geo::
+* Add CONTAINS relation to geo_shape query {pull}14810[#14810] (issues: {issue}14713[#14713], {issue}17866[#17866])
+
+Plugin Cloud AWS::
+* Add support for path_style_access {pull}19497[#19497] (issue: {issue}15114[#15114])
+
+Reindex API::
+* Backport: Reindex's throttling {pull}18020[#18020]
+
+
+
+[[enhancement-2.4.0]]
+[float]
+=== Enhancements
+
+Circuit Breakers::
+* Limit request size {pull}17133[#17133] (issue: {issue}16011[#16011])
+
+Cluster::
+* Batch process node left and node failure 2.x {pull}19362[#19362] (issues: {issue}19282[#19282], {issue}19289[#19289])
+
+Core::
+* Improve performance of applyDeletedShards {pull}18788[#18788] (issue: {issue}18776[#18776])
+* Sliced lock contention 2.x {pull}18067[#18067] (issues: {issue}16872[#16872], {issue}18053[#18053], {issue}18060[#18060])
+* Kill thread local leak {pull}17921[#17921] (issues: {issue}283[#283], {issue}630[#630])
+* Remove hostname from NetworkAddress.format (2.x) {pull}17606[#17606] (issues: {issue}17601[#17601], {issue}17604[#17604])
+
+Dates::
+* Improve TimeUnitRounding for edge cases and DST transitions {pull}18589[#18589]
+
+Internal::
+* Turn RestChannel into an interface {pull}17643[#17643] (issue: {issue}17133[#17133])
+* Require executor name when calling scheduleWithFixedDelay {pull}17538[#17538]
+* Implement available for all StreamInput classes {pull}17218[#17218]
+
+Java API::
+* Add created flag to IndexingOperationListener#postIndex {pull}17340[#17340] (issue: {issue}17333[#17333])
+
+Logging::
+* Add shardId and node name in search slow log {pull}19949[#19949] (issue: {issue}19735[#19735])
+
+Mapping::
+* Mappings: Allow to force dots in field names {pull}19937[#19937]
+
+Network::
+* Exclude admin / diagnostic requests from HTTP request limiting {pull}18833[#18833] (issues: {issue}17951[#17951], {issue}18145[#18145])
+* Netty request/response tracer should wait for send {pull}18500[#18500]
+* Exclude specific transport actions from request size limit check {pull}17951[#17951]
+* Provide better error message when an incompatible node connects to a node {pull}17182[#17182] (issue: {issue}17090[#17090])
+
+Packaging::
+* Increase default max open files to 65536 {pull}18041[#18041] (issue: {issue}18040[#18040])
+* Allow configuring Windows service name, description and user {pull}17312[#17312]
+
+Parent/Child::
+* Allow adding additional child types that point to an existing parent type {pull}18446[#18446] (issue: {issue}17956[#17956])
+
+Query DSL::
+* Fixed QueryParsingException in multi match query {pull}19564[#19564] (issues: {issue}13405[#13405], {issue}16098[#16098])
+
+REST::
+* CORS handling triggered whether User-Agent is a browser or not {pull}18283[#18283]
+
+Reindex API::
+* Switch default batch size for reindex to 1000 {pull}18340[#18340]
+
+Scripting::
+*  Mustache: Add util functions to render JSON and join array values {pull}19153[#19153] (issue: {issue}18856[#18856])
+* Compile each Groovy script in its own classloader {pull}18975[#18975] (issue: {issue}18918[#18918])
+
+
+
+[[bug-2.4.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix potential AssertionError with include/exclude on terms aggregations. {pull}19252[#19252] (issue: {issue}18575[#18575])
+* Pass resolved extended bounds to unmapped histogram aggregator {pull}19085[#19085] (issue: {issue}19009[#19009])
+* Fix "key_as_string" for date histogram and epoch_millis/epoch_second format with time zone {pull}19043[#19043] (issue: {issue}19038[#19038])
+* Fix TimeUnitRounding for hour, minute and second units {pull}18415[#18415] (issue: {issue}18326[#18326])
+* Adds serialisation of sigma to extended_stats_bucket pipeline aggregation {pull}17703[#17703] (issue: {issue}17701[#17701])
+* ExtendedStatsAggregator should also pass sigma to emtpy aggs. {pull}17388[#17388] (issue: {issue}17362[#17362])
+* Prevents exception being raised when ordering by an aggregation which wasn't collected {pull}17379[#17379] (issue: {issue}17225[#17225])
+* Setting 'other' bucket on empty aggregation {pull}17264[#17264] (issue: {issue}16546[#16546])
+
+Allocation::
+* Rebalancing policy shouldn't prevent hard allocation decisions {pull}17698[#17698] (issues: {issue}14057[#14057], {issue}14259[#14259])
+
+Analysis::
+* Add `Character.MODIFIER_SYMBOL` to the list of symbol categories. {pull}18402[#18402] (issue: {issue}18388[#18388])
+
+Bulk::
+* Copy headers and context to individual requests inside a bulk {pull}18816[#18816]
+
+CAT API::
+* Fix merge stats rendering in RestIndicesAction {pull}18720[#18720]
+* Expand wildcards to closed indices in `/_cat/indices` {pull}18545[#18545] (issues: {issue}16419[#16419], {issue}17395[#17395])
+* Fix column aliases in `_cat/indices`, `_cat/nodes` and `_cat/shards` APIs {pull}17145[#17145] (issue: {issue}17101[#17101])
+
+CRUD::
+* Prevent TransportReplicationAction to route request based on stale local routing table {pull}19296[#19296] (issues: {issue}16274[#16274], {issue}19187[#19187])
+
+Cluster::
+* Fix block checks when no indices are specified {pull}19047[#19047] (issue: {issue}8105[#8105])
+* Cluster stats: fix memory available that is always set to 0 {pull}17328[#17328] (issue: {issue}17278[#17278])
+
+Core::
+* Throw exception if using a closed transport client {pull}18722[#18722] (issue: {issue}18708[#18708])
+* Fix misplaced cast when parsing seconds {pull}18548[#18548] (issue: {issue}18546[#18546])
+* Don't try to compute completion stats on a reader after we already closed it {pull}18094[#18094]
+
+Dates::
+* Make sure TimeIntervalRounding is monotonic for increasing dates {pull}19020[#19020]
+* Fix invalid rounding value for TimeIntervalRounding close to DST transitions {pull}18800[#18800]
+* Fix problem with TimeIntervalRounding on DST end {pull}18780[#18780]
+
+Highlighting::
+* Plain highlighter should ignore parent/child queries {pull}19616[#19616] (issue: {issue}14999[#14999])
+* Let fast vector highlighter also extract terms from the nested query's inner query. {pull}19337[#19337] (issue: {issue}19265[#19265])
+* Skip all geo point queries in plain highlighter {pull}18495[#18495] (issue: {issue}17537[#17537])
+* Exclude all but string fields from highlighting if wildcards are used… {pull}18183[#18183] (issue: {issue}17537[#17537])
+
+Indexed Scripts/Templates::
+* Don't ignore custom sharding settings in create index request for `.scripts` index {pull}18965[#18965] (issue: {issue}18912[#18912])
+
+Internal::
+* Fix filtering of node ids for TransportNodesAction {pull}18634[#18634] (issue: {issue}18618[#18618])
+
+Logging::
+* Add missing index name to search slow log. {pull}17818[#17818] (issue: {issue}17025[#17025])
+
+Mapping::
+* Mapping updates on objects should propagate `include_an_all`. {pull}20051[#20051]
+* Mappings: Fix detection of metadata fields in documents {pull}19765[#19765]
+* Fix not_analyzed string fields to error when position_increment_gap is set {pull}19510[#19510]
+* Automatically created indices should honor `index.mapper.dynamic`. {pull}19478[#19478] (issue: {issue}17592[#17592])
+* Process dynamic templates in order. {pull}18638[#18638] (issues: {issue}18625[#18625], {issue}2401[#2401])
+* Fix cross type mapping updates for `boolean` fields. {pull}17882[#17882] (issues: {issue}17879[#17879], {issue}18740[#18740])
+* Fail if an object is added after a field with the same name. {pull}17568[#17568] (issue: {issue}17567[#17567])
+
+Packaging::
+* RESTART_ON_UPGRADE incorrectly named ES_RESTART_ON_UPGRADE in sysconfig {pull}19976[#19976] (issue: {issue}19950[#19950])
+
+Percolator::
+* Set the SC and QPC type always to `.percolator` in percolate api {pull}19210[#19210] (issue: {issue}19130[#19130])
+* Fixed NPE when percolator filter option is "empty". {pull}18563[#18563] (issue: {issue}6172[#6172])
+
+Plugin Analysis Kuromoji::
+* Prebuild Japanese Stop Words Token Filter {pull}19816[#19816] (issue: {issue}19814[#19814])
+
+Plugin Cloud AWS::
+* Support specific key/secret for EC2 {pull}19513[#19513] (issues: {issue}12978[#12978], {issue}19445[#19445])
+* Add missing permission for S3 repository {pull}19121[#19121] (issue: {issue}18539[#18539])
+
+Plugin Cloud Azure::
+*  Make discovery-azure work again on 2.4 branch {pull}19116[#19116] (issues: {issue}18637[#18637], {issue}19062[#19062])
+* Fix remove of azure files {pull}18571[#18571] (issues: {issue}16472[#16472], {issue}18436[#18436], {issue}18451[#18451])
+
+Plugin Cloud GCE::
+* Fix NPE when GCE region is empty {pull}19175[#19175] (issue: {issue}16967[#16967])
+
+Query DSL::
+* Make parsing of bool queries stricter {pull}19052[#19052] (issue: {issue}19034[#19034])
+* Fix NullPointerException in SimpleQueryParser when analyzing text produces a null query {pull}18243[#18243] (issue: {issue}18202[#18202])
+* Apply the default operator on analyzed wildcard in simple_query_string builder {pull}17776[#17776]
+* Apply the default operator on analyzed wildcard in query_string builder: {pull}17711[#17711] (issue: {issue}2183[#2183])
+
+REST::
+* Do not decode path when sending error {pull}18477[#18477] (issue: {issue}18476[#18476])
+* CORS should permit same origin requests {pull}18278[#18278] (issue: {issue}18256[#18256])
+* Allow CORS requests to work with HTTP compression enabled {pull}18101[#18101] (issues: {issue}18066[#18066], {issue}18089[#18089])
+* Fixes reading of CORS pre-flight headers and methods {pull}17525[#17525] (issue: {issue}17523[#17523])
+* Fix OOM in AbstractXContentParser {pull}15350[#15350] (issue: {issue}15338[#15338])
+
+Recovery::
+* Backports Notify GatewayRecoveryListener on failure {pull}17805[#17805]
+
+Reindex API::
+* Make reindex and lang-javascript compatible {pull}19933[#19933]
+
+Search::
+* Add ref-counting to SearchContext to prevent accessing already closed readers {pull}20095[#20095] (issue: {issue}20008[#20008])
+* Fix `_only_nodes` preferences {pull}18483[#18483] (issues: {issue}12546[#12546], {issue}12700[#12700])
+* Speed up named queries. {pull}18470[#18470]
+
+Snapshot/Restore::
+* Handle `indices=["_all"]` when restoring a snapshot {pull}18025[#18025]
+* On restore, selecting concrete indices can select wrong index {pull}17715[#17715]
+
+Stats::
+* Fix sync flush total shards statistics {pull}18766[#18766]
+
+Translog::
+* Translog can delete valid .ckp file when views are closed after the translog {pull}19035[#19035] (issue: {issue}16495[#16495])
+* Call ensureOpen on Translog#newView() to prevent IllegalStateException {pull}17191[#17191]
+
+
+
+[[upgrade-2.4.0]]
+[float]
+=== Upgrades
+
+Core::
+* Update jackson to version 2.8.1 (on 2.4 branch) {pull}20011[#20011] (issue: {issue}18939[#18939])
+* Upgrade lucene to 5.5.2 {pull}19496[#19496]
+
+Dates::
+* Upgrade joda-time to 2.9.4 {pull}18609[#18609] (issues: {issue}14524[#14524], {issue}18017[#18017])
+
+Internal::
+* Update Jackson 2.6.2 -> 2.6.6 (latest and final 2.6 patch) {pull}18052[#18052]
+
+Network::
+* Upgrade to netty 3.10.6.Final {pull}19235[#19235]
+
+Plugin Cloud AWS::
+* Update aws sdk to 1.10.69 and add throttle_retries repository setting {pull}18048[#18048] (issues: {issue}17784[#17784], {issue}538[#538], {issue}586[#586], {issue}589[#589])
+
+

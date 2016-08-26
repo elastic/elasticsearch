@@ -5,6 +5,7 @@
 --
 This section summarizes the changes in each release.
 
+* <<release-notes-2.4.0>>
 * <<release-notes-2.3.5>>
 * <<release-notes-2.3.4>>
 * <<release-notes-2.3.3>>
@@ -25,6 +26,7 @@ This section summarizes the changes in each release.
 * <<release-notes-2.0.0-beta1>>
 
 --
+include::release-notes/2.4.0.asciidoc[]
 include::release-notes/2.3.5.asciidoc[]
 include::release-notes/2.3.4.asciidoc[]
 include::release-notes/2.3.3.asciidoc[]

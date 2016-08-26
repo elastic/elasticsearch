@@ -136,6 +136,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1624,21 +1625,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return indexShardOperationsLock.getActiveOperationsCount(); // refCount is incremented on successful acquire and decremented on close
     }
 
-    /**
-     * Syncs the given location with the underlying storage unless already synced.
-     */
-    public void sync(Translog.Location location) {
-        try {
-            final Engine engine = getEngine();
-            engine.getTranslog().ensureSynced(location);
-        } catch (EngineClosedException ex) {
-            // that's fine since we already synced everything on engine close - this also is conform with the methods documentation
-        } catch (IOException ex) { // if this fails we are in deep shit - fail the request
-            logger.debug("failed to sync translog", ex);
-            throw new ElasticsearchException("failed to sync translog", ex);
-        }
-    }
-
     private final AsyncIOProcessor<Translog.Location> translogSyncProcessor = new AsyncIOProcessor<Translog.Location>(logger, 1024) {
         @Override
         protected void write(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) throws IOException {
@@ -1666,6 +1652,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * the transaction log the caller thread will be hijacked to run the fsync for all pending fsync operations.
      * This method allows indexing threads to continue indexing without blocking on fsync calls. We ensure that there is only
      * one thread blocking on the sync an all others can continue indexing.
+     * NOTE: if the syncListener throws an exception when it's processed the exception will only be logged. Users should make sure that the
+     * listener handles all exception cases internally.
      */
     public final void sync(Translog.Location location, Consumer<Exception> syncListener) {
         translogSyncProcessor.put(location, syncListener);

@@ -24,6 +24,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Semaphore;
 import java.util.function.Consumer;
@@ -50,44 +51,50 @@ public abstract class AsyncIOProcessor<Item> {
      */
     public final void put(Item item, Consumer<Exception> listener) {
         ensureOpen();
+        Objects.requireNonNull(item, "item must not be null");
+        Objects.requireNonNull(listener, "listener must not be null");
         // the algorithm here tires to reduce the load on each individual caller.
         // we try to have only one caller that processes pending items to disc while others just add to the queue but
         // at the same time never overload the node by pushing too many items into the queue.
 
         // we first try make a promise that we are responsible for the processing
         final boolean promised = promiseSemaphore.tryAcquire();
-        final List<Tuple<Item, Consumer<Exception>>> candidates = new ArrayList<>();
-        if (promised) {
-            // if we are responsible we can't wait for others to make space - we have to process until we can add to the queue
-            while (queue.offer(new Tuple<>(item, listener)) == false) {
-                drainAndSync(candidates);
-            }
-        } else {
+        final Tuple<Item, Consumer<Exception>> itemTuple = new Tuple<>(item, listener);
+        if (promised == false) {
             // in this case we are not responsible and can just block until there is space
             try {
                 queue.put(new Tuple<>(item, listener));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                listener.accept(e);
             }
         }
 
         // here we have to try to make the promise again otherwise there is a race when a thread puts an entry without making the promise
         // while we are draining that mean we might exit below too early in the while loop if the drainAndSync call is fast.
         if (promised || promiseSemaphore.tryAcquire()) {
+            final List<Tuple<Item, Consumer<Exception>>> candidates = new ArrayList<>();
+            if (promised) {
+                // we are responsible for processing we don't need to add the tuple to the queue we can just add it to the candidates
+                candidates.add(itemTuple);
+            }
             // since we made the promise to process we gotta do it here at least once
-            drainAndSync(candidates);
-            promiseSemaphore.release(); // now to ensure we are passing it on we release the promise so another thread can take over
-            while (queue.isEmpty() == false && promiseSemaphore.availablePermits() > 0) {
-                // yet if the queue is not empty AND nobody else has yet made the promise to take over we continue processing
-                drainAndSync(candidates);
+            try {
+                drainAndProcess(candidates);
+            } finally {
+                promiseSemaphore.release(); // now to ensure we are passing it on we release the promise so another thread can take over
+                while (queue.isEmpty() == false && promiseSemaphore.availablePermits() > 0) {
+                    // yet if the queue is not empty AND nobody else has yet made the promise to take over we continue processing
+                    drainAndProcess(candidates);
+                }
             }
         }
     }
 
-    private void drainAndSync(List<Tuple<Item, Consumer<Exception>>> candidates) {
-        candidates.clear();
+    private void drainAndProcess(List<Tuple<Item, Consumer<Exception>>> candidates) {
         queue.drainTo(candidates);
         processList(candidates);
+        candidates.clear();
     }
 
     private void processList(List<Tuple<Item, Consumer<Exception>>> candidates) {
@@ -96,7 +103,7 @@ public abstract class AsyncIOProcessor<Item> {
             try {
                 write(candidates);
             } catch (Exception ex) { // if this fails we are in deep shit - fail the request
-                logger.debug("failed to ", ex);
+                logger.debug("failed to write candidates", ex);
                 // this exception is passed to all listeners - we don't retry. if this doesn't work we are in deep shit
                 exception = ex;
             }

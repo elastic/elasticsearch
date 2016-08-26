@@ -140,4 +140,41 @@ public class AsyncIOProcessorTests extends ESTestCase {
         assertEquals(count * thread.length, received.get());
         assertEquals(actualFailed.get(), failed.get());
     }
+
+    public void testConsumerCanThrowExceptions() {
+        AtomicInteger received = new AtomicInteger(0);
+        AtomicInteger notified = new AtomicInteger(0);
+
+        AsyncIOProcessor<Object> processor = new AsyncIOProcessor<Object>(logger, scaledRandomIntBetween(1, 2024)) {
+            @Override
+            protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {
+                received.addAndGet(candidates.size());
+            }
+
+            @Override
+            protected void ensureOpen() {
+                //
+            }
+        };
+        processor.put(new Object(), (e) -> {notified.incrementAndGet();throw new RuntimeException();});
+        processor.put(new Object(), (e) -> {notified.incrementAndGet();throw new RuntimeException();});
+        assertEquals(2, notified.get());
+        assertEquals(2, received.get());
+    }
+
+    public void testNullArguments() {
+        AsyncIOProcessor<Object> processor = new AsyncIOProcessor<Object>(logger, scaledRandomIntBetween(1, 2024)) {
+            @Override
+            protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {
+            }
+
+            @Override
+            protected void ensureOpen() {
+                //
+            }
+        };
+
+        expectThrows(NullPointerException.class, () -> processor.put(null, (e) -> {}));
+        expectThrows(NullPointerException.class, () -> processor.put(new Object(), null));
+    }
 }

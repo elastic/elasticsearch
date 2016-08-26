@@ -295,13 +295,7 @@ public abstract class TransportWriteAction<
             // OR we got an pass async operations on and wait for them to return to respond.
             indexShard.maybeFlush();
             maybeFinish(); // decrement the pendingOpts by one, if there is nothing else to do we just respond with success.
-            if (sync) { // this is potentially slow so we do that first since it could safe us time on the waiting on refresh
-                assert pendingOps.get() > 0;
-                indexShard.sync(location, (ex) -> {
-                    syncFailure.set(ex);
-                    maybeFinish();
-                });
-            }
+
             if (waitUntilRefresh) {
                 assert pendingOps.get() > 0;
                 indexShard.addRefreshListener(location, forcedRefresh -> {
@@ -309,6 +303,13 @@ public abstract class TransportWriteAction<
                         logger.warn("block_until_refresh request ran out of slots and forced a refresh: [{}]", request);
                     }
                     refreshed.set(forcedRefresh);
+                    maybeFinish();
+                });
+            }
+            if (sync) { // this is potentially slow so we do that first since it could safe us time on the waiting on refresh
+                assert pendingOps.get() > 0;
+                indexShard.sync(location, (ex) -> {
+                    syncFailure.set(ex);
                     maybeFinish();
                 });
             }

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -187,8 +188,8 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
             // its possible that the shard has not completed initialization, even though the cluster health is yellow, so the
             // search can throw an "all shards failed" exception.  We will wait until the shard initialization has completed before
             // verifying the search hit count.
-            assertBusy(() -> assertTrue(clusterService().state().routingTable().index(idxName).allPrimaryShardsActive()));
-
+            assertBusy(() -> assertTrue(client().admin().cluster().prepareState().get()
+                                            .getState().routingTable().index(idxName).allPrimaryShardsActive()));
         }
         assertHitCount(client().prepareSearch(idxName).setSize(0).setQuery(matchAllQuery()).get(), useStaleReplica ? 1L : 0L);
 

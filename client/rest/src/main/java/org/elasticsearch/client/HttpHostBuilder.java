@@ -41,7 +41,7 @@ import java.util.Objects;
  * HttpHost host7 = HttpHostBuilder.builder("http://10.1.2.3").build();         // http://10.2.3.4:9200
  * HttpHost host8 = HttpHostBuilder.builder("https://[::1]").build();           // http://[::1]:9200      (IPv6 localhost)
  * HttpHost host9 = HttpHostBuilder.builder("https://[::1]:9200").build();      // http://[::1]:9200      (IPv6 localhost)
- * HttpHost host10= HttpHostBuilder.builder("https://sub.domain").build();      // https://sub.domain
+ * HttpHost host10= HttpHostBuilder.builder("https://sub.domain").build();      // https://sub.domain:9200
  * </code></pre>
  * Note: {@code HttpHost}s are the mechanism that the {@link RestClient} uses to build the base request. If you need to specify proxy
  * settings, then use the {@link RestClientBuilder.RequestConfigCallback} to configure the {@code Proxy} settings.
@@ -120,9 +120,12 @@ public class HttpHostBuilder {
      * Create a new {@link HttpHost} based on the supplied host.
      *
      * @param uri The [partial] URI used to build.
+     * @throws NullPointerException if {@code uri} is {@code null}.
      * @throws IllegalArgumentException if any issue occurs while parsing the {@code uri}.
      */
     HttpHostBuilder(final String uri) {
+        Objects.requireNonNull(uri, "uri must not be null");
+
         try {
             String cleanedUri = uri;
 

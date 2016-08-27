@@ -105,6 +105,15 @@ public class HttpHostBuilderTests extends RestClientTestCase {
         assertHttpHost(HttpHostBuilder.builder().host(hostname).port(port), Scheme.HTTP, hostname, port);
     }
 
+    public void testBuilderNullUri() {
+        try {
+            HttpHostBuilder.builder(null);
+            fail("null uri should fail");
+        } catch (final NullPointerException e) {
+            assertThat(e.getMessage(), equalTo("uri must not be null"));
+        }
+    }
+
     public void testUnknownScheme() {
         assertBuilderBadSchemeThrows("htp://localhost:9200", "htp");
         assertBuilderBadSchemeThrows("htttp://localhost:9200", "htttp");

@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -154,7 +155,8 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
             oldInSyncAllocationIds.contains(updates.initializedPrimary.allocationId().getId()) == false) {
             // we're not reusing an existing in-sync allocation id to initialize a primary, which means that we're either force-allocating
             // an empty or a stale primary (see AllocateEmptyPrimaryAllocationCommand or AllocateStalePrimaryAllocationCommand).
-            boolean emptyPrimary = updates.initializedPrimary.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CREATED;
+            RecoverySource.Type recoverySourceType = updates.initializedPrimary.recoverySource().getType();
+            boolean emptyPrimary = recoverySourceType == RecoverySource.Type.EMPTY_STORE;
             assert updates.addedAllocationIds.isEmpty() : (emptyPrimary ? "empty" : "stale") +
                 " primary is not force-initialized in same allocation round where shards are started";
 

@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
@@ -73,7 +74,7 @@ public class AsyncIOProcessorTests extends ESTestCase {
         for (int i = 0; i < thread.length; i++) {
             thread[i].join();
         }
-        semaphore.acquire(Integer.MAX_VALUE);
+        assertTrue(semaphore.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
         assertEquals(count * thread.length, received.get());
     }
 
@@ -126,7 +127,7 @@ public class AsyncIOProcessorTests extends ESTestCase {
         for (int i = 0; i < thread.length; i++) {
             thread[i].join();
         }
-        semaphore.acquire(Integer.MAX_VALUE);
+        assertTrue(semaphore.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
         assertEquals(count * thread.length, received.get());
         assertEquals(actualFailed.get(), failed.get());
     }

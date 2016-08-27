@@ -615,7 +615,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         for (int i = 0; i < thread.length; i++) {
             thread[i].join();
         }
-        semaphore.acquire(Integer.MAX_VALUE);
+        assertTrue(semaphore.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
     }
 
     private void setDurability(IndexShard shard, Translog.Durability durability) {

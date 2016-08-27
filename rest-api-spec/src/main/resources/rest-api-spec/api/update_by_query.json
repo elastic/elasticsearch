@@ -94,7 +94,7 @@
           "description" : "A comma-separated list of specific routing values"
         },
         "scroll": {
-          "type" : "duration",
+          "type" : "time",
           "description" : "Specify how long a consistent view of the index should be maintained for scrolled search"
         },
         "search_type": {
@@ -149,7 +149,7 @@
           "description" : "How many suggestions to return in response"
         },
         "suggest_text": {
-          "type" : "text",
+          "type" : "string",
           "description" : "The source text for which the suggestions should be returned"
         },
         "timeout": {
@@ -187,7 +187,7 @@
           "description" : "Explicit write consistency setting for the operation"
         },
         "scroll_size": {
-          "type": "integer",
+          "type": "number",
           "defaut_value": 100,
           "description": "Size on the scroll request powering the update_by_query"
         },
@@ -197,7 +197,7 @@
            "description" : "Should the request should block until the reindex is complete."
         },
         "requests_per_second": {
-          "type": "float",
+          "type": "number",
           "default": 0,
           "description": "The throttle for this request in sub-requests per second. 0 means set no throttle."
         }

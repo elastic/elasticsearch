@@ -7,7 +7,10 @@ package org.elasticsearch.xpack.monitoring.agent.resolver.shards;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -33,8 +36,9 @@ public class ShardsResolverTests extends MonitoringIndexNameResolverTestCase<Sha
         doc.setClusterStateUUID(UUID.randomUUID().toString());
         doc.setSourceNode(new DiscoveryNode("id", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
 
-        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(new Index(randomAsciiOfLength(5), UUID.randomUUID().toString()),
-                randomIntBetween(0, 5)), null, randomBoolean(), new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+                new ShardId(new Index(randomAsciiOfLength(5), UUID.randomUUID().toString()), randomIntBetween(0, 5)),
+                null, randomBoolean(), ShardRoutingState.UNASSIGNED);
         shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         shardRouting = shardRouting.moveToStarted();
         shardRouting = shardRouting.relocate("node-1", ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
@@ -72,8 +76,8 @@ public class ShardsResolverTests extends MonitoringIndexNameResolverTestCase<Sha
         final String sourceNode = "node-" + randomIntBetween(0, 5);
         final String relocationNode = "node-" + randomIntBetween(6, 10);
 
-        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(new Index(index, ""), shardId), null, primary,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId(new Index(index, ""), shardId),
+                null, primary, ShardRoutingState.UNASSIGNED);
         shardRouting = shardRouting.initialize(sourceNode, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         shardRouting = shardRouting.moveToStarted();
         shardRouting = shardRouting.relocate(relocationNode, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
@@ -99,8 +103,8 @@ public class ShardsResolverTests extends MonitoringIndexNameResolverTestCase<Sha
     }
 
     public void testShardId() {
-        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(new Index("bar", ""), 42), null, false,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(new Index("bar", ""), 42), false,
+                RecoverySource.PeerRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
         assertThat(ShardsResolver.id("foo", shardRouting), equalTo("foo:_na:bar:42:r"));
         shardRouting = shardRouting.initialize("node1", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         shardRouting = shardRouting.moveToStarted();

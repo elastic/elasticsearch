@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -105,7 +106,7 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
         Index index = new Index("test-" + randomIntBetween(0, 5), UUID.randomUUID().toString());
         ShardId shardId = new ShardId(index, 0);
         Path path = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("0");
-        ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, null, true,
+        ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE,
                 new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
         shardRouting = shardRouting.initialize("node-0", null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
         shardRouting = shardRouting.moveToStarted();

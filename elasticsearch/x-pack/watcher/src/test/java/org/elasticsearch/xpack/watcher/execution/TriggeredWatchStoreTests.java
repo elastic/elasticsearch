@@ -103,7 +103,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             }
             ShardId shardId = new ShardId(index, 0);
             indexRoutingTableBuilder.addIndexShard(new IndexShardRoutingTable.Builder(shardId)
-                    .addShard(TestShardRouting.newShardRouting(shardId, "_node_id", null, null, true, state,
+                    .addShard(TestShardRouting.newShardRouting(shardId, "_node_id", null, true, state,
                             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")))
                     .build());
             indexRoutingTableBuilder.addReplica();

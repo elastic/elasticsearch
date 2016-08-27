@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
@@ -138,8 +139,8 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
     private ShardStats[] randomShardStats() {
         Index index = new Index("test", UUID.randomUUID().toString());
         Path shardPath = createTempDir().resolve("indices").resolve(index.getUUID()).resolve("0");
-        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, 0), null, false,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, 0), false,
+                RecoverySource.PeerRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         CommonStats shardCommonStats = new CommonStats();
         shardCommonStats.fieldData = new FieldDataStats();
         shardCommonStats.queryCache = new QueryCacheStats();

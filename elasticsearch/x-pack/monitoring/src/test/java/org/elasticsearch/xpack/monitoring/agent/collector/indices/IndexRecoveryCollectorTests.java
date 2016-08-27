@@ -119,14 +119,7 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
             List<RecoveryState> shardRecoveries = shard.getValue();
             assertNotNull(shardRecoveries);
             assertThat(shardRecoveries.size(), greaterThan(0));
-
-            for (RecoveryState shardRecovery : shardRecoveries) {
-                assertThat(shard.getKey(), equalTo(indexName));
-                assertThat(shardRecovery.getType(), anyOf(equalTo(RecoveryState.Type.PRIMARY_RELOCATION),
-                                                                equalTo(RecoveryState.Type.STORE),
-                                                                equalTo(RecoveryState.Type.REPLICA),
-                                                                equalTo(RecoveryState.Type.SNAPSHOT)));
-            }
+            assertThat(shard.getKey(), equalTo(indexName));
         }
     }
 

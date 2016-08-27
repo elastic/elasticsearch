@@ -8,6 +8,10 @@ package org.elasticsearch.xpack.monitoring.agent.resolver.indices;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
@@ -36,8 +40,9 @@ public class IndexRecoveryResolverTests extends MonitoringIndexNameResolverTestC
 
         DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
         Map<String, java.util.List<RecoveryState>> shardRecoveryStates = new HashMap<>();
-        shardRecoveryStates.put("test", Collections.singletonList(new RecoveryState(new ShardId("test", "uuid", 0), true,
-                RecoveryState.Type.STORE, localNode, localNode)));
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("test", "uuid", 0), localNode.getId(), true,
+                ShardRoutingState.INITIALIZING, RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE);
+        shardRecoveryStates.put("test", Collections.singletonList(new RecoveryState(shardRouting, localNode, null)));
         doc.setRecoveryResponse(new RecoveryResponse(10, 10, 0, false, shardRecoveryStates, Collections.emptyList()));
         return doc;
     }

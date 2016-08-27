@@ -35,11 +35,13 @@ public final class RenameProcessor extends AbstractProcessor {
 
     private final String field;
     private final String targetField;
+    private final boolean ignoreMissing;
 
-    RenameProcessor(String tag, String field, String targetField) {
+    RenameProcessor(String tag, String field, String targetField, boolean ignoreMissing) {
         super(tag);
         this.field = field;
         this.targetField = targetField;
+        this.ignoreMissing = ignoreMissing;
     }
 
     String getField() {
@@ -50,10 +52,18 @@ public final class RenameProcessor extends AbstractProcessor {
         return targetField;
     }
 
+    boolean isIgnoreMissing() {
+        return ignoreMissing;
+    }
+
     @Override
     public void execute(IngestDocument document) {
         if (document.hasField(field, true) == false) {
-            throw new IllegalArgumentException("field [" + field + "] doesn't exist");
+            if (ignoreMissing) {
+                return;
+            } else {
+                throw new IllegalArgumentException("field [" + field + "] doesn't exist");
+            }
         }
         // We fail here if the target field point to an array slot that is out of range.
         // If we didn't do this then we would fail if we set the value in the target_field
@@ -85,7 +95,8 @@ public final class RenameProcessor extends AbstractProcessor {
                                       Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field");
-            return new RenameProcessor(processorTag, field, targetField);
+            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
+            return new RenameProcessor(processorTag, field, targetField, ignoreMissing);
         }
     }
 }

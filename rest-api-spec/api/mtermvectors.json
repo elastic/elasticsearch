@@ -13,11 +13,7 @@
         "type" : {
           "type" : "string",
           "description" : "The type of the document."
-        },
-        "id" : {
-           "type" : "string",
-           "description" : "The id of the document."
-         }
+        }
       },
       "params" : {
         "ids" : {

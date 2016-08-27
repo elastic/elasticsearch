@@ -22,6 +22,7 @@ package org.elasticsearch.client;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.sun.net.httpserver.Headers;
+import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -60,6 +61,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * Integration test to check interaction between {@link RestClient} and {@link org.apache.http.client.HttpClient}.
@@ -203,6 +205,68 @@ public class RestClientIntegTests extends RestClientTestCase {
      */
     public void testGetWithBody() throws IOException {
         bodyTest("GET");
+    }
+
+    /**
+     * Ensure that pathPrefix works as expected even when the path does not exist.
+     */
+    public void testPathPrefixUnknownPath() throws IOException {
+        // guarantee no other test setup collides with this one and lets it sneak through
+        final String uniqueContextSuffix = "/testPathPrefixUnknownPath";
+        final String pathPrefix = "dne/" + randomAsciiOfLengthBetween(1, 5) + "/";
+        final int statusCode = randomStatusCode(getRandom());
+
+        try (final RestClient client =
+                RestClient.builder(new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort()))
+                    .setPathPrefix((randomBoolean() ? "/" : "") + pathPrefix).build()) {
+
+            for (final String method : getHttpMethods()) {
+                Response esResponse;
+                try {
+                    esResponse = client.performRequest(method, "/" + statusCode + uniqueContextSuffix);
+                    if ("HEAD".equals(method) == false) {
+                        fail("only HEAD requests should not throw an exception; 404 is expected");
+                    }
+                } catch(ResponseException e) {
+                    esResponse = e.getResponse();
+                }
+
+                assertThat(esResponse.getRequestLine().getUri(), equalTo("/" + pathPrefix + statusCode + uniqueContextSuffix));
+                assertThat(esResponse.getStatusLine().getStatusCode(), equalTo(404));
+            }
+        }
+    }
+
+    /**
+     * Ensure that pathPrefix works as expected.
+     */
+    public void testPathPrefix() throws IOException {
+        // guarantee no other test setup collides with this one and lets it sneak through
+        final String uniqueContextSuffix = "/testPathPrefix";
+        final String pathPrefix = "base/" + randomAsciiOfLengthBetween(1, 5) + "/";
+        final int statusCode = randomStatusCode(getRandom());
+
+        final HttpContext context =
+            httpServer.createContext("/" + pathPrefix + statusCode + uniqueContextSuffix, new ResponseHandler(statusCode));
+
+        try (final RestClient client =
+                RestClient.builder(new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort()))
+                    .setPathPrefix((randomBoolean() ? "/" : "") + pathPrefix).build()) {
+
+            for (final String method : getHttpMethods()) {
+                Response esResponse;
+                try {
+                    esResponse = client.performRequest(method, "/" + statusCode + uniqueContextSuffix);
+                } catch(ResponseException e) {
+                    esResponse = e.getResponse();
+                }
+
+                assertThat(esResponse.getRequestLine().getUri(), equalTo("/" + pathPrefix + statusCode + uniqueContextSuffix));
+                assertThat(esResponse.getStatusLine().getStatusCode(), equalTo(statusCode));
+            }
+        } finally {
+            httpServer.removeContext(context);
+        }
     }
 
     private void bodyTest(String method) throws IOException {

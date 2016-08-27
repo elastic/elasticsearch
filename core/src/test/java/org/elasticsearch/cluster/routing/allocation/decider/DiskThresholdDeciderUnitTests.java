@@ -28,6 +28,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -66,7 +69,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
         final Index index = metaData.index("test").getIndex();
 
-        ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(index, 0), null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(index, 0), true, StoreRecoverySource.EMPTY_STORE_INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         DiscoveryNode node_0 = new DiscoveryNode("node_0", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
                 new HashSet<>(Arrays.asList(DiscoveryNode.Role.values())), Version.CURRENT);
         DiscoveryNode node_1 = new DiscoveryNode("node_1", LocalTransportAddress.buildUnique(), Collections.emptyMap(),
@@ -115,22 +118,22 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
                 .build();
         final IndexMetaData indexMetaData = metaData.index("test");
 
-        ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(indexMetaData.getIndex(), 0), null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(indexMetaData.getIndex(), 0), true, StoreRecoverySource.EMPTY_STORE_INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_0 = ShardRoutingHelper.initialize(test_0, node_0.getId());
         test_0 = ShardRoutingHelper.moveToStarted(test_0);
         shardRoutingMap.put(test_0, "/node0/least");
 
-        ShardRouting test_1 = ShardRouting.newUnassigned(new ShardId(indexMetaData.getIndex(), 1), null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRouting test_1 = ShardRouting.newUnassigned(new ShardId(indexMetaData.getIndex(), 1), true, StoreRecoverySource.EMPTY_STORE_INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_1 = ShardRoutingHelper.initialize(test_1, node_1.getId());
         test_1 = ShardRoutingHelper.moveToStarted(test_1);
         shardRoutingMap.put(test_1, "/node1/least");
 
-        ShardRouting test_2 = ShardRouting.newUnassigned(new ShardId(indexMetaData.getIndex(), 2), null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRouting test_2 = ShardRouting.newUnassigned(new ShardId(indexMetaData.getIndex(), 2), true, StoreRecoverySource.EMPTY_STORE_INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_2 = ShardRoutingHelper.initialize(test_2, node_1.getId());
         test_2 = ShardRoutingHelper.moveToStarted(test_2);
         shardRoutingMap.put(test_2, "/node1/most");
 
-        ShardRouting test_3 = ShardRouting.newUnassigned(new ShardId(indexMetaData.getIndex(), 3), null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRouting test_3 = ShardRouting.newUnassigned(new ShardId(indexMetaData.getIndex(), 3), true, StoreRecoverySource.EMPTY_STORE_INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_3 = ShardRoutingHelper.initialize(test_3, node_1.getId());
         test_3 = ShardRoutingHelper.moveToStarted(test_3);
         // Intentionally not in the shardRoutingMap. We want to test what happens when we don't know where it is.
@@ -203,17 +206,17 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         RoutingAllocation allocation = new RoutingAllocation(null, null, clusterState, info, 0, false);
 
         final Index index = new Index("test", "1234");
-        ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(index, 0), null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(index, 0), false, PeerRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_0 = ShardRoutingHelper.initialize(test_0, "node1");
         test_0 = ShardRoutingHelper.moveToStarted(test_0);
         test_0 = ShardRoutingHelper.relocate(test_0, "node2");
 
-        ShardRouting test_1 = ShardRouting.newUnassigned(new ShardId(index, 1), null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRouting test_1 = ShardRouting.newUnassigned(new ShardId(index, 1), false, PeerRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_1 = ShardRoutingHelper.initialize(test_1, "node2");
         test_1 = ShardRoutingHelper.moveToStarted(test_1);
         test_1 = ShardRoutingHelper.relocate(test_1, "node1");
 
-        ShardRouting test_2 = ShardRouting.newUnassigned(new ShardId(index, 2), null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRouting test_2 = ShardRouting.newUnassigned(new ShardId(index, 2), false, PeerRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_2 = ShardRoutingHelper.initialize(test_2, "node1");
         test_2 = ShardRoutingHelper.moveToStarted(test_2);
 
@@ -228,13 +231,13 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         assertEquals(0L, DiskThresholdDecider.sizeOfRelocatingShards(node, allocation, true, "/dev/some/other/dev"));
         assertEquals(0L, DiskThresholdDecider.sizeOfRelocatingShards(node, allocation, true, "/dev/some/other/dev"));
 
-        ShardRouting test_3 = ShardRouting.newUnassigned(new ShardId(index, 3), null, false, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRouting test_3 = ShardRouting.newUnassigned(new ShardId(index, 3), false, PeerRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_3 = ShardRoutingHelper.initialize(test_3, "node1");
         test_3 = ShardRoutingHelper.moveToStarted(test_3);
         assertEquals(0L, DiskThresholdDecider.getExpectedShardSize(test_3, allocation, 0));
 
 
-        ShardRouting other_0 = ShardRouting.newUnassigned(new ShardId("other", "5678", 0), null, randomBoolean(), new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRouting other_0 = ShardRouting.newUnassigned(new ShardId("other", "5678", 0), randomBoolean(), PeerRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         other_0 = ShardRoutingHelper.initialize(other_0, "node2");
         other_0 = ShardRoutingHelper.moveToStarted(other_0);
         other_0 = ShardRoutingHelper.relocate(other_0, "node1");
@@ -286,22 +289,22 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         RoutingAllocation allocation = new RoutingAllocation(null, clusterState.getRoutingNodes(), clusterState, info, 0, false);
 
         final Index index = new Index("test", "1234");
-        ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(index, 0), null, true,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRouting test_0 = ShardRouting.newUnassigned(new ShardId(index, 0), true,
+            LocalShardsRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_0 = ShardRoutingHelper.initialize(test_0, "node1");
         test_0 = ShardRoutingHelper.moveToStarted(test_0);
 
-        ShardRouting test_1 = ShardRouting.newUnassigned(new ShardId(index, 1), null, true,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRouting test_1 = ShardRouting.newUnassigned(new ShardId(index, 1), true,
+            LocalShardsRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_1 = ShardRoutingHelper.initialize(test_1, "node2");
         test_1 = ShardRoutingHelper.moveToStarted(test_1);
 
-        ShardRouting test_2 = ShardRouting.newUnassigned(new ShardId(index, 2), null, true,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRouting test_2 = ShardRouting.newUnassigned(new ShardId(index, 2), true,
+            LocalShardsRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_2 = ShardRoutingHelper.initialize(test_2, "node1");
 
-        ShardRouting test_3 = ShardRouting.newUnassigned(new ShardId(index, 3), null, true,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+        ShardRouting test_3 = ShardRouting.newUnassigned(new ShardId(index, 3), true,
+            LocalShardsRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         test_3 = ShardRoutingHelper.initialize(test_3, "node1");
         assertEquals(500L, DiskThresholdDecider.getExpectedShardSize(test_3, allocation, 0));
         assertEquals(500L, DiskThresholdDecider.getExpectedShardSize(test_2, allocation, 0));
@@ -310,15 +313,15 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
 
 
         ShardRouting target = ShardRouting.newUnassigned(new ShardId(new Index("target", "5678"), 0),
-            null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+            true, LocalShardsRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         assertEquals(1110L, DiskThresholdDecider.getExpectedShardSize(target, allocation, 0));
 
         ShardRouting target2 = ShardRouting.newUnassigned(new ShardId(new Index("target2", "9101112"), 0),
-            null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+            true, LocalShardsRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         assertEquals(110L, DiskThresholdDecider.getExpectedShardSize(target2, allocation, 0));
 
         target2 = ShardRouting.newUnassigned(new ShardId(new Index("target2", "9101112"), 1),
-            null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
+            true, LocalShardsRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo"));
         assertEquals(1000L, DiskThresholdDecider.getExpectedShardSize(target2, allocation, 0));
     }
 

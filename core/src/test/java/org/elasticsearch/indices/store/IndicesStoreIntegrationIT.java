@@ -45,7 +45,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.RecoverySource;
+import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -494,7 +494,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         @Override
         public void requestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
-            if (action.equals(RecoverySource.Actions.START_RECOVERY)) {
+            if (action.equals(PeerRecoverySourceService.Actions.START_RECOVERY)) {
                 logger.info("sent: {}, relocation starts", action);
                 beginRelocationLatch.countDown();
             }

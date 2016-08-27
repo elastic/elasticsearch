@@ -82,7 +82,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
                     ShardRoutingState state = ShardRoutingState.valueOf(matcher.group(4));
                     String ip = matcher.group(5);
                     nodes.add(ip);
-                    ShardRouting routing = TestShardRouting.newShardRouting(index, shard, ip, null, null, primary, state);
+                    ShardRouting routing = TestShardRouting.newShardRouting(index, shard, ip, null, primary, state);
                     idx.add(routing);
                     logger.debug("Add routing {}", routing);
                 } else {

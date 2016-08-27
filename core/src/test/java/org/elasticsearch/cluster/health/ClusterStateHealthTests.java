@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTableGenerator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -518,7 +519,7 @@ public class ClusterStateHealthTests extends ESTestCase {
     }
 
     // returns true if the inactive primaries in the index are only due to cluster recovery
-    // (not because of allocation failure or previously having allocation ids assigned)
+    // (not because of allocation of existing shard or previously having allocation ids assigned)
     private boolean primaryInactiveDueToRecovery(final String indexName, final ClusterState clusterState) {
         for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : clusterState.routingTable().index(indexName).shards()) {
             final ShardRouting primaryShard = shardRouting.value.primaryShard();
@@ -526,8 +527,8 @@ public class ClusterStateHealthTests extends ESTestCase {
                 if (clusterState.metaData().index(indexName).inSyncAllocationIds(shardRouting.key).isEmpty() == false) {
                     return false;
                 }
-                if (primaryShard.unassignedInfo() != null &&
-                        primaryShard.unassignedInfo().getReason() == UnassignedInfo.Reason.ALLOCATION_FAILED) {
+                if (primaryShard.recoverySource() != null &&
+                    primaryShard.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE) {
                     return false;
                 }
             }

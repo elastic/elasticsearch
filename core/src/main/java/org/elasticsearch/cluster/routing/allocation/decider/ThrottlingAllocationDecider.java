@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -111,7 +112,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.primary() && shardRouting.unassigned()) {
-            assert initializingShard(shardRouting, node.nodeId()).isPeerRecovery() == false;
+            assert initializingShard(shardRouting, node.nodeId()).recoverySource().getType() != RecoverySource.Type.PEER;
             // primary is unassigned, means we are going to do recovery from store, snapshot or local shards
             // count *just the primaries* currently doing recovery on the node and check against primariesInitialRecoveries
 
@@ -132,7 +133,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             }
         } else {
             // Peer recovery
-            assert initializingShard(shardRouting, node.nodeId()).isPeerRecovery();
+            assert initializingShard(shardRouting, node.nodeId()).recoverySource().getType() == RecoverySource.Type.PEER;
 
             // Allocating a shard to this node will increase the incoming recoveries
             int currentInRecoveries = allocation.routingNodes().getIncomingRecoveries(node.nodeId());

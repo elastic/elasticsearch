@@ -21,6 +21,7 @@ package org.elasticsearch.indices;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -448,7 +449,7 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
             assertEquals(0, imc.availableShards().size());
             ShardRouting routing = newShard.routingEntry();
             DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
-            newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
+            newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
 
             assertEquals(1, imc.availableShards().size());
             assertTrue(newShard.recoverFromStore());

@@ -20,6 +20,7 @@
                     unassigned.at                    .+   \n
                     unassigned.for                   .+   \n
                     unassigned.details               .+   \n
+                    recoverysource.type              .+   \n
                     completion.size                  .+   \n
                     fielddata.memory_size            .+   \n
                     fielddata.evictions              .+   \n

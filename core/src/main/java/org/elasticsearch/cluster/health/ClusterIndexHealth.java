@@ -54,7 +54,7 @@ public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, W
 
         for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
             int shardId = shardRoutingTable.shardId().id();
-            shards.put(shardId, new ClusterShardHealth(shardId, shardRoutingTable, indexMetaData));
+            shards.put(shardId, new ClusterShardHealth(shardId, shardRoutingTable));
         }
 
         // update the index status

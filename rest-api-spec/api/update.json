@@ -59,9 +59,11 @@
           "description": "Specific routing value"
         },
         "script": {
+          "type": "string",
           "description": "The URL-encoded script definition (instead of using request body)"
         },
         "script_id": {
+          "type": "string",
           "description": "The id of a stored script"
         },
         "scripted_upsert": {
@@ -77,7 +79,7 @@
           "description": "Explicit timestamp for the document"
         },
         "ttl": {
-          "type": "duration",
+          "type": "time",
           "description": "Expiration time for the document"
         },
         "version": {

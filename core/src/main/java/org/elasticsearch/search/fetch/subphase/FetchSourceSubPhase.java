@@ -35,19 +35,22 @@ public final class FetchSourceSubPhase implements FetchSubPhase {
         if (context.sourceRequested() == false) {
             return;
         }
+        SourceLookup source = context.lookup().source();
+        if (source.internalSourceRef() == null) {
+            return; // source disabled in the mapping
+        }
         FetchSourceContext fetchSourceContext = context.fetchSourceContext();
         assert fetchSourceContext.fetchSource();
         if (fetchSourceContext.includes().length == 0 && fetchSourceContext.excludes().length == 0) {
-            hitContext.hit().sourceRef(context.lookup().source().internalSourceRef());
+            hitContext.hit().sourceRef(source.internalSourceRef());
             return;
         }
 
-        SourceLookup source = context.lookup().source();
         Object value = source.filter(fetchSourceContext.includes(), fetchSourceContext.excludes());
         try {
             final int initialCapacity = Math.min(1024, source.internalSourceRef().length());
             BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);
-            XContentBuilder builder = new XContentBuilder(context.lookup().source().sourceContentType().xContent(), streamOutput);
+            XContentBuilder builder = new XContentBuilder(source.sourceContentType().xContent(), streamOutput);
             builder.value(value);
             hitContext.hit().sourceRef(builder.bytes());
         } catch (IOException e) {

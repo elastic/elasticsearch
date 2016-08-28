@@ -24,7 +24,6 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.joda.time.DateTimeZone;
 
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -53,11 +52,7 @@ public class QueryParserSettings {
 
     private boolean analyzeWildcard;
 
-    private boolean lowercaseExpandedTerms;
-
     private boolean enablePositionIncrements;
-
-    private Locale locale;
 
     private Fuzziness fuzziness;
     private int fuzzyPrefixLength;
@@ -135,14 +130,6 @@ public class QueryParserSettings {
 
     public void allowLeadingWildcard(boolean allowLeadingWildcard) {
         this.allowLeadingWildcard = allowLeadingWildcard;
-    }
-
-    public boolean lowercaseExpandedTerms() {
-        return lowercaseExpandedTerms;
-    }
-
-    public void lowercaseExpandedTerms(boolean lowercaseExpandedTerms) {
-        this.lowercaseExpandedTerms = lowercaseExpandedTerms;
     }
 
     public boolean enablePositionIncrements() {
@@ -267,14 +254,6 @@ public class QueryParserSettings {
 
     public void useDisMax(boolean useDisMax) {
         this.useDisMax = useDisMax;
-    }
-
-    public void locale(Locale locale) {
-        this.locale = locale;
-    }
-
-    public Locale locale() {
-        return this.locale;
     }
 
     public void timeZone(DateTimeZone timeZone) {

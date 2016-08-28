@@ -44,17 +44,10 @@ creating composite queries.
 |`flags` |Flags specifying which features of the `simple_query_string` to
 enable. Defaults to `ALL`.
 
-|`lowercase_expanded_terms` | Whether terms of prefix and fuzzy queries should
-be automatically lower-cased or not (since they are not analyzed). Defaults to
-`true`.
-
 |`analyze_wildcard` | Whether terms of prefix queries should be automatically
 analyzed or not. If `true` a best effort will be made to analyze the prefix. However,
 some analyzers will be not able to provide a meaningful results
 based just on the prefix of a term. Defaults to `false`.
-
-|`locale` | Locale that should be used for string conversions.
-Defaults to `ROOT`.
 
 |`lenient` | If set to `true` will cause format based failures
 (like providing text to a numeric field) to be ignored.

@@ -61,12 +61,15 @@ they match.  Leading wildcards can be disabled by setting
 `allow_leading_wildcard` to `false`.
 =======
 
-Wildcarded terms are not analyzed by default -- they are lowercased
-(`lowercase_expanded_terms` defaults to `true`) but no further analysis
-is done, mainly because it is impossible to accurately analyze a word that
-is missing some of its letters.  However, by setting `analyze_wildcard` to
-`true`, an attempt will be made to analyze wildcarded words before searching
-the term list for matching terms.
+Only parts of the analysis chain that operate at the character level are
+applied. So for instance, if the analyzer performs both lowercasing and
+stemming, only the lowercasing will be applied: it would be wrong to perform
+stemming on a word that is missing some of its letters.
+
+By setting `analyze_wildcard` to true, queries that end with a `*` will be
+analyzed and a boolean query will be built out of the different tokens, by
+ensuring exact matches on the first N-1 tokens, and prefix match on the last
+token.
 
 ===== Regular expressions
 

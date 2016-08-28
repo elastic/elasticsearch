@@ -64,7 +64,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     public static final boolean DEFAULT_AUTO_GENERATE_PHRASE_QUERIES = false;
     public static final int DEFAULT_MAX_DETERMINED_STATES = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
-    public static final boolean DEFAULT_LOWERCASE_EXPANDED_TERMS = true;
     public static final boolean DEFAULT_ENABLE_POSITION_INCREMENTS = true;
     public static final boolean DEFAULT_ESCAPE = false;
     public static final boolean DEFAULT_USE_DIS_MAX = true;
@@ -74,7 +73,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     public static final float DEFAULT_TIE_BREAKER = 0.0f;
     public static final Fuzziness DEFAULT_FUZZINESS = Fuzziness.AUTO;
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
-    public static final Locale DEFAULT_LOCALE = Locale.ROOT;
     public static final boolean DEFAULT_SPLIT_ON_WHITESPACE = true;
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
@@ -86,7 +84,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private static final ParseField ALLOW_LEADING_WILDCARD_FIELD = new ParseField("allow_leading_wildcard");
     private static final ParseField AUTO_GENERATE_PHRASE_QUERIES_FIELD = new ParseField("auto_generate_phrase_queries");
     private static final ParseField MAX_DETERMINED_STATES_FIELD = new ParseField("max_determined_states");
-    private static final ParseField LOWERCASE_EXPANDED_TERMS_FIELD = new ParseField("lowercase_expanded_terms");
+    private static final ParseField LOWERCASE_EXPANDED_TERMS_FIELD = new ParseField("lowercase_expanded_terms")
+            .withAllDeprecated("Decision is now made by the analyzer");
     private static final ParseField ENABLE_POSITION_INCREMENTS_FIELD = new ParseField("enable_position_increment");
     private static final ParseField ESCAPE_FIELD = new ParseField("escape");
     private static final ParseField USE_DIS_MAX_FIELD = new ParseField("use_dis_max");
@@ -100,10 +99,10 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     private static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
     private static final ParseField QUOTE_FIELD_SUFFIX_FIELD = new ParseField("quote_field_suffix");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
-    private static final ParseField LOCALE_FIELD = new ParseField("locale");
+    private static final ParseField LOCALE_FIELD = new ParseField("locale")
+            .withAllDeprecated("Decision is now made by the analyzer");
     private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
     private static final ParseField SPLIT_ON_WHITESPACE = new ParseField("split_on_whitespace");
-
 
     private final String queryString;
 
@@ -131,11 +130,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     private Boolean analyzeWildcard;
 
-    private boolean lowercaseExpandedTerms = DEFAULT_LOWERCASE_EXPANDED_TERMS;
-
     private boolean enablePositionIncrements = DEFAULT_ENABLE_POSITION_INCREMENTS;
-
-    private Locale locale = DEFAULT_LOCALE;
 
     private Fuzziness fuzziness = DEFAULT_FUZZINESS;
 
@@ -191,9 +186,13 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         autoGeneratePhraseQueries = in.readBoolean();
         allowLeadingWildcard = in.readOptionalBoolean();
         analyzeWildcard = in.readOptionalBoolean();
-        lowercaseExpandedTerms = in.readBoolean();
+        if (in.getVersion().before(V_5_1_0_UNRELEASED)) {
+            in.readBoolean(); // lowercase_expanded_terms
+        }
         enablePositionIncrements = in.readBoolean();
-        locale = Locale.forLanguageTag(in.readString());
+        if (in.getVersion().before(V_5_1_0_UNRELEASED)) {
+            in.readString(); // locale
+        }
         fuzziness = new Fuzziness(in);
         fuzzyPrefixLength = in.readVInt();
         fuzzyMaxExpansions = in.readVInt();
@@ -230,9 +229,13 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         out.writeBoolean(this.autoGeneratePhraseQueries);
         out.writeOptionalBoolean(this.allowLeadingWildcard);
         out.writeOptionalBoolean(this.analyzeWildcard);
-        out.writeBoolean(this.lowercaseExpandedTerms);
+        if (out.getVersion().before(V_5_1_0_UNRELEASED)) {
+            out.writeBoolean(true); // lowercase_expanded_terms
+        }
         out.writeBoolean(this.enablePositionIncrements);
-        out.writeString(this.locale.toLanguageTag());
+        if (out.getVersion().before(V_5_1_0_UNRELEASED)) {
+            out.writeString(Locale.ROOT.toLanguageTag()); // locale
+        }
         this.fuzziness.writeTo(out);
         out.writeVInt(this.fuzzyPrefixLength);
         out.writeVInt(this.fuzzyMaxExpansions);
@@ -405,19 +408,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * Whether terms of wildcard, prefix, fuzzy and range queries are to be automatically
-     * lower-cased or not.  Default is <tt>true</tt>.
-     */
-    public QueryStringQueryBuilder lowercaseExpandedTerms(boolean lowercaseExpandedTerms) {
-        this.lowercaseExpandedTerms = lowercaseExpandedTerms;
-        return this;
-    }
-
-    public boolean lowercaseExpandedTerms() {
-        return this.lowercaseExpandedTerms;
-    }
-
-    /**
      * Set to <tt>true</tt> to enable position increments in result query. Defaults to
      * <tt>true</tt>.
      * <p>
@@ -488,6 +478,11 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         return phraseSlop;
     }
 
+    public QueryStringQueryBuilder rewrite(String rewrite) {
+        this.rewrite = rewrite;
+        return this;
+    }
+
     /**
      * Set to <tt>true</tt> to enable analysis on wildcard and prefix queries.
      */
@@ -498,11 +493,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     public Boolean analyzeWildcard() {
         return this.analyzeWildcard;
-    }
-
-    public QueryStringQueryBuilder rewrite(String rewrite) {
-        this.rewrite = rewrite;
-        return this;
     }
 
     public String rewrite() {
@@ -541,15 +531,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
     public Boolean lenient() {
         return this.lenient;
-    }
-
-    public QueryStringQueryBuilder locale(Locale locale) {
-        this.locale = locale == null ? DEFAULT_LOCALE : locale;
-        return this;
-    }
-
-    public Locale locale() {
-        return this.locale;
     }
 
     /**
@@ -625,7 +606,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         if (this.allowLeadingWildcard != null) {
             builder.field(ALLOW_LEADING_WILDCARD_FIELD.getPreferredName(), this.allowLeadingWildcard);
         }
-        builder.field(LOWERCASE_EXPANDED_TERMS_FIELD.getPreferredName(), this.lowercaseExpandedTerms);
         builder.field(ENABLE_POSITION_INCREMENTS_FIELD.getPreferredName(), this.enablePositionIncrements);
         this.fuzziness.toXContent(builder, params);
         builder.field(FUZZY_PREFIX_LENGTH_FIELD.getPreferredName(), this.fuzzyPrefixLength);
@@ -649,7 +629,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         if (this.lenient != null) {
             builder.field(LENIENT_FIELD.getPreferredName(), this.lenient);
         }
-        builder.field(LOCALE_FIELD.getPreferredName(), this.locale.toLanguageTag());
         if (this.timeZone != null) {
             builder.field(TIME_ZONE_FIELD.getPreferredName(), this.timeZone.getID());
         }
@@ -671,7 +650,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         boolean autoGeneratePhraseQueries = QueryStringQueryBuilder.DEFAULT_AUTO_GENERATE_PHRASE_QUERIES;
         int maxDeterminizedStates = QueryStringQueryBuilder.DEFAULT_MAX_DETERMINED_STATES;
-        boolean lowercaseExpandedTerms = QueryStringQueryBuilder.DEFAULT_LOWERCASE_EXPANDED_TERMS;
         boolean enablePositionIncrements = QueryStringQueryBuilder.DEFAULT_ENABLE_POSITION_INCREMENTS;
         boolean escape = QueryStringQueryBuilder.DEFAULT_ESCAPE;
         boolean useDisMax = QueryStringQueryBuilder.DEFAULT_USE_DIS_MAX;
@@ -686,7 +664,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         Boolean lenient = null;
         Operator defaultOperator = QueryStringQueryBuilder.DEFAULT_OPERATOR;
         String timeZone = null;
-        Locale locale = QueryStringQueryBuilder.DEFAULT_LOCALE;
         Fuzziness fuzziness = QueryStringQueryBuilder.DEFAULT_FUZZINESS;
         String fuzzyRewrite = null;
         String rewrite = null;
@@ -737,7 +714,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MAX_DETERMINED_STATES_FIELD)) {
                     maxDeterminizedStates = parser.intValue();
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LOWERCASE_EXPANDED_TERMS_FIELD)) {
-                    lowercaseExpandedTerms = parser.booleanValue();
+                    // ignore, deprecated setting
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ENABLE_POSITION_INCREMENTS_FIELD)) {
                     enablePositionIncrements = parser.booleanValue();
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, ESCAPE_FIELD)) {
@@ -769,8 +746,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LENIENT_FIELD)) {
                     lenient = parser.booleanValue();
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LOCALE_FIELD)) {
-                    String localeStr = parser.text();
-                    locale = Locale.forLanguageTag(localeStr);
+                    // ignore, deprecated setting
                 } else if (parseContext.getParseFieldMatcher().match(currentFieldName, TIME_ZONE_FIELD)) {
                     try {
                         timeZone = parser.text();
@@ -804,7 +780,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         queryStringQuery.allowLeadingWildcard(allowLeadingWildcard);
         queryStringQuery.autoGeneratePhraseQueries(autoGeneratePhraseQueries);
         queryStringQuery.maxDeterminizedStates(maxDeterminizedStates);
-        queryStringQuery.lowercaseExpandedTerms(lowercaseExpandedTerms);
         queryStringQuery.enablePositionIncrements(enablePositionIncrements);
         queryStringQuery.escape(escape);
         queryStringQuery.useDisMax(useDisMax);
@@ -820,7 +795,6 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         queryStringQuery.quoteFieldSuffix(quoteFieldSuffix);
         queryStringQuery.lenient(lenient);
         queryStringQuery.timeZone(timeZone);
-        queryStringQuery.locale(locale);
         queryStringQuery.boost(boost);
         queryStringQuery.queryName(queryName);
         queryStringQuery.splitOnWhitespace(splitOnWhitespace);
@@ -843,10 +817,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix) &&
                 Objects.equals(autoGeneratePhraseQueries, other.autoGeneratePhraseQueries) &&
                 Objects.equals(allowLeadingWildcard, other.allowLeadingWildcard) &&
-                Objects.equals(lowercaseExpandedTerms, other.lowercaseExpandedTerms) &&
                 Objects.equals(enablePositionIncrements, other.enablePositionIncrements) &&
                 Objects.equals(analyzeWildcard, other.analyzeWildcard) &&
-                Objects.equals(locale.toLanguageTag(), other.locale.toLanguageTag()) &&
                 Objects.equals(fuzziness, other.fuzziness) &&
                 Objects.equals(fuzzyPrefixLength, other.fuzzyPrefixLength) &&
                 Objects.equals(fuzzyMaxExpansions, other.fuzzyMaxExpansions) &&
@@ -867,8 +839,8 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     @Override
     protected int doHashCode() {
         return Objects.hash(queryString, defaultField, fieldsAndWeights, defaultOperator, analyzer, quoteAnalyzer,
-                quoteFieldSuffix, autoGeneratePhraseQueries, allowLeadingWildcard, lowercaseExpandedTerms,
-                enablePositionIncrements, analyzeWildcard, locale.toLanguageTag(), fuzziness, fuzzyPrefixLength,
+                quoteFieldSuffix, autoGeneratePhraseQueries, allowLeadingWildcard, analyzeWildcard,
+                enablePositionIncrements, fuzziness, fuzzyPrefixLength,
                 fuzzyMaxExpansions, fuzzyRewrite, phraseSlop, useDisMax, tieBreaker, rewrite, minimumShouldMatch, lenient,
                 timeZone == null ? 0 : timeZone.getID(), escape, maxDeterminizedStates, splitOnWhitespace);
     }
@@ -924,9 +896,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         qpSettings.autoGeneratePhraseQueries(autoGeneratePhraseQueries);
         qpSettings.allowLeadingWildcard(allowLeadingWildcard == null ? context.queryStringAllowLeadingWildcard() : allowLeadingWildcard);
         qpSettings.analyzeWildcard(analyzeWildcard == null ? context.queryStringAnalyzeWildcard() : analyzeWildcard);
-        qpSettings.lowercaseExpandedTerms(lowercaseExpandedTerms);
         qpSettings.enablePositionIncrements(enablePositionIncrements);
-        qpSettings.locale(locale);
         qpSettings.fuzziness(fuzziness);
         qpSettings.fuzzyPrefixLength(fuzzyPrefixLength);
         qpSettings.fuzzyMaxExpansions(fuzzyMaxExpansions);

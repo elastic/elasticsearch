@@ -227,4 +227,17 @@ public final class AllTermQuery extends Query {
         return new TermQuery(term).toString(field) + ToStringUtils.boost(getBoost());
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        AllTermQuery that = (AllTermQuery) obj;
+        return term.equals(that.term);
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * super.hashCode() + term.hashCode();
+    }
 }

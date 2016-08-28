@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.NumberType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
@@ -209,7 +210,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         public NamedAnalyzer indexAnalyzer() {
             final NamedAnalyzer indexAnalyzer = super.indexAnalyzer();
             if (indexAnalyzer != null && !(indexAnalyzer.analyzer() instanceof CompletionAnalyzer)) {
-                return new NamedAnalyzer(indexAnalyzer.name(),
+                return new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX,
                         new CompletionAnalyzer(indexAnalyzer, preserveSep, preservePositionIncrements));
 
             }
@@ -220,7 +221,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         public NamedAnalyzer searchAnalyzer() {
             final NamedAnalyzer searchAnalyzer = super.searchAnalyzer();
             if (searchAnalyzer != null && !(searchAnalyzer.analyzer() instanceof CompletionAnalyzer)) {
-                return new NamedAnalyzer(searchAnalyzer.name(),
+                return new NamedAnalyzer(searchAnalyzer.name(), AnalyzerScope.INDEX,
                         new CompletionAnalyzer(searchAnalyzer, preserveSep, preservePositionIncrements));
             }
             return searchAnalyzer;

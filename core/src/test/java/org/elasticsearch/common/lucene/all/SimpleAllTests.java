@@ -374,4 +374,13 @@ public class SimpleAllTests extends ESTestCase {
         assertThat(docs.totalHits, equalTo(1));
         assertThat(docs.scoreDocs[0].doc, equalTo(0));
     }
+
+    public void testEquals() {
+        Term bar = new Term("foo", "bar");
+        Term baz = new Term("foo", "baz");
+        assertEquals(new AllTermQuery(bar), new AllTermQuery(bar));
+        assertNotEquals(new AllTermQuery(bar), new AllTermQuery(baz));
+        assertEquals(new AllTermQuery(bar).hashCode(), new AllTermQuery(bar).hashCode());
+        assertNotEquals(new AllTermQuery(bar).hashCode(), new AllTermQuery(baz).hashCode());
+    }
 }

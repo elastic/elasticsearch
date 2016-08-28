@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -152,7 +153,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
 
         @Override
         public NamedAnalyzer analyzer(String name) {
-            return new NamedAnalyzer(name, fakeAnalyzer);
+            return new NamedAnalyzer(name, AnalyzerScope.INDEX, fakeAnalyzer);
         }
 
         @Override

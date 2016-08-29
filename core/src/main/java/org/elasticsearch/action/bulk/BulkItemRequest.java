@@ -121,4 +121,5 @@ public class BulkItemRequest implements Streamable {
         out.writeOptionalStreamable(primaryResponse);
         out.writeBoolean(ignoreOnReplica);
     }
+
 }

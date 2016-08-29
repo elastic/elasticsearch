@@ -19,7 +19,7 @@ API, unless otherwise specified.
 
 Most APIs that refer to an `index` parameter support execution across multiple indices,
 using simple `test1,test2,test3` notation (or `_all` for all indices). It also
-support wildcards, for example: `test*`, and the ability to "add" (`+`)
+support wildcards, for example: `test*` or `*test` or `te*t` or `*test*`, and the ability to "add" (`+`)
 and "remove" (`-`), for example: `+test*,-test3`.
 
 All multi indices API support the following url query string parameters:

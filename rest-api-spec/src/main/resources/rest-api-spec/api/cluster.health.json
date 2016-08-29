@@ -31,7 +31,7 @@
           "description" : "Explicit operation timeout"
         },
         "wait_for_active_shards": {
-          "type" : "number",
+          "type" : "string",
           "description" : "Wait until the specified number of shards is active"
         },
         "wait_for_nodes": {

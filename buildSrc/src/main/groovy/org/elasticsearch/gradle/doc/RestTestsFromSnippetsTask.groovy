@@ -146,6 +146,9 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
         void emitDo(String method, String pathAndQuery, String body,
                 String catchPart, List warnings, boolean inSetup) {
             def (String path, String query) = pathAndQuery.tokenize('?')
+            if (path == null) {
+                path = '' // Catch requests to the root...
+            }
             current.println("  - do:")
             if (catchPart != null) {
                 current.println("      catch: $catchPart")

@@ -1820,4 +1820,8 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         @Override
         public void verify(String verificationToken, DiscoveryNode localNode) {}
     }
+
+    public static Engine getEngineFromShard(IndexShard shard) {
+        return shard.getEngineOrNull();
+    }
 }

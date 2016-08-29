@@ -2400,6 +2400,13 @@ public class InternalEngineTests extends ESTestCase {
         }
         assertEquals(0, engine.getNumVersionLookups());
         assertEquals(0, engine.getNumVersionsLoaded());
+    }
 
+    public static long getNumVersionLookups(InternalEngine engine) { // for other tests to access this
+        return engine.getNumVersionLookups();
+    }
+
+    public static long getNumVersionsLoaded(InternalEngine engine) { // for other tests to access this
+        return engine.getNumVersionsLoaded();
     }
 }

@@ -262,6 +262,15 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
             return numOfDoc;
         }
 
+        public int appendDocs(final int numOfDoc) throws Exception {
+            for (int doc = 0; doc < numOfDoc; doc++) {
+                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}");
+                final IndexResponse response = index(indexRequest);
+                assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
+            }
+            return numOfDoc;
+        }
+
         public IndexResponse index(IndexRequest indexRequest) throws Exception {
             PlainActionFuture<IndexingResult> listener = new PlainActionFuture<>();
             IndexingOp op = new IndexingOp(indexRequest, listener, this);

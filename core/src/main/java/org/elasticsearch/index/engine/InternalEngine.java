@@ -123,7 +123,6 @@ public class InternalEngine extends Engine {
     private final CounterMetric numVersionLookups = new CounterMetric();
     private final CounterMetric numVersionsLoaded = new CounterMetric();
 
-
     public InternalEngine(EngineConfig engineConfig) throws EngineException {
         super(engineConfig);
         openMode = engineConfig.getOpenMode();

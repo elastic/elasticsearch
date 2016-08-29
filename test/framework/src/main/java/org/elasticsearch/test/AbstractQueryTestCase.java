@@ -114,7 +114,6 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Deque;
@@ -133,7 +132,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
@@ -430,7 +428,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                                 if (hasArbitraryContent) {
                                     // The query has one or more fields that hold arbitrary content. If the current
                                     // field is one (or a child) of those, no exception is expected when parsing the mutated query.
-                                    String h = Arrays.toString(levels.toArray());
                                     for (String marker : arbitraryMarkers) {
                                         if (levels.contains(marker)) {
                                             expectException = false;
@@ -450,11 +447,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         XContentHelper.copyCurrentEvent(generator, parser);
                     }
 
-                    // Check that the parser consumed all the tokens
-                    assertThat(token, nullValue());
-
                     if (objectIndex < mutation) {
-                        // We did not reached the insertion point, there's no more mutation to try
+                        // We did not reach the insertion point, there's no more mutations to try
                         break;
                     } else {
                         // We reached the expected insertion point, so next time we'll try one step further

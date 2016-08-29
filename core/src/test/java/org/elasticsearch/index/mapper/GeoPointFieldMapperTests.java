@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.lang.NumberFormatException;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -892,5 +893,30 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         // query by latlon subfield
         searchResponse = client().prepareSearch().addStoredField("location.latlon").setQuery(matchAllQuery()).execute().actionGet();
         assertEquals(numDocs, searchResponse.getHits().totalHits());
+    }
+
+
+    public void testEmptyName() throws Exception {
+        // after 5.x
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
+            .endObject().endObject().string();
+
+        Version version = Version.CURRENT;
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapperParser parser = createIndex("test", settings).mapperService().documentMapperParser();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parser.parse("type", new CompressedXContent(mapping))
+        );
+        assertThat(e.getMessage(), containsString("name cannot be empty string"));
+
+        // before 5.x
+        Version oldVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_2_0_0, Version.V_2_3_5);
+        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, oldVersion).build();
+        DocumentMapperParser parser2x = createIndex("test_old", oldIndexSettings).mapperService().documentMapperParser();
+
+        DocumentMapper defaultMapper = parser2x.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, defaultMapper.mappingSource().string());
     }
 }

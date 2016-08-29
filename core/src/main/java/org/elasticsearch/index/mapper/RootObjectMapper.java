@@ -84,7 +84,7 @@ public class RootObjectMapper extends ObjectMapper {
             return new RootObjectMapper(name, enabled, dynamic, includeInAll, mappers,
                     dynamicDateTimeFormatters,
                     dynamicTemplates,
-                    dateDetection, numericDetection);
+                    dateDetection, numericDetection, settings);
         }
     }
 
@@ -170,8 +170,8 @@ public class RootObjectMapper extends ObjectMapper {
 
     RootObjectMapper(String name, boolean enabled, Dynamic dynamic, Boolean includeInAll, Map<String, Mapper> mappers,
                      Explicit<FormatDateTimeFormatter[]> dynamicDateTimeFormatters, Explicit<DynamicTemplate[]> dynamicTemplates,
-                     Explicit<Boolean> dateDetection, Explicit<Boolean> numericDetection) {
-        super(name, name, enabled, Nested.NO, dynamic, includeInAll, mappers);
+                     Explicit<Boolean> dateDetection, Explicit<Boolean> numericDetection, Settings settings) {
+        super(name, name, enabled, Nested.NO, dynamic, includeInAll, mappers, settings);
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
         this.dateDetection = dateDetection;

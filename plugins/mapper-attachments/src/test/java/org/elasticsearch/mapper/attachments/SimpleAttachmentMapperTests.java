@@ -19,6 +19,8 @@
 
 package org.elasticsearch.mapper.attachments;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -28,7 +30,9 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.test.VersionUtils;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
@@ -125,4 +129,33 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
         assertFalse(docMapper.mapping().toString().contains("."));
     }
 
+    public void testEmptyName() throws Exception {
+        XContentBuilder mappingBuilder = jsonBuilder();
+        mappingBuilder.startObject()
+            .startObject("mail")
+            .startObject("properties")
+            .startObject("")
+            .field("type", "attachment")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        String mapping = mappingBuilder.string();
+        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper());
+        DocumentMapperParser parser = mapperService.documentMapperParser();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parser.parse("mail", new CompressedXContent(mapping))
+        );
+        assertThat(e.getMessage(), containsString("name cannot be empty string"));
+
+        // before 5.x
+        Version oldVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_2_0_0, Version.V_2_3_5);
+        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, oldVersion).build();
+        MapperService mapperService2x = MapperTestUtils.newMapperService(createTempDir(), oldIndexSettings, getIndicesModuleWithRegisteredAttachmentMapper());
+        DocumentMapperParser parser2x = mapperService2x.documentMapperParser();
+
+        DocumentMapper defaultMapper = parser2x.parse("mail", new CompressedXContent(mapping));
+        assertThat(defaultMapper.mappingSource().string(), startsWith("{\"mail\":{\"properties\":{\"\":{\"type\":\"attachment\""));
+    }
 }

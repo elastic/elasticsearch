@@ -24,6 +24,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.settings.Settings;
@@ -161,7 +162,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic,
                 Boolean includeInAll, Map<String, Mapper> mappers, @Nullable Settings settings) {
-            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, includeInAll, mappers);
+            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, includeInAll, mappers, settings);
         }
     }
 
@@ -320,8 +321,15 @@ public class ObjectMapper extends Mapper implements Cloneable {
     private volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
     ObjectMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic,
-            Boolean includeInAll, Map<String, Mapper> mappers) {
+            Boolean includeInAll, Map<String, Mapper> mappers, Settings settings) {
         super(name);
+        assert settings != null;
+        Version indexCreatedVersion = Version.indexCreated(settings);
+        if (indexCreatedVersion.onOrAfter(Version.V_5_0_0_alpha6)) {
+            if (name.isEmpty()) {
+                throw new IllegalArgumentException("name cannot be empty string");
+            }
+        }
         this.fullPath = fullPath;
         this.enabled = enabled;
         this.nested = nested;

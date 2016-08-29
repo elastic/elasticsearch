@@ -246,6 +246,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         super(simpleName);
         assert indexSettings != null;
         this.indexCreatedVersion = Version.indexCreated(indexSettings);
+        if (indexCreatedVersion.onOrAfter(Version.V_5_0_0_alpha6)) {
+            if (simpleName.isEmpty()) {
+                throw new IllegalArgumentException("name cannot be empty string");
+            }
+        }
         fieldType.freeze();
         this.fieldType = fieldType;
         defaultFieldType.freeze();

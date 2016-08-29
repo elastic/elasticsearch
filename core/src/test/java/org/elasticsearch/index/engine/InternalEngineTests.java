@@ -96,9 +96,11 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
@@ -114,6 +116,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -1808,7 +1811,8 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     private Mapping dynamicUpdate() {
-        BuilderContext context = new BuilderContext(Settings.EMPTY, new ContentPath());
+        BuilderContext context = new BuilderContext(
+            Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(), new ContentPath());
         final RootObjectMapper root = new RootObjectMapper.Builder("some_type").build(context);
         return new Mapping(Version.CURRENT, root, new MetadataFieldMapper[0], emptyMap());
     }

@@ -23,10 +23,13 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.CompletionFieldMapper2x;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -39,6 +42,7 @@ import java.util.Map;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -134,4 +138,19 @@ public class CompletionFieldMapper2xTests extends ESSingleNodeTestCase {
         assertThat(configMap.get("analyzer").toString(), is("simple"));
     }
 
+    public void testEmptyName() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("").field("type", "completion").endObject().endObject()
+            .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test",
+            Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, PRE2X_VERSION.id).build())
+            .mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("");
+        assertThat(fieldMapper, instanceOf(CompletionFieldMapper2x.class));
+
+        CompletionFieldMapper2x completionFieldMapper = (CompletionFieldMapper2x) fieldMapper;
+        assertThat(completionFieldMapper.isStoringPayloads(), is(false));
+    }
 }

@@ -25,3 +25,5 @@ org.apache.lucene.util.LuceneTestCase$Nightly @ We don't run nightly tests at th
 com.carrotsearch.randomizedtesting.annotations.Nightly @ We don't run nightly tests at this point!
 
 org.junit.Test @defaultMessage Just name your test method testFooBar
+
+java.util.Collections#shuffle(java.util.List) @ Use Collections#shuffle(java.util.List, Random) for reproducible tests

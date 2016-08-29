@@ -108,6 +108,7 @@ forbiddenPatterns {
   exclude '**/*.key'
   exclude '**/*.p12'
   exclude '**/*.der'
+  exclude '**/*.zip'
 }
 
 // TODO: standardize packaging config for plugins
@@ -140,7 +141,7 @@ project.afterEvaluate {
     doFirst {
       Path jarFile = project.jar.outputs.files.singleFile.toPath()
       String apiFileName = jarFile.fileName.toString().replace(project.version, "api-${project.version}")
-      Files.copy(jarFile, jarFile.resolveSibling(apiFileName), StandardCopyOption.REPLACE_EXISTING)      
+      Files.copy(jarFile, jarFile.resolveSibling(apiFileName), StandardCopyOption.REPLACE_EXISTING)
 
       String pomFileName = jarFile.fileName.toString().replace('.jar', '.pom')
       String apiPomFileName = apiFileName.replace('.jar', '.pom')
@@ -258,5 +259,5 @@ thirdPartyAudit.excludes = [
     'javax.activation.SecuritySupport$5',
     'javax.activation.SecuritySupport',
     'javax.activation.URLDataSource',
-    'javax.activation.UnsupportedDataTypeException'    
+    'javax.activation.UnsupportedDataTypeException'
 ]

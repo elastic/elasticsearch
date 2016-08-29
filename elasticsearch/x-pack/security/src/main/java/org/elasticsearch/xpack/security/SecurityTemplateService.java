@@ -111,10 +111,12 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
         // here go over all types found in the template and update them
         // we need to wait for all types
         final Map<String, PutMappingResponse> updateResults = ConcurrentCollections.newConcurrentMap();
+        @SuppressWarnings("unchecked")
         Map<String, Object> typeMappings = (Map<String, Object>) typeMappingMap.get("mappings");
         int expectedResults = typeMappings.size();
         for (String type : typeMappings.keySet()) {
             // get the mappings from the template definition
+            @SuppressWarnings("unchecked")
             Map<String, Object> typeMapping = (Map<String, Object>) typeMappings.get(type);
             // update the mapping
             putSecurityMapping(updateResults, expectedResults, type, typeMapping);
@@ -214,6 +216,7 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
                 assert (typeMappingMap.size() == 1);
                 String key = typeMappingMap.keySet().iterator().next();
                 // get the actual mapping entries
+                @SuppressWarnings("unchecked")
                 Map<String, Object> mappingMap = (Map<String, Object>) typeMappingMap.get(key);
                 if (containsCorrectVersion(mappingMap) == false) {
                     return false;
@@ -227,16 +230,13 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
     }
 
     private static boolean containsCorrectVersion(Map<String, Object> typeMappingMap) {
-        if (typeMappingMap.get("_meta") == null) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> meta = (Map<String, Object>) typeMappingMap.get("_meta");
+        if (meta == null) {
             // pre 5.0, cannot be up to date
             return false;
         }
-        if (((Map<String, Object>) typeMappingMap.get("_meta")).get(SECURITY_VERSION_STRING) == null) {
-            // pre 5.0, cannot be up to date
-            return false;
-        }
-        if (((Map<String, Object>) typeMappingMap.get("_meta")).get(SECURITY_VERSION_STRING)
-                .equals(Version.CURRENT.toString()) == false) {
+        if (Version.CURRENT.toString().equals(meta.get(SECURITY_VERSION_STRING)) == false) {
             // wrong version
             return false;
         }

@@ -25,9 +25,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -74,6 +74,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicReference;
@@ -528,7 +529,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     private Message message(String type, @Nullable String action, @Nullable User user,
-                            @Nullable String[] indices, TransportMessage message) throws Exception {
+                            @Nullable Set<String> indices, TransportMessage message) throws Exception {
 
         Message msg = new Message().start();
         common("transport", type, msg.builder);
@@ -551,7 +552,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             }
         }
         if (indices != null) {
-            msg.builder.array(Field.INDICES, indices);
+            msg.builder.array(Field.INDICES, indices.toArray(Strings.EMPTY_ARRAY));
         }
         msg.builder.field(Field.REQUEST, message.getClass().getSimpleName());
 
@@ -560,7 +561,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
     // FIXME - clean up the message generation
     private Message message(String type, @Nullable String action, @Nullable AuthenticationToken token,
-                            @Nullable String realm, @Nullable String[] indices, TransportMessage message) throws Exception {
+                            @Nullable String realm, @Nullable Set<String> indices, TransportMessage message) throws Exception {
 
         Message msg = new Message().start();
         common("transport", type, msg.builder);
@@ -576,7 +577,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             msg.builder.field(Field.REALM, realm);
         }
         if (indices != null) {
-            msg.builder.array(Field.INDICES, indices);
+            msg.builder.array(Field.INDICES, indices.toArray(Strings.EMPTY_ARRAY));
         }
         msg.builder.field(Field.REQUEST, message.getClass().getSimpleName());
 
@@ -584,7 +585,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     }
 
     private Message message(String type, @Nullable String action, @Nullable AuthenticationToken token,
-                            @Nullable String realm, @Nullable String[] indices, RestRequest request) throws Exception {
+                            @Nullable String realm, @Nullable Set<String> indices, RestRequest request) throws Exception {
 
         Message msg = new Message().start();
         common("rest", type, msg.builder);
@@ -601,7 +602,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             msg.builder.field(Field.REALM, realm);
         }
         if (indices != null) {
-            msg.builder.array(Field.INDICES, indices);
+            msg.builder.array(Field.INDICES, indices.toArray(Strings.EMPTY_ARRAY));
         }
         msg.builder.field(Field.REQUEST_BODY, restRequestContent(request));
         msg.builder.field(Field.ORIGIN_TYPE, "rest");

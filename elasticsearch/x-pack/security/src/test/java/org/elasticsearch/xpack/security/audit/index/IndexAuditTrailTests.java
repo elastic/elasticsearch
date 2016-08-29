@@ -70,7 +70,7 @@ import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rol
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.HOURLY;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.MONTHLY;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.Rollover.WEEKLY;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -298,7 +298,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals("transport", sourceMap.get("origin_type"));
         if (message instanceof IndicesRequest) {
             List<Object> indices = (List<Object>) sourceMap.get("indices");
-            assertThat(indices, contains((Object[]) ((IndicesRequest) message).indices()));
+            assertThat(indices, containsInAnyOrder((Object[]) ((IndicesRequest) message).indices()));
         }
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
@@ -356,7 +356,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals("transport", sourceMap.get("origin_type"));
         if (message instanceof IndicesRequest) {
             List<Object> indices = (List<Object>) sourceMap.get("indices");
-            assertThat(indices, contains((Object[]) ((IndicesRequest) message).indices()));
+            assertThat(indices, containsInAnyOrder((Object[]) ((IndicesRequest) message).indices()));
         }
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
@@ -412,7 +412,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals("_realm", sourceMap.get("realm"));
         if (message instanceof IndicesRequest) {
             List<Object> indices = (List<Object>) sourceMap.get("indices");
-            assertThat(indices, contains((Object[]) ((IndicesRequest)message).indices()));
+            assertThat(indices, containsInAnyOrder((Object[]) ((IndicesRequest)message).indices()));
         }
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
@@ -458,7 +458,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals("_action", sourceMap.get("action"));
         if (message instanceof IndicesRequest) {
             List<Object> indices = (List<Object>) sourceMap.get("indices");
-            assertThat(indices, contains((Object[]) ((IndicesRequest)message).indices()));
+            assertThat(indices, containsInAnyOrder((Object[]) ((IndicesRequest)message).indices()));
         }
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
@@ -503,7 +503,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         assertEquals("_action", sourceMap.get("action"));
         if (message instanceof IndicesRequest) {
             List<Object> indices = (List<Object>) sourceMap.get("indices");
-            assertThat(indices, contains((Object[]) ((IndicesRequest)message).indices()));
+            assertThat(indices, containsInAnyOrder((Object[]) ((IndicesRequest)message).indices()));
         }
         assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }

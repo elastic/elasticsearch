@@ -23,6 +23,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -70,7 +71,7 @@ public class ClusterStateTests extends MonitoringIntegTestCase {
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> checking that every document contains the expected fields");
-        String[] filters = ClusterStateResolver.FILTERS;
+        Set<String> filters = ClusterStateResolver.FILTERS;
         for (SearchHit searchHit : response.getHits().getHits()) {
             Map<String, Object> fields = searchHit.sourceAsMap();
 

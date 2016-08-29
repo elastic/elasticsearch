@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring.agent.resolver.cluster;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
@@ -14,22 +15,27 @@ import org.elasticsearch.xpack.monitoring.agent.collector.cluster.ClusterStateMo
 import org.elasticsearch.xpack.monitoring.agent.resolver.MonitoringIndexNameResolver;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Locale;
+import java.util.Set;
 
 public class ClusterStateResolver extends MonitoringIndexNameResolver.Timestamped<ClusterStateMonitoringDoc> {
 
     public static final String TYPE = "cluster_state";
 
-    static final String[] FILTERS = {
-            "cluster_uuid",
-            "timestamp",
-            "source_node",
-            "cluster_state.version",
-            "cluster_state.master_node",
-            "cluster_state.state_uuid",
-            "cluster_state.status",
-            "cluster_state.nodes",
-    };
+    static final Set<String> FILTERS;
+    static {
+        Set<String> filters = Sets.newHashSet(
+                "cluster_uuid",
+                "timestamp",
+                "source_node",
+                "cluster_state.version",
+                "cluster_state.master_node",
+                "cluster_state.state_uuid",
+                "cluster_state.status",
+                "cluster_state.nodes");
+        FILTERS = Collections.unmodifiableSet(filters);
+    }
 
     public ClusterStateResolver(MonitoredSystem id, Settings settings) {
         super(id, settings);
@@ -41,7 +47,7 @@ public class ClusterStateResolver extends MonitoringIndexNameResolver.Timestampe
     }
 
     @Override
-    public String[] filters() {
+    public Set<String> filters() {
         return FILTERS;
     }
 

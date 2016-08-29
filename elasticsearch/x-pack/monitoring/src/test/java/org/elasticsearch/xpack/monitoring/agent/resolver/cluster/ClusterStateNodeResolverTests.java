@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.agent.resolver.cluster;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.monitoring.agent.collector.cluster.ClusterStateNodeMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringTemplateUtils;
@@ -59,10 +60,11 @@ public class ClusterStateNodeResolverTests extends
         assertThat(resolver.id(doc), nullValue());
 
         assertSource(resolver.source(doc, XContentType.JSON),
-                "cluster_uuid",
-                "timestamp",
-                "source_node",
-                "state_uuid",
-                "node.id");
+                Sets.newHashSet(
+                        "cluster_uuid",
+                        "timestamp",
+                        "source_node",
+                        "state_uuid",
+                        "node.id"));
     }
 }

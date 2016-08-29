@@ -10,6 +10,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.watcher.transport.actions.activate.ActivateWatchR
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -122,7 +124,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
         GetResponse getResponse = client().prepareGet(".watches", "watch", "_id").get();
         XContentSource source = new XContentSource(getResponse.getSourceAsBytesRef(), XContentType.JSON);
 
-        String[] filters = new String[] {
+        Set<String> filters = Sets.newHashSet(
                 "trigger.**",
                 "input.**",
                 "condition.**",
@@ -133,8 +135,8 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
                 "_status.version",
                 "_status.last_checked",
                 "_status.last_met_condition",
-                "_status.actions.**",
-        };
+                "_status.actions.**");
+
         XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), new BytesStreamOutput(), filters);
         source.toXContent(builder, ToXContent.EMPTY_PARAMS);
 

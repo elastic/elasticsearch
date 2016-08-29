@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.monitoring.agent.collector.cluster.ClusterStateMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringTemplateUtils;
@@ -58,9 +59,10 @@ public class ClusterStateResolverTests extends MonitoringIndexNameResolverTestCa
         assertThat(resolver.id(doc), nullValue());
 
         assertSource(resolver.source(doc, XContentType.JSON),
-                "cluster_uuid",
-                "timestamp",
-                "source_node",
-                "cluster_state");
+                Sets.newHashSet(
+                        "cluster_uuid",
+                        "timestamp",
+                        "source_node",
+                        "cluster_state"));
     }
 }

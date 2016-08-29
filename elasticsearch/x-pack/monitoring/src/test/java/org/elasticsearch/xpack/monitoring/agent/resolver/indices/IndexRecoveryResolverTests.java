@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -67,9 +68,10 @@ public class IndexRecoveryResolverTests extends MonitoringIndexNameResolverTestC
         assertThat(resolver.id(doc), nullValue());
 
         assertSource(resolver.source(doc, XContentType.JSON),
-                "cluster_uuid",
-                "timestamp",
-                "source_node",
-                "index_recovery");
+                Sets.newHashSet(
+                        "cluster_uuid",
+                        "timestamp",
+                        "source_node",
+                        "index_recovery"));
     }
 }

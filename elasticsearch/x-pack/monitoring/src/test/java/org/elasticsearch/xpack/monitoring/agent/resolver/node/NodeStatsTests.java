@@ -17,9 +17,10 @@ import org.elasticsearch.xpack.monitoring.agent.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.junit.After;
 
-import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -90,12 +91,12 @@ public class NodeStatsTests extends MonitoringIntegTestCase {
      * @return Never {@code null} or empty.
      * @see #watcherEnabled
      */
-    private static String[] nodeStatsFilters(boolean includeWatcher) {
+    private static Set<String> nodeStatsFilters(boolean includeWatcher) {
         if (includeWatcher) {
             return NodeStatsResolver.FILTERS;
         }
 
-        return Arrays.stream(NodeStatsResolver.FILTERS).filter(s -> s.contains("watcher") == false).toArray(String[]::new);
+        return NodeStatsResolver.FILTERS.stream().filter(s -> s.contains("watcher") == false).collect(Collectors.toSet());
     }
 
     @Override

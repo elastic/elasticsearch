@@ -27,7 +27,6 @@ import static org.elasticsearch.xpack.monitoring.agent.resolver.MonitoringIndexN
 import static org.elasticsearch.xpack.monitoring.agent.resolver.MonitoringIndexNameResolver.PREFIX;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItems;
@@ -37,6 +36,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.collection.IsEmptyCollection.empty;
 
 public abstract class MonitoringIndexNameResolverTestCase<M extends MonitoringDoc, R extends MonitoringIndexNameResolver<M>>
         extends ESTestCase {
@@ -116,9 +116,9 @@ public abstract class MonitoringIndexNameResolverTestCase<M extends MonitoringDo
 
     public void testFilters() {
         if (checkFilters()) {
-            assertThat(newResolver().filters(), allOf(not(emptyArray()), notNullValue()));
+            assertThat(newResolver().filters(), allOf(not(empty()), notNullValue()));
         } else {
-            assertThat(newResolver().filters(), anyOf(emptyArray(), nullValue()));
+            assertThat(newResolver().filters(), anyOf(empty(), nullValue()));
         }
     }
 
@@ -150,7 +150,7 @@ public abstract class MonitoringIndexNameResolverTestCase<M extends MonitoringDo
         }
     }
 
-    protected void assertSource(BytesReference source, String... fields) {
+    protected void assertSource(BytesReference source, Set<String> fields) {
         Map<String, Object> sourceFields = XContentHelper.convertToMap(source, false).v2();
         assertNotNull(sourceFields);
 

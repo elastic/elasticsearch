@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring.agent.resolver.node;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
@@ -14,12 +15,16 @@ import org.elasticsearch.xpack.monitoring.agent.collector.node.NodeStatsMonitori
 import org.elasticsearch.xpack.monitoring.agent.resolver.MonitoringIndexNameResolver;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 
 public class NodeStatsResolver extends MonitoringIndexNameResolver.Timestamped<NodeStatsMonitoringDoc> {
 
     public static final String TYPE = "node_stats";
 
-    static final String[] FILTERS = {
+    static final Set<String> FILTERS;
+    static {
+        Set<String> filters = Sets.newHashSet(
             // Common information
             "cluster_uuid",
             "timestamp",
@@ -93,8 +98,9 @@ public class NodeStatsResolver extends MonitoringIndexNameResolver.Timestamped<N
             "node_stats.thread_pool.search.rejected",
             "node_stats.thread_pool.watcher.threads",
             "node_stats.thread_pool.watcher.queue",
-            "node_stats.thread_pool.watcher.rejected",
-    };
+            "node_stats.thread_pool.watcher.rejected");
+        FILTERS = Collections.unmodifiableSet(filters);
+    }
 
     public NodeStatsResolver(MonitoredSystem id, Settings settings) {
         super(id, settings);
@@ -106,7 +112,7 @@ public class NodeStatsResolver extends MonitoringIndexNameResolver.Timestamped<N
     }
 
     @Override
-    public String[] filters() {
+    public Set<String> filters() {
         return FILTERS;
     }
 

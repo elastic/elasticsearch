@@ -18,6 +18,7 @@ import org.junit.After;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -69,11 +70,10 @@ public class ClusterStatsTests extends MonitoringIntegTestCase {
             public void run() {
                 logger.debug("--> checking that every document contains the expected fields");
                 SearchResponse response = client().prepareSearch().setTypes(ClusterStatsResolver.TYPE).get();
-                String[] filters = ClusterStatsResolver.FILTERS;
                 for (SearchHit searchHit : response.getHits().getHits()) {
                     Map<String, Object> fields = searchHit.sourceAsMap();
 
-                    for (String filter : filters) {
+                    for (String filter : ClusterStatsResolver.FILTERS) {
                         assertContains(filter, fields);
                     }
                 }

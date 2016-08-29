@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.junit.After;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.greaterThan;
@@ -88,11 +89,10 @@ public class IndexStatsTests extends MonitoringIntegTestCase {
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> checking that every document contains the expected fields");
-        String[] filters = IndexStatsResolver.FILTERS;
         for (SearchHit searchHit : response.getHits().getHits()) {
             Map<String, Object> fields = searchHit.sourceAsMap();
 
-            for (String filter : filters) {
+            for (String filter : IndexStatsResolver.FILTERS) {
                 assertContains(filter, fields);
             }
         }

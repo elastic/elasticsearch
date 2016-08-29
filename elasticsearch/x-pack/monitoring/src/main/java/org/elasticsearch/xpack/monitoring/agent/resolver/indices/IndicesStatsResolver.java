@@ -7,19 +7,26 @@ package org.elasticsearch.xpack.monitoring.agent.resolver.indices;
 
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.monitoring.agent.collector.Collector;
 import org.elasticsearch.xpack.monitoring.agent.collector.indices.IndicesStatsMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.agent.resolver.MonitoringIndexNameResolver;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 public class IndicesStatsResolver extends MonitoringIndexNameResolver.Timestamped<IndicesStatsMonitoringDoc> {
 
     public static final String TYPE = "indices_stats";
 
-    static final String[] FILTERS = {
+    static final Set<String> FILTERS;
+    static {
+        Set<String> filters = Sets.newHashSet(
             "cluster_uuid",
             "timestamp",
             "source_node",
@@ -38,8 +45,10 @@ public class IndicesStatsResolver extends MonitoringIndexNameResolver.Timestampe
             "indices_stats._all.total.indexing.throttle_time_in_millis",
             "indices_stats._all.total.search.query_time_in_millis",
             "indices_stats._all.total.search.query_total",
-            "indices_stats._all.total.store.size_in_bytes",
-    };
+            "indices_stats._all.total.store.size_in_bytes"
+        );
+        FILTERS = Collections.unmodifiableSet(filters);
+    }
 
     public IndicesStatsResolver(MonitoredSystem id, Settings settings) {
         super(id, settings);
@@ -51,7 +60,7 @@ public class IndicesStatsResolver extends MonitoringIndexNameResolver.Timestampe
     }
 
     @Override
-    public String[] filters() {
+    public Set<String> filters() {
         return FILTERS;
     }
 

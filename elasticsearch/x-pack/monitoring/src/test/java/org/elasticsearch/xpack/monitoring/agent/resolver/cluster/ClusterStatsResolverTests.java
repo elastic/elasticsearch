@@ -25,6 +25,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.Index;
@@ -84,10 +85,11 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
         assertThat(resolver.id(doc), nullValue());
 
         assertSource(resolver.source(doc, XContentType.JSON),
-                "cluster_uuid",
-                "timestamp",
-                "source_node",
-                "cluster_stats");
+                Sets.newHashSet(
+                        "cluster_uuid",
+                        "timestamp",
+                        "source_node",
+                        "cluster_stats"));
     }
 
     /**

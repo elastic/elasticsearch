@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.monitoring.agent.collector.cluster.ClusterInfoMonitoringDoc;
@@ -71,12 +72,13 @@ public class ClusterInfoResolverTests extends MonitoringIndexNameResolverTestCas
         assertThat(resolver.id(doc), equalTo(clusterUUID));
 
         assertSource(resolver.source(doc, XContentType.JSON),
-                "cluster_uuid",
-                "timestamp",
-                "source_node",
-                "cluster_name",
-                "version",
-                "license",
-                "cluster_stats");
+                Sets.newHashSet(
+                        "cluster_uuid",
+                        "timestamp",
+                        "source_node",
+                        "cluster_name",
+                        "version",
+                        "license",
+                        "cluster_stats"));
     }
 }

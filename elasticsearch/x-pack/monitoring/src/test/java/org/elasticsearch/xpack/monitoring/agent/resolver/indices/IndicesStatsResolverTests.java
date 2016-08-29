@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
@@ -71,11 +72,7 @@ public class IndicesStatsResolverTests extends MonitoringIndexNameResolverTestCa
         assertThat(resolver.type(doc), equalTo(IndicesStatsResolver.TYPE));
         assertThat(resolver.id(doc), nullValue());
 
-        assertSource(resolver.source(doc, XContentType.JSON),
-                "cluster_uuid",
-                "timestamp",
-                "source_node",
-                "indices_stats");
+        assertSource(resolver.source(doc, XContentType.JSON), Sets.newHashSet("cluster_uuid", "timestamp", "source_node", "indices_stats"));
     }
 
     /**

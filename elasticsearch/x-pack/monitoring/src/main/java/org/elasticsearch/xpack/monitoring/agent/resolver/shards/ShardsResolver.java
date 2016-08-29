@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring.agent.resolver.shards;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
@@ -14,12 +15,16 @@ import org.elasticsearch.xpack.monitoring.agent.collector.shards.ShardMonitoring
 import org.elasticsearch.xpack.monitoring.agent.resolver.MonitoringIndexNameResolver;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Set;
 
 public class ShardsResolver extends MonitoringIndexNameResolver.Timestamped<ShardMonitoringDoc> {
 
     public static final String TYPE = "shards";
 
-    static final String[] FILTERS = {
+    static final Set<String> FILTERS;
+    static {
+        Set<String> filters = Sets.newHashSet(
             "cluster_uuid",
             "timestamp",
             "source_node",
@@ -29,8 +34,9 @@ public class ShardsResolver extends MonitoringIndexNameResolver.Timestamped<Shar
             "shard.node",
             "shard.relocating_node",
             "shard.shard",
-            "shard.index",
-    };
+            "shard.index");
+        FILTERS = Collections.unmodifiableSet(filters);
+    }
 
     public ShardsResolver(MonitoredSystem id, Settings settings) {
         super(id, settings);
@@ -47,7 +53,7 @@ public class ShardsResolver extends MonitoringIndexNameResolver.Timestamped<Shar
     }
 
     @Override
-    public String[] filters() {
+    public Set<String> filters() {
         return FILTERS;
     }
 

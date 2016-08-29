@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -59,16 +60,17 @@ public class ShardsResolverTests extends MonitoringIndexNameResolverTestCase<Sha
         assertThat(resolver.type(doc), equalTo(ShardsResolver.TYPE));
         assertThat(resolver.id(doc), equalTo(ShardsResolver.id(clusterStateUUID, doc.getShardRouting())));
         assertSource(resolver.source(doc, XContentType.JSON),
-                "cluster_uuid",
-                "timestamp",
-                "source_node",
-                "state_uuid",
-                "shard.state",
-                "shard.primary",
-                "shard.node",
-                "shard.relocating_node",
-                "shard.shard",
-                "shard.index");
+                Sets.newHashSet(
+                        "cluster_uuid",
+                        "timestamp",
+                        "source_node",
+                        "state_uuid",
+                        "shard.state",
+                        "shard.primary",
+                        "shard.node",
+                        "shard.relocating_node",
+                        "shard.shard",
+                        "shard.index"));
 
         final String index = "test-" + randomIntBetween(0, 100);
         final int shardId = randomIntBetween(0, 500);
@@ -90,16 +92,17 @@ public class ShardsResolverTests extends MonitoringIndexNameResolverTestCase<Sha
                 equalTo(clusterStateUUID + ":" + sourceNode + ":" + index + ":" + shardId + ":" + (primary ? "p" : "r")));
 
         assertSource(resolver.source(doc, XContentType.JSON),
-                "cluster_uuid",
-                "timestamp",
-                "source_node",
-                "state_uuid",
-                "shard.state",
-                "shard.primary",
-                "shard.node",
-                "shard.relocating_node",
-                "shard.shard",
-                "shard.index");
+                Sets.newHashSet(
+                        "cluster_uuid",
+                        "timestamp",
+                        "source_node",
+                        "state_uuid",
+                        "shard.state",
+                        "shard.primary",
+                        "shard.node",
+                        "shard.relocating_node",
+                        "shard.shard",
+                        "shard.index"));
     }
 
     public void testShardId() {

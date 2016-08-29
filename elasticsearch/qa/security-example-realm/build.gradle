@@ -46,6 +46,7 @@ task integTest(type: org.elasticsearch.gradle.test.RestIntegTestTask, dependsOn:
     plugin ':x-plugins:elasticsearch:x-pack'
     setting 'xpack.security.authc.realms.custom.order', '0'
     setting 'xpack.security.authc.realms.custom.type', 'custom'
+    setting 'xpack.security.authc.realms.custom.filtered_setting', 'should be filtered'
     setting 'xpack.security.authc.realms.esusers.order', '1'
     setting 'xpack.security.authc.realms.esusers.type', 'file'
 

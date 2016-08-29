@@ -49,7 +49,6 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -320,6 +319,11 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         filters.add("xpack.notification.hipchat.account.*.auth_token");
         filters.addAll(security.getSettingsFilter());
         filters.addAll(MonitoringSettings.getSettingsFilter());
+        if (transportClientMode == false) {
+            for (XPackExtension extension : extensionsService.getExtensions()) {
+                filters.addAll(extension.getSettingsFilter());
+            }
+        }
         return filters;
     }
 

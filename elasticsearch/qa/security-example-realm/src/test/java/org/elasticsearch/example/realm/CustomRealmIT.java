@@ -108,4 +108,14 @@ public class CustomRealmIT extends ESIntegTestCase {
             // expected
         }
     }
+
+    public void testSettingsFiltering() throws Exception {
+        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().setSettings(true).get();
+        for(NodeInfo info : nodeInfos.getNodes()) {
+            Settings settings = info.getSettings();
+            assertNotNull(settings);
+            assertNull(settings.get("xpack.security.authc.realms.custom.filtered_setting"));
+            assertEquals(CustomRealm.TYPE, settings.get("xpack.security.authc.realms.custom.type"));
+        }
+    }
 }

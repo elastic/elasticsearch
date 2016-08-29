@@ -16,6 +16,7 @@ import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 public class ExampleRealmExtension extends XPackExtension {
@@ -51,5 +52,10 @@ public class ExampleRealmExtension extends XPackExtension {
     @Override
     public Collection<String> getRestHeaders() {
         return Arrays.asList(CustomRealm.USER_HEADER, CustomRealm.PW_HEADER);
+    }
+
+    @Override
+    public List<String> getSettingsFilter() {
+        return Collections.singletonList("xpack.security.authc.realms.*.filtered_setting");
     }
 }

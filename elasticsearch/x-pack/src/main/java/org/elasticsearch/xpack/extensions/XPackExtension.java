@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.extensions;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import org.elasticsearch.xpack.security.authc.AuthenticationFailureHandler;
@@ -53,5 +54,16 @@ public abstract class XPackExtension {
      */
     public AuthenticationFailureHandler getAuthenticationFailureHandler() {
         return null;
+    }
+
+    /**
+     * Returns a list of settings that should be filtered from API calls. In most cases,
+     * these settings are sensitive such as passwords.
+     *
+     * The value should be the full name of the setting or a wildcard that matches the
+     * desired setting.
+     */
+    public List<String> getSettingsFilter() {
+        return Collections.emptyList();
     }
 }

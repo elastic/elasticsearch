@@ -91,6 +91,7 @@ public class ShardSearchTransportRequestTests extends ESTestCase {
                 assertEquals(deserializedRequest.searchType(), shardSearchTransportRequest.searchType());
                 assertEquals(deserializedRequest.shardId(), shardSearchTransportRequest.shardId());
                 assertEquals(deserializedRequest.numberOfShards(), shardSearchTransportRequest.numberOfShards());
+                assertEquals(deserializedRequest.cacheKey(), shardSearchTransportRequest.cacheKey());
                 assertNotSame(deserializedRequest, shardSearchTransportRequest);
             }
         }

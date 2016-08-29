@@ -272,7 +272,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
                 connectionsPerNodePing, receivePredictorMin, receivePredictorMax);
         }
 
-        final ThreadFactory workerFactory = daemonThreadFactory(this.settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX, name);
+        final ThreadFactory workerFactory = daemonThreadFactory(this.settings, TRANSPORT_SERVER_WORKER_THREAD_NAME_PREFIX, name);
 
         final ServerBootstrap serverBootstrap = new ServerBootstrap();
 

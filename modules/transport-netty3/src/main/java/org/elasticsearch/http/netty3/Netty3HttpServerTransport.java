@@ -285,13 +285,13 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         this.serverOpenChannels = new Netty3OpenChannelsHandler(logger);
         if (blockingServer) {
             serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_boss")),
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_worker"))
+                Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_BOSS_THREAD_NAME_PREFIX)),
+                Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX))
             ));
         } else {
             serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_boss")),
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_worker")),
+                Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_BOSS_THREAD_NAME_PREFIX)),
+                Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)),
                 workerCount));
         }
         serverBootstrap.setPipelineFactory(configureServerChannelPipelineFactory());

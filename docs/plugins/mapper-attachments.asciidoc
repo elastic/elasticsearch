@@ -272,13 +272,13 @@ Will give you:
    },
    "hits": {
       "total": 1,
-      "max_score": 0.16273327,
+      "max_score": 0.53484553,
       "hits": [
          {
             "_index": "test",
             "_type": "person",
             "_id": "1",
-            "_score": 0.16273327,
+            "_score": 0.53484553,
             "fields": {
                "file.content_type": [
                   "text/plain; charset=ISO-8859-1"
@@ -289,6 +289,7 @@ Will give you:
    }
 }
 --------------------------
+// TESTRESPONSE[s/"took": 2,/"took": $body.took,/]
 
 [[mapper-attachments-indexed-characters]]
 ==== Indexed Characters
@@ -329,6 +330,7 @@ Note that you can force language using `_language` field when sending your actua
 
 [source,js]
 --------------------------
+PUT /test/person/1
 {
     "my_attachment" : {
         "_language" : "en",
@@ -336,6 +338,7 @@ Note that you can force language using `_language` field when sending your actua
     }
 }
 --------------------------
+// CONSOLE
 
 [[mapper-attachments-highlighting]]
 ==== Highlighting attachments
@@ -393,19 +396,19 @@ It gives back:
    "took": 9,
    "timed_out": false,
    "_shards": {
-      "total": 1,
-      "successful": 1,
+      "total": 5,
+      "successful": 5,
       "failed": 0
    },
    "hits": {
       "total": 1,
-      "max_score": 0.13561106,
+      "max_score": 0.5446649,
       "hits": [
          {
             "_index": "test",
             "_type": "person",
             "_id": "1",
-            "_score": 0.13561106,
+            "_score": 0.5446649,
             "highlight": {
                "file.content": [
                   "\"God Save the <em>Queen</em>\" (alternatively \"God Save the <em>King</em>\"\n"
@@ -416,3 +419,4 @@ It gives back:
    }
 }
 --------------------------
+// TESTRESPONSE[s/"took": 9,/"took": $body.took,/]

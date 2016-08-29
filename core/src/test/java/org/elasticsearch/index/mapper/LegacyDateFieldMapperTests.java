@@ -40,15 +40,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.LegacyDateFieldMapper;
-import org.elasticsearch.index.mapper.LegacyLongFieldMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -114,11 +106,11 @@ public class LegacyDateFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldMapper, instanceOf(LegacyDateFieldMapper.class));
 
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date1");
-        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date2");
-        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date3");
-        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
     }
 
     public void testParseLocal() {

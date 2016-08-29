@@ -188,7 +188,7 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
                     "Dynamic mappings are not available on the node that holds the primary yet");
             }
         }
-        final boolean created = indexShard.index(operation);
+        indexShard.index(operation);
 
         // update the version on request so it will happen on the replicas
         final long version = operation.version();
@@ -197,7 +197,7 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
 
         assert request.versionType().validateVersionForWrites(request.version());
 
-        IndexResponse response = new IndexResponse(shardId, request.type(), request.id(), request.version(), created);
+        IndexResponse response = new IndexResponse(shardId, request.type(), request.id(), request.version(), operation.isCreated());
         return new WriteResult<>(response, operation.getTranslogLocation());
     }
 }

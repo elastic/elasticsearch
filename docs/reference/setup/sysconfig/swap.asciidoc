@@ -35,8 +35,9 @@ request:
 
 [source,sh]
 --------------
-curl 'http://localhost:9200/_nodes?pretty&filter_path=**.mlockall'
+GET _nodes?filter_path=**.mlockall
 --------------
+// CONSOLE
 
 If you see that `mlockall` is `false`, then it means that the `mlockall`
 request has failed.  You will also see a line with more information in the
@@ -69,6 +70,7 @@ specifying a new temp directory, by starting Elasticsearch with:
 --------------
 ./bin/elasticsearch -Djava.io.tmpdir=/path/to/temp/dir
 --------------
+// NOTCONSOLE
 
 or using the `ES_JAVA_OPTS` environment variable:
 
@@ -77,6 +79,7 @@ or using the `ES_JAVA_OPTS` environment variable:
 export ES_JAVA_OPTS="$ES_JAVA_OPTS -Djava.io.tmpdir=/path/to/temp/dir"
 ./bin/elasticsearch
 --------------
+// NOTCONSOLE
 
 [[disable-swap-files]]
 ==== Disable all swap files
@@ -100,4 +103,3 @@ The second option available on Linux systems is to ensure that the sysctl value
 `vm.swappiness` is set to `1`. This reduces the kernel's tendency to swap and
 should not lead to swapping under normal circumstances, while still allowing
 the whole system to swap in emergency conditions.
-

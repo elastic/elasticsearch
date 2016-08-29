@@ -57,6 +57,7 @@ import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.indices.store.IndicesStoreIntegrationIT;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -630,6 +631,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * that already are following another elected master node. These nodes should reject this cluster state and prevent
      * them from following the stale master.
      */
+    @TestLogging("_root:DEBUG,cluster.service:TRACE,test.disruption:TRACE")
     public void testStaleMasterNotHijackingMajority() throws Exception {
         // 3 node cluster with unicast discovery and minimum_master_nodes set to 2:
         final List<String> nodes = startCluster(3, 2);
@@ -686,7 +688,19 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // Wait for the majority side to get stable
         assertDifferentMaster(majoritySide.get(0), oldMasterNode);
         assertDifferentMaster(majoritySide.get(1), oldMasterNode);
-        assertDiscoveryCompleted(majoritySide);
+
+        // the test is periodically tripping on the following assertion. To find out which threads are blocking the nodes from making
+        // progress we print a stack dump
+        boolean failed = true;
+        try {
+            assertDiscoveryCompleted(majoritySide);
+            failed = false;
+        } finally {
+            if (failed) {
+                logger.error("discovery failed to complete, probably caused by a blocked thread: {}",
+                    new HotThreads().busiestThreads(Integer.MAX_VALUE).ignoreIdleThreads(false).detect());
+            }
+        }
 
         // The old master node is frozen, but here we submit a cluster state update task that doesn't get executed,
         // but will be queued and once the old master node un-freezes it gets executed.

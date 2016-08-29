@@ -1578,6 +1578,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         index.totalRecoverFiles(), new ByteSizeValue(index.totalRecoverBytes()), index.reusedFileCount(), new ByteSizeValue(index.reusedFileCount()));
                 }
                 try {
+                    // first, delete pre-existing files in the store that have the same name but are
+                    // different (i.e. different length/checksum) from those being restored in the snapshot
+                    for (final StoreFileMetaData storeFileMetaData : diff.different) {
+                        IOUtils.deleteFiles(store.directory(), storeFileMetaData.name());
+                    }
+                    // restore the files from the snapshot to the Lucene store
                     for (final BlobStoreIndexShardSnapshot.FileInfo fileToRecover : filesToRecover) {
                         logger.trace("[{}] [{}] restoring file [{}]", shardId, snapshotId, fileToRecover.name());
                         restoreFile(fileToRecover, store);
@@ -1638,15 +1644,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     stream = new RateLimitingInputStream(partSliceStream, restoreRateLimiter, restoreRateLimitingTimeInNanos::inc);
                 }
 
-                // A restore could possibly overwrite existing segment files due to any number of reasons,
-                // for example if the primary was snapshotted and then the replica was promoted to primary
-                // with different segment files. In this case, the goal of the restore is to forget about
-                // what is currently in the index and just restore the state to whatever is in the snapshot.
-                // Hence, we are deleting files here if they already exist before writing to them. A better
-                // long term solution would be to use recovery for restoring, so we have more robust restoring
-                // of files (copying to temporary files first and then moving them over).
-                IOUtils.deleteFilesIgnoringExceptions(store.directory(), fileInfo.physicalName());
-                
                 try (final IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
                     final byte[] buffer = new byte[BUFFER_SIZE];
                     int length;

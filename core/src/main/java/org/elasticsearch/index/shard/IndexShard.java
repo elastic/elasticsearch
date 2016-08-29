@@ -523,34 +523,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return new Engine.Index(uid, doc, version, versionType, origin, startTime);
     }
 
-    /**
-     * Index a document and return whether it was created, as opposed to just
-     * updated.
-     */
-    public boolean index(Engine.Index index) {
+    public void index(Engine.Index index) {
         ensureWriteAllowed(index);
         Engine engine = getEngine();
-        return index(engine, index);
+        index(engine, index);
     }
 
-    private boolean index(Engine engine, Engine.Index index) {
+    private void index(Engine engine, Engine.Index index) {
         active.set(true);
         index = indexingOperationListeners.preIndex(index);
-        final boolean created;
         try {
             if (logger.isTraceEnabled()) {
                 logger.trace("index [{}][{}]{}", index.type(), index.id(), index.docs());
             }
-            created = engine.index(index);
+            engine.index(index);
             index.endTime(System.nanoTime());
         } catch (Exception e) {
             indexingOperationListeners.postIndex(index, e);
             throw e;
         }
-
-        indexingOperationListeners.postIndex(index, created);
-
-        return created;
+        indexingOperationListeners.postIndex(index, index.isCreated());
     }
 
     public Engine.Delete prepareDeleteOnPrimary(String type, String id, long version, VersionType versionType) {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
@@ -240,15 +241,22 @@ public final class ConfigurationUtils {
     public static List<Processor> readProcessorConfigs(List<Map<String, Map<String, Object>>> processorConfigs,
                                                        Map<String, Processor.Factory> processorFactories) throws Exception {
         List<Processor> processors = new ArrayList<>();
-        if (processorConfigs != null) {
-            for (Map<String, Map<String, Object>> processorConfigWithKey : processorConfigs) {
-                for (Map.Entry<String, Map<String, Object>> entry : processorConfigWithKey.entrySet()) {
-                    processors.add(readProcessor(processorFactories, entry.getKey(), entry.getValue()));
+        boolean success = false;
+        try {
+            if (processorConfigs != null) {
+                for (Map<String, Map<String, Object>> processorConfigWithKey : processorConfigs) {
+                    for (Map.Entry<String, Map<String, Object>> entry : processorConfigWithKey.entrySet()) {
+                        processors.add(readProcessor(processorFactories, entry.getKey(), entry.getValue()));
+                    }
                 }
             }
+            success = true;
+            return processors;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(processors);
+            }
         }
-
-        return processors;
     }
 
     public static TemplateService.Template compileTemplate(String processorType, String processorTag, String propertyName,
@@ -281,27 +289,43 @@ public final class ConfigurationUtils {
             List<Map<String, Map<String, Object>>> onFailureProcessorConfigs =
                 ConfigurationUtils.readOptionalList(null, null, config, Pipeline.ON_FAILURE_KEY);
 
-            List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorFactories);
-            String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
-
-            if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
-                throw newConfigurationException(type, tag, Pipeline.ON_FAILURE_KEY,
-                    "processors list cannot be empty");
-            }
-
+            List<Processor> onFailureProcessors = null;
+            Processor processor = null;
+            boolean success = false;
             try {
-                Processor processor = factory.create(processorFactories, tag, config);
-                if (config.isEmpty() == false) {
-                    throw new ElasticsearchParseException("processor [{}] doesn't support one or more provided configuration parameters {}",
-                        type, Arrays.toString(config.keySet().toArray()));
+                onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorFactories);
+                String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
+
+                if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
+                    throw newConfigurationException(type, tag, Pipeline.ON_FAILURE_KEY,
+                        "processors list cannot be empty");
                 }
-                if (onFailureProcessors.size() > 0 || ignoreFailure) {
-                    return new CompoundProcessor(ignoreFailure, Collections.singletonList(processor), onFailureProcessors);
-                } else {
-                    return processor;
+
+                try {
+                    processor = factory.create(processorFactories, tag, config);
+                    if (config.isEmpty() == false) {
+                        throw new ElasticsearchParseException("processor [{}] doesn't support one or more provided configuration " +
+                            "parameters {}", type, Arrays.toString(config.keySet().toArray()));
+                    }
+                    if (onFailureProcessors.size() > 0 || ignoreFailure) {
+                        CompoundProcessor compoundProcessor =
+                            new CompoundProcessor(ignoreFailure, Collections.singletonList(processor), onFailureProcessors);
+                        success = true;
+                        return compoundProcessor;
+                    } else {
+                        success = true;
+                        return processor;
+                    }
+                } catch (Exception e) {
+                    throw newConfigurationException(type, tag, null, e);
                 }
-            } catch (Exception e) {
-                throw newConfigurationException(type, tag, null, e);
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(processor);
+                    if (onFailureProcessors != null) {
+                        IOUtils.closeWhileHandlingException(onFailureProcessors);
+                    }
+                }
             }
         }
         throw new ElasticsearchParseException("No processor type exists with name [" + type + "]");

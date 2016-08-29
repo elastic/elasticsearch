@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -74,16 +75,29 @@ public class PipelineStore extends AbstractComponent implements ClusterStateList
         }
 
         Map<String, Pipeline> pipelines = new HashMap<>();
-        for (PipelineConfiguration pipeline : ingestMetadata.getPipelines().values()) {
-            try {
-                pipelines.put(pipeline.getId(), factory.create(pipeline.getId(), pipeline.getConfigAsMap(), processorFactories));
-            } catch (ElasticsearchParseException e) {
-                throw e;
-            } catch (Exception e) {
-                throw new ElasticsearchParseException("Error updating pipeline with id [" + pipeline.getId() + "]", e);
+        Map<String, Pipeline> oldPipelines = this.pipelines;
+        boolean success = false;
+        try {
+            for (PipelineConfiguration pipeline : ingestMetadata.getPipelines().values()) {
+                try {
+                    pipelines.put(pipeline.getId(), factory.create(pipeline.getId(), pipeline.getConfigAsMap(), processorFactories));
+                } catch (ElasticsearchParseException e) {
+                    throw e;
+                } catch (Exception e) {
+                    throw new ElasticsearchParseException("Error updating pipeline with id [" + pipeline.getId() + "]", e);
+                }
+            }
+            this.pipelines = Collections.unmodifiableMap(pipelines);;
+            success = true;
+        } finally {
+            if (success == false) {
+                // close new pipelines
+                IOUtils.closeWhileHandlingException(pipelines.values());
+            } else {
+                // close old pipelines
+                IOUtils.closeWhileHandlingException(oldPipelines.values());
             }
         }
-        this.pipelines = Collections.unmodifiableMap(pipelines);
     }
 
     /**
@@ -152,17 +166,18 @@ public class PipelineStore extends AbstractComponent implements ClusterStateList
         }
 
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false).v2();
-        Pipeline pipeline = factory.create(request.getId(), pipelineConfig, processorFactories);
-        List<IllegalArgumentException> exceptions = new ArrayList<>();
-        for (Processor processor : pipeline.flattenAllProcessors()) {
-            for (Map.Entry<DiscoveryNode, IngestInfo> entry : ingestInfos.entrySet()) {
-                if (entry.getValue().containsProcessor(processor.getType()) == false) {
-                    String message = "Processor type [" + processor.getType() + "] is not installed on node [" + entry.getKey() + "]";
-                    exceptions.add(new IllegalArgumentException(message));
+        try (Pipeline pipeline = factory.create(request.getId(), pipelineConfig, processorFactories)) {
+            List<IllegalArgumentException> exceptions = new ArrayList<>();
+            for (Processor processor : pipeline.flattenAllProcessors()) {
+                for (Map.Entry<DiscoveryNode, IngestInfo> entry : ingestInfos.entrySet()) {
+                    if (entry.getValue().containsProcessor(processor.getType()) == false) {
+                        String message = "Processor type [" + processor.getType() + "] is not installed on node [" + entry.getKey() + "]";
+                        exceptions.add(new IllegalArgumentException(message));
+                    }
                 }
             }
+            ExceptionsHelper.rethrowAndSuppress(exceptions);
         }
-        ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
     ClusterState innerPut(PutPipelineRequest request, ClusterState currentState) {

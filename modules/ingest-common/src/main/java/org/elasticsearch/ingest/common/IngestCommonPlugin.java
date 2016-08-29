@@ -19,6 +19,10 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.Plugin;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,10 +31,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.Plugin;
 
 public class IngestCommonPlugin extends Plugin implements IngestPlugin {
 
@@ -61,6 +61,7 @@ public class IngestCommonPlugin extends Plugin implements IngestPlugin {
         processors.put(SortProcessor.TYPE, new SortProcessor.Factory());
         processors.put(GrokProcessor.TYPE, new GrokProcessor.Factory(builtinPatterns));
         processors.put(ScriptProcessor.TYPE, new ScriptProcessor.Factory(parameters.scriptService));
+        processors.put(AnalyzerProcessor.TYPE, new AnalyzerProcessor.Factory(parameters.env, parameters.analysisRegistry));
         return Collections.unmodifiableMap(processors);
     }
 

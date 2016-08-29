@@ -1,0 +1,138 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test Analyzer Pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "analyzer" : {
+                  "field" : "field1",
+                  "analyzer" : "standard"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {field1: "Foo, bar and baz!"}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.field1: ["foo", "bar", "and", "baz"] }
+
+---
+"Test Analyzer Pipeline With Custom Analyzer":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "analyzer" : {
+                  "field" : "field1",
+                  "tokenizer" : "keyword",
+                  "filter" : ["lowercase"]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {field1: "Foo, bar and baz!"}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.field1: ["foo, bar and baz!"] }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "analyzer" : {
+                  "field" : "field1",
+                  "tokenizer" : "standard",
+                  "token_filter" : [
+                    "lowercase",
+                    {"type": "stop", "stopwords": ["boo"]}
+                  ],
+                  "char_filter": [
+                    {"type": "mapping", "mappings": ["F => B"]}
+                  ]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 2
+        pipeline: "my_pipeline"
+        body: {field1: "Foo, bar and baz!"}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 2
+  - match: { _source.field1: ["bar", "and", "baz"] }
+
+---
+"Test putting analyzer pipeline with invalid analyzer":
+  - do:
+      catch: request
+      ingest.put_pipeline:
+        id: "bad_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "analyzer" : {
+                  "field" : "field1",
+                  "analyzer" : "unknown_analyzer"
+                }
+              }
+            ]
+          }
+
+  - match: { error.root_cause.0.type: "exception" }
+  - match: { error.root_cause.0.header.processor_type: "analyzer" }
+  - match: { error.caused_by.type: "illegal_argument_exception" }
+  - match: { error.caused_by.reason: "Unknown analyzer [unknown_analyzer]" }

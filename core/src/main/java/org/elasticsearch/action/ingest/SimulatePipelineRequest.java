@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.ingest;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -135,15 +136,34 @@ public class SimulatePipelineRequest extends ActionRequest<SimulatePipelineReque
         if (pipeline == null) {
             throw new IllegalArgumentException("pipeline [" + pipelineId + "] does not exist");
         }
-        List<IngestDocument> ingestDocumentList = parseDocs(config);
-        return new Parsed(pipeline, ingestDocumentList, verbose);
+        boolean success = false;
+        try {
+            List<IngestDocument> ingestDocumentList = parseDocs(config);
+            Parsed parsed = new Parsed(pipeline, ingestDocumentList, verbose);
+            success = true;
+            return parsed;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(pipeline);
+            }
+        }
     }
 
     static Parsed parse(Map<String, Object> config, boolean verbose, PipelineStore pipelineStore) throws Exception {
         Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(null, null, config, Fields.PIPELINE);
-        Pipeline pipeline = PIPELINE_FACTORY.create(SIMULATED_PIPELINE_ID, pipelineConfig, pipelineStore.getProcessorFactories());
-        List<IngestDocument> ingestDocumentList = parseDocs(config);
-        return new Parsed(pipeline, ingestDocumentList, verbose);
+        Pipeline pipeline = null;
+        boolean success = false;
+        try {
+            pipeline = PIPELINE_FACTORY.create(SIMULATED_PIPELINE_ID, pipelineConfig, pipelineStore.getProcessorFactories());
+            List<IngestDocument> ingestDocumentList = parseDocs(config);
+            Parsed parsed = new Parsed(pipeline, ingestDocumentList, verbose);
+            success = true;
+            return parsed;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(pipeline);
+            }
+        }
     }
 
     private static List<IngestDocument> parseDocs(Map<String, Object> config) {

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.ElasticsearchParseException;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -50,18 +50,19 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
     protected void doExecute(SimulatePipelineRequest request, ActionListener<SimulatePipelineResponse> listener) {
         final Map<String, Object> source = XContentHelper.convertToMap(request.getSource(), false).v2();
 
-        final SimulatePipelineRequest.Parsed simulateRequest;
+        SimulatePipelineRequest.Parsed simulateRequest = null;
         try {
             if (request.getId() != null) {
                 simulateRequest = SimulatePipelineRequest.parseWithPipelineId(request.getId(), source, request.isVerbose(), pipelineStore);
             } else {
                 simulateRequest = SimulatePipelineRequest.parse(source, request.isVerbose(), pipelineStore);
             }
+            executionService.execute(simulateRequest, listener);
         } catch (Exception e) {
+            if (simulateRequest != null) {
+                IOUtils.closeWhileHandlingException(simulateRequest.getPipeline());
+            }
             listener.onFailure(e);
-            return;
         }
-
-        executionService.execute(simulateRequest, listener);
     }
 }

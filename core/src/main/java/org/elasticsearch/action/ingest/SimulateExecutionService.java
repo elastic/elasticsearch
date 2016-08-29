@@ -71,6 +71,11 @@ class SimulateExecutionService {
                 }
                 listener.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(), request.isVerbose(), responses));
             }
+
+            @Override
+            public void onAfter() {
+                request.getPipeline().close();
+            }
         });
     }
 }

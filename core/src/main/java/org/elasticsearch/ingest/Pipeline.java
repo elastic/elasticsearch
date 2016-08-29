@@ -19,8 +19,11 @@
 
 package org.elasticsearch.ingest;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.lease.Releasable;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -29,7 +32,7 @@ import java.util.Map;
 /**
  * A pipeline is a list of {@link Processor} instances grouped under a unique id.
  */
-public final class Pipeline {
+public final class Pipeline implements Releasable {
 
     static final String DESCRIPTION_KEY = "description";
     static final String PROCESSORS_KEY = "processors";
@@ -96,25 +99,48 @@ public final class Pipeline {
         return compoundProcessor.flattenProcessors();
     }
 
+    @Override
+    public void close() {
+        compoundProcessor.close();
+    }
+
     public static final class Factory {
 
         public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorFactories) throws Exception {
             String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
             List<Map<String, Map<String, Object>>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
-            List<Processor> processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, processorFactories);
-            List<Map<String, Map<String, Object>>> onFailureProcessorConfigs =
+            List<Processor> processors = null;
+            List<Processor> onFailureProcessors = null;
+            boolean success = false;
+            try {
+                processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, processorFactories);
+                List<Map<String, Map<String, Object>>> onFailureProcessorConfigs =
                     ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
-            List<Processor> onFailureProcessors = ConfigurationUtils.readProcessorConfigs(onFailureProcessorConfigs, processorFactories);
-            if (config.isEmpty() == false) {
-                throw new ElasticsearchParseException("pipeline [" + id +
+                onFailureProcessors = ConfigurationUtils.readProcessorConfigs(onFailureProcessorConfigs, processorFactories);
+                if (config.isEmpty() == false) {
+                    throw new ElasticsearchParseException("pipeline [" + id +
                         "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
-            }
-            if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
-                throw new ElasticsearchParseException("pipeline [" + id + "] cannot have an empty on_failure option defined");
-            }
-            CompoundProcessor compoundProcessor = new CompoundProcessor(false, Collections.unmodifiableList(processors),
+                }
+                if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
+                    throw new ElasticsearchParseException("pipeline [" + id + "] cannot have an empty on_failure option defined");
+                }
+                CompoundProcessor compoundProcessor = new CompoundProcessor(false, Collections.unmodifiableList(processors),
                     Collections.unmodifiableList(onFailureProcessors));
-            return new Pipeline(id, description, compoundProcessor);
+                Pipeline pipeline = new Pipeline(id, description, compoundProcessor);
+                success =  true;
+                return pipeline;
+            } catch (Exception ex) {
+                throw ex;
+            } finally {
+                if (success == false) {
+                    if (processors != null) {
+                        IOUtils.closeWhileHandlingException(processors);
+                    }
+                    if (onFailureProcessors != null) {
+                        IOUtils.closeWhileHandlingException(onFailureProcessors);
+                    }
+                }
+            }
         }
 
     }

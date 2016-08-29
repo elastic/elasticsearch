@@ -164,4 +164,14 @@ public class CompoundProcessor implements Processor {
 
         return exception;
     }
+
+    @Override
+    public void close() {
+        for (Processor processor : processors) {
+            processor.close();
+        }
+        for (Processor processor : onFailureProcessors) {
+            processor.close();
+        }
+    }
 }

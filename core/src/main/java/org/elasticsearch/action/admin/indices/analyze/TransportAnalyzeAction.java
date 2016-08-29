@@ -577,12 +577,12 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         return tokenizerFactory;
     }
 
-    private static IndexSettings getNaIndexSettings(Settings settings) {
+    public static IndexSettings getNaIndexSettings(Settings settings) {
         IndexMetaData metaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(settings).build();
         return new IndexSettings(metaData, Settings.EMPTY);
     }
 
-    private static Settings getAnonymousSettings(Settings providerSetting) {
+    public static Settings getAnonymousSettings(Settings providerSetting) {
         return Settings.builder().put(providerSetting)
             // for _na_
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)

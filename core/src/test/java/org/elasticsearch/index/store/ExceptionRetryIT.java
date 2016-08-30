@@ -61,7 +61,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2, supportsDedicatedMasters = false, numClientNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2,
+    supportsDedicatedMasters = false, numClientNodes = 1, transportClientRatio = 0.0)
 public class ExceptionRetryIT extends ESIntegTestCase {
 
     @Override
@@ -91,7 +92,7 @@ public class ExceptionRetryIT extends ESIntegTestCase {
             .put("index.number_of_replicas", 1)
             .put("index.number_of_shards", 5)));
         ensureGreen("index");
-
+        logger.info("unlucky node: {}", unluckyNode.getNode());
         //create a transport service that throws a ConnectTransportException for one bulk request and therefore triggers a retry.
         for (NodeStats dataNode : nodeStats.getNodes()) {
             MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class,

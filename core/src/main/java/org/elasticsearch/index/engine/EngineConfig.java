@@ -91,9 +91,8 @@ public final class EngineConfig {
 
     /**
      * Configures an index to optimize documents with auto generated ids for append only. If this setting is updated to <code>false</code>
-     * it might not take effect immediately. Depending on the engine implementation it's anti-viral until an engine is restarted or the\
-     * index is closed and reopened.
-     * The default is <code>true</code>
+     * it might not take effect immediately. Depending on the engine implementation a change to this setting won't be reflected until the
+     * engine is restarted or the index is closed and reopened. The default is <code>true</code>
      */
     public static final Setting<Boolean> INDEX_OPTIMIZE_AUTO_GENERATED_IDS = Setting.boolSetting("index.optimize_auto_generated_id", true,
         Property.IndexScope, Property.Dynamic);

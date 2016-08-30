@@ -88,8 +88,8 @@ The cluster health API accepts the following request parameters:
     it will not wait for relocating shards.
 
 `wait_for_active_shards`::
-    A number controlling to how many active shards to wait for, or `all` to wait
-    for all shards in the cluster to be active. Defaults to not wait.
+    A number controlling to how many active shards to wait for, `all` to wait
+    for all shards in the cluster to be active, or `0` to not wait. Defaults to `0`.
 
 `wait_for_nodes`::
     The request waits until the specified number `N` of

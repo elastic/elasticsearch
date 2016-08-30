@@ -109,7 +109,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
 
     /**
      * Sets whether the request should wait for there to be no relocating shards before
-     * retrieving the cluster health status.  Defaults to <code>false</code>, meaning the
+     * retrieving the cluster health status.  Defaults to {@code false}, meaning the
      * operation does not wait on there being no more relocating shards.  Set to <code>true</code>
      * to wait until the number of relocating shards in the cluster is 0.
      */
@@ -123,12 +123,12 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     }
 
     /**
-     * Sets the number of shard copies that must be active before getting the health status.
-     * Defaults to {@link ActiveShardCount#NONE}, meaning we don't wait on any active shards.
+     * Sets the number of shard copies that must be active across all indices before getting the
+     * health status. Defaults to {@link ActiveShardCount#NONE}, meaning we don't wait on any active shards.
      * Set this value to {@link ActiveShardCount#ALL} to wait for all shards (primary and
      * all replicas) to be active across all indices in the cluster. Otherwise, use
      * {@link ActiveShardCount#from(int)} to set this value to any non-negative integer, up to the
-     * total number of shard copies that would exist across all indices in the cluster.
+     * total number of shard copies to wait for.
      */
     public ClusterHealthRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
         if (waitForActiveShards.equals(ActiveShardCount.DEFAULT)) {

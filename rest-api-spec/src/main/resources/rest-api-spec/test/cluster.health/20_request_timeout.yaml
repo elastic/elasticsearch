@@ -4,7 +4,7 @@
       catch: request_timeout
       cluster.health:
         wait_for_nodes: 10
-        timeout: 1s
+        timeout: 1ms
 
   - is_true:   cluster_name
   - is_true:   timed_out
@@ -22,7 +22,7 @@
   - do:
       catch: request_timeout
       cluster.health:
-        timeout: 1s
+        timeout: 1ms
         wait_for_active_shards: 5
 
   - is_true:   cluster_name

@@ -21,6 +21,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -294,7 +295,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 try {
                     entry.getValue().close();
                 } catch (Exception e) {
-                    logger.debug(new ParameterizedMessage("error while closing recovery output [{}]", entry.getValue()), e);
+                    logger.debug(
+                        (Supplier<?>) () -> new ParameterizedMessage("error while closing recovery output [{}]", entry.getValue()), e);
                 }
                 iterator.remove();
             }

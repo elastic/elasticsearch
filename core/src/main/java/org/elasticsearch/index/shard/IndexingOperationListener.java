@@ -20,6 +20,7 @@ package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.index.engine.Engine;
 
 import java.util.List;
@@ -83,7 +84,7 @@ public interface IndexingOperationListener {
                 try {
                     listener.preIndex(operation);
                 } catch (Exception e) {
-                    logger.warn(new ParameterizedMessage("preIndex listener [{}] failed", listener), e);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("preIndex listener [{}] failed", listener), e);
                 }
             }
             return operation;
@@ -96,7 +97,7 @@ public interface IndexingOperationListener {
                 try {
                     listener.postIndex(index, created);
                 } catch (Exception e) {
-                    logger.warn(new ParameterizedMessage("postIndex listener [{}] failed", listener), e);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("postIndex listener [{}] failed", listener), e);
                 }
             }
         }
@@ -109,7 +110,7 @@ public interface IndexingOperationListener {
                     listener.postIndex(index, ex);
                 } catch (Exception inner) {
                     inner.addSuppressed(ex);
-                    logger.warn(new ParameterizedMessage("postIndex listener [{}] failed", listener), inner);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("postIndex listener [{}] failed", listener), inner);
                 }
             }
         }
@@ -121,7 +122,7 @@ public interface IndexingOperationListener {
                 try {
                     listener.preDelete(delete);
                 } catch (Exception e) {
-                    logger.warn(new ParameterizedMessage("preDelete listener [{}] failed", listener), e);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("preDelete listener [{}] failed", listener), e);
                 }
             }
             return delete;
@@ -134,7 +135,7 @@ public interface IndexingOperationListener {
                 try {
                     listener.postDelete(delete);
                 } catch (Exception e) {
-                    logger.warn(new ParameterizedMessage("postDelete listener [{}] failed", listener), e);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("postDelete listener [{}] failed", listener), e);
                 }
             }
         }
@@ -147,7 +148,7 @@ public interface IndexingOperationListener {
                     listener.postDelete(delete, ex);
                 } catch (Exception inner) {
                     inner.addSuppressed(ex);
-                    logger.warn(new ParameterizedMessage("postDelete listener [{}] failed", listener), inner);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("postDelete listener [{}] failed", listener), inner);
                 }
             }
         }

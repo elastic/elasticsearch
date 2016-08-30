@@ -39,6 +39,7 @@ import io.netty.channel.socket.oio.OioServerSocketChannel;
 import io.netty.channel.socket.oio.OioSocketChannel;
 import io.netty.util.concurrent.Future;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -496,7 +497,8 @@ public class Netty4Transport extends TcpTransport<Channel> {
                 future.v2().awaitUninterruptibly();
                 if (!future.v2().isSuccess()) {
                     logger.debug(
-                        new ParameterizedMessage("Error closing server bootstrap for profile [{}]", future.v1()), future.v2().cause());
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                            "Error closing server bootstrap for profile [{}]", future.v1()), future.v2().cause());
                 }
             }
             serverBootstraps.clear();

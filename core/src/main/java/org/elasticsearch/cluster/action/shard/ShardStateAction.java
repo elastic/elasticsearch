@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.action.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -109,7 +110,7 @@ public class ShardStateAction extends AbstractComponent {
                         if (isMasterChannelException(exp)) {
                             waitForNewMasterAndRetry(actionName, observer, shardEntry, listener);
                         } else {
-                            logger.warn(new ParameterizedMessage("{} unexpected failure while sending request [{}] to [{}] for shard entry [{}]", shardEntry.shardId, actionName, masterNode, shardEntry), exp);
+                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} unexpected failure while sending request [{}] to [{}] for shard entry [{}]", shardEntry.shardId, actionName, masterNode, shardEntry), exp);
                             listener.onFailure(exp instanceof RemoteTransportException ? (Exception) (exp.getCause() instanceof Exception ? exp.getCause() : new ElasticsearchException(exp.getCause())) : exp);
                         }
                     }
@@ -170,7 +171,7 @@ public class ShardStateAction extends AbstractComponent {
 
             @Override
             public void onClusterServiceClose() {
-                logger.warn(new ParameterizedMessage("{} node closed while execution action [{}] for shard entry [{}]", shardEntry.shardId, actionName, shardEntry), shardEntry.failure);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} node closed while execution action [{}] for shard entry [{}]", shardEntry.shardId, actionName, shardEntry), shardEntry.failure);
                 listener.onFailure(new NodeClosedException(clusterService.localNode()));
             }
 
@@ -195,7 +196,7 @@ public class ShardStateAction extends AbstractComponent {
 
         @Override
         public void messageReceived(ShardEntry request, TransportChannel channel) throws Exception {
-            logger.warn(new ParameterizedMessage("{} received shard failed for {}", request.shardId, request), request.failure);
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} received shard failed for {}", request.shardId, request), request.failure);
             clusterService.submitStateUpdateTask(
                 "shard-failed",
                 request,
@@ -204,12 +205,12 @@ public class ShardStateAction extends AbstractComponent {
                 new ClusterStateTaskListener() {
                     @Override
                     public void onFailure(String source, Exception e) {
-                        logger.error(new ParameterizedMessage("{} unexpected failure while failing shard [{}]", request.shardId, request), e);
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("{} unexpected failure while failing shard [{}]", request.shardId, request), e);
                         try {
                             channel.sendResponse(e);
                         } catch (Exception channelException) {
                             channelException.addSuppressed(e);
-                            logger.warn(new ParameterizedMessage("{} failed to send failure [{}] while failing shard [{}]", request.shardId, e, request), channelException);
+                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} failed to send failure [{}] while failing shard [{}]", request.shardId, e, request), channelException);
                         }
                     }
 
@@ -219,7 +220,7 @@ public class ShardStateAction extends AbstractComponent {
                         try {
                             channel.sendResponse(new NotMasterException(source));
                         } catch (Exception channelException) {
-                            logger.warn(new ParameterizedMessage("{} failed to send no longer master while failing shard [{}]", request.shardId, request), channelException);
+                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} failed to send no longer master while failing shard [{}]", request.shardId, request), channelException);
                         }
                     }
 
@@ -228,7 +229,7 @@ public class ShardStateAction extends AbstractComponent {
                         try {
                             channel.sendResponse(TransportResponse.Empty.INSTANCE);
                         } catch (Exception channelException) {
-                            logger.warn(new ParameterizedMessage("{} failed to send response while failing shard [{}]", request.shardId, request), channelException);
+                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} failed to send response while failing shard [{}]", request.shardId, request), channelException);
                         }
                     }
                 }
@@ -316,7 +317,7 @@ public class ShardStateAction extends AbstractComponent {
                 }
                 batchResultBuilder.successes(tasksToBeApplied);
             } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("failed to apply failed shards {}", shardRoutingsToBeApplied), e);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to apply failed shards {}", shardRoutingsToBeApplied), e);
                 // failures are communicated back to the requester
                 // cluster state will not be updated in this case
                 batchResultBuilder.failures(tasksToBeApplied, e);
@@ -432,7 +433,7 @@ public class ShardStateAction extends AbstractComponent {
                 }
                 builder.successes(tasksToBeApplied);
             } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("failed to apply started shards {}", shardRoutingsToBeApplied), e);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to apply started shards {}", shardRoutingsToBeApplied), e);
                 builder.failures(tasksToBeApplied, e);
             }
 
@@ -441,7 +442,7 @@ public class ShardStateAction extends AbstractComponent {
 
         @Override
         public void onFailure(String source, Exception e) {
-            logger.error(new ParameterizedMessage("unexpected failure during [{}]", source), e);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
         }
     }
 

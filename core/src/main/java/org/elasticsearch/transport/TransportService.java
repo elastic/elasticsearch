@@ -207,7 +207,7 @@ public class TransportService extends AbstractLifecycleComponent {
                         public void onRejection(Exception e) {
                             // if we get rejected during node shutdown we don't wanna bubble it up
                             logger.debug(
-                                new ParameterizedMessage(
+                                (Supplier<?>) () -> new ParameterizedMessage(
                                     "failed to notify response handler on rejection, action: {}",
                                     holderToNotify.action()),
                                 e);
@@ -215,7 +215,7 @@ public class TransportService extends AbstractLifecycleComponent {
                         @Override
                         public void onFailure(Exception e) {
                             logger.warn(
-                                new ParameterizedMessage(
+                                (Supplier<?>) () -> new ParameterizedMessage(
                                     "failed to notify response handler on exception, action: {}",
                                     holderToNotify.action()),
                                 e);
@@ -493,7 +493,7 @@ public class TransportService extends AbstractLifecycleComponent {
                     public void onRejection(Exception e) {
                         // if we get rejected during node shutdown we don't wanna bubble it up
                         logger.debug(
-                            new ParameterizedMessage(
+                            (Supplier<?>) () -> new ParameterizedMessage(
                                 "failed to notify response handler on rejection, action: {}",
                                 holderToNotify.action()),
                             e);
@@ -501,7 +501,7 @@ public class TransportService extends AbstractLifecycleComponent {
                     @Override
                     public void onFailure(Exception e) {
                         logger.warn(
-                            new ParameterizedMessage(
+                            (Supplier<?>) () -> new ParameterizedMessage(
                                 "failed to notify response handler on exception, action: {}",
                                 holderToNotify.action()),
                             e);
@@ -546,7 +546,8 @@ public class TransportService extends AbstractLifecycleComponent {
                         } catch (Exception inner) {
                             inner.addSuppressed(e);
                             logger.warn(
-                                new ParameterizedMessage("failed to notify channel of error message for action [{}]", action), inner);
+                                (Supplier<?>) () -> new ParameterizedMessage(
+                                    "failed to notify channel of error message for action [{}]", action), inner);
                         }
                     }
                 });
@@ -557,7 +558,9 @@ public class TransportService extends AbstractLifecycleComponent {
                 channel.sendResponse(e);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
-                logger.warn(new ParameterizedMessage("failed to notify channel of error message for action [{}]", action), inner);
+                logger.warn(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "failed to notify channel of error message for action [{}]", action), inner);
             }
         }
 
@@ -679,7 +682,9 @@ public class TransportService extends AbstractLifecycleComponent {
         }
 
         protected void traceResponseSent(long requestId, String action, Exception e) {
-            tracerLog.trace(new ParameterizedMessage("[{}][{}] sent error response", requestId, action), e);
+            tracerLog.trace(
+                (org.apache.logging.log4j.util.Supplier<?>)
+                    () -> new ParameterizedMessage("[{}][{}] sent error response", requestId, action), e);
         }
 
         @Override
@@ -1052,7 +1057,9 @@ public class TransportService extends AbstractLifecycleComponent {
             try {
                 handler.handleException(rtx);
             } catch (Exception e) {
-                logger.error(new ParameterizedMessage("failed to handle exception for action [{}], handler [{}]", action, handler), e);
+                logger.error(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "failed to handle exception for action [{}], handler [{}]", action, handler), e);
             }
         }
 

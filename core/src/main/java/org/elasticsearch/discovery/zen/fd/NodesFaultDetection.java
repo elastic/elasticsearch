@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.zen.fd;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -168,7 +169,7 @@ public class NodesFaultDetection extends FaultDetection {
             });
         } catch (EsRejectedExecutionException ex) {
             logger.trace(
-                new ParameterizedMessage(
+                (Supplier<?>) () -> new ParameterizedMessage(
                     "[node  ] [{}] ignoring node failure (reason [{}]). Local node is shutting down",
                     node,
                     reason),
@@ -238,7 +239,7 @@ public class NodesFaultDetection extends FaultDetection {
 
                             retryCount++;
                             logger.trace(
-                                new ParameterizedMessage(
+                                (Supplier<?>) () -> new ParameterizedMessage(
                                     "[node  ] failed to ping [{}], retry [{}] out of [{}]",
                                     node,
                                     retryCount,

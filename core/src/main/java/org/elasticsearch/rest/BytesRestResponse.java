@@ -21,6 +21,7 @@ package org.elasticsearch.rest;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -124,9 +125,9 @@ public class BytesRestResponse extends RestResponse {
                 params =  new ToXContent.DelegatingMapParams(Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false"), channel.request());
             } else {
                 if (status.getStatus() < 500) {
-                    SUPPRESSED_ERROR_LOGGER.debug(new ParameterizedMessage("path: {}, params: {}", channel.request().rawPath(), channel.request().params()), e);
+                    SUPPRESSED_ERROR_LOGGER.debug((Supplier<?>) () -> new ParameterizedMessage("path: {}, params: {}", channel.request().rawPath(), channel.request().params()), e);
                 } else {
-                    SUPPRESSED_ERROR_LOGGER.warn(new ParameterizedMessage("path: {}, params: {}", channel.request().rawPath(), channel.request().params()), e);
+                    SUPPRESSED_ERROR_LOGGER.warn((Supplier<?>) () -> new ParameterizedMessage("path: {}, params: {}", channel.request().rawPath(), channel.request().params()), e);
                 }
                 params = channel.request();
             }

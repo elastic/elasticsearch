@@ -22,6 +22,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -172,7 +173,10 @@ public class BackgroundIndexer implements AutoCloseable {
                         logger.info("**** done indexing thread {}  stop: {} numDocsIndexed: {}", indexerId, stop.get(), indexCounter.get());
                     } catch (Exception e) {
                         failures.add(e);
-                        logger.warn(new ParameterizedMessage("**** failed indexing thread {} on doc id {}", indexerId, id), e);
+                        final long docId = id;
+                        logger.warn(
+                            (Supplier<?>)
+                                () -> new ParameterizedMessage("**** failed indexing thread {} on doc id {}", indexerId, docId), e);
                     } finally {
                         stopLatch.countDown();
                     }

@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
@@ -365,7 +366,7 @@ public abstract class Engine implements Closeable {
             throw ex;
         } catch (Exception ex) {
             ensureOpen(); // throw EngineCloseException here if we are already closed
-            logger.error(new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
             throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
         } finally {
             if (!success) {  // release the ref in the case of an error...
@@ -444,7 +445,7 @@ public abstract class Engine implements Closeable {
             try {
                 directory = engineConfig.getCodec().compoundFormat().getCompoundReader(segmentReader.directory(), segmentCommitInfo.info, IOContext.READ);
             } catch (IOException e) {
-                logger.warn(new ParameterizedMessage("Error when opening compound reader for Directory [{}] and SegmentCommitInfo [{}]", segmentReader.directory(), segmentCommitInfo), e);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Error when opening compound reader for Directory [{}] and SegmentCommitInfo [{}]", segmentReader.directory(), segmentCommitInfo), e);
 
                 return ImmutableOpenMap.of();
             }
@@ -459,14 +460,16 @@ public abstract class Engine implements Closeable {
             try {
                 files = directory.listAll();
             } catch (IOException e) {
-                logger.warn(new ParameterizedMessage("Couldn't list Compound Reader Directory [{}]", directory), e);
+                final Directory finalDirectory = directory;
+                logger.warn(
+                    (Supplier<?>) () -> new ParameterizedMessage("Couldn't list Compound Reader Directory [{}]", finalDirectory), e);
                 return ImmutableOpenMap.of();
             }
         } else {
             try {
                 files = segmentReader.getSegmentInfo().files().toArray(new String[]{});
             } catch (IOException e) {
-                logger.warn(new ParameterizedMessage("Couldn't list Directory from SegmentReader [{}] and SegmentInfo [{}]", segmentReader, segmentReader.getSegmentInfo()), e);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Couldn't list Directory from SegmentReader [{}] and SegmentInfo [{}]", segmentReader, segmentReader.getSegmentInfo()), e);
                 return ImmutableOpenMap.of();
             }
         }
@@ -480,7 +483,10 @@ public abstract class Engine implements Closeable {
             } catch (NoSuchFileException | FileNotFoundException e) {
                 logger.warn("Tried to query fileLength but file is gone [{}] [{}]", e, directory, file);
             } catch (IOException e) {
-                logger.warn(new ParameterizedMessage("Error when trying to query fileLength [{}] [{}]", directory, file), e);
+                final Directory finalDirectory = directory;
+                logger.warn(
+                    (Supplier<?>)
+                        () -> new ParameterizedMessage("Error when trying to query fileLength [{}] [{}]", finalDirectory, file), e);
             }
             if (length == 0L) {
                 continue;
@@ -492,7 +498,10 @@ public abstract class Engine implements Closeable {
             try {
                 directory.close();
             } catch (IOException e) {
-                logger.warn(new ParameterizedMessage("Error when closing compound reader on Directory [{}]", directory), e);
+                final Directory finalDirectory = directory;
+                logger.warn(
+                    (Supplier<?>)
+                        () -> new ParameterizedMessage("Error when closing compound reader on Directory [{}]", finalDirectory), e);
             }
         }
 
@@ -527,7 +536,7 @@ public abstract class Engine implements Closeable {
                 try {
                     segment.sizeInBytes = info.sizeInBytes();
                 } catch (IOException e) {
-                    logger.trace(new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
                 }
                 final SegmentReader segmentReader = segmentReader(reader.reader());
                 segment.memoryInBytes = segmentReader.ramBytesUsed();
@@ -557,7 +566,7 @@ public abstract class Engine implements Closeable {
                     try {
                         segment.sizeInBytes = info.sizeInBytes();
                     } catch (IOException e) {
-                        logger.trace(new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
+                        logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
                     }
                     segments.put(info.info.name, segment);
                 } else {
@@ -669,10 +678,10 @@ public abstract class Engine implements Closeable {
                     closeNoLock("engine failed on: [" + reason + "]");
                 } finally {
                     if (failedEngine != null) {
-                        logger.debug(new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]", reason), failure);
+                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]", reason), failure);
                         return;
                     }
-                    logger.warn(new ParameterizedMessage("failed engine [{}]", reason), failure);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed engine [{}]", reason), failure);
                     // we must set a failure exception, generate one if not supplied
                     failedEngine = (failure != null) ? failure : new IllegalStateException(reason);
                     // we first mark the store as corrupted before we notify any listeners
@@ -696,7 +705,7 @@ public abstract class Engine implements Closeable {
                 store.decRef();
             }
         } else {
-            logger.debug(new ParameterizedMessage("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason), failure);
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason), failure);
         }
     }
 

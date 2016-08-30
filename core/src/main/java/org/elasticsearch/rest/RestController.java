@@ -20,6 +20,7 @@
 package org.elasticsearch.rest;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -209,7 +210,7 @@ public class RestController extends AbstractLifecycleComponent {
             channel.sendResponse(new BytesRestResponse(channel, e));
         } catch (Exception inner) {
             inner.addSuppressed(e);
-            logger.error(new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()), inner);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()), inner);
         }
     }
 
@@ -311,7 +312,7 @@ public class RestController extends AbstractLifecycleComponent {
                 try {
                     channel.sendResponse(new BytesRestResponse(channel, e));
                 } catch (IOException e1) {
-                    logger.error(new ParameterizedMessage("Failed to send failure response for uri [{}]", request.uri()), e1);
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("Failed to send failure response for uri [{}]", request.uri()), e1);
                 }
             }
         }

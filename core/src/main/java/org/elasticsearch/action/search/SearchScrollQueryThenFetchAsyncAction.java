@@ -22,6 +22,7 @@ package org.elasticsearch.action.search;
 import com.carrotsearch.hppc.IntArrayList;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -147,7 +148,7 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
 
     void onQueryPhaseFailure(final int shardIndex, final AtomicInteger counter, final long searchId, Exception failure) {
         if (logger.isDebugEnabled()) {
-            logger.debug(new ParameterizedMessage("[{}] Failed to execute query phase", searchId), failure);
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] Failed to execute query phase", searchId), failure);
         }
         addShardFailure(shardIndex, new ShardSearchFailure(failure));
         successfulOps.decrementAndGet();

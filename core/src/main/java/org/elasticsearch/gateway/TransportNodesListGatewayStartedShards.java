@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -141,12 +142,13 @@ public class TransportNodesListGatewayStartedShards extends
                         }
                         Store.tryOpenIndex(shardPath.resolveIndex(), shardId, nodeEnv::shardLock, logger);
                     } catch (Exception exception) {
+                        final ShardPath finalShardPath = shardPath;
                         logger.trace(
-                            new ParameterizedMessage(
+                            (Supplier<?>) () -> new ParameterizedMessage(
                                 "{} can't open index for shard [{}] in path [{}]",
                                 shardId,
                                 shardStateMetaData,
-                                (shardPath != null) ? shardPath.resolveIndex() : ""),
+                                (finalShardPath != null) ? finalShardPath.resolveIndex() : ""),
                             exception);
                         String allocationId = shardStateMetaData.allocationId != null ?
                             shardStateMetaData.allocationId.getId() : null;

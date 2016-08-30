@@ -20,6 +20,7 @@
 package org.elasticsearch.search.geo;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
@@ -562,7 +563,10 @@ public class GeoFilterIT extends ESIntegTestCase {
             strategy.makeQuery(args);
             return true;
         } catch (UnsupportedSpatialOperation e) {
-            ESLoggerFactory.getLogger(GeoFilterIT.class.getName()).info(new ParameterizedMessage("Unsupported spatial operation {}", relation), e);
+            final SpatialOperation finalRelation = relation;
+            ESLoggerFactory
+                .getLogger(GeoFilterIT.class.getName())
+                .info((Supplier<?>) () -> new ParameterizedMessage("Unsupported spatial operation {}", finalRelation), e);
             return false;
         }
     }

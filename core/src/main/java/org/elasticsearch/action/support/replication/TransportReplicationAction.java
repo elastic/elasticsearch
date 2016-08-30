@@ -216,7 +216,9 @@ public abstract class TransportReplicationAction<
                         channel.sendResponse(e);
                     } catch (Exception inner) {
                         inner.addSuppressed(e);
-                        logger.warn(new ParameterizedMessage("Failed to send response for {}", actionName), inner);
+                        logger.warn(
+                            (org.apache.logging.log4j.util.Supplier<?>)
+                                () -> new ParameterizedMessage("Failed to send response for {}", actionName), inner);
                     }
                 }
             });
@@ -446,7 +448,11 @@ public abstract class TransportReplicationAction<
         public void onFailure(Exception e) {
             if (e instanceof RetryOnReplicaException) {
                 logger.trace(
-                    new ParameterizedMessage("Retrying operation on replica, action [{}], request [{}]", transportReplicaAction, request),
+                    (org.apache.logging.log4j.util.Supplier<?>)
+                        () -> new ParameterizedMessage(
+                            "Retrying operation on replica, action [{}], request [{}]",
+                            transportReplicaAction,
+                            request),
                     e);
                 final ThreadContext.StoredContext context = threadPool.getThreadContext().newStoredContext();
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
@@ -483,7 +489,10 @@ public abstract class TransportReplicationAction<
             } catch (IOException responseException) {
                 responseException.addSuppressed(e);
                 logger.warn(
-                    new ParameterizedMessage("failed to send error message back to client for action [{}]", transportReplicaAction),
+                    (org.apache.logging.log4j.util.Supplier<?>)
+                        () -> new ParameterizedMessage(
+                            "failed to send error message back to client for action [{}]",
+                            transportReplicaAction),
                     responseException);
             }
         }
@@ -688,7 +697,7 @@ public abstract class TransportReplicationAction<
                         if (cause instanceof ConnectTransportException || cause instanceof NodeClosedException ||
                             (isPrimaryAction && retryPrimaryException(cause))) {
                             logger.trace(
-                                new ParameterizedMessage(
+                                (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
                                     "received an error from node [{}] for request [{}], scheduling a retry",
                                     node.getId(),
                                     request),
@@ -738,7 +747,9 @@ public abstract class TransportReplicationAction<
         void finishAsFailed(Exception failure) {
             if (finished.compareAndSet(false, true)) {
                 setPhase(task, "failed");
-                logger.trace(new ParameterizedMessage("operation failed. action [{}], request [{}]", actionName, request), failure);
+                logger.trace(
+                    (org.apache.logging.log4j.util.Supplier<?>)
+                        () -> new ParameterizedMessage("operation failed. action [{}], request [{}]", actionName, request), failure);
                 listener.onFailure(failure);
             } else {
                 assert false : "finishAsFailed called but operation is already finished";
@@ -747,7 +758,11 @@ public abstract class TransportReplicationAction<
 
         void finishWithUnexpectedFailure(Exception failure) {
             logger.warn(
-                new ParameterizedMessage("unexpected error during the primary phase for action [{}], request [{}]", actionName, request),
+                (org.apache.logging.log4j.util.Supplier<?>)
+                    () -> new ParameterizedMessage(
+                        "unexpected error during the primary phase for action [{}], request [{}]",
+                        actionName,
+                        request),
                 failure);
             if (finished.compareAndSet(false, true)) {
                 setPhase(task, "failed");

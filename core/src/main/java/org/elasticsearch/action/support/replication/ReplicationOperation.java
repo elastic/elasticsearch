@@ -191,7 +191,7 @@ public class ReplicationOperation<
             @Override
             public void onFailure(Exception replicaException) {
                 logger.trace(
-                    new ParameterizedMessage(
+                    (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
                         "[{}] failure while performing [{}] on replica {}, request [{}]",
                         shard.shardId(),
                         opType,
@@ -205,7 +205,9 @@ public class ReplicationOperation<
                     shardReplicaFailures.add(new ReplicationResponse.ShardInfo.Failure(
                         shard.shardId(), shard.currentNodeId(), replicaException, restStatus, false));
                     String message = String.format(Locale.ROOT, "failed to perform %s on replica %s", opType, shard);
-                    logger.warn(new ParameterizedMessage("[{}] {}", shard.shardId(), message), replicaException);
+                    logger.warn(
+                        (org.apache.logging.log4j.util.Supplier<?>)
+                            () -> new ParameterizedMessage("[{}] {}", shard.shardId(), message), replicaException);
                     replicasProxy.failShard(shard, replicaRequest.primaryTerm(), message, replicaException,
                         ReplicationOperation.this::decPendingAndFinishIfNeeded,
                         ReplicationOperation.this::onPrimaryDemoted,

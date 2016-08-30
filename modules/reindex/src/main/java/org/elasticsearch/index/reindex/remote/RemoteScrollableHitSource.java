@@ -23,6 +23,7 @@ import org.apache.http.HttpEntity;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
@@ -127,7 +128,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
             @Override
             public void onFailure(Exception t) {
-                logger.warn(new ParameterizedMessage("Failed to clear scroll [{}]", scrollId), t);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to clear scroll [{}]", scrollId), t);
             }
         });
     }
@@ -174,7 +175,8 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                             if (RestStatus.TOO_MANY_REQUESTS.getStatus() == re.getResponse().getStatusLine().getStatusCode()) {
                                 if (retries.hasNext()) {
                                     TimeValue delay = retries.next();
-                                    logger.trace(new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
+                                    logger.trace(
+                                        (Supplier<?>) () -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
                                     countSearchRetry.run();
                                     threadPool.schedule(delay, ThreadPool.Names.SAME, RetryHelper.this);
                                     return;

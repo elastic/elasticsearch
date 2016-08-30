@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.settings;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -149,7 +150,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                     @Override
                     public void onFailure(String source, Exception e) {
                         //if the reroute fails we only log
-                        logger.debug(new ParameterizedMessage("failed to perform [{}]", source), e);
+                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to perform [{}]", source), e);
                         listener.onFailure(new ElasticsearchException("reroute after update settings failed", e));
                     }
 
@@ -167,7 +168,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
             @Override
             public void onFailure(String source, Exception e) {
-                logger.debug(new ParameterizedMessage("failed to perform [{}]", source), e);
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to perform [{}]", source), e);
                 super.onFailure(source, e);
             }
 

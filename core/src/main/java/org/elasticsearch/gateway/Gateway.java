@@ -40,9 +40,6 @@ import org.elasticsearch.indices.IndicesService;
 import java.util.Arrays;
 import java.util.function.Supplier;
 
-/**
- *
- */
 public class Gateway extends AbstractComponent implements ClusterStateListener {
 
     private final ClusterService clusterService;
@@ -139,9 +136,10 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                             indicesService.verifyIndexMetadata(nodeServicesProvider, electedIndexMetaData, electedIndexMetaData);
                         }
                     } catch (Exception e) {
+                        final Index electedIndex = electedIndexMetaData.getIndex();
                         logger.warn(
-                            new ParameterizedMessage("recovering index {} failed - recovering as closed", electedIndexMetaData.getIndex()),
-                            e);
+                            (org.apache.logging.log4j.util.Supplier<?>)
+                                () -> new ParameterizedMessage("recovering index {} failed - recovering as closed", electedIndex), e);
                         electedIndexMetaData = IndexMetaData.builder(electedIndexMetaData).state(IndexMetaData.State.CLOSE).build();
                     }
 

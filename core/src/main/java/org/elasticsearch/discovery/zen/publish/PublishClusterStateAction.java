@@ -245,7 +245,8 @@ public class PublishClusterStateAction extends AbstractComponent {
                 bytes = serializeFullClusterState(clusterState, node.getVersion());
                 serializedStates.put(node.getVersion(), bytes);
             } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("failed to serialize cluster_state before publishing it to node {}", node), e);
+                logger.warn(
+                    (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage("failed to serialize cluster_state before publishing it to node {}", node), e);
                 sendingController.onNodeSendFailed(node, e);
                 return;
             }
@@ -291,13 +292,14 @@ public class PublishClusterStateAction extends AbstractComponent {
                                 logger.debug("resending full cluster state to node {} reason {}", node, exp.getDetailedMessage());
                                 sendFullClusterState(clusterState, serializedStates, node, publishTimeout, sendingController);
                             } else {
-                                logger.debug(new ParameterizedMessage("failed to send cluster state to {}", node), exp);
+                                logger.debug((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage("failed to send cluster state to {}", node), exp);
                                 sendingController.onNodeSendFailed(node, exp);
                             }
                         }
                     });
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("error sending cluster state to {}", node), e);
+            logger.warn(
+                (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage("error sending cluster state to {}", node), e);
             sendingController.onNodeSendFailed(node, e);
         }
     }
@@ -323,12 +325,12 @@ public class PublishClusterStateAction extends AbstractComponent {
 
                         @Override
                         public void handleException(TransportException exp) {
-                            logger.debug(new ParameterizedMessage("failed to commit cluster state (uuid [{}], version [{}]) to {}", clusterState.stateUUID(), clusterState.version(), node), exp);
+                            logger.debug((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage("failed to commit cluster state (uuid [{}], version [{}]) to {}", clusterState.stateUUID(), clusterState.version(), node), exp);
                             sendingController.getPublishResponseHandler().onFailure(node, exp);
                         }
                     });
         } catch (Exception t) {
-            logger.warn(new ParameterizedMessage("error sending cluster state commit (uuid [{}], version [{}]) to {}", clusterState.stateUUID(), clusterState.version(), node), t);
+            logger.warn((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage("error sending cluster state commit (uuid [{}], version [{}]) to {}", clusterState.stateUUID(), clusterState.version(), node), t);
             sendingController.getPublishResponseHandler().onFailure(node, t);
         }
     }
@@ -627,7 +629,7 @@ public class PublishClusterStateAction extends AbstractComponent {
             if (committedOrFailed()) {
                 return committed == false;
             }
-            logger.trace(new ParameterizedMessage("failed to commit version [{}]. {}", clusterState.version(), details), reason);
+            logger.trace((org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage("failed to commit version [{}]. {}", clusterState.version(), details), reason);
             committed = false;
             committedOrFailedLatch.countDown();
             return true;

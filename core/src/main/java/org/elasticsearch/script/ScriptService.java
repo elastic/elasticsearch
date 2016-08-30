@@ -20,6 +20,7 @@
 package org.elasticsearch.script;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -605,7 +606,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                         logger.warn("skipping compile of script file [{}] as all scripted operations are disabled for file scripts", file.toAbsolutePath());
                     }
                 } catch (Exception e) {
-                    logger.warn(new ParameterizedMessage("failed to load/compile script [{}]", scriptNameExt.v1()), e);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to load/compile script [{}]", scriptNameExt.v1()), e);
                 }
             }
         }

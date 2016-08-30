@@ -19,6 +19,7 @@
 package org.elasticsearch.indices.analysis;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.SimpleFSDirectory;
@@ -139,7 +140,9 @@ public class HunspellService extends AbstractComponent {
                                 } catch (Exception e) {
                                     // The cache loader throws unchecked exception (see #loadDictionary()),
                                     // here we simply report the exception and continue loading the dictionaries
-                                    logger.error(new ParameterizedMessage("exception while loading dictionary {}", file.getFileName()), e);
+                                    logger.error(
+                                        (Supplier<?>) () -> new ParameterizedMessage(
+                                            "exception while loading dictionary {}", file.getFileName()), e);
                                 }
                             }
                         }
@@ -197,7 +200,7 @@ public class HunspellService extends AbstractComponent {
             }
 
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("Could not load hunspell dictionary [{}]", locale), e);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("Could not load hunspell dictionary [{}]", locale), e);
             throw e;
         } finally {
             IOUtils.close(affixStream);

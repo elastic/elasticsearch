@@ -21,6 +21,7 @@ package org.elasticsearch.client.transport;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -339,7 +340,7 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                         transportService.connectToNode(node);
                     } catch (Exception e) {
                         it.remove();
-                        logger.debug(new ParameterizedMessage("failed to connect to discovered node [{}]", node), e);
+                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to connect to discovered node [{}]", node), e);
                     }
                 }
             }
@@ -376,7 +377,9 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                         logger.trace("connecting to listed node (light) [{}]", listedNode);
                         transportService.connectToNodeLight(listedNode);
                     } catch (Exception e) {
-                        logger.debug(new ParameterizedMessage("failed to connect to node [{}], removed from nodes list", listedNode), e);
+                        logger.debug(
+                            (Supplier<?>)
+                                () -> new ParameterizedMessage("failed to connect to node [{}], removed from nodes list", listedNode), e);
                         newFilteredNodes.add(listedNode);
                         continue;
                     }
@@ -408,7 +411,8 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                         newNodes.add(listedNode);
                     }
                 } catch (Exception e) {
-                    logger.info(new ParameterizedMessage("failed to get node info for {}, disconnecting...", listedNode), e);
+                    logger.info(
+                        (Supplier<?>) () -> new ParameterizedMessage("failed to get node info for {}, disconnecting...", listedNode), e);
                     transportService.disconnectFromNode(listedNode);
                 }
             }
@@ -452,7 +456,9 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                                         transportService.connectToNodeLight(listedNode);
                                     }
                                 } catch (Exception e) {
-                                    logger.debug(new ParameterizedMessage("failed to connect to node [{}], ignoring...", listedNode), e);
+                                    logger.debug(
+                                        (Supplier<?>)
+                                            () -> new ParameterizedMessage("failed to connect to node [{}], ignoring...", listedNode), e);
                                     latch.countDown();
                                     return;
                                 }
@@ -482,17 +488,16 @@ public class TransportClientNodesService extends AbstractComponent implements Cl
                                         @Override
                                         public void handleException(TransportException e) {
                                             logger.info(
-                                                new ParameterizedMessage(
-                                                    "failed to get local cluster state for {}, disconnecting...",
-                                                    listedNode),
-                                                e);
+                                                (Supplier<?>) () -> new ParameterizedMessage(
+                                                    "failed to get local cluster state for {}, disconnecting...", listedNode), e);
                                             transportService.disconnectFromNode(listedNode);
                                             latch.countDown();
                                         }
                                     });
                         } catch (Exception e) {
                             logger.info(
-                                new ParameterizedMessage("failed to get local cluster state info for {}, disconnecting...", listedNode), e);
+                                (Supplier<?>)() -> new ParameterizedMessage(
+                                    "failed to get local cluster state info for {}, disconnecting...", listedNode), e);
                             transportService.disconnectFromNode(listedNode);
                             latch.countDown();
                         }

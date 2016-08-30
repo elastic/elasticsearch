@@ -21,6 +21,7 @@ package org.elasticsearch.test.loggerusage;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.loggerusage.ESLoggerUsageChecker.WrongLoggerUsage;
@@ -115,7 +116,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkOrderOfExceptionArgument1() {
-        logger.info(new ParameterizedMessage("Hello {}", "world"), new Exception());
+        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}", "world"), new Exception());
     }
 
     public void checkFailOrderOfExceptionArgument1() {
@@ -123,7 +124,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkOrderOfExceptionArgument2() {
-        logger.info(new ParameterizedMessage("Hello {}, {}", "world", 42), new Exception());
+        logger.info((Supplier<?>) () -> new ParameterizedMessage("Hello {}, {}", "world", 42), new Exception());
     }
 
     public void checkFailOrderOfExceptionArgument2() {
@@ -135,7 +136,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkFailNonConstantMessageWithArguments(boolean b) {
-        logger.info(new ParameterizedMessage(Boolean.toString(b), 42), new Exception());
+        logger.info((Supplier<?>) () -> new ParameterizedMessage(Boolean.toString(b), 42), new Exception());
     }
 
     public void checkComplexUsage(boolean b) {

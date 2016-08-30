@@ -21,6 +21,7 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.io.PathUtils;
@@ -70,14 +71,18 @@ public class MaxMapCountCheckTests extends ESTestCase {
         when(reader.readLine()).thenThrow(ioException);
         final Logger logger = mock(Logger.class);
         assertThat(check.getMaxMapCount(logger), equalTo(-1L));
-        verify(logger).warn(new ParameterizedMessage("I/O exception while trying to read [{}]", procSysVmMaxMapCountPath), ioException);
+        verify(logger).warn(
+            (Supplier<?>) () -> new ParameterizedMessage(
+                "I/O exception while trying to read [{}]", procSysVmMaxMapCountPath), ioException);
         verify(reader).close();
 
         reset(reader);
         reset(logger);
         when(reader.readLine()).thenReturn("eof");
         assertThat(check.getMaxMapCount(logger), equalTo(-1L));
-        verify(logger).warn(eq(new ParameterizedMessage("unable to parse vm.max_map_count [{}]", "eof")), any(NumberFormatException.class));
+        verify(logger).warn(eq(
+            (Supplier<?>) () -> new ParameterizedMessage(
+                "unable to parse vm.max_map_count [{}]", "eof")), any(NumberFormatException.class));
         verify(reader).close();
     }
 

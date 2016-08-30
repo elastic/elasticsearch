@@ -32,7 +32,6 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -316,7 +315,7 @@ public class RecoverySourceHandler {
                                 "checksums are ok", null);
                         exception.addSuppressed(targetException);
                         logger.warn(
-                            new ParameterizedMessage(
+                            (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
                                 "{} Remote file corruption during finalization of recovery on node {}. local checksum OK",
                                 shard.shardId(),
                                 request.targetNode()),
@@ -563,7 +562,7 @@ public class RecoverySourceHandler {
                                     "checksums are ok", null);
                             exception.addSuppressed(e);
                             logger.warn(
-                                new ParameterizedMessage(
+                                (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
                                     "{} Remote file corruption on node {}, recovering {}. local checksum OK",
                                     shardId,
                                     request.targetNode(),

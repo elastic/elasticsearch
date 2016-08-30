@@ -19,6 +19,7 @@
 package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -282,7 +283,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    logger.warn(new ParameterizedMessage("failed to execute [{}]", source), e);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to execute [{}]", source), e);
                 }
             });
 

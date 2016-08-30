@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -461,7 +462,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    logger.warn(new ParameterizedMessage("[{}] failed to restore snapshot", snapshotId), e);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to restore snapshot", snapshotId), e);
                     listener.onFailure(e);
                 }
 
@@ -478,7 +479,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
 
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("[{}] failed to restore snapshot", request.repositoryName + ":" + request.snapshotName), e);
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to restore snapshot", request.repositoryName + ":" + request.snapshotName), e);
             listener.onFailure(e);
         }
     }
@@ -602,7 +603,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             @Override
             public void onFailure(String source, @Nullable Exception e) {
                 for (UpdateIndexShardRestoreStatusRequest request : drainedRequests) {
-                    logger.warn(new ParameterizedMessage("[{}][{}] failed to update snapshot status to [{}]", request.snapshot(), request.shardId(), request.status()), e);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}][{}] failed to update snapshot status to [{}]", request.snapshot(), request.shardId(), request.status()), e);
                 }
             }
 
@@ -670,7 +671,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     try {
                         listener.onResponse(new RestoreCompletionResponse(snapshot, restoreInfo));
                     } catch (Exception e) {
-                        logger.warn(new ParameterizedMessage("failed to update snapshot status for [{}]", listener), e);
+                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to update snapshot status for [{}]", listener), e);
                     }
                 }
             }

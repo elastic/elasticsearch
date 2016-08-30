@@ -21,6 +21,7 @@ package org.elasticsearch.index.store;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
@@ -280,7 +281,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     directory.deleteFile(origFile);
                 } catch (FileNotFoundException | NoSuchFileException e) {
                 } catch (Exception ex) {
-                    logger.debug(new ParameterizedMessage("failed to delete file [{}]", origFile), ex);
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to delete file [{}]", origFile), ex);
                 }
                 // now, rename the files... and fail it it won't work
                 directory.rename(tempFile, origFile);
@@ -401,7 +402,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         try {
             tryOpenIndex(indexLocation, shardId, shardLocker, logger);
         } catch (Exception ex) {
-            logger.trace(new ParameterizedMessage("Can't open index for path [{}]", indexLocation), ex);
+            logger.trace((Supplier<?>) () -> new ParameterizedMessage("Can't open index for path [{}]", indexLocation), ex);
             return false;
         }
         return true;
@@ -606,7 +607,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                         // if one of those files can't be deleted we better fail the cleanup otherwise we might leave an old commit point around?
                         throw new IllegalStateException("Can't delete " + existingFile + " - cleanup failed", ex);
                     }
-                    logger.debug(new ParameterizedMessage("failed to delete file [{}]", existingFile), ex);
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to delete file [{}]", existingFile), ex);
                     // ignore, we don't really care, will get deleted later on
                 }
             }
@@ -824,7 +825,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     // Lucene checks the checksum after it tries to lookup the codec etc.
                     // in that case we might get only IAE or similar exceptions while we are really corrupt...
                     // TODO we should check the checksum in lucene if we hit an exception
-                    logger.warn(new ParameterizedMessage("failed to build store metadata. checking segment info integrity (with commit [{}])", commit == null ? "no" : "yes"), ex);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to build store metadata. checking segment info integrity (with commit [{}])", commit == null ? "no" : "yes"), ex);
                     Lucene.checkSegmentInfoIntegrity(directory);
                 } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException cex) {
                     cex.addSuppressed(ex);
@@ -859,7 +860,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     }
 
                 } catch (Exception ex) {
-                    logger.debug(new ParameterizedMessage("Can retrieve checksum from file [{}]", file), ex);
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("Can retrieve checksum from file [{}]", file), ex);
                     throw ex;
                 }
                 builder.put(file, new StoreFileMetaData(file, length, checksum, version, fileHash.get()));

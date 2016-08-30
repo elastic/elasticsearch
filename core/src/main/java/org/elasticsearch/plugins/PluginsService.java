@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
@@ -246,7 +247,7 @@ public class PluginsService extends AbstractComponent {
                             logger.warn("plugin {}, failed to invoke custom onModule method", e, plugin.v1().getName());
                             throw new ElasticsearchException("failed to invoke onModule", e);
                         } catch (Exception e) {
-                            logger.warn(new ParameterizedMessage("plugin {}, failed to invoke custom onModule method", plugin.v1().getName()), e);
+                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("plugin {}, failed to invoke custom onModule method", plugin.v1().getName()), e);
                             throw e;
                         }
                     }

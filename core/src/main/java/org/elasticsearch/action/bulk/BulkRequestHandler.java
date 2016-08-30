@@ -20,6 +20,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
@@ -77,12 +78,12 @@ abstract class BulkRequestHandler {
                 listener.afterBulk(executionId, bulkRequest, bulkResponse);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                logger.info(new ParameterizedMessage("Bulk request {} has been cancelled.", executionId), e);
+                logger.info((Supplier<?>) () -> new ParameterizedMessage("Bulk request {} has been cancelled.", executionId), e);
                 if (!afterCalled) {
                     listener.afterBulk(executionId, bulkRequest, e);
                 }
             } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("Failed to execute bulk request {}.", executionId), e);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to execute bulk request {}.", executionId), e);
                 if (!afterCalled) {
                     listener.afterBulk(executionId, bulkRequest, e);
                 }
@@ -143,10 +144,10 @@ abstract class BulkRequestHandler {
                 bulkRequestSetupSuccessful = true;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                logger.info(new ParameterizedMessage("Bulk request {} has been cancelled.", executionId), e);
+                logger.info((Supplier<?>) () -> new ParameterizedMessage("Bulk request {} has been cancelled.", executionId), e);
                 listener.afterBulk(executionId, bulkRequest, e);
             } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("Failed to execute bulk request {}.", executionId), e);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to execute bulk request {}.", executionId), e);
                 listener.afterBulk(executionId, bulkRequest, e);
             } finally {
                 if (!bulkRequestSetupSuccessful && acquired) {  // if we fail on client.bulk() release the semaphore

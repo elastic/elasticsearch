@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -536,7 +537,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                             listener.actionGet();
 
                         } catch (Exception e) {
-                            logger.trace(new ParameterizedMessage("caught exception while sending to node {}", nodeA), e);
+                            logger.trace(
+                                (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", nodeA), e);
                         }
                     }
                 }
@@ -571,7 +573,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         } catch (ConnectTransportException e) {
                             // ok!
                         } catch (Exception e) {
-                            logger.error(new ParameterizedMessage("caught exception while sending to node {}", node), e);
+                            logger.error(
+                                (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", node), e);
                             sendingErrors.add(e);
                         }
                     }
@@ -1685,7 +1688,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public void handleException(TransportException exp) {
-                logger.debug(new ParameterizedMessage("---> received exception for id {}", id), exp);
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("---> received exception for id {}", id), exp);
                 allRequestsDone.countDown();
                 Throwable unwrap = ExceptionsHelper.unwrap(exp, IOException.class);
                 assertNotNull(unwrap);

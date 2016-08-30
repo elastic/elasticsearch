@@ -20,6 +20,7 @@
 package org.elasticsearch.indices;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -178,7 +179,7 @@ public class IndexingMemoryController extends AbstractComponent implements Index
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(new ParameterizedMessage("failed to write indexing buffer for shard [{}]; ignoring", shard.shardId()), e);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to write indexing buffer for shard [{}]; ignoring", shard.shardId()), e);
             }
         });
     }

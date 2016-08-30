@@ -217,7 +217,10 @@ public class MapperService extends AbstractIndexComponent {
                     }
                 }
             } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("[{}] failed to add mapping [{}], source [{}]", index(), mappingType, mappingSource), e);
+                logger.warn(
+                    (org.apache.logging.log4j.util.Supplier<?>)
+                        () -> new ParameterizedMessage("[{}] failed to add mapping [{}], source [{}]", index(), mappingType, mappingSource),
+                    e);
                 throw e;
             }
         }

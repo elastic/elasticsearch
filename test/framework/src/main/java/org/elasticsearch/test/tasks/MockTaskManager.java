@@ -20,6 +20,7 @@
 package org.elasticsearch.test.tasks;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -53,7 +54,7 @@ public class MockTaskManager extends TaskManager {
                     listener.onTaskRegistered(task);
                 } catch (Exception e) {
                     logger.warn(
-                        new ParameterizedMessage(
+                        (Supplier<?>) () -> new ParameterizedMessage(
                             "failed to notify task manager listener about unregistering the task with id {}",
                             task.getId()),
                         e);
@@ -72,9 +73,8 @@ public class MockTaskManager extends TaskManager {
                     listener.onTaskUnregistered(task);
                 } catch (Exception e) {
                     logger.warn(
-                        new ParameterizedMessage("failed to notify task manager listener about unregistering the task with id {}",
-                            task.getId()),
-                        e);
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                            "failed to notify task manager listener about unregistering the task with id {}", task.getId()), e);
                 }
             }
         } else {
@@ -90,7 +90,7 @@ public class MockTaskManager extends TaskManager {
                 listener.waitForTaskCompletion(task);
             } catch (Exception e) {
                 logger.warn(
-                    new ParameterizedMessage(
+                    (Supplier<?>) () -> new ParameterizedMessage(
                         "failed to notify task manager listener about waitForTaskCompletion the task with id {}",
                         task.getId()),
                     e);

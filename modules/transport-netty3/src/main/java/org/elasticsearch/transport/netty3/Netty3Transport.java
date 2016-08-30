@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.netty3;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
@@ -553,7 +554,7 @@ public class Netty3Transport extends TcpTransport<Channel> {
                 try {
                     serverBootstrap.releaseExternalResources();
                 } catch (Exception e) {
-                    logger.debug(new ParameterizedMessage("Error closing serverBootstrap for profile [{}]", name), e);
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("Error closing serverBootstrap for profile [{}]", name), e);
                 }
             }
             serverBootstraps.clear();

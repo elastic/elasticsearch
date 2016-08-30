@@ -20,6 +20,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.search.spell.LevensteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
@@ -128,7 +129,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 settingUpdater.getValue(current, previous);
             } catch (RuntimeException ex) {
                 exceptions.add(ex);
-                logger.debug(new ParameterizedMessage("failed to prepareCommit settings for [{}]", settingUpdater), ex);
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to prepareCommit settings for [{}]", settingUpdater), ex);
             }
         }
         // here we are exhaustive and record all settings that failed.
@@ -156,7 +157,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 try {
                     applyRunnables.add(settingUpdater.updater(current, previous));
                 } catch (Exception ex) {
-                    logger.warn(new ParameterizedMessage("failed to prepareCommit settings for [{}]", settingUpdater), ex);
+                    logger.warn(
+                        (Supplier<?>) () -> new ParameterizedMessage("failed to prepareCommit settings for [{}]", settingUpdater), ex);
                     throw ex;
                 }
             }
@@ -521,7 +523,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
             } catch (IllegalArgumentException ex) {
                 changed = true;
                 logger.warn(
-                    new ParameterizedMessage("found invalid setting: {} value: {} - archiving", entry.getKey(), entry.getValue()), ex);
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "found invalid setting: {} value: {} - archiving", entry.getKey(), entry.getValue()), ex);
                 /*
                  * We put them back in here such that tools can check from the outside if there are any indices with broken settings. The
                  * setting can remain there but we want users to be aware that some of their setting are broken and they can research why

@@ -20,6 +20,7 @@
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -395,7 +396,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         final boolean flushEngine = deleted.get() == false && closed.get();
                         indexShard.close(reason, flushEngine);
                     } catch (Exception e) {
-                        logger.debug(new ParameterizedMessage("[{}] failed to close index shard", shardId), e);
+                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to close index shard", shardId), e);
                         // ignore
                     }
                 }
@@ -406,7 +407,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             try {
                 store.close();
             } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("[{}] failed to close store on shard removal (reason: [{}])", shardId, reason), e);
+                logger.warn(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "[{}] failed to close store on shard removal (reason: [{}])", shardId, reason), e);
             }
         }
     }
@@ -426,7 +429,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             } catch (IOException e) {
                 shardStoreDeleter.addPendingDelete(lock.getShardId(), indexSettings);
                 logger.debug(
-                    new ParameterizedMessage("[{}] failed to delete shard content - scheduled a retry", lock.getShardId().id()), e);
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "[{}] failed to delete shard content - scheduled a retry", lock.getShardId().id()), e);
             }
         }
     }
@@ -638,7 +642,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 try {
                     shard.onSettingsChanged();
                 } catch (Exception e) {
-                    logger.warn(new ParameterizedMessage("[{}] failed to notify shard about setting change", shard.shardId().id()), e);
+                    logger.warn(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                            "[{}] failed to notify shard about setting change", shard.shardId().id()), e);
                 }
             }
             if (refreshTask.getInterval().equals(indexSettings.getRefreshInterval()) == false) {
@@ -781,7 +787,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 if (lastThrownException == null || sameException(lastThrownException, ex) == false) {
                     // prevent the annoying fact of logging the same stuff all the time with an interval of 1 sec will spam all your logs
                     indexService.logger.warn(
-                        new ParameterizedMessage(
+                        (Supplier<?>) () -> new ParameterizedMessage(
                             "failed to run task {} - suppressing re-occurring exceptions unless the exception changes",
                             toString()),
                         ex);

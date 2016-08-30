@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -227,7 +228,8 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                     logger.trace("[{}] on node [{}] has no allocation id, out-dated shard (shard state version: [{}])", shard, nodeShardState.getNode(), nodeShardState.legacyVersion());
                 }
             } else {
-                logger.trace(new ParameterizedMessage("[{}] on node [{}] has allocation id [{}] but the store can not be opened, treating as no allocation id", shard, nodeShardState.getNode(), allocationId), nodeShardState.storeException());
+                final String finalAllocationId = allocationId;
+                logger.trace((Supplier<?>) () -> new ParameterizedMessage("[{}] on node [{}] has allocation id [{}] but the store can not be opened, treating as no allocation id", shard, nodeShardState.getNode(), finalAllocationId), nodeShardState.storeException());
                 allocationId = null;
             }
 
@@ -351,8 +353,9 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                     logger.trace("[{}] on node [{}] has allocation id [{}]", shard, nodeShardState.getNode(), nodeShardState.allocationId());
                 }
             } else {
+                final long finalVerison = version;
                 // when there is an store exception, we disregard the reported version and assign it as no version (same as shard does not exist)
-                logger.trace(new ParameterizedMessage("[{}] on node [{}] has version [{}] but the store can not be opened, treating no version", shard, nodeShardState.getNode(), version), nodeShardState.storeException());
+                logger.trace((Supplier<?>) () -> new ParameterizedMessage("[{}] on node [{}] has version [{}] but the store can not be opened, treating no version", shard, nodeShardState.getNode(), finalVerison), nodeShardState.storeException());
                 version = ShardStateMetaData.NO_VERSION;
             }
 

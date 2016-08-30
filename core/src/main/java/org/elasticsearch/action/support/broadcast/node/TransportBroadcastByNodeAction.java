@@ -364,7 +364,9 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         protected void onNodeFailure(DiscoveryNode node, int nodeIndex, Throwable t) {
             String nodeId = node.getId();
             if (logger.isDebugEnabled() && !(t instanceof NodeShouldNotConnectException)) {
-                logger.debug(new ParameterizedMessage("failed to execute [{}] on node [{}]", actionName, nodeId), t);
+                logger.debug(
+                    (org.apache.logging.log4j.util.Supplier<?>)
+                        () -> new ParameterizedMessage("failed to execute [{}] on node [{}]", actionName, nodeId), t);
             }
 
             // this is defensive to protect against the possibility of double invocation
@@ -442,11 +444,23 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 shardResults[shardIndex] = failure;
                 if (TransportActions.isShardNotAvailableException(e)) {
                     if (logger.isTraceEnabled()) {
-                        logger.trace(new ParameterizedMessage("[{}] failed to execute operation for shard [{}]", actionName, shardRouting.shortSummary()), e);
+                        logger.trace(
+                            (org.apache.logging.log4j.util.Supplier<?>)
+                                () -> new ParameterizedMessage(
+                                    "[{}] failed to execute operation for shard [{}]",
+                                    actionName,
+                                    shardRouting.shortSummary()),
+                            e);
                     }
                 } else {
                     if (logger.isDebugEnabled()) {
-                        logger.debug(new ParameterizedMessage("[{}] failed to execute operation for shard [{}]", actionName, shardRouting.shortSummary()), e);
+                        logger.debug(
+                            (org.apache.logging.log4j.util.Supplier<?>)
+                                () -> new ParameterizedMessage(
+                                    "[{}] failed to execute operation for shard [{}]",
+                                    actionName,
+                                    shardRouting.shortSummary()),
+                            e);
                     }
                 }
             }

@@ -22,6 +22,7 @@ package org.elasticsearch.repositories;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -84,7 +85,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
                 try {
                     doVerify(repository, verificationToken, localNode);
                 } catch (Exception e) {
-                    logger.warn(new ParameterizedMessage("[{}] failed to verify repository", repository), e);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to verify repository", repository), e);
                     errors.add(new VerificationFailure(node.getId(), e));
                 }
                 if (counter.decrementAndGet() == 0) {
@@ -155,7 +156,7 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
             try {
                 doVerify(request.repository, request.verificationToken, localNode);
             } catch (Exception ex) {
-                logger.warn(new ParameterizedMessage("[{}] failed to verify repository", request.repository), ex);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to verify repository", request.repository), ex);
                 throw ex;
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);

@@ -64,7 +64,11 @@ public class TransportChannelResponseHandler<T extends TransportResponse> implem
             channel.sendResponse(exp);
         } catch (IOException e) {
             logger.debug(
-                new ParameterizedMessage("failed to send failure {}", extraInfoOnError == null ? "" : "(" + extraInfoOnError + ")"), e);
+                (org.apache.logging.log4j.util.Supplier<?>)
+                    () -> new ParameterizedMessage(
+                        "failed to send failure {}",
+                        extraInfoOnError == null ? "" : "(" + extraInfoOnError + ")"),
+                e);
         }
     }
 

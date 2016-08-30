@@ -194,7 +194,7 @@ public class SearchTransformTests extends ESIntegTestCase {
             builder.field("search_type", searchType.name());
         }
         if (templateName != null) {
-            TextTemplate template = TextTemplate.file(templateName).build();
+            TextTemplate template = new TextTemplate(templateName, null, ScriptService.ScriptType.FILE, null);
             builder.field("template", template);
         }
 

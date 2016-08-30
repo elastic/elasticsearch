@@ -142,7 +142,7 @@ public class ChainInputTests extends ESTestCase {
 
         HttpInput.Builder httpInputBuilder = httpInput(HttpRequestTemplate.builder("theHost", 1234)
                 .path("/index/_search")
-                .body(jsonBuilder().startObject().field("size", 1).endObject())
+                .body(jsonBuilder().startObject().field("size", 1).endObject().string())
                 .auth(new BasicAuth("test", "changeme".toCharArray())));
 
         ChainInput.Builder chainedInputBuilder = chainInput()

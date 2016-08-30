@@ -440,7 +440,7 @@ public class WatchTests extends ESTestCase {
         if (randomBoolean()) {
             HttpRequestTemplate httpRequest = HttpRequestTemplate.builder("test.host", randomIntBetween(8000, 9000))
                     .method(randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT))
-                    .path(TextTemplate.inline("_url").build())
+                    .path(new TextTemplate("_url"))
                     .build();
             WebhookAction action = new WebhookAction(httpRequest);
             list.add(new ActionWrapper("_webhook_" + randomAsciiOfLength(8), randomThrottler(), randomCondition(), randomTransform(),

@@ -47,9 +47,6 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 public class PagerDutyActionTests extends ESTestCase {
 
     private PagerDutyService service;
@@ -64,7 +61,7 @@ public class PagerDutyActionTests extends ESTestCase {
 
         TextTemplateEngine templateEngine = mock(TextTemplateEngine.class);
 
-        TextTemplate description = TextTemplate.inline("_description").build();
+        TextTemplate description = new TextTemplate("_description");
         IncidentEvent.Template.Builder eventBuilder = new IncidentEvent.Template.Builder(description);
         boolean attachPayload = randomBoolean();
         eventBuilder.setAttachPayload(attachPayload);
@@ -133,31 +130,31 @@ public class PagerDutyActionTests extends ESTestCase {
 
         TextTemplate incidentKey = null;
         if (randomBoolean()) {
-            incidentKey = TextTemplate.inline("_incident_key").build();
+            incidentKey = new TextTemplate("_incident_key");
             builder.field("incident_key", incidentKey);
         }
 
         TextTemplate description = null;
         if (randomBoolean()) {
-            description = TextTemplate.inline("_description").build();
+            description = new TextTemplate("_description");
             builder.field("description", description);
         }
 
         TextTemplate client = null;
         if (randomBoolean()) {
-            client = TextTemplate.inline("_client").build();
+            client = new TextTemplate("_client");
             builder.field("client", client);
         }
 
         TextTemplate clientUrl = null;
         if (randomBoolean()) {
-            clientUrl = TextTemplate.inline("_client_url").build();
+            clientUrl = new TextTemplate("_client_url");
             builder.field("client_url", clientUrl);
         }
 
         TextTemplate eventType = null;
         if (randomBoolean()) {
-            eventType = TextTemplate.inline(randomFrom("trigger", "resolve", "acknowledge")).build();
+            eventType = new TextTemplate(randomFrom("trigger", "resolve", "acknowledge"));
             builder.field("event_type", eventType);
         }
 
@@ -169,9 +166,8 @@ public class PagerDutyActionTests extends ESTestCase {
         IncidentEventContext.Template[] contexts = null;
         if (randomBoolean()) {
             contexts = new IncidentEventContext.Template[] {
-                    IncidentEventContext.Template.link(TextTemplate.inline("_href").build(), TextTemplate.inline("_text").build()),
-                    IncidentEventContext.Template.image(TextTemplate.inline("_src").build(), TextTemplate.inline("_href").build(),
-                            TextTemplate.inline("_alt").build())
+                    IncidentEventContext.Template.link(new TextTemplate("_href"), new TextTemplate("_text")),
+                    IncidentEventContext.Template.image(new TextTemplate("_src"), new TextTemplate("_href"), new TextTemplate("_alt"))
             };
             builder.array("context", (Object) contexts);
         }
@@ -197,27 +193,26 @@ public class PagerDutyActionTests extends ESTestCase {
         IncidentEvent.Template.Builder event = IncidentEvent.templateBuilder(randomAsciiOfLength(50));
 
         if (randomBoolean()) {
-            event.setIncidentKey(TextTemplate.inline(randomAsciiOfLength(50)).build());
+            event.setIncidentKey(new TextTemplate(randomAsciiOfLength(50)));
         }
         if (randomBoolean()) {
-            event.setClient(TextTemplate.inline(randomAsciiOfLength(50)).build());
+            event.setClient(new TextTemplate(randomAsciiOfLength(50)));
         }
         if (randomBoolean()) {
-            event.setClientUrl(TextTemplate.inline(randomAsciiOfLength(50)).build());
+            event.setClientUrl(new TextTemplate(randomAsciiOfLength(50)));
         }
         if (randomBoolean()) {
             event.setAttachPayload(randomBoolean());
         }
         if (randomBoolean()) {
-            event.addContext(IncidentEventContext.Template.link(TextTemplate.inline("_href").build(),
-                    TextTemplate.inline("_text").build()));
+            event.addContext(IncidentEventContext.Template.link(new TextTemplate("_href"), new TextTemplate("_text")));
         }
         if (randomBoolean()) {
-            event.addContext(IncidentEventContext.Template.image(TextTemplate.inline("_src").build(),
-                    TextTemplate.inline("_href").build(), TextTemplate.inline("_alt").build()));
+            event.addContext(IncidentEventContext.Template.image(new TextTemplate("_src"), new TextTemplate("_href"),
+                    new TextTemplate("_alt")));
         }
         if (randomBoolean()) {
-            event.setEventType(TextTemplate.inline(randomAsciiOfLength(50)).build());
+            event.setEventType(new TextTemplate(randomAsciiOfLength(50)));
         }
         if (randomBoolean()) {
             event.setAccount(randomAsciiOfLength(50)).build();

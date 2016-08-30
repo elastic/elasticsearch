@@ -39,8 +39,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- */
 public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase {
     private int webPort;
     private MockWebServer webServer;
@@ -70,10 +68,10 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
     public void testWebhook() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webPort)
-                .path(TextTemplate.inline("/test/_id"))
-                .putParam("param1", TextTemplate.inline("value1"))
-                .putParam("watch_id", TextTemplate.inline("_id"))
-                .body(TextTemplate.inline("_body"));
+                .path(new TextTemplate("/test/_id"))
+                .putParam("param1", new TextTemplate("value1"))
+                .putParam("watch_id", new TextTemplate("_id"))
+                .body(new TextTemplate("_body"));
 
         watcherClient().preparePutWatch("_id")
                 .setSource(watchBuilder()
@@ -115,10 +113,10 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webPort)
                 .auth(new BasicAuth("_username", "_password".toCharArray()))
-                .path(TextTemplate.inline("/test/_id").build())
-                .putParam("param1", TextTemplate.inline("value1").build())
-                .putParam("watch_id", TextTemplate.inline("_id").build())
-                .body(TextTemplate.inline("_body").build());
+                .path(new TextTemplate("/test/_id"))
+                .putParam("param1", new TextTemplate("value1"))
+                .putParam("watch_id", new TextTemplate("_id"))
+                .body(new TextTemplate("_body"));
 
         watcherClient().preparePutWatch("_id")
                 .setSource(watchBuilder()

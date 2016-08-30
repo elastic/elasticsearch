@@ -25,6 +25,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.script.ScriptService;
 
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -115,6 +116,25 @@ public interface Processor extends Releasable {
             this.threadContext = threadContext;
             this.analysisRegistry = analysisRegistry;
         }
+    }
 
+    /**
+     * Closes all processors in case of an exception. If the close operation fails, it adds the exception to the ex as a suppressed
+     * exception.
+     */
+    static <T extends Releasable> void closeWhileCatchingExceptions(Collection<T> processors, Exception ex) {
+        if (processors != null) {
+            for(Releasable processor : processors) {
+                closeWhileCatchingExceptions(processor, ex);
+            }
+        }
+    }
+
+    static void closeWhileCatchingExceptions(Releasable processor, Exception ex) {
+        try {
+            processor.close();
+        } catch (Exception cex) {
+            ex.addSuppressed(cex);
+        }
     }
 }

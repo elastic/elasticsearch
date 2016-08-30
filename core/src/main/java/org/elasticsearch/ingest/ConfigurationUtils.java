@@ -30,6 +30,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.ingest.Processor.closeWhileCatchingExceptions;
+
 public final class ConfigurationUtils {
 
     public static final String TAG_KEY = "tag";
@@ -291,7 +293,6 @@ public final class ConfigurationUtils {
 
             List<Processor> onFailureProcessors = null;
             Processor processor = null;
-            boolean success = false;
             try {
                 onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorFactories);
                 String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
@@ -310,22 +311,17 @@ public final class ConfigurationUtils {
                     if (onFailureProcessors.size() > 0 || ignoreFailure) {
                         CompoundProcessor compoundProcessor =
                             new CompoundProcessor(ignoreFailure, Collections.singletonList(processor), onFailureProcessors);
-                        success = true;
                         return compoundProcessor;
                     } else {
-                        success = true;
                         return processor;
                     }
                 } catch (Exception e) {
                     throw newConfigurationException(type, tag, null, e);
                 }
-            } finally {
-                if (success == false) {
-                    IOUtils.closeWhileHandlingException(processor);
-                    if (onFailureProcessors != null) {
-                        IOUtils.closeWhileHandlingException(onFailureProcessors);
-                    }
-                }
+            } catch (Exception ex) {
+                Processor.closeWhileCatchingExceptions(processor, ex);
+                closeWhileCatchingExceptions(onFailureProcessors, ex);
+                throw ex;
             }
         }
         throw new ElasticsearchParseException("No processor type exists with name [" + type + "]");

@@ -19,15 +19,15 @@
 
 package org.elasticsearch.ingest;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.lease.Releasable;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.ingest.Processor.closeWhileCatchingExceptions;
 
 /**
  * A pipeline is a list of {@link Processor} instances grouped under a unique id.
@@ -111,7 +111,6 @@ public final class Pipeline implements Releasable {
             List<Map<String, Map<String, Object>>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
             List<Processor> processors = null;
             List<Processor> onFailureProcessors = null;
-            boolean success = false;
             try {
                 processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, processorFactories);
                 List<Map<String, Map<String, Object>>> onFailureProcessorConfigs =
@@ -127,19 +126,11 @@ public final class Pipeline implements Releasable {
                 CompoundProcessor compoundProcessor = new CompoundProcessor(false, Collections.unmodifiableList(processors),
                     Collections.unmodifiableList(onFailureProcessors));
                 Pipeline pipeline = new Pipeline(id, description, compoundProcessor);
-                success =  true;
                 return pipeline;
             } catch (Exception ex) {
+                closeWhileCatchingExceptions(processors, ex);
+                closeWhileCatchingExceptions(onFailureProcessors, ex);
                 throw ex;
-            } finally {
-                if (success == false) {
-                    if (processors != null) {
-                        IOUtils.closeWhileHandlingException(processors);
-                    }
-                    if (onFailureProcessors != null) {
-                        IOUtils.closeWhileHandlingException(onFailureProcessors);
-                    }
-                }
             }
         }
 

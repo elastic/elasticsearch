@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -59,8 +58,12 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
             }
             executionService.execute(simulateRequest, listener);
         } catch (Exception e) {
-            if (simulateRequest != null) {
-                IOUtils.closeWhileHandlingException(simulateRequest.getPipeline());
+            try {
+                if (simulateRequest != null) {
+                    simulateRequest.getPipeline().close();
+                }
+            } catch (Exception cex) {
+                e.addSuppressed(cex);
             }
             listener.onFailure(e);
         }

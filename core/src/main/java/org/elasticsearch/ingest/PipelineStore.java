@@ -19,14 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -45,6 +37,15 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.ingest.Processor.closeWhileCatchingExceptions;
 
 public class PipelineStore extends AbstractComponent implements ClusterStateListener {
 
@@ -76,7 +77,6 @@ public class PipelineStore extends AbstractComponent implements ClusterStateList
 
         Map<String, Pipeline> pipelines = new HashMap<>();
         Map<String, Pipeline> oldPipelines = this.pipelines;
-        boolean success = false;
         try {
             for (PipelineConfiguration pipeline : ingestMetadata.getPipelines().values()) {
                 try {
@@ -88,15 +88,13 @@ public class PipelineStore extends AbstractComponent implements ClusterStateList
                 }
             }
             this.pipelines = Collections.unmodifiableMap(pipelines);;
-            success = true;
-        } finally {
-            if (success == false) {
-                // close new pipelines
-                IOUtils.closeWhileHandlingException(pipelines.values());
-            } else {
-                // close old pipelines
-                IOUtils.closeWhileHandlingException(oldPipelines.values());
-            }
+        } catch (Exception ex){
+            closeWhileCatchingExceptions(pipelines.values(), ex);
+            throw ex;
+        }
+
+        for(Pipeline pipeline : oldPipelines.values()) {
+            pipeline.close();
         }
     }
 

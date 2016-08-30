@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
@@ -151,7 +152,11 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
                 }
 
             } catch (IOException ioe) {
-                logger.error(new ParameterizedMessage("failed to read roles file [{}]. skipping all roles...", path.toAbsolutePath()), ioe);
+                logger.error(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                                "failed to read roles file [{}]. skipping all roles...",
+                                path.toAbsolutePath()),
+                        ioe);
                 return emptyMap();
             }
         } else {
@@ -181,7 +186,11 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
                     }
                 }
             } catch (IOException ioe) {
-                logger.error(new ParameterizedMessage("failed to read roles file [{}]. skipping all roles...", path.toAbsolutePath()), ioe);
+                logger.error(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                                "failed to read roles file [{}]. skipping all roles...",
+                                path.toAbsolutePath()),
+                        ioe);
                 return emptyMap();
             }
         }
@@ -246,16 +255,26 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
         } catch (ElasticsearchParseException e) {
             assert roleName != null;
             if (logger.isDebugEnabled()) {
-                logger.debug(new ParameterizedMessage("parsing exception for role [{}]", roleName), e);
+                final String finalRoleName = roleName;
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("parsing exception for role [{}]", finalRoleName), e);
             } else {
                 logger.error(e.getMessage() + ". skipping role...");
             }
         } catch (IOException e) {
             if (roleName != null) {
+                final String finalRoleName = roleName;
                 logger.error(
-                        new ParameterizedMessage("invalid role definition [{}] in roles file [{}]. skipping role...", roleName, path), e);
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                                "invalid role definition [{}] in roles file [{}]. skipping role...",
+                                finalRoleName,
+                                path),
+                        e);
             } else {
-                logger.error(new ParameterizedMessage("invalid role definition in roles file [{}]. skipping role...", path), e);
+                logger.error(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                                "invalid role definition in roles file [{}]. skipping role...",
+                                path),
+                        e);
             }
         }
         return null;
@@ -304,9 +323,8 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
                     logger.info("updated roles (roles file [{}] changed)", file.toAbsolutePath());
                 } catch (Exception e) {
                     logger.error(
-                            new ParameterizedMessage("could not reload roles file [{}]. Current roles remain unmodified",
-                                    file.toAbsolutePath()),
-                            e);
+                            (Supplier<?>) () -> new ParameterizedMessage(
+                                    "could not reload roles file [{}]. Current roles remain unmodified", file.toAbsolutePath()), e);
                     return;
                 }
                 listener.onRefresh();

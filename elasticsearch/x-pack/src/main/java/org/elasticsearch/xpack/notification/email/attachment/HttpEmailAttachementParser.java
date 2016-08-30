@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.notification.email.attachment;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
@@ -110,7 +111,7 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
             }
         } catch (IOException e) {
             logger.error(
-                    new ParameterizedMessage(
+                    (Supplier<?>) () -> new ParameterizedMessage(
                             "Error executing HTTP request: [host[{}], port[{}], method[{}], path[{}]: [{}]",
                             httpRequest.host(),
                             httpRequest.port(),

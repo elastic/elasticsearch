@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.audit.index;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
@@ -190,7 +191,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             events = parse(includedEvents, excludedEvents);
         } catch (IllegalArgumentException e) {
             logger.warn(
-                    new ParameterizedMessage(
+                    (Supplier<?>) () -> new ParameterizedMessage(
                             "invalid event type specified, using default for audit index output. include events [{}], exclude events [{}]",
                             includedEvents,
                             excludedEvents),
@@ -847,7 +848,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
-                logger.error(new ParameterizedMessage("failed to bulk index audit events: [{}]", failure.getMessage()), failure);
+                logger.error(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                                "failed to bulk index audit events: [{}]", failure.getMessage()), failure);
             }
         }).setBulkActions(bulkSize)
                 .setFlushInterval(interval)
@@ -872,7 +875,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
             threadPool.generic().execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(new ParameterizedMessage("failed to update security audit index template [{}]", INDEX_TEMPLATE_NAME), e);
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage(
+                            "failed to update security audit index template [{}]", INDEX_TEMPLATE_NAME), e);
                 }
 
                 @Override

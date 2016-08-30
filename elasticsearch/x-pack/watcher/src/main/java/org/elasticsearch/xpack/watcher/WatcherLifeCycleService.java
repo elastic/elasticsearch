@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -202,7 +203,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
             @Override
             public void onFailure(String source, Exception throwable) {
                 latch.countDown();
-                logger.warn(new ParameterizedMessage("couldn't update watcher metadata [{}]", source), throwable);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("couldn't update watcher metadata [{}]", source), throwable);
             }
         });
         try {

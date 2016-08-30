@@ -16,6 +16,7 @@ import com.unboundid.ldap.sdk.SearchResult;
 import com.unboundid.ldap.sdk.SearchResultEntry;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 
 import javax.naming.ldap.Rdn;
 import java.text.MessageFormat;
@@ -57,7 +58,7 @@ public final class LdapUtils {
             if (e.getResultCode().equals(ResultCode.REFERRAL) && e.getSearchResult() != null) {
                 if (logger.isDebugEnabled()) {
                     logger.debug(
-                            new ParameterizedMessage(
+                            (Supplier<?>) () -> new ParameterizedMessage(
                                     "a referral could not be followed for request [{}] so some results may not have been retrieved",
                                     searchRequest),
                             e);
@@ -82,7 +83,7 @@ public final class LdapUtils {
             if (e.getResultCode().equals(ResultCode.REFERRAL) && e.getSearchResult() != null && e.getSearchResult().getEntryCount() > 0) {
                 if (logger.isDebugEnabled()) {
                     logger.debug(
-                            new ParameterizedMessage(
+                            (Supplier<?>) () -> new ParameterizedMessage(
                                     "a referral could not be followed for request [{}] so some results may not have been retrieved",
                                     searchRequest),
                             e);

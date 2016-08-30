@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.actions;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
@@ -133,8 +134,8 @@ public class ActionWrapper implements ToXContent {
                 payload = transformResult.payload();
             } catch (Exception e) {
                 action.logger().error(
-                        new ParameterizedMessage("failed to execute action [{}/{}]. failed to transform payload.", ctx.watch().id(), id),
-                        e);
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                                "failed to execute action [{}/{}]. failed to transform payload.", ctx.watch().id(), id), e);
                 return new ActionWrapper.Result(id, conditionResult, null,
                                                 new Action.Result.Failure(action.type(), "Failed to transform payload. error: {}",
                                                     ExceptionsHelper.detailedMessage(e)));
@@ -144,7 +145,8 @@ public class ActionWrapper implements ToXContent {
             Action.Result actionResult = action.execute(id, ctx, payload);
             return new ActionWrapper.Result(id, conditionResult, transformResult, actionResult);
         } catch (Exception e) {
-            action.logger().error(new ParameterizedMessage("failed to execute action [{}/{}]", ctx.watch().id(), id), e);
+            action.logger().error(
+                    (Supplier<?>) () -> new ParameterizedMessage("failed to execute action [{}/{}]", ctx.watch().id(), id), e);
             return new ActionWrapper.Result(id, new Action.Result.Failure(action.type(), ExceptionsHelper.detailedMessage(e)));
         }
     }

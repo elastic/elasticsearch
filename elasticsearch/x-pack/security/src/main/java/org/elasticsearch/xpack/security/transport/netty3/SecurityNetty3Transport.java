@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.transport.netty3;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
@@ -128,14 +129,15 @@ public class SecurityNetty3Transport extends Netty3Transport {
         if (isNotSslRecordException(e)) {
             if (logger.isTraceEnabled()) {
                 logger.trace(
-                        new ParameterizedMessage("received plaintext traffic on a encrypted channel, closing connection {}", channel), e);
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                                "received plaintext traffic on a encrypted channel, closing connection {}", channel), e);
             } else {
                 logger.warn("received plaintext traffic on a encrypted channel, closing connection {}", channel);
             }
             disconnectFromNodeChannel(channel, e);
         } else if (isCloseDuringHandshakeException(e)) {
             if (logger.isTraceEnabled()) {
-                logger.trace(new ParameterizedMessage("connection {} closed during handshake", channel), e);
+                logger.trace((Supplier<?>) () -> new ParameterizedMessage("connection {} closed during handshake", channel), e);
             } else {
                 logger.warn("connection {} closed during handshake", channel);
             }

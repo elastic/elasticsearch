@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.notification.email.support;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.transport.PortsRange;
 import org.subethamail.smtp.TooMuchDataException;
@@ -111,7 +112,8 @@ public class EmailServer {
                     return true;
                 } catch (RuntimeException re) {
                     if (re.getCause() instanceof BindException) {
-                        logger.warn(new ParameterizedMessage("port [{}] was already in use trying next port", port), re);
+                        logger.warn(
+                                (Supplier<?>) () -> new ParameterizedMessage("port [{}] was already in use trying next port", port), re);
                         return false;
                     } else {
                         throw re;

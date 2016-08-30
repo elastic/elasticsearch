@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.execution;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -269,7 +270,8 @@ public class TriggeredWatchStore extends AbstractComponent {
                         logger.debug("loaded triggered watch [{}/{}/{}]", sh.index(), sh.type(), sh.id());
                         triggeredWatches.add(triggeredWatch);
                     } catch (Exception e) {
-                        logger.error(new ParameterizedMessage("couldn't load triggered watch [{}], ignoring it...", id), e);
+                        logger.error(
+                                (Supplier<?>) () -> new ParameterizedMessage("couldn't load triggered watch [{}], ignoring it...", id), e);
                     }
                 }
                 response = client.searchScroll(response.getScrollId(), scrollTimeout);

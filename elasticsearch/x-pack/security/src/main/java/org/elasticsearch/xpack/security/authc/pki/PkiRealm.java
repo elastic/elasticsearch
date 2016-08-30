@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.pki;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -138,7 +139,9 @@ public class PkiRealm extends Realm {
                     break;
                 } catch (CertificateException e) {
                     if (logger.isTraceEnabled()) {
-                        logger.trace(new ParameterizedMessage("failed certificate validation for principal [{}]", token.principal()), e);
+                        logger.trace(
+                                (Supplier<?>) () -> new ParameterizedMessage(
+                                        "failed certificate validation for principal [{}]", token.principal()), e);
                     } else if (logger.isDebugEnabled()) {
                         logger.debug("failed certificate validation for principal [{}]", token.principal());
                     }

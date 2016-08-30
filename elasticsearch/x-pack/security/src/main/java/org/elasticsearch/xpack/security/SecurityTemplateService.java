@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -147,7 +148,7 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
             @Override
             public void onFailure(Exception e) {
                 updateMappingPending.set(false);
-                logger.warn(new ParameterizedMessage("failed to update mapping for [{}] on security index", type), e);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to update mapping for [{}] on security index", type), e);
             }
         });
     }

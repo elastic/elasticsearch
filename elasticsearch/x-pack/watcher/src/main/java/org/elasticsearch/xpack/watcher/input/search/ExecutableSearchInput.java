@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.input.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
@@ -59,7 +60,7 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
             request = new WatcherSearchTemplateRequest(input.getRequest(), renderedTemplate);
             return doExecute(ctx, request);
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("failed to execute [{}] input for [{}]", TYPE, ctx.watch()), e);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute [{}] input for [{}]", TYPE, ctx.watch()), e);
             return new SearchInput.Result(request, e);
         }
     }

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.action.user;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -61,7 +62,7 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(new ParameterizedMessage("failed to put user [{}]", request.username()), e);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to put user [{}]", request.username()), e);
                 listener.onFailure(e);
             }
         });

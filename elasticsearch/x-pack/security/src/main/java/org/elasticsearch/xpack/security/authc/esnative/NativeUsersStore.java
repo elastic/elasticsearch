@@ -10,6 +10,7 @@ import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -164,7 +165,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                     // we call the response with a null user
                     listener.onResponse(null);
                 } else {
-                    logger.debug(new ParameterizedMessage("failed to retrieve user [{}]", username), t);
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to retrieve user [{}]", username), t);
                     listener.onFailure(t);
                 }
             }
@@ -243,7 +244,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                 }
             });
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("unable to retrieve users {}", Arrays.toString(usernames)), e);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to retrieve users {}", Arrays.toString(usernames)), e);
             listener.onFailure(e);
         }
     }
@@ -260,9 +261,11 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             @Override
             public void onFailure(Exception t) {
                 if (t instanceof IndexNotFoundException) {
-                    logger.trace(new ParameterizedMessage("failed to retrieve user [{}] since security index does not exist", username), t);
+                    logger.trace(
+                            (Supplier<?>) () -> new ParameterizedMessage(
+                                    "failed to retrieve user [{}] since security index does not exist", username), t);
                 } else {
-                    logger.error(new ParameterizedMessage("failed to retrieve user [{}]", username), t);
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to retrieve user [{}]", username), t);
                 }
             }
         }, latch));
@@ -288,9 +291,10 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                 public void onFailure(Exception t) {
                     if (t instanceof IndexNotFoundException) {
                         logger.trace(
-                                new ParameterizedMessage("could not retrieve user [{}] because security index does not exist", user), t);
+                                (Supplier<?>) () -> new ParameterizedMessage(
+                                        "could not retrieve user [{}] because security index does not exist", user), t);
                     } else {
-                        logger.error(new ParameterizedMessage("failed to retrieve user [{}]", user), t);
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to retrieve user [{}]", user), t);
                     }
                     // We don't invoke the onFailure listener here, instead
                     // we call the response with a null user
@@ -301,7 +305,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             logger.trace("could not retrieve user [{}] because security index does not exist", user);
             listener.onResponse(null);
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("unable to retrieve user [{}]", user), e);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to retrieve user [{}]", user), e);
             listener.onFailure(e);
         }
     }
@@ -347,7 +351,9 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                         if (docType.equals(RESERVED_USER_DOC_TYPE)) {
                             createReservedUser(username, request.passwordHash(), request.getRefreshPolicy(), listener);
                         } else {
-                            logger.debug(new ParameterizedMessage("failed to change password for user [{}]", request.username()), cause);
+                            logger.debug(
+                                    (Supplier<?>) () -> new ParameterizedMessage(
+                                            "failed to change password for user [{}]", request.username()), cause);
                             ValidationException validationException = new ValidationException();
                             validationException.addValidationError("user must exist in order to change password");
                             listener.onFailure(validationException);
@@ -386,7 +392,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                 indexUser(request, listener);
             }
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("unable to put user [{}]", request.username()), e);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to put user [{}]", request.username()), e);
             listener.onFailure(e);
         }
     }
@@ -423,7 +429,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                         // if the index doesn't exist we can never update a user
                         // if the document doesn't exist, then this update is not valid
                         logger.debug(
-                                new ParameterizedMessage(
+                                (Supplier<?>) () -> new ParameterizedMessage(
                                         "failed to update user document with username [{}]",
                                         putUserRequest.username()),
                                 cause);
@@ -620,12 +626,14 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                     public void onFailure(Exception e) {
                         if (e instanceof IndexNotFoundException) {
                             logger.trace(
-                                    new ParameterizedMessage(
+                                    (Supplier<?>) () -> new ParameterizedMessage(
                                             "could not retrieve built in user [{}] password since security index does not exist",
                                             username),
                                     e);
                         } else {
-                            logger.error(new ParameterizedMessage("failed to retrieve built in user [{}] password", username), e);
+                            logger.error(
+                                    (Supplier<?>) () -> new ParameterizedMessage(
+                                            "failed to retrieve built in user [{}] password", username), e);
                             failure.set(e);
                         }
                     }
@@ -659,7 +667,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             @Override
             public void onFailure(Exception t) {
                 // Not really much to do here except for warn about it...
-                logger.warn(new ParameterizedMessage("failed to clear scroll [{}]", scrollId), t);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to clear scroll [{}]", scrollId), t);
             }
         });
     }
@@ -676,7 +684,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(new ParameterizedMessage("unable to clear realm cache for user [{}]", username), e);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to clear realm cache for user [{}]", username), e);
                 ElasticsearchException exception = new ElasticsearchException("clearing the cache for [" + username
                         + "] failed. please clear the realm cache manually", e);
                 listener.onFailure(exception);
@@ -726,7 +734,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
             Map<String, Object> metadata = (Map<String, Object>) sourceMap.get(User.Fields.METADATA.getPreferredName());
             return new UserAndPassword(new User(username, roles, fullName, email, metadata), password.toCharArray());
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("error in the format of data for user [{}]", username), e);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("error in the format of data for user [{}]", username), e);
             return null;
         }
     }

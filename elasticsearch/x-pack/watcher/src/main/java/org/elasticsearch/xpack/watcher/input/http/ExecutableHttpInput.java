@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.input.http;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -48,7 +49,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
             request = input.getRequest().render(templateEngine, model);
             return doExecute(ctx, request);
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("failed to execute [{}] input for [{}]", TYPE, ctx.watch()), e);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute [{}] input for [{}]", TYPE, ctx.watch()), e);
             return new HttpInput.Result(request, e);
         }
     }

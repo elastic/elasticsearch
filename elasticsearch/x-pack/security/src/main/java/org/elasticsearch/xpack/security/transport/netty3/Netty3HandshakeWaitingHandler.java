@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.transport.netty3;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.jboss.netty.channel.ChannelFuture;
 import org.jboss.netty.channel.ChannelFutureListener;
 import org.jboss.netty.channel.ChannelHandlerContext;
@@ -70,7 +71,9 @@ public class Netty3HandshakeWaitingHandler extends SimpleChannelHandler {
                 } else {
                     Throwable cause = handshakeFuture.getCause();
                     if (logger.isDebugEnabled()) {
-                        logger.debug(new ParameterizedMessage("SSL/TLS handshake failed, closing channel: {}", cause.getMessage()), cause);
+                        logger.debug(
+                                (Supplier<?>) () -> new ParameterizedMessage(
+                                        "SSL/TLS handshake failed, closing channel: {}", cause.getMessage()), cause);
                     } else {
                         logger.error("SSL/TLS handshake failed, closing channel: {}", cause.getMessage());
                     }

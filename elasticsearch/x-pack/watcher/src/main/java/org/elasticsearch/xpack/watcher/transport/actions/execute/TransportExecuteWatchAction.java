@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.transport.actions.execute;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -126,7 +127,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
             ExecuteWatchResponse response = new ExecuteWatchResponse(record.id().value(), builder.bytes(), XContentType.JSON);
             listener.onResponse(response);
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("failed to execute [{}]", request.getId()), e);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute [{}]", request.getId()), e);
             listener.onFailure(e);
         }
     }

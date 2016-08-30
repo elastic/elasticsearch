@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.execution;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -36,7 +37,7 @@ public class AsyncTriggerListener implements TriggerEngine.Listener {
             executionService.processEventsAsync(events);
         } catch (Exception e) {
             logger.error(
-                    new ParameterizedMessage(
+                    (Supplier<?>) () -> new ParameterizedMessage(
                             "failed to process triggered events [{}]",
                             (Object) stream(events.spliterator(), false).toArray(size -> new TriggerEvent[size])),
                     e);

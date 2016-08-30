@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -189,7 +190,7 @@ public class AuthenticationService extends AbstractComponent {
                 }
             } catch (Exception e) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug(new ParameterizedMessage("failed to extract token from request: [{}]", request), e);
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to extract token from request: [{}]", request), e);
                 } else {
                     logger.warn("failed to extract token from request: [{}]: {}", request, e.getMessage());
                 }
@@ -229,7 +230,9 @@ public class AuthenticationService extends AbstractComponent {
                     }
                 }
             } catch (Exception e) {
-                logger.debug(new ParameterizedMessage("authentication failed for principal [{}], [{}] ", token.principal(), request), e);
+                logger.debug(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                                "authentication failed for principal [{}], [{}] ", token.principal(), request), e);
                 throw request.exceptionProcessingRequest(e, token);
             } finally {
                 token.clearCredentials();
@@ -284,7 +287,7 @@ public class AuthenticationService extends AbstractComponent {
                 user = new User(user.principal(), user.roles(), new User(runAsUsername, Strings.EMPTY_ARRAY));
             } catch (Exception e) {
                 logger.debug(
-                        new ParameterizedMessage("run as failed for principal [{}], [{}], run as username [{}]",
+                        (Supplier<?>) () -> new ParameterizedMessage("run as failed for principal [{}], [{}], run as username [{}]",
                                 token.principal(),
                                 request,
                                 runAsUsername),

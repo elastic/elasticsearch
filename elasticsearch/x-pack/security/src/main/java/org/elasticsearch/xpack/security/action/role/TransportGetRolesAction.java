@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.action.role;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -80,7 +81,7 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
 
                 @Override
                 public void onFailure(Exception t) {
-                    logger.error(new ParameterizedMessage("failed to retrieve role [{}]", rolename), t);
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to retrieve role [{}]", rolename), t);
                     listener.onFailure(t);
                 }
             });
@@ -98,7 +99,9 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
 
                 @Override
                 public void onFailure(Exception t) {
-                    logger.error(new ParameterizedMessage("failed to retrieve role [{}]", arrayToDelimitedString(request.names(), ",")), t);
+                    logger.error(
+                            (Supplier<?>) () -> new ParameterizedMessage(
+                                    "failed to retrieve role [{}]", arrayToDelimitedString(request.names(), ",")), t);
                     listener.onFailure(t);
                 }
             });

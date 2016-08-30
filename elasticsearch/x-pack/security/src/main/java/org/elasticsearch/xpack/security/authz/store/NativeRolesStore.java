@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -152,7 +153,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
                     poller.doRun();
                 } catch (Exception e) {
                     logger.warn(
-                            new ParameterizedMessage(
+                            (Supplier<?>) () -> new ParameterizedMessage(
                                     "failed to perform initial poll of roles index [{}]. scheduling again in [{}]",
                                     SECURITY_INDEX_NAME,
                                     pollInterval),
@@ -248,7 +249,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
                 }
             });
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("unable to retrieve roles {}", Arrays.toString(names)), e);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to retrieve roles {}", Arrays.toString(names)), e);
             listener.onFailure(e);
         }
     }
@@ -314,12 +315,12 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.error(new ParameterizedMessage("failed to put role [{}]", request.name()), e);
+                            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to put role [{}]", request.name()), e);
                             listener.onFailure(e);
                         }
                     });
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("unable to put role [{}]", request.name()), e);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to put role [{}]", request.name()), e);
             listener.onFailure(e);
         }
 
@@ -428,12 +429,12 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
                         public void onFailure(Exception t) {
                             if (t instanceof IndexNotFoundException) {
                                 logger.trace(
-                                        new ParameterizedMessage(
+                                        (Supplier<?>) () -> new ParameterizedMessage(
                                                 "failed to retrieve role [{}] since security index does not exist",
                                                 roleId),
                                         t);
                             } else {
-                                logger.error(new ParameterizedMessage("failed to retrieve role [{}]", roleId), t);
+                                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to retrieve role [{}]", roleId), t);
                             }
                         }
                     }, latch));
@@ -458,7 +459,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
                 }
             });
         } catch (RuntimeException e) {
-            logger.error(new ParameterizedMessage("could not get or load value from cache for role [{}]", roleId), e);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("could not get or load value from cache for role [{}]", roleId), e);
         }
 
         return roleAndVersion;
@@ -469,7 +470,9 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
             GetRequest request = client.prepareGet(SecurityTemplateService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, role).request();
             client.get(request, listener);
         } catch (IndexNotFoundException e) {
-            logger.trace(new ParameterizedMessage("unable to retrieve role [{}] since security index does not exist", role), e);
+            logger.trace(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                            "unable to retrieve role [{}] since security index does not exist", role), e);
             listener.onResponse(new GetResponse(
                     new GetResult(SecurityTemplateService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, role, -1, false, null, null)));
         } catch (Exception e) {
@@ -489,7 +492,8 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
             @Override
             public void onFailure(Exception t) {
                 // Not really much to do here except for warn about it...
-                logger.warn(new ParameterizedMessage("failed to clear scroll [{}] after retrieving roles", scrollId), t);
+                logger.warn(
+                        (Supplier<?>) () -> new ParameterizedMessage("failed to clear scroll [{}] after retrieving roles", scrollId), t);
             }
         });
     }
@@ -525,7 +529,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(new ParameterizedMessage("unable to clear cache for role [{}]", role), e);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to clear cache for role [{}]", role), e);
                 ElasticsearchException exception = new ElasticsearchException("clearing the cache for [" + role
                         + "] failed. please clear the role cache manually", e);
                 listener.onFailure(exception);
@@ -565,7 +569,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
         try {
             return RoleDescriptor.parse(name, sourceBytes);
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("error in the format of data for role [{}]", name), e);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("error in the format of data for role [{}]", name), e);
             return null;
         }
     }

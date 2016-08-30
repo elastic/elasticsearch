@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.transform.script;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
@@ -46,7 +47,7 @@ public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransfo
         try {
             return doExecute(ctx, payload);
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("failed to execute [{}] transform for [{}]", TYPE, ctx.id()), e);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute [{}] transform for [{}]", TYPE, ctx.id()), e);
             return new ScriptTransform.Result(e);
         }
     }

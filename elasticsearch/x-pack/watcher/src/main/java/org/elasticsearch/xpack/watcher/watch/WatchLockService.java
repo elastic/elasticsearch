@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.watch;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -64,7 +65,7 @@ public class WatchLockService extends AbstractComponent {
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
             //todo figure out a better std exception for this
-            logger.error(new ParameterizedMessage("could not acquire lock for watch [{}]", name), ie);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("could not acquire lock for watch [{}]", name), ie);
             return null;
         }
         return new Lock(name, watchLocks);

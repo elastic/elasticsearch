@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.watch;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -93,7 +94,7 @@ public class WatchStore extends AbstractComponent {
                 logger.debug("loaded [{}] watches from the watches index [{}]", count, INDEX);
                 started.set(true);
             } catch (Exception e) {
-                logger.debug(new ParameterizedMessage("failed to load watches for watch index [{}]", INDEX), e);
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to load watches for watch index [{}]", INDEX), e);
                 watches.clear();
                 throw e;
             }
@@ -315,7 +316,7 @@ public class WatchStore extends AbstractComponent {
                         watches.put(id, watch);
                         count++;
                     } catch (Exception e) {
-                        logger.error(new ParameterizedMessage("couldn't load watch [{}], ignoring it...", id), e);
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("couldn't load watch [{}], ignoring it...", id), e);
                     }
                 }
                 response = client.searchScroll(response.getScrollId(), scrollTimeout);

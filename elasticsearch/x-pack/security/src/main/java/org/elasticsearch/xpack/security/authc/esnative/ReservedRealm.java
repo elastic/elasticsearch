@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
@@ -131,7 +132,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
             }
             return passwordHash;
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("failed to retrieve password hash for reserved user [{}]", username), e);
+            logger.error(
+                    (Supplier<?>) () -> new ParameterizedMessage("failed to retrieve password hash for reserved user [{}]", username), e);
             return null;
         }
     }

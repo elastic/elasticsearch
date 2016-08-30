@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.rest;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
@@ -107,7 +108,8 @@ public class SecurityRestFilter extends RestFilter {
             assert sslEngine.getNeedClientAuth() == false;
             assert sslEngine.getWantClientAuth();
             if (logger.isTraceEnabled()) {
-                logger.trace(new ParameterizedMessage("SSL Peer did not present a certificate on channel [{}]", channel), e);
+                logger.trace(
+                        (Supplier<?>) () -> new ParameterizedMessage("SSL Peer did not present a certificate on channel [{}]", channel), e);
             } else if (logger.isDebugEnabled()) {
                 logger.debug("SSL Peer did not present a certificate on channel [{}]", channel);
             }

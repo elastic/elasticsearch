@@ -35,8 +35,10 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -599,6 +601,82 @@ public class LoggingAuditTrailTests extends ESTestCase {
         } else {
             assertThat(text, equalTo("origin_type=[transport], origin_address=[" + address + "]"));
         }
+    }
+
+    public void testAuthenticationSuccessRest() throws Exception {
+        RestRequest request = mock(RestRequest.class);
+        InetAddress address = forge("_hostname", randomBoolean() ? "127.0.0.1" : "::1");
+        when(request.getRemoteAddress()).thenReturn(new InetSocketAddress(address, 9200));
+        when(request.uri()).thenReturn("_uri");
+        Map<String, String> params = new HashMap<>();
+        params.put("foo", "bar");
+        when(request.params()).thenReturn(params);
+        String expectedMessage = prepareRestContent(request);
+        boolean runAs = randomBoolean();
+        User user;
+        if (runAs) {
+            user = new User("_username", new String[] { "r1" }, new User("running as", new String[] { "r2" }));
+        } else {
+            user = new User("_username", new String[] { "r1" });
+        }
+        String userInfo = runAs ? "principal=[running as], run_by_principal=[_username]" : "principal=[_username]";
+        String realm = "_realm";
+
+        Settings settings = Settings.builder().put(this.settings)
+                .put("xpack.security.audit.logfile.events.include", "authentication_success")
+                .build();
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
+        LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+        auditTrail.authenticationSuccess(realm, user, request);
+        if (includeRequestBody) {
+            assertMsg(logger, Level.INFO,
+                    prefix + "[rest] [authentication_success]\t" + userInfo + ", realm=[_realm], uri=[_uri], params=[" + params
+                    + "], request_body=[" + expectedMessage + "]");
+        } else {
+            assertMsg(logger, Level.INFO,
+                    prefix + "[rest] [authentication_success]\t" + userInfo + ", realm=[_realm], uri=[_uri], params=[" + params + "]");
+        }
+
+        // test disabled
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        settings = Settings.builder().put(this.settings).put("xpack.security.audit.logfile.events.exclude", "authentication_success")
+                .build();
+        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+        auditTrail.authenticationSuccess(realm, user, request);
+        assertEmptyLog(logger);
+    }
+
+    public void testAuthenticationSuccessTransport() throws Exception {
+        Settings settings = Settings.builder().put(this.settings)
+                .put("xpack.security.audit.logfile.events.include", "authentication_success").build();
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
+        LoggingAuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+        TransportMessage message = randomBoolean() ? new MockMessage(threadContext) : new MockIndicesRequest(threadContext);
+        String origins = LoggingAuditTrail.originAttributes(message, localNode, threadContext);
+        boolean runAs = randomBoolean();
+        User user;
+        if (runAs) {
+            user = new User("_username", new String[] { "r1" }, new User("running as", new String[] { "r2" }));
+        } else {
+            user = new User("_username", new String[] { "r1" });
+        }
+        String userInfo = runAs ? "principal=[running as], run_by_principal=[_username]" : "principal=[_username]";
+        String realm = "_realm";
+        auditTrail.authenticationSuccess(realm, user, "_action", message);
+        if (message instanceof IndicesRequest) {
+            assertMsg(logger, Level.INFO, prefix + "[transport] [authentication_success]\t" + origins + ", " + userInfo
+                    + ", realm=[_realm], action=[_action], request=[MockIndicesRequest]");
+        } else {
+            assertMsg(logger, Level.INFO, prefix + "[transport] [authentication_success]\t" + origins + ", " + userInfo
+                    + ", realm=[_realm], action=[_action], request=[MockMessage]");
+        }
+
+        // test disabled
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+        settings = Settings.builder().put(this.settings).put("xpack.security.audit.logfile.events.exclude", "authentication_success").build();
+        auditTrail = new LoggingAuditTrail(settings, clusterService, logger, threadContext);
+        auditTrail.authenticationSuccess(realm, user, "_action", message);
+        assertEmptyLog(logger);
     }
 
     private void assertMsg(Logger logger, Level level, String message) {

@@ -104,7 +104,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         auditTrail.anonymousAccessDenied(restRequest);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
-        
+
         verifyZeroInteractions(restRequest);
     }
 
@@ -122,7 +122,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         auditTrail.authenticationFailed("_action", message);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
-        
+
         verifyZeroInteractions(token, message);
     }
 
@@ -176,7 +176,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         auditTrail.accessGranted(user, randomAsciiOfLengthBetween(6, 40), message);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
-        
+
         verifyZeroInteractions(message, user);
     }
 
@@ -187,7 +187,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         auditTrail.accessGranted(user, "internal:foo", message);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
-        
+
         verifyZeroInteractions(message);
     }
 
@@ -198,7 +198,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         auditTrail.accessDenied(user, randomAsciiOfLengthBetween(6, 40), message);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
-        
+
         verifyZeroInteractions(message, user);
     }
 
@@ -216,7 +216,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         auditTrail.tamperedRequest(randomAsciiOfLengthBetween(6, 40), message);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
-        
+
         verifyZeroInteractions(message, user);
     }
 
@@ -228,7 +228,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         auditTrail.connectionGranted(address, randomAsciiOfLengthBetween(1, 12), rule);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
-        
+
         verifyZeroInteractions(address, rule);
     }
 
@@ -240,7 +240,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         auditTrail.connectionDenied(address, randomAsciiOfLengthBetween(1, 12), rule);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
-        
+
         verifyZeroInteractions(address, rule);
     }
 
@@ -252,7 +252,7 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         auditTrail.runAsGranted(user, randomAsciiOfLengthBetween(6, 40), message);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
-        
+
         verifyZeroInteractions(message, user);
     }
 
@@ -264,7 +264,32 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         auditTrail.runAsDenied(user, randomAsciiOfLengthBetween(6, 40), message);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
-        
+
+        verifyZeroInteractions(message, user);
+    }
+
+    public void testAuthenticationSuccessRest() {
+        createAuditTrail(new String[] { "authentication_success" });
+        RestRequest restRequest = mock(RestRequest.class);
+        User user = mock(User.class);
+        String realm = "_realm";
+
+        auditTrail.authenticationSuccess(realm, user, restRequest);
+        assertThat(messageEnqueued.get(), is(false));
+        assertThat(clientCalled.get(), is(false));
+
+        verifyZeroInteractions(restRequest);
+    }
+
+    public void testAuthenticationSuccessTransport() {
+        createAuditTrail(new String[] { "authentication_success" });
+        TransportMessage message = mock(TransportMessage.class);
+        User user = mock(User.class);
+        String realm = "_realm";
+        auditTrail.authenticationSuccess(realm, user, randomAsciiOfLengthBetween(6, 40), message);
+        assertThat(messageEnqueued.get(), is(false));
+        assertThat(clientCalled.get(), is(false));
+
         verifyZeroInteractions(message, user);
     }
 

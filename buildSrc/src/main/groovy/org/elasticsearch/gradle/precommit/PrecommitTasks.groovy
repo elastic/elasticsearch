@@ -59,7 +59,7 @@ class PrecommitTasks {
              * use the NamingConventionsCheck we break the circular dependency
              * here.
              */
-            precommitTasks.add(configureLoggerUsage(project))
+            // precommitTasks.add(configureLoggerUsage(project))
         }
 
 

@@ -161,7 +161,7 @@ public abstract class MonitoringIndexNameResolverTestCase<M extends MonitoringDo
         };
         assertThat("source must contains default fields", sourceFields.keySet(), hasItems(commons));
 
-        if (fields != null) {
+        if (fields != null && fields.isEmpty() == false) {
             for (String field : fields) {
                 assertSourceField(field, sourceFields);
             }

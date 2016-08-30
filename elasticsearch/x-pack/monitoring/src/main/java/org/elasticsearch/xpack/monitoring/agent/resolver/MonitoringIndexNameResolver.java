@@ -23,6 +23,7 @@ import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Function;
@@ -108,11 +109,11 @@ public abstract class MonitoringIndexNameResolver<T extends MonitoringDoc> {
 
     /**
      * @return the filters used when rendering the document.
-     * If null or empty, no filtering is applied.
+     * If empty, no filtering is applied.
      */
     public Set<String> filters() {
         // No filtering by default
-        return null;
+        return Collections.emptySet();
     }
 
     protected abstract void buildXContent(T document, XContentBuilder builder, ToXContent.Params params) throws IOException;

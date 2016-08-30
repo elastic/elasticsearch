@@ -19,21 +19,8 @@
 
 package org.elasticsearch.common.xcontent;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.nio.file.Path;
-import java.util.Calendar;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.BytesStream;
@@ -47,6 +34,21 @@ import org.joda.time.ReadableInstant;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.nio.file.Path;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
 /**
  * A utility to build XContent (ie json).
  */
@@ -58,12 +60,8 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return new XContentBuilder(xContent, new BytesStreamOutput());
     }
 
-    public static XContentBuilder builder(XContent xContent, String[] filters) throws IOException {
-        return new XContentBuilder(xContent, new BytesStreamOutput(), filters);
-    }
-
-    public static XContentBuilder builder(XContent xContent, String[] filters, boolean inclusive) throws IOException {
-        return new XContentBuilder(xContent, new BytesStreamOutput(), filters, inclusive);
+    public static XContentBuilder builder(XContent xContent, Set<String> includes, Set<String> excludes) throws IOException {
+        return new XContentBuilder(xContent, new BytesStreamOutput(), includes, excludes);
     }
 
     private XContentGenerator generator;
@@ -77,7 +75,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
      * to call {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContent xContent, OutputStream bos) throws IOException {
-        this(xContent, bos, null);
+        this(xContent, bos, Collections.emptySet(), Collections.emptySet());
     }
 
     /**
@@ -86,20 +84,24 @@ public final class XContentBuilder implements BytesStream, Releasable {
      * filter will be written to the output stream. Make sure to call
      * {@link #close()} when the builder is done with.
      */
-    public XContentBuilder(XContent xContent, OutputStream bos, String[] filters) throws IOException {
-        this(xContent, bos, filters, true);
+    public XContentBuilder(XContent xContent, OutputStream bos, Set<String> includes) throws IOException {
+        this(xContent, bos, includes, Collections.emptySet());
     }
 
     /**
-     * Constructs a new builder using the provided xcontent, an OutputStream and
-     * some filters. If {@code filters} are specified and {@code inclusive} is
-     * true, only those values matching a filter will be written to the output
-     * stream. If {@code inclusive} is false, those matching will be excluded.
+     * Creates a new builder using the provided XContent, output stream and some inclusive and/or exclusive filters. When both exclusive and
+     * inclusive filters are provided, the underlying builder will first use exclusion filters to remove fields and then will check the
+     * remaining fields against the inclusive filters.
+     * <p>
      * Make sure to call {@link #close()} when the builder is done with.
+     *
+     * @param os       the output stream
+     * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.
+     * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
      */
-    public XContentBuilder(XContent xContent, OutputStream bos, String[] filters, boolean inclusive) throws IOException {
-        this.bos = bos;
-        this.generator = xContent.createGenerator(bos, filters, inclusive);
+    public XContentBuilder(XContent xContent, OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
+        this.bos = os;
+        this.generator = xContent.createGenerator(bos, includes, excludes);
     }
 
     public XContentType contentType() {

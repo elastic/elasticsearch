@@ -20,8 +20,9 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -33,10 +34,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchRequestTests;
-import org.elasticsearch.snapshots.Snapshot;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -93,6 +91,7 @@ public class ShardSearchTransportRequestTests extends ESTestCase {
                 assertEquals(deserializedRequest.searchType(), shardSearchTransportRequest.searchType());
                 assertEquals(deserializedRequest.shardId(), shardSearchTransportRequest.shardId());
                 assertEquals(deserializedRequest.numberOfShards(), shardSearchTransportRequest.numberOfShards());
+                assertEquals(deserializedRequest.cacheKey(), shardSearchTransportRequest.cacheKey());
                 assertNotSame(deserializedRequest, shardSearchTransportRequest);
             }
         }
@@ -101,11 +100,8 @@ public class ShardSearchTransportRequestTests extends ESTestCase {
     private static ShardSearchTransportRequest createShardSearchTransportRequest() throws IOException {
         SearchRequest searchRequest = SearchRequestTests.createSearchRequest();
         ShardId shardId = new ShardId(randomAsciiOfLengthBetween(2, 10), randomAsciiOfLengthBetween(2, 10), randomInt());
-        Snapshot snapshot = new Snapshot(randomAsciiOfLengthBetween(3, 10),
-                new SnapshotId(randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10)));
-        RestoreSource restoreSource = new RestoreSource(snapshot, VersionUtils.randomVersion(random()), randomAsciiOfLengthBetween(3, 10));
-        ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, restoreSource, randomBoolean(),
-                new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "reason"));
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, null, null, randomBoolean(), ShardRoutingState.UNASSIGNED,
+            new UnassignedInfo(randomFrom(UnassignedInfo.Reason.values()), "reason"));
         String[] filteringAliases;
         if (randomBoolean()) {
             filteringAliases = generateRandomStringArray(10, 10, false, false);

@@ -246,6 +246,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         super(simpleName);
         assert indexSettings != null;
         this.indexCreatedVersion = Version.indexCreated(indexSettings);
+        if (indexCreatedVersion.onOrAfter(Version.V_5_0_0_alpha6)) {
+            if (simpleName.isEmpty()) {
+                throw new IllegalArgumentException("name cannot be empty string");
+            }
+        }
         fieldType.freeze();
         this.fieldType = fieldType;
         defaultFieldType.freeze();
@@ -658,16 +663,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         public List<String> copyToFields() {
             return copyToFields;
         }
-    }
-
-    /**
-     * Fields might not be available before indexing, for example _all, token_count,...
-     * When get is called and these fields are requested, this case needs special treatment.
-     *
-     * @return If the field is available before indexing or not.
-     */
-    public boolean isGenerated() {
-        return false;
     }
 
 }

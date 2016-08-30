@@ -58,7 +58,7 @@ public class LegacyGeoPointFieldMapper extends BaseGeoPointFieldMapper implement
     }
 
     public static class Defaults extends BaseGeoPointFieldMapper.Defaults{
-        public static final Explicit<Boolean> COERCE = new Explicit(false, false);
+        public static final Explicit<Boolean> COERCE = new Explicit<>(false, false);
 
         public static final GeoPointFieldType FIELD_TYPE = new GeoPointFieldType();
 
@@ -100,7 +100,7 @@ public class LegacyGeoPointFieldMapper extends BaseGeoPointFieldMapper implement
         @Override
         public LegacyGeoPointFieldMapper build(BuilderContext context, String simpleName, MappedFieldType fieldType,
                 MappedFieldType defaultFieldType, Settings indexSettings, FieldMapper latMapper, FieldMapper lonMapper,
-                KeywordFieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
+                FieldMapper geoHashMapper, MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                 CopyTo copyTo) {
             fieldType.setTokenized(false);
             setupFieldType(context);
@@ -261,7 +261,7 @@ public class LegacyGeoPointFieldMapper extends BaseGeoPointFieldMapper implement
     protected Explicit<Boolean> coerce;
 
     public LegacyGeoPointFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-            Settings indexSettings, FieldMapper latMapper, FieldMapper lonMapper, KeywordFieldMapper geoHashMapper,
+            Settings indexSettings, FieldMapper latMapper, FieldMapper lonMapper, FieldMapper geoHashMapper,
             MultiFields multiFields, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, latMapper, lonMapper, geoHashMapper, multiFields,
                 ignoreMalformed, copyTo);

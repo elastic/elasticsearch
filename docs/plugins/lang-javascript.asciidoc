@@ -149,6 +149,7 @@ in the cluster:
 ----
 doc["num"].value * factor
 ----
+// NOTCONSOLE
 
 then use the script as follows:
 

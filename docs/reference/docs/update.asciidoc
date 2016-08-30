@@ -48,7 +48,7 @@ will still add it, since its a list):
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
     "script" : {
-        "inline": "ctx._source.tags += params.tag",
+        "inline": "ctx._source.tags.add(params.tag)",
         "lang": "painless",
         "params" : {
             "tag" : "blue"
@@ -247,7 +247,7 @@ Timeout waiting for a shard to become available.
 
 `wait_for_active_shards`::
 
-The number of shard copies required to be active before proceeding with the update operation. 
+The number of shard copies required to be active before proceeding with the update operation.
 See <<index-wait-for-active-shards,here>> for details.
 
 `refresh`::

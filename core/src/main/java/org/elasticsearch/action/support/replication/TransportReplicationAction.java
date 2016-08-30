@@ -867,29 +867,39 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void failShard(ShardRouting replica, long primaryTerm, String message, Exception exception,
-                              Runnable onSuccess, Consumer<Exception> onFailure, Consumer<Exception> onIgnoredFailure) {
-            shardStateAction.remoteShardFailed(
-                replica, primaryTerm, message, exception,
-                new ShardStateAction.Listener() {
-                    @Override
-                    public void onSuccess() {
-                        onSuccess.run();
-                    }
+                              Runnable onSuccess, Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+            shardStateAction.remoteShardFailed(replica.shardId(), replica.allocationId().getId(), primaryTerm, message, exception,
+                createListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
+        }
 
-                    @Override
-                    public void onFailure(Exception shardFailedError) {
-                        if (shardFailedError instanceof ShardStateAction.NoLongerPrimaryShardException) {
-                            onFailure.accept(shardFailedError);
-                        } else {
-                            // these can occur if the node is shutting down and are okay
-                            // any other exception here is not expected and merits investigation
-                            assert shardFailedError instanceof TransportException ||
-                                shardFailedError instanceof NodeClosedException : shardFailedError;
-                            onIgnoredFailure.accept(shardFailedError);
-                        }
+        @Override
+        public void markShardCopyAsStale(ShardId shardId, String allocationId, long primaryTerm, Runnable onSuccess,
+                                         Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+            shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, "mark copy as stale", null,
+                createListener(onSuccess, onPrimaryDemoted, onIgnoredFailure));
+        }
+
+        private ShardStateAction.Listener createListener(final Runnable onSuccess, final Consumer<Exception> onPrimaryDemoted,
+                                                         final Consumer<Exception> onIgnoredFailure) {
+            return new ShardStateAction.Listener() {
+                @Override
+                public void onSuccess() {
+                    onSuccess.run();
+                }
+
+                @Override
+                public void onFailure(Exception shardFailedError) {
+                    if (shardFailedError instanceof ShardStateAction.NoLongerPrimaryShardException) {
+                        onPrimaryDemoted.accept(shardFailedError);
+                    } else {
+                        // these can occur if the node is shutting down and are okay
+                        // any other exception here is not expected and merits investigation
+                        assert shardFailedError instanceof TransportException ||
+                            shardFailedError instanceof NodeClosedException : shardFailedError;
+                        onIgnoredFailure.accept(shardFailedError);
                     }
                 }
-            );
+            };
         }
     }
 

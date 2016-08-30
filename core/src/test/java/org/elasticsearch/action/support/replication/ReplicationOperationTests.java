@@ -26,6 +26,8 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -34,6 +36,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -69,7 +72,8 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, "_na_", 0);
 
         ClusterState state = stateWithActivePrimary(index, true, randomInt(5));
-        final long primaryTerm = state.getMetaData().index(index).primaryTerm(0);
+        IndexMetaData indexMetaData = state.getMetaData().index(index);
+        final long primaryTerm = indexMetaData.primaryTerm(0);
         final IndexShardRoutingTable indexShardRoutingTable = state.getRoutingTable().shardRoutingTable(shardId);
         ShardRouting primaryShard = indexShardRoutingTable.primaryShard();
         if (primaryShard.relocating() && randomBoolean()) {
@@ -78,6 +82,10 @@ public class ReplicationOperationTests extends ESTestCase {
                 .nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(primaryShard.relocatingNodeId())).build();
             primaryShard = primaryShard.getTargetRelocatingShard();
         }
+        // add a few in-sync allocation ids that don't have corresponding routing entries
+        Set<String> staleAllocationIds = Sets.newHashSet(generateRandomStringArray(4, 10, false));
+        state = ClusterState.builder(state).metaData(MetaData.builder(state.metaData()).put(IndexMetaData.builder(indexMetaData)
+            .putInSyncAllocationIds(0, Sets.union(indexMetaData.inSyncAllocationIds(0), staleAllocationIds)))).build();
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, state);
 
@@ -112,6 +120,7 @@ public class ReplicationOperationTests extends ESTestCase {
         assertThat("request was not processed on primary", request.processedOnPrimary.get(), equalTo(true));
         assertThat(request.processedOnReplicas, equalTo(expectedReplicas));
         assertThat(replicasProxy.failedReplicas, equalTo(expectedFailedShards));
+        assertThat(replicasProxy.markedAsStaleCopies, equalTo(staleAllocationIds));
         assertTrue("listener is not marked as done", listener.isDone());
         ShardInfo shardInfo = listener.actionGet().getShardInfo();
         assertThat(shardInfo.getFailed(), equalTo(expectedFailedShards.size()));
@@ -155,7 +164,8 @@ public class ReplicationOperationTests extends ESTestCase {
         final ShardId shardId = new ShardId(index, "_na_", 0);
 
         ClusterState state = stateWithActivePrimary(index, true, 1 + randomInt(2), randomInt(2));
-        final long primaryTerm = state.getMetaData().index(index).primaryTerm(0);
+        IndexMetaData indexMetaData = state.getMetaData().index(index);
+        final long primaryTerm = indexMetaData.primaryTerm(0);
         ShardRouting primaryShard = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
         if (primaryShard.relocating() && randomBoolean()) {
             // simulate execution of the replication phase on the relocation target node after relocation source was marked as relocated
@@ -163,6 +173,10 @@ public class ReplicationOperationTests extends ESTestCase {
                 .nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(primaryShard.relocatingNodeId())).build();
             primaryShard = primaryShard.getTargetRelocatingShard();
         }
+        // add in-sync allocation id that doesn't have a corresponding routing entry
+        state = ClusterState.builder(state).metaData(MetaData.builder(state.metaData()).put(IndexMetaData.builder(indexMetaData)
+            .putInSyncAllocationIds(0, Sets.union(indexMetaData.inSyncAllocationIds(0), Sets.newHashSet(randomAsciiOfLength(10))))))
+            .build();
 
         final Set<ShardRouting> expectedReplicas = getExpectedReplicas(shardId, state);
 
@@ -173,13 +187,28 @@ public class ReplicationOperationTests extends ESTestCase {
         Request request = new Request(shardId);
         PlainActionFuture<TestPrimary.Result> listener = new PlainActionFuture<>();
         final ClusterState finalState = state;
+        final boolean testPrimaryDemotedOnStaleShardCopies = randomBoolean();
         final TestReplicaProxy replicasProxy = new TestReplicaProxy(expectedFailures) {
             @Override
             public void failShard(ShardRouting replica, long primaryTerm, String message, Exception exception,
                                   Runnable onSuccess, Consumer<Exception> onPrimaryDemoted,
                                   Consumer<Exception> onIgnoredFailure) {
-                assertThat(replica, equalTo(failedReplica));
-                onPrimaryDemoted.accept(new ElasticsearchException("the king is dead"));
+                if (testPrimaryDemotedOnStaleShardCopies) {
+                    super.failShard(replica, primaryTerm, message, exception, onSuccess, onPrimaryDemoted, onIgnoredFailure);
+                } else {
+                    assertThat(replica, equalTo(failedReplica));
+                    onPrimaryDemoted.accept(new ElasticsearchException("the king is dead"));
+                }
+            }
+
+            @Override
+            public void markShardCopyAsStale(ShardId shardId, String allocationId, long primaryTerm, Runnable onSuccess,
+                                             Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+                if (testPrimaryDemotedOnStaleShardCopies) {
+                    onPrimaryDemoted.accept(new ElasticsearchException("the king is dead"));
+                } else {
+                    super.markShardCopyAsStale(shardId, allocationId, primaryTerm, onSuccess, onPrimaryDemoted, onIgnoredFailure);
+                }
             }
         };
         AtomicBoolean primaryFailed = new AtomicBoolean();
@@ -403,6 +432,8 @@ public class ReplicationOperationTests extends ESTestCase {
 
         final Set<ShardRouting> failedReplicas = ConcurrentCollections.newConcurrentSet();
 
+        final Set<String> markedAsStaleCopies = ConcurrentCollections.newConcurrentSet();
+
         TestReplicaProxy() {
             this(Collections.emptyMap());
         }
@@ -435,6 +466,19 @@ public class ReplicationOperationTests extends ESTestCase {
                 }
             } else {
                 fail("replica [" + replica + "] was failed");
+            }
+        }
+
+        @Override
+        public void markShardCopyAsStale(ShardId shardId, String allocationId, long primaryTerm, Runnable onSuccess,
+                                         Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+            if (markedAsStaleCopies.add(allocationId) == false) {
+                fail("replica [" + allocationId + "] was marked as stale twice");
+            }
+            if (randomBoolean()) {
+                onSuccess.run();
+            } else {
+                onIgnoredFailure.accept(new ElasticsearchException("simulated"));
             }
         }
     }

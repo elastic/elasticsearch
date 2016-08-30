@@ -226,7 +226,7 @@ public class RestClientIntegTests extends RestClientTestCase {
         for (int i = 0; i < numRequests; i++) {
             final String method = RestClientTestUtil.randomHttpMethod(getRandom());
             final int statusCode = randomStatusCode(getRandom());
-            restClient.performRequest(method, "/" + statusCode, new ResponseListener() {
+            restClient.performRequestAsync(method, "/" + statusCode, new ResponseListener() {
                 @Override
                 public void onSuccess(Response response) {
                     responses.add(new TestResponse(method, statusCode, response));

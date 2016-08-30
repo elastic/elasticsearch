@@ -19,7 +19,7 @@ API, unless otherwise specified.
 
 Most APIs that refer to an `index` parameter support execution across multiple indices,
 using simple `test1,test2,test3` notation (or `_all` for all indices). It also
-support wildcards, for example: `test*`, and the ability to "add" (`+`)
+support wildcards, for example: `test*` or `*test` or `te*t` or `*test*`, and the ability to "add" (`+`)
 and "remove" (`-`), for example: `+test*,-test3`.
 
 All multi indices API support the following url query string parameters:
@@ -274,6 +274,41 @@ curl 'localhost:9200/_segments?pretty&filter_path=indices.**.version'
     }
   }
 }
+--------------------------------------------------
+
+It is also possible to exclude one or more fields by prefixing the filter with the char `-`:
+
+[source,sh]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_count?filter_path=-_shards'
+{
+  "count" : 1
+}
+%
+--------------------------------------------------
+
+And for more control, both inclusive and exclusive filters can be combined in the same expression. In
+this case, the exclusive filters will be applied first and the result will be filtered again using the
+inclusive filters:
+
+[source,sh]
+--------------------------------------------------
+curl -XGET 'localhost:9200/_cluster/state?filter_path=metadata.indices.*.state,-metadata.indices.logs-*'
+{
+  "metadata" : {
+    "indices" : {
+      "index-1" : {
+        "state" : "open"
+      },
+      "index-3" : {
+        "state" : "open"
+      },
+      "index-2" : {
+        "state" : "open"
+      }
+    }
+  }
+}%
 --------------------------------------------------
 
 Note that elasticsearch sometimes returns directly the raw value of a field,

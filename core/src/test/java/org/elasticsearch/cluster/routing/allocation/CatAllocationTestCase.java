@@ -82,7 +82,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
                     ShardRoutingState state = ShardRoutingState.valueOf(matcher.group(4));
                     String ip = matcher.group(5);
                     nodes.add(ip);
-                    ShardRouting routing = TestShardRouting.newShardRouting(index, shard, ip, null, null, primary, state);
+                    ShardRouting routing = TestShardRouting.newShardRouting(index, shard, ip, null, primary, state);
                     idx.add(routing);
                     logger.debug("Add routing {}", routing);
                 } else {
@@ -100,14 +100,14 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
                 .numberOfShards(idx.numShards()).numberOfReplicas(idx.numReplicas());
             for (ShardRouting shardRouting : idx.routing) {
                 if (shardRouting.active()) {
-                    Set<String> allocationIds = idxMetaBuilder.getActiveAllocationIds(shardRouting.id());
+                    Set<String> allocationIds = idxMetaBuilder.getInSyncAllocationIds(shardRouting.id());
                     if (allocationIds == null) {
                         allocationIds = new HashSet<>();
                     } else {
                         allocationIds = new HashSet<>(allocationIds);
                     }
                     allocationIds.add(shardRouting.allocationId().getId());
-                    idxMetaBuilder.putActiveAllocationIds(shardRouting.id(), allocationIds);
+                    idxMetaBuilder.putInSyncAllocationIds(shardRouting.id(), allocationIds);
                 }
             }
             IndexMetaData idxMeta = idxMetaBuilder.build();

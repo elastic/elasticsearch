@@ -9,6 +9,7 @@ List projects = [
   'client:sniffer',
   'client:transport',
   'client:test',
+  'client:client-benchmark-noop-api-plugin',
   'client:benchmark',
   'benchmarks',
   'distribution:integ-test-zip',

@@ -51,7 +51,7 @@ import java.util.function.Supplier;
  * The source recovery accepts recovery requests from other peer shards and start the recovery process from this
  * source shard to the target shard.
  */
-public class RecoverySource extends AbstractComponent implements IndexEventListener{
+public class PeerRecoverySourceService extends AbstractComponent implements IndexEventListener {
 
     public static class Actions {
         public static final String START_RECOVERY = "internal:index/shard/recovery/start_recovery";
@@ -66,8 +66,8 @@ public class RecoverySource extends AbstractComponent implements IndexEventListe
     private final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
 
     @Inject
-    public RecoverySource(Settings settings, TransportService transportService, IndicesService indicesService,
-                          RecoverySettings recoverySettings, ClusterService clusterService) {
+    public PeerRecoverySourceService(Settings settings, TransportService transportService, IndicesService indicesService,
+                                     RecoverySettings recoverySettings, ClusterService clusterService) {
         super(settings);
         this.transportService = transportService;
         this.indicesService = indicesService;
@@ -97,8 +97,7 @@ public class RecoverySource extends AbstractComponent implements IndexEventListe
         }
 
         ShardRouting routingEntry = shard.routingEntry();
-        if (request.recoveryType() == RecoveryState.Type.PRIMARY_RELOCATION &&
-            (routingEntry.relocating() == false || routingEntry.relocatingNodeId().equals(request.targetNode().getId()) == false)) {
+        if (request.isPrimaryRelocation() && (routingEntry.relocating() == false || routingEntry.relocatingNodeId().equals(request.targetNode().getId()) == false)) {
             logger.debug("delaying recovery of {} as source shard is not marked yet as relocating to {}", request.shardId(), request.targetNode());
             throw new DelayRecoveryException("source shard is not marked yet as relocating to [" + request.targetNode() + "]");
         }

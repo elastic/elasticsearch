@@ -51,7 +51,7 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
         final IndexMetaData indexMetaData = IndexMetaData.builder("test")
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(2).numberOfReplicas(0)
-                .putActiveAllocationIds(1, Collections.singleton(allocationId.getId()))
+                .putInSyncAllocationIds(1, Collections.singleton(allocationId.getId()))
                 .build();
         final Index index = indexMetaData.getIndex();
         ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))

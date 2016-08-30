@@ -68,7 +68,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  * Note, it can be safely assumed that there will only be a single recovery per shard (index+id) and
  * not several of them (since we don't allocate several shard replicas to the same node).
  */
-public class RecoveryTargetService extends AbstractComponent implements IndexEventListener {
+public class PeerRecoveryTargetService extends AbstractComponent implements IndexEventListener {
 
     public static class Actions {
         public static final String FILES_INFO = "internal:index/shard/recovery/filesInfo";
@@ -90,7 +90,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
     private final RecoveriesCollection onGoingRecoveries;
 
     @Inject
-    public RecoveryTargetService(Settings settings, ThreadPool threadPool, TransportService transportService, RecoverySettings
+    public PeerRecoveryTargetService(Settings settings, ThreadPool threadPool, TransportService transportService, RecoverySettings
             recoverySettings, ClusterService clusterService) {
         super(settings);
         this.threadPool = threadPool;
@@ -133,8 +133,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
         return onGoingRecoveries.cancelRecoveriesForShard(shardId, reason);
     }
 
-    public void startRecovery(final IndexShard indexShard, final RecoveryState.Type recoveryType, final DiscoveryNode sourceNode, final
-    RecoveryListener listener) {
+    public void startRecovery(final IndexShard indexShard, final DiscoveryNode sourceNode, final RecoveryListener listener) {
         // create a new recovery status, and process...
         final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, listener, recoverySettings.activityTimeout());
         threadPool.generic().execute(new RecoveryRunner(recoveryId));
@@ -189,8 +188,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
         }
         logger.trace("{} local file count: [{}]", recoveryTarget, metadataSnapshot.size());
         final StartRecoveryRequest request = new StartRecoveryRequest(recoveryTarget.shardId(), recoveryTarget.sourceNode(),
-                clusterService.localNode(),
-                metadataSnapshot, recoveryTarget.state().getType(), recoveryTarget.recoveryId());
+                clusterService.localNode(), metadataSnapshot, recoveryTarget.state().getPrimary(), recoveryTarget.recoveryId());
 
         final AtomicReference<RecoveryResponse> responseHolder = new AtomicReference<>();
         try {
@@ -198,7 +196,7 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
                     .sourceNode());
             recoveryTarget.indexShard().prepareForIndexRecovery();
             recoveryTarget.CancellableThreads().execute(() -> responseHolder.set(
-                    transportService.submitRequest(request.sourceNode(), RecoverySource.Actions.START_RECOVERY, request,
+                    transportService.submitRequest(request.sourceNode(), PeerRecoverySourceService.Actions.START_RECOVERY, request,
                             new FutureTransportResponseHandler<RecoveryResponse>() {
                                 @Override
                                 public RecoveryResponse newInstance() {

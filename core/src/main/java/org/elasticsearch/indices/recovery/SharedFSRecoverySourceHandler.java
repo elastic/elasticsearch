@@ -50,7 +50,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
         boolean engineClosed = false;
         try {
             logger.trace("{} recovery [phase1] to {}: skipping phase 1 for shared filesystem", request.shardId(), request.targetNode());
-            if (isPrimaryRelocation()) {
+            if (request.isPrimaryRelocation()) {
                 logger.debug("[phase1] closing engine on primary for shared filesystem recovery");
                 try {
                     // if we relocate we need to close the engine in order to open a new

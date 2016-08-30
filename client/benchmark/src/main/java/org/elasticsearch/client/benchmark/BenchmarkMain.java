@@ -37,7 +37,7 @@ public class BenchmarkMain {
                 benchmark = new RestClientBenchmark();
                 break;
             default:
-                System.err.println("Unknown benchmark type [" + type + "]");
+                System.err.println("Unknown client type [" + type + "]");
                 System.exit(1);
         }
         benchmark.run(Arrays.copyOfRange(args, 1, args.length));

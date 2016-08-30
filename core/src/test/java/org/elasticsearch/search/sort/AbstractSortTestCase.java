@@ -21,6 +21,8 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -218,7 +220,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
     protected QueryShardContext createMockShardContext() {
         Index index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index,
+            Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
         IndexFieldDataService ifds = new IndexFieldDataService(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
                 cache, null, null);
@@ -241,8 +244,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
             @Override
             public ObjectMapper getObjectMapper(String name) {
-                BuilderContext context = new BuilderContext(Settings.EMPTY, new ContentPath());
-                return new ObjectMapper.Builder<>(name).nested(Nested.newNested(false, false)).build(context);
+                BuilderContext context = new BuilderContext(this.getIndexSettings().getSettings(), new ContentPath());
+                return (ObjectMapper) new ObjectMapper.Builder<>(name).nested(Nested.newNested(false, false)).build(context);
             }
         };
     }

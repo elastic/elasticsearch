@@ -365,6 +365,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+        final boolean includeInAll = context.includeInAll(this.includeInAll, this);
+
         XContentParser parser = context.parser();
         Object value;
         Number numericValue = null;
@@ -377,17 +379,19 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 && parser.textLength() == 0) {
             value = null;
         } else {
-            value = parser.textOrNull();
-            if (value != null) {
-                try {
-                    numericValue = NumberFieldMapper.NumberType.DOUBLE.parse(parser, coerce.value());
-                } catch (IllegalArgumentException e) {
-                    if (ignoreMalformed.value()) {
-                        return;
-                    } else {
-                        throw e;
-                    }
+            try {
+                numericValue = NumberFieldMapper.NumberType.DOUBLE.parse(parser, coerce.value());
+            } catch (IllegalArgumentException e) {
+                if (ignoreMalformed.value()) {
+                    return;
+                } else {
+                    throw e;
                 }
+            }
+            if (includeInAll) {
+                value = parser.textOrNull(); // preserve formatting
+            } else {
+                value = numericValue;
             }
         }
 
@@ -403,7 +407,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             numericValue = NumberFieldMapper.NumberType.DOUBLE.parse(value);
         }
 
-        if (context.includeInAll(includeInAll, this)) {
+        if (includeInAll) {
             context.allEntries().addText(fieldType().name(), value.toString(), fieldType().boost());
         }
 

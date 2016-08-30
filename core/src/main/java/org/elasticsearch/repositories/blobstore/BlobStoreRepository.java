@@ -1578,6 +1578,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         index.totalRecoverFiles(), new ByteSizeValue(index.totalRecoverBytes()), index.reusedFileCount(), new ByteSizeValue(index.reusedFileCount()));
                 }
                 try {
+                    // first, delete pre-existing files in the store that have the same name but are
+                    // different (i.e. different length/checksum) from those being restored in the snapshot
+                    for (final StoreFileMetaData storeFileMetaData : diff.different) {
+                        IOUtils.deleteFiles(store.directory(), storeFileMetaData.name());
+                    }
+                    // restore the files from the snapshot to the Lucene store
                     for (final BlobStoreIndexShardSnapshot.FileInfo fileToRecover : filesToRecover) {
                         logger.trace("[{}] [{}] restoring file [{}]", shardId, snapshotId, fileToRecover.name());
                         restoreFile(fileToRecover, store);
@@ -1638,10 +1644,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     stream = new RateLimitingInputStream(partSliceStream, restoreRateLimiter, restoreRateLimitingTimeInNanos::inc);
                 }
 
-                // TODO: why does the target file sometimes already exist?  Simon says: I think, this can happen if you fail a shard and
-                // it's not cleaned up yet, the restore process tries to reuse files
-                IOUtils.deleteFilesIgnoringExceptions(store.directory(), fileInfo.physicalName());
-                
                 try (final IndexOutput indexOutput = store.createVerifyingOutput(fileInfo.physicalName(), fileInfo.metadata(), IOContext.DEFAULT)) {
                     final byte[] buffer = new byte[BUFFER_SIZE];
                     int length;

@@ -15,6 +15,7 @@ Run the following command to get usage instructions:
 -----------------------------------
 sudo bin/elasticsearch-plugin -h
 -----------------------------------
+// NOTCONSOLE
 
 [IMPORTANT]
 .Running as root
@@ -41,6 +42,7 @@ Core Elasticsearch plugins can be installed as follows:
 -----------------------------------
 sudo bin/elasticsearch-plugin install [plugin_name]
 -----------------------------------
+// NOTCONSOLE
 
 For instance, to install the core <<analysis-icu,ICU plugin>>, just run the
 following command:
@@ -49,6 +51,7 @@ following command:
 -----------------------------------
 sudo bin/elasticsearch-plugin install analysis-icu
 -----------------------------------
+// NOTCONSOLE
 
 This command will install the version of the plugin that matches your
 Elasticsearch version and also show a progress bar while downloading.
@@ -62,6 +65,7 @@ A plugin can also be downloaded directly from a custom location by specifying th
 -----------------------------------
 sudo bin/elasticsearch-plugin install [url] <1>
 -----------------------------------
+// NOTCONSOLE
 <1> must be a valid URL, the plugin name is determined from its descriptor.
 
 For instance, to install a plugin from your local file system, you could run:
@@ -70,6 +74,7 @@ For instance, to install a plugin from your local file system, you could run:
 -----------------------------------
 sudo bin/elasticsearch-plugin install file:///path/to/plugin.zip
 -----------------------------------
+// NOTCONSOLE
 
 The plugin script will refuse to talk to an HTTPS URL with an untrusted
 certificate. To use a self-signed HTTPS cert, you will need to add the CA cert
@@ -79,6 +84,7 @@ to a local Java truststore and pass the location to the script as follows:
 -----------------------------------
 sudo ES_JAVA_OPTS="-Djavax.net.ssl.trustStore=/path/to/trustStore.jks" bin/elasticsearch-plugin install https://....
 -----------------------------------
+// NOTCONSOLE
 
 [[listing-removing]]
 === Listing and Removing Installed Plugins
@@ -92,6 +98,7 @@ A list of the currently loaded plugins can be retrieved with the `list` option:
 -----------------------------------
 sudo bin/elasticsearch-plugin list
 -----------------------------------
+// NOTCONSOLE
 
 Alternatively, use the {ref}/cluster-nodes-info.html[node-info API] to find
 out which plugins are installed on each node in the cluster
@@ -106,6 +113,7 @@ Plugins can be removed manually, by deleting the appropriate directory under
 -----------------------------------
 sudo bin/elasticsearch-plugin remove [pluginname]
 -----------------------------------
+// NOTCONSOLE
 
 After a Java plugin has been removed, you will need to restart the node to complete the removal process.
 
@@ -137,6 +145,7 @@ can do this as follows:
 ---------------------
 sudo bin/elasticsearch-plugin -Epath.conf=/path/to/custom/config/dir install <plugin name>
 ---------------------
+// NOTCONSOLE
 
 You can also set the `CONF_DIR` environment variable to the custom config
 directory path.
@@ -159,6 +168,7 @@ sudo bin/elasticsearch-plugin install analysis-icu --timeout 1m
 # Wait forever (default)
 sudo bin/elasticsearch-plugin install analysis-icu --timeout 0
 -----------------------------------
+// NOTCONSOLE
 
 [float]
 === Proxy settings
@@ -171,6 +181,7 @@ and `http.proxyPort` (or `https.proxyHost` and `https.proxyPort`):
 -----------------------------------
 sudo ES_JAVA_OPTS="-Dhttp.proxyHost=host_name -Dhttp.proxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number" bin/elasticsearch-plugin install analysis-icu
 -----------------------------------
+// NOTCONSOLE
 
 Or on Windows:
 
@@ -179,6 +190,7 @@ Or on Windows:
 set ES_JAVA_OPTS="-DproxyHost=host_name -DproxyPort=port_number -Dhttps.proxyHost=host_name -Dhttps.proxyPort=https_port_number"
 bin/elasticsearch-plugin install analysis-icu
 ------------------------------------
+// NOTCONSOLE
 
 === Plugins directory
 

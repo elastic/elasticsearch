@@ -67,7 +67,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -76,15 +75,12 @@ import java.util.stream.StreamSupport;
  */
 public class SearchPhaseController extends AbstractComponent {
 
-    public static final Comparator<AtomicArray.Entry<? extends QuerySearchResultProvider>> QUERY_RESULT_ORDERING = new Comparator<AtomicArray.Entry<? extends QuerySearchResultProvider>>() {
-        @Override
-        public int compare(AtomicArray.Entry<? extends QuerySearchResultProvider> o1, AtomicArray.Entry<? extends QuerySearchResultProvider> o2) {
-            int i = o1.value.shardTarget().index().compareTo(o2.value.shardTarget().index());
-            if (i == 0) {
-                i = o1.value.shardTarget().shardId().id() - o2.value.shardTarget().shardId().id();
-            }
-            return i;
+    public static final Comparator<AtomicArray.Entry<? extends QuerySearchResultProvider>> QUERY_RESULT_ORDERING = (o1, o2) -> {
+        int i = o1.value.shardTarget().index().compareTo(o2.value.shardTarget().index());
+        if (i == 0) {
+            i = o1.value.shardTarget().shardId().id() - o2.value.shardTarget().shardId().id();
         }
+        return i;
     };
 
     public static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];

@@ -23,3 +23,4 @@
   - is_true: nodes.jvm
   - is_true: nodes.fs
   - is_true: nodes.plugins
+  - is_true: nodes.network_types

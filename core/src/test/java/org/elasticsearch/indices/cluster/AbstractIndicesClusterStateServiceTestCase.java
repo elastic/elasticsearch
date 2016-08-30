@@ -40,7 +40,7 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedInd
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.Shard;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryTargetService;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -207,8 +207,9 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
         @Override
         public MockIndexShard createShard(ShardRouting shardRouting, RecoveryState recoveryState,
-                                          RecoveryTargetService recoveryTargetService,
-                                          RecoveryTargetService.RecoveryListener recoveryListener, RepositoriesService repositoriesService,
+                                          PeerRecoveryTargetService recoveryTargetService,
+                                          PeerRecoveryTargetService.RecoveryListener recoveryListener,
+                                          RepositoriesService repositoriesService,
                                           NodeServicesProvider nodeServicesProvider, Callback<IndexShard.ShardFailure> onShardFailure)
             throws IOException {
             failRandomly();

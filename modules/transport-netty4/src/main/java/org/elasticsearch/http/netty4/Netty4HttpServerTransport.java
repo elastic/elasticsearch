@@ -290,10 +290,10 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
 
         serverBootstrap = new ServerBootstrap();
         if (blockingServer) {
-            serverBootstrap.group(new OioEventLoopGroup(workerCount, daemonThreadFactory(settings, "http_server_worker")));
+            serverBootstrap.group(new OioEventLoopGroup(workerCount, daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
             serverBootstrap.channel(OioServerSocketChannel.class);
         } else {
-            serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings, "http_server_worker")));
+            serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
             serverBootstrap.channel(NioServerSocketChannel.class);
         }
 

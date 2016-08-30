@@ -19,17 +19,26 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
+import java.util.Collection;
 
+import static com.carrotsearch.randomizedtesting.RandomizedTest.getRandom;
 import static org.hamcrest.Matchers.containsString;
 
 public class ObjectMapperTests extends ESSingleNodeTestCase {
@@ -181,5 +190,44 @@ public class ObjectMapperTests extends ESSingleNodeTestCase {
         mapper = mapperService.merge("type", new CompressedXContent(update), MergeReason.MAPPING_UPDATE, false);
         assertFalse(mapper.root().includeInAll());
         assertEquals(Dynamic.STRICT, mapper.root().dynamic());
+    }
+
+    public void testEmptyName() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("")
+                    .startObject("properties")
+                        .startObject("name")
+                            .field("type", "text")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+
+        // Empty name not allowed in index created after 5.0
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            createIndex("test").mapperService().documentMapperParser().parse("", new CompressedXContent(mapping));
+        });
+        assertThat(e.getMessage(), containsString("name cannot be empty string"));
+
+        // empty name allowed in index created before 5.0
+        Version oldVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_2_0_0, Version.V_2_3_5);
+        Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, oldVersion).build();
+        DocumentMapperParser parser = createIndex("test_old", oldIndexSettings).mapperService().documentMapperParser();
+
+        DocumentMapper defaultMapper = parser.parse("", new CompressedXContent(mapping));
+        String downgradedMapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("")
+                    .startObject("properties")
+                        .startObject("name")
+                            .field("type", "string")
+                            .field("fielddata", false)
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+        assertEquals(downgradedMapping, defaultMapper.mappingSource().string());
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return pluginList(InternalSettingsPlugin.class);
     }
 }

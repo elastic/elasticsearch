@@ -666,4 +666,25 @@ public class SearchSourceBuilderTests extends ESTestCase {
         String query = "{ \"query\": {} }";
         assertParseSearchSource(builder, new BytesArray(query), ParseFieldMatcher.EMPTY);
     }
+
+    public void testSearchRequestBuilderSerializationWithIndexBoost() throws Exception {
+        SearchSourceBuilder searchSourceBuilder = createSearchSourceBuilder();
+        createIndexBoost(searchSourceBuilder);
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            searchSourceBuilder.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
+                SearchSourceBuilder deserializedSearchSourceBuilder = new SearchSourceBuilder(in);
+                BytesStreamOutput deserializedOutput = new BytesStreamOutput();
+                deserializedSearchSourceBuilder.writeTo(deserializedOutput);
+                assertEquals(output.bytes(), deserializedOutput.bytes());
+            }
+        }
+    }
+
+    private void createIndexBoost(SearchSourceBuilder searchSourceBuilder) {
+        int indexBoostSize = randomIntBetween(1, 10);
+        for (int i = 0; i < indexBoostSize; i++) {
+            searchSourceBuilder.indexBoost(randomAsciiOfLengthBetween(5, 20), randomFloat() * 10);
+        }
+    }
 }

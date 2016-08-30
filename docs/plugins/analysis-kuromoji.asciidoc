@@ -474,10 +474,11 @@ The above request returns:
     "start_offset" : 5,
     "end_offset" : 8,
     "type" : "word",
-    "position" : 3
+    "position" : 2
   } ]
 }
 --------------------------------------------------
+// TESTRESPONSE
 
 [[analysis-kuromoji-number]]
 ===== `kuromoji_number` token filter

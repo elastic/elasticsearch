@@ -187,9 +187,4 @@ public class LegacyTokenCountFieldMapper extends LegacyIntegerFieldMapper {
         builder.field("analyzer", analyzer());
     }
 
-    @Override
-    public boolean isGenerated() {
-        return true;
-    }
-
 }

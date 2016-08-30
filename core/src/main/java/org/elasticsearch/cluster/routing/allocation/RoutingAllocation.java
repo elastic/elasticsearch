@@ -307,8 +307,8 @@ public class RoutingAllocation {
     /**
      * Returns updated {@link MetaData} based on the changes that were made to the routing nodes
      */
-    public MetaData updateMetaDataWithRoutingChanges() {
-        return indexMetaDataUpdater.applyChanges(metaData);
+    public MetaData updateMetaDataWithRoutingChanges(RoutingTable newRoutingTable) {
+        return indexMetaDataUpdater.applyChanges(metaData, newRoutingTable);
     }
 
     /**

@@ -20,13 +20,20 @@ package org.elasticsearch.index.store;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -44,6 +51,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -53,7 +61,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class ExceptionRetryIT extends ESIntegTestCase {
 
     @Override
@@ -75,9 +83,12 @@ public class ExceptionRetryIT extends ESIntegTestCase {
     public void testRetryDueToExceptionOnNetworkLayer() throws ExecutionException, InterruptedException, IOException {
         final AtomicBoolean exceptionThrown = new AtomicBoolean(false);
         int numDocs = scaledRandomIntBetween(100, 1000);
+        Client client = internalCluster().coordOnlyNodeClient();
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
-        NodeStats unluckyNode = randomFrom(nodeStats.getNodes());
-        assertAcked(client().admin().indices().prepareCreate("index"));
+        NodeStats unluckyNode = randomFrom(nodeStats.getNodes().stream().filter((s) -> s.getNode().isDataNode()).collect(Collectors.toList()));
+        assertAcked(client().admin().indices().prepareCreate("index").setSettings(Settings.builder()
+            .put("index.number_of_replicas", 1)
+            .put("index.number_of_shards", 5)));
         ensureGreen("index");
 
         //create a transport service that throws a ConnectTransportException for one bulk request and therefore triggers a retry.
@@ -88,20 +99,19 @@ public class ExceptionRetryIT extends ESIntegTestCase {
                 @Override
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
                     super.sendRequest(node, requestId, action, request, options);
-                    if (action.equals(TransportShardBulkAction.ACTION_NAME) && !exceptionThrown.get()) {
+                    if (action.equals(TransportShardBulkAction.ACTION_NAME) && exceptionThrown.compareAndSet(false, true)) {
                         logger.debug("Throw ConnectTransportException");
-                        exceptionThrown.set(true);
                         throw new ConnectTransportException(node, action);
                     }
                 }
             });
         }
 
-        BulkRequestBuilder bulkBuilder = client().prepareBulk();
+        BulkRequestBuilder bulkBuilder = client.prepareBulk();
         for (int i = 0; i < numDocs; i++) {
             XContentBuilder doc = null;
             doc = jsonBuilder().startObject().field("foo", "bar").endObject();
-            bulkBuilder.add(client().prepareIndex("index", "type").setSource(doc));
+            bulkBuilder.add(client.prepareIndex("index", "type").setSource(doc));
         }
 
         BulkResponse response = bulkBuilder.get();
@@ -137,5 +147,16 @@ public class ExceptionRetryIT extends ESIntegTestCase {
         assertSearchResponse(searchResponse);
         assertThat(dupCounter, equalTo(0L));
         assertHitCount(searchResponse, numDocs);
+        IndicesStatsResponse index = client().admin().indices().prepareStats("index").clear().setSegments(true).get();
+        IndexStats indexStats = index.getIndex("index");
+        long maxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
+        for (IndexShardStats indexShardStats : indexStats) {
+            for (ShardStats shardStats : indexShardStats) {
+                SegmentsStats segments = shardStats.getStats().getSegments();
+                maxUnsafeAutoIdTimestamp = Math.max(maxUnsafeAutoIdTimestamp, segments.getMaxUnsafeAutoIdTimestamp());
+            }
+        }
+        assertTrue("exception must have been thrown otherwise setup is broken", exceptionThrown.get());
+        assertTrue("maxUnsafeAutoIdTimestamp must be > than 0 we have at least one retry", maxUnsafeAutoIdTimestamp > -1);
     }
 }

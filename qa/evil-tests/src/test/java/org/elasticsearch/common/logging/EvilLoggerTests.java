@@ -76,7 +76,7 @@ public class EvilLoggerTests extends ESTestCase {
     }
 
     private void assertLogLine(final String logLine, final Level level, final String location, final String message) {
-        final Matcher matcher = Pattern.compile("\\[(.*)\\]\\[(.*)\\(.*\\)\\] \\[\\] (.*)").matcher(logLine);
+        final Matcher matcher = Pattern.compile("\\[(.*)\\]\\[(.*)\\(.*\\)\\] (.*)").matcher(logLine);
         assertTrue(logLine, matcher.matches());
         assertThat(matcher.group(1), equalTo(level.toString()));
         assertThat(matcher.group(2), equalTo(location));

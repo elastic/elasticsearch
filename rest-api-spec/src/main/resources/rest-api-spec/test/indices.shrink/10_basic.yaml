@@ -47,7 +47,7 @@
       cluster.health:
         wait_for_status: green
         index: source
-        wait_for_relocating_shards: 0
+        wait_for_no_relocating_shards: true
         wait_for_events: "languid"
 
   # now we do the actual shrink

@@ -146,6 +146,25 @@ public class ActiveShardCountTests extends ESTestCase {
         assertTrue(waitForActiveShards.enoughShardsActive(clusterState, indexName));
     }
 
+    public void testEnoughShardsActiveValueBased() {
+        // enough shards active case
+        int threshold = randomIntBetween(1, 50);
+        ActiveShardCount waitForActiveShards = ActiveShardCount.from(randomIntBetween(0, threshold));
+        assertTrue(waitForActiveShards.enoughShardsActive(randomIntBetween(threshold, 50)));
+        // not enough shards active
+        waitForActiveShards = ActiveShardCount.from(randomIntBetween(threshold, 50));
+        assertFalse(waitForActiveShards.enoughShardsActive(randomIntBetween(0, threshold - 1)));
+        // wait for zero shards should always pass
+        assertTrue(ActiveShardCount.from(0).enoughShardsActive(randomIntBetween(0, 50)));
+        // invalid values
+        Exception e = expectThrows(IllegalStateException.class, () -> ActiveShardCount.ALL.enoughShardsActive(randomIntBetween(0, 50)));
+        assertEquals("not enough information to resolve to shard count", e.getMessage());
+        e = expectThrows(IllegalStateException.class, () -> ActiveShardCount.DEFAULT.enoughShardsActive(randomIntBetween(0, 50)));
+        assertEquals("not enough information to resolve to shard count", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> ActiveShardCount.NONE.enoughShardsActive(randomIntBetween(-10, -1)));
+        assertEquals("activeShardCount cannot be negative", e.getMessage());
+    }
+
     private void runTestForOneActiveShard(final ActiveShardCount activeShardCount) {
         final String indexName = "test-idx";
         final int numberOfShards = randomIntBetween(1, 5);

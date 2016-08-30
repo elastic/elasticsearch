@@ -1,8 +1,8 @@
 logger:
-  security.audit.logfile: INFO, access_log
+  xpack.security.audit.logfile: INFO, access_log
 
 additivity:
-  security.audit.logfile: false
+  xpack.security.audit.logfile: false
 
 appender:
 

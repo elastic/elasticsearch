@@ -13,6 +13,8 @@
           { "status": "green", "@timestamp": "2005-01-01T00:00:55" }
 
   - do:
+      warnings:
+          - Groovy scripts are deprecated.  Use Painless scripts instead.
       xpack.watcher.put_watch:
         id: "watch_with_groovy_closure"
         body:  >

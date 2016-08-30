@@ -1,11 +1,11 @@
 [[analysis-minhash-tokenfilter]]
 == Minhash Token Filter
 
-A token filter of type `minhash` hashes each token of the token stream and divides
+A token filter of type `min_hash` hashes each token of the token stream and divides
 the resulting hashes into buckets, keeping the lowest-valued hashes per
 bucket. It then returns these hashes as tokens.
 
-The following are settings that can be set for a `minhash` token filter.
+The following are settings that can be set for a `min_hash` token filter.
 
 [cols="<,<", options="header",]
 |=======================================================================

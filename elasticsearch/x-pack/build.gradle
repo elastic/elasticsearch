@@ -149,6 +149,7 @@ project.afterEvaluate {
                  StandardCopyOption.REPLACE_EXISTING)
     }
   }
+  assemble.dependsOn(apiJar)
   project.publishing {
     publications {
       apijar(MavenPublication) {

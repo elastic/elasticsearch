@@ -805,15 +805,18 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 40L);
         shardSizes.put("[test][1][p]", 40L);
+        shardSizes.put("[foo][0][p]", 10L);
         final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), MockInternalClusterInfoService.DEV_NULL_MAP);
 
         DiskThresholdDecider diskThresholdDecider = new DiskThresholdDecider(diskSettings);
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
+                .put(IndexMetaData.builder("foo").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
+                .addAsNew(metaData.index("foo"))
                 .build();
 
         DiscoveryNode discoveryNode1 = new DiscoveryNode("node1", new LocalTransportAddress("1"), Version.CURRENT);
@@ -849,6 +852,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         // Two shards consuming each 80% of disk space while 70% is allowed, but one is relocating, so shard 0 can stay
         firstRouting = TestShardRouting.newShardRouting("test", 0, "node1", null, null, true, ShardRoutingState.STARTED, 1);
         secondRouting = TestShardRouting.newShardRouting("test", 1, "node1", "node2", null, true, ShardRoutingState.RELOCATING, 1);
+        ShardRouting fooRouting = TestShardRouting.newShardRouting("foo", 0, "node1", null, null, true, ShardRoutingState.UNASSIGNED, 1);
         firstRoutingNode = new RoutingNode("node1", discoveryNode1, Arrays.asList(firstRouting, secondRouting));
         builder = RoutingTable.builder().add(
                 IndexRoutingTable.builder("test")
@@ -865,6 +869,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo, System.nanoTime());
         decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
+        decision = diskThresholdDecider.canAllocate(fooRouting, firstRoutingNode, routingAllocation);
+        assertThat(decision.type(), equalTo(Decision.Type.NO));
 
         // Creating AllocationService instance and the services it depends on...
         ClusterInfoService cis = new ClusterInfoService() {

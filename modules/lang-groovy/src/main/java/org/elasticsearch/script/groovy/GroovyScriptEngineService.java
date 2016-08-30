@@ -68,6 +68,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.emptyList;
 
@@ -90,6 +91,11 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
      * Classloader used as a parent classloader for all Groovy scripts
      */
     private final ClassLoader loader;
+
+    /**
+     * Ensures that the deprecation log entry for Groovy is only written on the first Groovy script compiled.
+     */
+    private AtomicBoolean isDeprecationLogged = new AtomicBoolean(false);
 
     public GroovyScriptEngineService(Settings settings) {
         super(settings);
@@ -134,6 +140,10 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     @Override
     public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
+        if (isDeprecationLogged.compareAndSet(false, true)) {
+            deprecationLogger.deprecated("Groovy scripts are deprecated.  Use Painless scripts instead.");
+        }
+
         // Create the script class name
         String className = MessageDigests.toHexString(MessageDigests.sha1().digest(scriptSource.getBytes(StandardCharsets.UTF_8)));
 

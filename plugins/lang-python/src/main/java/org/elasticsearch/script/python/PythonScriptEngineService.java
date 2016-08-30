@@ -62,6 +62,8 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     public PythonScriptEngineService(Settings settings) {
         super(settings);
 
+        deprecationLogger.deprecated("Python scripts are deprecated.  Use Painless scripts instead.");
+
         // classloader created here
         final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {

@@ -25,6 +25,7 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.CompiledScript;
@@ -137,6 +138,8 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
 
     public JavaScriptScriptEngineService(Settings settings) {
         super(settings);
+
+        deprecationLogger.deprecated("Javascript scripts are deprecated.  Use Painless scripts instead.");
 
         Context ctx = Context.enter();
         try {

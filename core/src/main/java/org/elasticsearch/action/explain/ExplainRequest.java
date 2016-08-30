@@ -168,7 +168,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
         query = in.readNamedWriteable(QueryBuilder.class);
         filteringAlias = in.readStringArray();
         storedFields = in.readOptionalStringArray();
-        fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         nowInMillis = in.readVLong();
     }
 
@@ -182,7 +182,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> {
         out.writeNamedWriteable(query);
         out.writeStringArray(filteringAlias);
         out.writeOptionalStringArray(storedFields);
-        out.writeOptionalStreamable(fetchSourceContext);
+        out.writeOptionalWriteable(fetchSourceContext);
         out.writeVLong(nowInMillis);
     }
 }

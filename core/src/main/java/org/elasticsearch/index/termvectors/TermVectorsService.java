@@ -258,8 +258,12 @@ public class TermVectorsService  {
         for (Map.Entry<String, Collection<Object>> entry : values.entrySet()) {
             String field = entry.getKey();
             Analyzer analyzer = getAnalyzerAtField(indexShard, field, perFieldAnalyzer);
-            for (Object text : entry.getValue()) {
-                index.addField(field, text.toString(), analyzer);
+            if (entry.getValue() instanceof List) {
+                for (Object text : entry.getValue()) {
+                    index.addField(field, text.toString(), analyzer);
+                }
+            } else {
+                index.addField(field, entry.getValue().toString(), analyzer);
             }
         }
         /* and read vectors from it */

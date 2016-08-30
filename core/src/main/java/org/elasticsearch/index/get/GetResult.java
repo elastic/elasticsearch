@@ -204,6 +204,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         static final String _VERSION = "_version";
         static final String FOUND = "found";
         static final String FIELDS = "fields";
+        static final String _SOURCE = "_source";
     }
 
     public XContentBuilder toXContentEmbedded(XContentBuilder builder, Params params) throws IOException {
@@ -229,7 +230,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         builder.field(Fields.FOUND, exists);
 
         if (source != null) {
-            XContentHelper.writeRawField("_source", source, builder, params);
+            XContentHelper.writeRawField(Fields._SOURCE, source, builder, params);
         }
 
         if (!otherFields.isEmpty()) {

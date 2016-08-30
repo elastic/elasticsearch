@@ -192,7 +192,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             version = in.readLong();
             versionType = VersionType.fromValue(in.readByte());
 
-            fetchSourceContext = in.readOptionalStreamable(FetchSourceContext::new);
+            fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         }
 
         @Override
@@ -206,7 +206,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
             out.writeLong(version);
             out.writeByte(versionType.getValue());
 
-            out.writeOptionalStreamable(fetchSourceContext);
+            out.writeOptionalWriteable(fetchSourceContext);
         }
 
         @Override

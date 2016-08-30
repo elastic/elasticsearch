@@ -49,9 +49,9 @@
           type:    test
           id:      1
           routing: 5
-          fields:  foo
+          _source:  foo
           body:
             doc:        { foo: baz }
 
- - match: { get.fields.foo: [baz] }
+ - match: { get._source.foo: baz }
 

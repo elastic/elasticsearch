@@ -29,10 +29,10 @@
       bulk:
         refresh: true
         body: |
-          { "update": { "_index": "test_index", "_type": "test_type", "_id": "test_id_1", "fields": ["_source"] } }
+          { "update": { "_index": "test_index", "_type": "test_type", "_id": "test_id_1", "_source": true } }
           { "doc": { "foo": "baz" } }
           { "update": { "_index": "test_index", "_type": "test_type", "_id": "test_id_2" } }
-          { "fields": ["_source"], "doc": { "foo": "quux" } }
+          { "_source": true, "doc": { "foo": "quux" } }
 
   - match: { items.0.update.get._source.foo: baz }
   - match: { items.1.update.get._source.foo: quux }
@@ -41,7 +41,7 @@
       bulk:
         index: test_index
         type: test_type
-        fields: _source
+        _source: true
         body: |
           { "update": { "_id": "test_id_3" } }
           { "doc": { "foo": "garply" } }

@@ -886,6 +886,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
             generator.writeNull();
             return;
         }
+        assert false == value instanceof TimeValue : "Use timeValueField instead";
         Class<?> type = value.getClass();
         Writer writer = MAP.get(type);
         if (writer != null) {

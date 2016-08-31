@@ -36,10 +36,6 @@ public class DeprecationLogger {
 
     private final Logger logger;
 
-    public Logger getLogger() {
-        return logger;
-    }
-
     /**
      * The "Warning" Header comes from RFC-7234. As the RFC describes, it's generally used for caching purposes, but it can be
      * used for <em>any</em> warning.

@@ -446,7 +446,7 @@ public class UsersTool extends MultiCommand {
         }
         String[] roles = rolesStr.split(",");
         for (String role : roles) {
-            Validation.Error validationError = Validation.Roles.validateRoleName(role);
+            Validation.Error validationError = Validation.Roles.validateRoleName(role, true);
             if (validationError != null) {
                 throw new UserException(ExitCodes.DATA_ERROR, "Invalid role [" + role + "]... " + validationError);
             }

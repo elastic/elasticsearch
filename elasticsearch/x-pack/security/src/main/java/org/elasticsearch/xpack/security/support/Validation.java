@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.security.support;
 
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
+
 import java.util.regex.Pattern;
 
 /**
@@ -19,12 +22,16 @@ public final class Validation {
         private static final int MIN_PASSWD_LENGTH = 6;
 
         public static Error validateUsername(String username) {
-            return COMMON_NAME_PATTERN.matcher(username).matches() ?
-                    null :
-                    new Error("A valid username must be at least 1 character and no longer than 30 characters. " +
-                            "It must begin with a letter (`a-z` or `A-Z`) or an underscore (`_`). Subsequent " +
-                            "characters can be letters, underscores (`_`), digits (`0-9`) or any of the following " +
-                            "symbols `@`, `-`, `.` or `$`");
+            if (COMMON_NAME_PATTERN.matcher(username).matches() == false) {
+                return new Error("A valid username must be at least 1 character and no longer than 30 characters. " +
+                        "It must begin with a letter (`a-z` or `A-Z`) or an underscore (`_`). Subsequent " +
+                        "characters can be letters, underscores (`_`), digits (`0-9`) or any of the following " +
+                        "symbols `@`, `-`, `.` or `$`");
+            }
+            if (ReservedRealm.isReserved(username)) {
+                return new Error("Username [" + username + "] is reserved and may not be used.");
+            }
+            return null;
         }
 
         public static Error validatePassword(char[] password) {
@@ -38,12 +45,20 @@ public final class Validation {
     public static final class Roles {
 
         public static Error validateRoleName(String roleName) {
-            return COMMON_NAME_PATTERN.matcher(roleName).matches() ?
-                    null :
-                    new Error("A valid role name must be at least 1 character and no longer than 30 characters. " +
-                            "It must begin with a letter (`a-z` or `A-Z`) or an underscore (`_`). Subsequent " +
-                            "characters can be letters, underscores (`_`), digits (`0-9`) or any of the following " +
-                            "symbols `@`, `-`, `.` or `$`");
+            return validateRoleName(roleName, false);
+        }
+
+        public static Error validateRoleName(String roleName, boolean allowReserved) {
+            if (COMMON_NAME_PATTERN.matcher(roleName).matches() == false) {
+                return new Error("A valid role name must be at least 1 character and no longer than 30 characters. " +
+                        "It must begin with a letter (`a-z` or `A-Z`) or an underscore (`_`). Subsequent " +
+                        "characters can be letters, underscores (`_`), digits (`0-9`) or any of the following " +
+                        "symbols `@`, `-`, `.` or `$`");
+            }
+            if (allowReserved == false && ReservedRolesStore.isReserved(roleName)) {
+                return new Error("Role [" + roleName + "] is reserved and may not be used.");
+            }
+            return null;
         }
     }
 

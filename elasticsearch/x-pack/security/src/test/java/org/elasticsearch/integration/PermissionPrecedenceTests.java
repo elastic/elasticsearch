@@ -43,11 +43,6 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
                 "    - names: '*'\n" +
                 "      privileges: [ all ]" +
                 "\n" +
-                "transport_client:\n" +
-                "  cluster:\n" +
-                "    - cluster:monitor/nodes/info\n" +
-                "    - cluster:monitor/state\n" +
-                "\n" +
                 "user:\n" +
                 "  indices:\n" +
                 "    - names: 'test_*'\n" +

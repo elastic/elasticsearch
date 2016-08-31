@@ -130,20 +130,23 @@ http://logging.apache.org/log4j/extras/[log4j-extras] are also available,
 out of the box.
 
 [float]
-[[deprecation-logging]]
+[[deprecation-logging]]e
 === Deprecation logging
 
 In addition to regular logging, Elasticsearch allows you to enable logging
 of deprecated actions. For example this allows you to determine early, if
 you need to migrate certain functionality in the future. By default,
-deprecation logging is disabled. You can enable it in the `config/logging.yml`
-file by setting the deprecation log level to `DEBUG`.
+deprecation logging is enabled at the WARN level, the level at which all
+deprecation log messages will be emitted.
 
 [source,yaml]
 --------------------------------------------------
-deprecation: DEBUG, deprecation_log_file
+deprecation: WARN, deprecation_log_file
 --------------------------------------------------
 
 This will create a daily rolling deprecation log file in your log directory.
 Check this file regularly, especially when you intend to upgrade to a new
 major version.
+
+You can disable it in the `config/logging.yml` file by setting the deprecation
+log level to `INFO`.

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.client;
 
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
-import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpEntityEnclosingRequest;
@@ -41,7 +39,6 @@ import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.conn.ConnectTimeoutException;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.message.BasicHeader;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
@@ -58,7 +55,10 @@ import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Future;
 
 import static org.elasticsearch.client.RestClientTestUtil.getAllErrorStatusCodes;
@@ -132,16 +132,11 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 });
 
 
-        int numHeaders = RandomInts.randomIntBetween(getRandom(), 0, 3);
-        defaultHeaders = new Header[numHeaders];
-        for (int i = 0; i < numHeaders; i++) {
-            String headerName = "Header-default" + (getRandom().nextBoolean() ? i : "");
-            String headerValue = RandomStrings.randomAsciiOfLengthBetween(getRandom(), 3, 10);
-            defaultHeaders[i] = new BasicHeader(headerName, headerValue);
-        }
+        int numHeaders = randomIntBetween(0, 3);
+        defaultHeaders = generateHeaders("Header-default", "Header-array", numHeaders);
         httpHost = new HttpHost("localhost", 9200);
         failureListener = new HostsTrackingFailureListener();
-        restClient = new RestClient(httpClient, 10000, defaultHeaders, new HttpHost[]{httpHost}, failureListener);
+        restClient = new RestClient(httpClient, 10000, defaultHeaders, new HttpHost[]{httpHost}, null, failureListener);
     }
 
     /**
@@ -333,20 +328,13 @@ public class RestClientSingleHostTests extends RestClientTestCase {
      */
     public void testHeaders() throws IOException {
         for (String method : getHttpMethods()) {
-            Map<String, String> expectedHeaders = new HashMap<>();
-            for (Header defaultHeader : defaultHeaders) {
-                expectedHeaders.put(defaultHeader.getName(), defaultHeader.getValue());
-            }
-            int numHeaders = RandomInts.randomIntBetween(getRandom(), 1, 5);
-            Header[] headers = new Header[numHeaders];
-            for (int i = 0; i < numHeaders; i++) {
-                String headerName = "Header" + (getRandom().nextBoolean() ? i : "");
-                String headerValue = RandomStrings.randomAsciiOfLengthBetween(getRandom(), 3, 10);
-                headers[i] = new BasicHeader(headerName, headerValue);
-                expectedHeaders.put(headerName, headerValue);
-            }
+            final int numHeaders = randomIntBetween(1, 5);
+            final Header[] headers = generateHeaders("Header", null, numHeaders);
+            final Map<String, List<String>> expectedHeaders = new HashMap<>();
 
-            int statusCode = randomStatusCode(getRandom());
+            addHeaders(expectedHeaders, defaultHeaders, headers);
+
+            final int statusCode = randomStatusCode(getRandom());
             Response esResponse;
             try {
                 esResponse = restClient.performRequest(method, "/" + statusCode, headers);
@@ -355,10 +343,18 @@ public class RestClientSingleHostTests extends RestClientTestCase {
             }
             assertThat(esResponse.getStatusLine().getStatusCode(), equalTo(statusCode));
             for (Header responseHeader : esResponse.getHeaders()) {
-                String headerValue = expectedHeaders.remove(responseHeader.getName());
-                assertNotNull("found response header [" + responseHeader.getName() + "] that wasn't originally sent", headerValue);
+                final String name = responseHeader.getName();
+                final String value = responseHeader.getValue();
+                final List<String> values = expectedHeaders.get(name);
+                assertNotNull("found response header [" + name + "] that wasn't originally sent: " + value, values);
+                assertTrue("found incorrect response header [" + name + "]: " + value, values.remove(value));
+
+                // we've collected them all
+                if (values.isEmpty()) {
+                    expectedHeaders.remove(name);
+                }
             }
-            assertEquals("some headers that were sent weren't returned " + expectedHeaders, 0, expectedHeaders.size());
+            assertTrue("some headers that were sent weren't returned " + expectedHeaders, expectedHeaders.isEmpty());
         }
     }
 
@@ -368,11 +364,11 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         Map<String, String> params = Collections.emptyMap();
         boolean hasParams = randomBoolean();
         if (hasParams) {
-            int numParams = RandomInts.randomIntBetween(getRandom(), 1, 3);
+            int numParams = randomIntBetween(1, 3);
             params = new HashMap<>(numParams);
             for (int i = 0; i < numParams; i++) {
                 String paramKey = "param-" + i;
-                String paramValue = RandomStrings.randomAsciiOfLengthBetween(getRandom(), 3, 10);
+                String paramValue = randomAsciiOfLengthBetween(3, 10);
                 params.put(paramKey, paramValue);
                 uriBuilder.addParameter(paramKey, paramValue);
             }
@@ -412,24 +408,24 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         HttpEntity entity = null;
         boolean hasBody = request instanceof HttpEntityEnclosingRequest && getRandom().nextBoolean();
         if (hasBody) {
-            entity = new StringEntity(RandomStrings.randomAsciiOfLengthBetween(getRandom(), 10, 100));
+            entity = new StringEntity(randomAsciiOfLengthBetween(10, 100));
             ((HttpEntityEnclosingRequest) request).setEntity(entity);
         }
 
         Header[] headers = new Header[0];
-        for (Header defaultHeader : defaultHeaders) {
-            //default headers are expected but not sent for each request
-            request.setHeader(defaultHeader);
+        final int numHeaders = randomIntBetween(1, 5);
+        final Set<String> uniqueNames = new HashSet<>(numHeaders);
+        if (randomBoolean()) {
+            headers = generateHeaders("Header", "Header-array", numHeaders);
+            for (Header header : headers) {
+                request.addHeader(header);
+                uniqueNames.add(header.getName());
+            }
         }
-        if (getRandom().nextBoolean()) {
-            int numHeaders = RandomInts.randomIntBetween(getRandom(), 1, 5);
-            headers = new Header[numHeaders];
-            for (int i = 0; i < numHeaders; i++) {
-                String headerName = "Header" + (getRandom().nextBoolean() ? i : "");
-                String headerValue = RandomStrings.randomAsciiOfLengthBetween(getRandom(), 3, 10);
-                BasicHeader basicHeader = new BasicHeader(headerName, headerValue);
-                headers[i] = basicHeader;
-                request.setHeader(basicHeader);
+        for (Header defaultHeader : defaultHeaders) {
+            // request level headers override default headers
+            if (uniqueNames.contains(defaultHeader.getName()) == false) {
+                request.addHeader(defaultHeader);
             }
         }
 
@@ -459,4 +455,5 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                 throw new UnsupportedOperationException();
         }
     }
+
 }

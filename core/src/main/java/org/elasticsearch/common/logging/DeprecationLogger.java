@@ -133,12 +133,10 @@ public class DeprecationLogger {
                     // ignored; it should be removed shortly
                 }
             }
-
             logger.warn(formattedMessage);
         } else {
             logger.warn(message, params);
         }
-
     }
 
 }

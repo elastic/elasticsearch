@@ -32,6 +32,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -49,6 +50,8 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.HasChildQueryBuilder;
+import org.elasticsearch.index.query.HasParentQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -435,23 +438,31 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
     }
 
-    public void testVerifyRangeQueries() {
+    public void testUnsupportedQueries() {
         RangeQueryBuilder rangeQuery1 = new RangeQueryBuilder("field").from("2016-01-01||/D").to("2017-01-01||/D");
         RangeQueryBuilder rangeQuery2 = new RangeQueryBuilder("field").from("2016-01-01||/D").to("now");
-        PercolatorFieldMapper.verifyRangeQueries(rangeQuery1);
-        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyRangeQueries(rangeQuery2));
-        PercolatorFieldMapper.verifyRangeQueries(new BoolQueryBuilder().must(rangeQuery1));
+        PercolatorFieldMapper.verifyQuery(rangeQuery1);
+        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(rangeQuery2));
+        PercolatorFieldMapper.verifyQuery(new BoolQueryBuilder().must(rangeQuery1));
         expectThrows(IllegalArgumentException.class, () ->
-                PercolatorFieldMapper.verifyRangeQueries(new BoolQueryBuilder().must(rangeQuery2)));
-        PercolatorFieldMapper.verifyRangeQueries(new ConstantScoreQueryBuilder((rangeQuery1)));
+                PercolatorFieldMapper.verifyQuery(new BoolQueryBuilder().must(rangeQuery2)));
+        PercolatorFieldMapper.verifyQuery(new ConstantScoreQueryBuilder((rangeQuery1)));
         expectThrows(IllegalArgumentException.class, () ->
-                PercolatorFieldMapper.verifyRangeQueries(new ConstantScoreQueryBuilder(rangeQuery2)));
-        PercolatorFieldMapper.verifyRangeQueries(new BoostingQueryBuilder(rangeQuery1, new MatchAllQueryBuilder()));
+                PercolatorFieldMapper.verifyQuery(new ConstantScoreQueryBuilder(rangeQuery2)));
+        PercolatorFieldMapper.verifyQuery(new BoostingQueryBuilder(rangeQuery1, new MatchAllQueryBuilder()));
         expectThrows(IllegalArgumentException.class, () ->
-                PercolatorFieldMapper.verifyRangeQueries(new BoostingQueryBuilder(rangeQuery2, new MatchAllQueryBuilder())));
-        PercolatorFieldMapper.verifyRangeQueries(new FunctionScoreQueryBuilder(rangeQuery1, new RandomScoreFunctionBuilder()));
+                PercolatorFieldMapper.verifyQuery(new BoostingQueryBuilder(rangeQuery2, new MatchAllQueryBuilder())));
+        PercolatorFieldMapper.verifyQuery(new FunctionScoreQueryBuilder(rangeQuery1, new RandomScoreFunctionBuilder()));
         expectThrows(IllegalArgumentException.class, () ->
-                PercolatorFieldMapper.verifyRangeQueries(new FunctionScoreQueryBuilder(rangeQuery2, new RandomScoreFunctionBuilder())));
+                PercolatorFieldMapper.verifyQuery(new FunctionScoreQueryBuilder(rangeQuery2, new RandomScoreFunctionBuilder())));
+
+        HasChildQueryBuilder hasChildQuery = new HasChildQueryBuilder("_type", new MatchAllQueryBuilder(), ScoreMode.None);
+        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(hasChildQuery));
+        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(new BoolQueryBuilder().must(hasChildQuery)));
+
+        HasParentQueryBuilder hasParentQuery = new HasParentQueryBuilder("_type", new MatchAllQueryBuilder(), false);
+        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(hasParentQuery));
+        expectThrows(IllegalArgumentException.class, () -> PercolatorFieldMapper.verifyQuery(new BoolQueryBuilder().must(hasParentQuery)));
     }
 
     private void assertQueryBuilder(BytesRef actual, QueryBuilder expected) throws IOException {

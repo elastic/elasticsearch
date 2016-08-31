@@ -17,9 +17,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.common.http.auth.HttpAuth;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
+import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
-import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
 
 import java.io.IOException;
@@ -32,8 +32,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 
-/**
- */
 public class HttpRequestTemplate implements ToXContent {
 
     private final Scheme scheme;
@@ -193,10 +191,12 @@ public class HttpRequestTemplate implements ToXContent {
             builder.field(HttpRequest.Field.BODY.getPreferredName(), body, params);
         }
         if (connectionTimeout != null) {
-            builder.field(HttpRequest.Field.CONNECTION_TIMEOUT.getPreferredName(), connectionTimeout);
+            builder.timeValueField(HttpRequest.Field.CONNECTION_TIMEOUT.getPreferredName(),
+                    HttpRequest.Field.CONNECTION_TIMEOUT_HUMAN.getPreferredName(), connectionTimeout);
         }
         if (readTimeout != null) {
-            builder.field(HttpRequest.Field.READ_TIMEOUT.getPreferredName(), readTimeout);
+            builder.timeValueField(HttpRequest.Field.READ_TIMEOUT.getPreferredName(),
+                    HttpRequest.Field.READ_TIMEOUT_HUMAN.getPreferredName(), readTimeout);
         }
         if (proxy != null) {
             proxy.toXContent(builder, params);
@@ -242,6 +242,11 @@ public class HttpRequestTemplate implements ToXContent {
         return result;
     }
 
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
     public static Builder builder(String host, int port) {
         return new Builder(host, port);
     }
@@ -280,6 +285,9 @@ public class HttpRequestTemplate implements ToXContent {
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.URL)) {
                     builder.fromUrl(parser.text());
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.CONNECTION_TIMEOUT)) {
+                    builder.connectionTimeout(TimeValue.timeValueMillis(parser.longValue()));
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.CONNECTION_TIMEOUT_HUMAN)) {
+                    // Users and 2.x specify the timeout this way
                     try {
                         builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser,
                                 HttpRequest.Field.CONNECTION_TIMEOUT.toString()));
@@ -288,6 +296,9 @@ public class HttpRequestTemplate implements ToXContent {
                                 pe, currentFieldName);
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.READ_TIMEOUT)) {
+                    builder.readTimeout(TimeValue.timeValueMillis(parser.longValue()));
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.READ_TIMEOUT_HUMAN)) {
+                    // Users and 2.x specify the timeout this way
                     try {
                         builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, HttpRequest.Field.READ_TIMEOUT.toString()));
                     } catch (ElasticsearchParseException pe) {

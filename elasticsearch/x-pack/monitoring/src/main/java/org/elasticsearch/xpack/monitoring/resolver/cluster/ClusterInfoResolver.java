@@ -11,11 +11,13 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.License;
+import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterInfoMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 public class ClusterInfoResolver extends MonitoringIndexNameResolver.Data<ClusterInfoMonitoringDoc> {
@@ -34,27 +36,38 @@ public class ClusterInfoResolver extends MonitoringIndexNameResolver.Data<Cluste
 
     @Override
     protected void buildXContent(ClusterInfoMonitoringDoc document, XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.field(Fields.CLUSTER_NAME, document.getClusterName());
-        builder.field(Fields.VERSION, document.getVersion());
+        builder.field("cluster_name", document.getClusterName());
+        builder.field("version", document.getVersion());
 
-        License license = document.getLicense();
+        final License license = document.getLicense();
         if (license != null) {
-            builder.startObject(Fields.LICENSE);
+            builder.startObject("license");
             Map<String, String> extraParams = new MapBuilder<String, String>()
                     .put(License.REST_VIEW_MODE, "true")
                     .map();
             params = new ToXContent.DelegatingMapParams(extraParams, params);
             license.toInnerXContent(builder, params);
-            builder.field(Fields.HKEY, hash(license, document.getClusterUUID()));
+            builder.field("hkey", hash(license, document.getClusterUUID()));
             builder.endObject();
         }
 
-        builder.startObject(Fields.CLUSTER_STATS);
-        ClusterStatsResponse clusterStats = document.getClusterStats();
+        final ClusterStatsResponse clusterStats = document.getClusterStats();
         if (clusterStats != null) {
+            builder.startObject("cluster_stats");
             clusterStats.toXContent(builder, params);
+            builder.endObject();
         }
-        builder.endObject();
+
+        final List<XPackFeatureSet.Usage> usages = document.getUsage();
+        if (usages != null) {
+            // in the future we may choose to add other usages under the stack_stats section, but it is only xpack for now
+            // it may also be combined on the UI side of phone-home to add things like "kibana" and "logstash" under "stack_stats"
+            builder.startObject("stack_stats").startObject("xpack");
+            for (final XPackFeatureSet.Usage usage : usages) {
+                builder.field(usage.name(), usage);
+            }
+            builder.endObject().endObject();
+        }
     }
 
     public static String hash(License license, String clusterName) {
@@ -66,15 +79,4 @@ public class ClusterInfoResolver extends MonitoringIndexNameResolver.Data<Cluste
         return MessageDigests.toHexString(MessageDigests.sha256().digest(toHash.getBytes(StandardCharsets.UTF_8)));
     }
 
-    static final class Fields {
-        static final String CLUSTER_NAME = "cluster_name";
-        static final String LICENSE = "license";
-        static final String VERSION = "version";
-        static final String CLUSTER_STATS = "cluster_stats";
-
-        static final String HKEY = "hkey";
-
-        static final String UID = "uid";
-        static final String TYPE = "type";
-    }
 }

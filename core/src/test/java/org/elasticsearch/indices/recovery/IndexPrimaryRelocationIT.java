@@ -23,15 +23,14 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -94,10 +93,8 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
         finished.set(true);
         indexingThread.join();
         refresh("test");
-        assertEquals(numAutoGenDocs.get(), client().prepareSearch("test").get().getHits().totalHits());
-        assertEquals(numAutoGenDocs.get(), client().prepareSearch("test")
-            .setQuery(QueryBuilders.termQuery("auto", true)) // extra paranoia ;)
-            .get().getHits().totalHits());
-
+        ElasticsearchAssertions.assertHitCount(client().prepareSearch("test").get(), numAutoGenDocs.get());
+        ElasticsearchAssertions.assertHitCount(client().prepareSearch("test")// extra paranoia ;)
+            .setQuery(QueryBuilders.termQuery("auto", true)).get(), numAutoGenDocs.get());
     }
 }

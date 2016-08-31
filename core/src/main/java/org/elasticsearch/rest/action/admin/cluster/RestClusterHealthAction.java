@@ -60,6 +60,11 @@ public class RestClusterHealthAction extends BaseRestHandler {
         }
         clusterHealthRequest.waitForNoRelocatingShards(
                 request.paramAsBoolean("wait_for_no_relocating_shards", clusterHealthRequest.waitForNoRelocatingShards()));
+        if (request.hasParam("wait_for_relocating_shards")) {
+            // wait_for_relocating_shards has been removed in favor of wait_for_no_relocating_shards
+            throw new IllegalArgumentException("wait_for_relocating_shards has been removed, " +
+                                               "use wait_for_no_relocating_shards [true/false] instead");
+        }
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
             clusterHealthRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));

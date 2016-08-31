@@ -37,6 +37,8 @@ public class LoggingListenerTests extends ESTestCase {
     public void testTestRunStartedSupportsClassInDefaultPackage() throws Exception {
         LoggingListener loggingListener = new LoggingListener();
         Description description = Description.createTestDescription(Class.forName("Dummy"), "dummy");
+
+        // Will throw an exception without the check for testClassPackage != null in testRunStarted
         loggingListener.testRunStarted(description);
     }
 

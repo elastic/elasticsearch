@@ -121,7 +121,7 @@ setup() {
     assert_file_not_exist "/etc/elasticsearch"
     assert_file_not_exist "/etc/elasticsearch/elasticsearch.yml"
     assert_file_not_exist "/etc/elasticsearch/jvm.options"
-    assert_file_not_exist "/etc/elasticsearch/logging.yml"
+    assert_file_not_exist "/etc/elasticsearch/log4j2.properties"
 
     assert_file_not_exist "/etc/init.d/elasticsearch"
     assert_file_not_exist "/usr/lib/systemd/system/elasticsearch.service"
@@ -140,7 +140,7 @@ setup() {
 @test "[RPM] reremove package" {
     echo "# ping" >> "/etc/elasticsearch/elasticsearch.yml"
     echo "# ping" >> "/etc/elasticsearch/jvm.options"
-    echo "# ping" >> "/etc/elasticsearch/logging.yml"
+    echo "# ping" >> "/etc/elasticsearch/log4j2.properties"
     echo "# ping" >> "/etc/elasticsearch/scripts/script"
     rpm -e 'elasticsearch'
 }
@@ -163,8 +163,8 @@ setup() {
     assert_file_exist "/etc/elasticsearch/elasticsearch.yml.rpmsave"
     assert_file_not_exist "/etc/elasticsearch/jvm.options"
     assert_file_exist "/etc/elasticsearch/jvm.options.rpmsave"
-    assert_file_not_exist "/etc/elasticsearch/logging.yml"
-    assert_file_exist "/etc/elasticsearch/logging.yml.rpmsave"
+    assert_file_not_exist "/etc/elasticsearch/log4j2.properties"
+    assert_file_exist "/etc/elasticsearch/log4j2.properties.rpmsave"
     # older versions of rpm behave differently and preserve the
     # directory but do not append the ".rpmsave" suffix
     test -e "/etc/elasticsearch/scripts" || test -e "/etc/elasticsearch/scripts.rpmsave"

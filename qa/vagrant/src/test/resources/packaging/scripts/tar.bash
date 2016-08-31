@@ -86,7 +86,7 @@ verify_archive_installation() {
     assert_file "$ESHOME/bin/elasticsearch-plugin" f
     assert_file "$ESCONFIG" d
     assert_file "$ESCONFIG/elasticsearch.yml" f
-    assert_file "$ESCONFIG/logging.yml" f
+    assert_file "$ESCONFIG/log4j2.properties" f
     assert_file "$ESHOME/lib" d
     assert_file "$ESHOME/NOTICE.txt" f
     assert_file "$ESHOME/LICENSE.txt" f

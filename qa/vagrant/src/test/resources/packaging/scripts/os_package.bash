@@ -79,7 +79,7 @@ verify_package_installation() {
     assert_file "$ESHOME/lib" d root root 755
     assert_file "$ESCONFIG" d root elasticsearch 750
     assert_file "$ESCONFIG/elasticsearch.yml" f root elasticsearch 750
-    assert_file "$ESCONFIG/logging.yml" f root elasticsearch 750
+    assert_file "$ESCONFIG/log4j2.properties" f root elasticsearch 750
     assert_file "$ESSCRIPTS" d root elasticsearch 750
     assert_file "$ESDATA" d elasticsearch elasticsearch 755
     assert_file "$ESLOG" d elasticsearch elasticsearch 755

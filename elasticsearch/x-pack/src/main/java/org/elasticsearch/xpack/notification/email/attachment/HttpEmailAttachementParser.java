@@ -112,12 +112,11 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
         } catch (IOException e) {
             logger.error(
                     (Supplier<?>) () -> new ParameterizedMessage(
-                            "Error executing HTTP request: [host[{}], port[{}], method[{}], path[{}]: [{}]",
+                            "Error executing HTTP request: [host[{}], port[{}], method[{}], path[{}]",
                             httpRequest.host(),
                             httpRequest.port(),
                             httpRequest.method(),
-                            httpRequest.path(),
-                            e.getMessage()),
+                            httpRequest.path()),
                     e);
         }
 

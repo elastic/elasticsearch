@@ -39,6 +39,11 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class ESLoggerUsageTests extends ESTestCase {
 
+    // needed to avoid the test suite from failing for having no tests
+    public void testSoThatTestsDoNotFail() {
+
+    }
+
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/20243")
     public void testLoggerUsageChecks() throws IOException {
         for (Method method : getClass().getMethods()) {

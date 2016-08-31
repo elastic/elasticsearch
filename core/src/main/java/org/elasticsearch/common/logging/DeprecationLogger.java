@@ -131,9 +131,9 @@ public class DeprecationLogger {
                 }
             }
 
-            logger.debug(formattedMsg);
+            logger.warn(formattedMsg);
         } else {
-            logger.debug(msg, params);
+            logger.warn(msg, params);
         }
 
     }

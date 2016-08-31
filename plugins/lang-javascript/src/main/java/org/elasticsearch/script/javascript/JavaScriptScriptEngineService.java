@@ -139,7 +139,7 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     public JavaScriptScriptEngineService(Settings settings) {
         super(settings);
 
-        deprecationLogger.deprecated("Javascript scripts are deprecated.  Use Painless scripts instead.");
+        deprecationLogger.deprecated("[javascript] scripts are deprecated, use [painless] scripts instead");
 
         Context ctx = Context.enter();
         try {
@@ -176,6 +176,8 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
 
     @Override
     public ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
+        deprecationLogger.deprecated("[javascript] scripts are deprecated, use [painless] scripts instead");
+
         Context ctx = Context.enter();
         try {
             Scriptable scope = ctx.newObject(globalScope);
@@ -195,6 +197,8 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
 
     @Override
     public SearchScript search(final CompiledScript compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
+        deprecationLogger.deprecated("[javascript] scripts are deprecated, use [painless] scripts instead");
+
         Context ctx = Context.enter();
         try {
             final Scriptable scope = ctx.newObject(globalScope);

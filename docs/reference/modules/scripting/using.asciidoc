@@ -201,7 +201,6 @@ POST _scripts/groovy/calculate-score
 }
 -----------------------------------
 // CONSOLE
-// TEST[warning:Groovy scripts are deprecated.  Use Painless scripts instead.]
 
 This same script can be retrieved with:
 

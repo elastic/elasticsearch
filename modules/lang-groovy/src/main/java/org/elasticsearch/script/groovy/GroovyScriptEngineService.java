@@ -92,13 +92,11 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
      */
     private final ClassLoader loader;
 
-    /**
-     * Ensures that the deprecation log entry for Groovy is only written on the first Groovy script compiled.
-     */
-    private AtomicBoolean isDeprecationLogged = new AtomicBoolean(false);
-
     public GroovyScriptEngineService(Settings settings) {
         super(settings);
+
+        deprecationLogger.deprecated("[groovy] scripts are deprecated, use [painless] scripts instead");
+
         // Creates the classloader here in order to isolate Groovy-land code
         final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -140,10 +138,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     @Override
     public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
-        if (isDeprecationLogged.compareAndSet(false, true)) {
-            deprecationLogger.deprecated("Groovy scripts are deprecated.  Use Painless scripts instead.");
-        }
-
         // Create the script class name
         String className = MessageDigests.toHexString(MessageDigests.sha1().digest(scriptSource.getBytes(StandardCharsets.UTF_8)));
 
@@ -189,6 +183,8 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     @Override
     public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
+        deprecationLogger.deprecated("[groovy] scripts are deprecated, use [painless] scripts instead");
+
         try {
             Map<String, Object> allVars = new HashMap<>();
             if (vars != null) {
@@ -202,6 +198,8 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     @Override
     public SearchScript search(final CompiledScript compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
+        deprecationLogger.deprecated("[groovy] scripts are deprecated, use [painless] scripts instead");
+
         return new SearchScript() {
 
             @Override

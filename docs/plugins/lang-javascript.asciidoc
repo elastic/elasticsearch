@@ -1,7 +1,7 @@
 [[lang-javascript]]
 === JavaScript Language Plugin
 
-deprecated[5.0.0,Javascript will be replaced by the new scripting language <<modules-scripting-painless, `Painless`>>]
+deprecated[5.0.0,JavaScript will be replaced by the new scripting language <<modules-scripting-painless, `Painless`>>]
 
 The JavaScript language plugin enables the use of JavaScript in Elasticsearch
 scripts, via Mozilla's

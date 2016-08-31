@@ -138,7 +138,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(state.getRoutingNodes().node(state.nodes().resolveNode(node_2).getId()).iterator().next().state(), equalTo(ShardRoutingState.INITIALIZING));
 
 
-        healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().setWaitForRelocatingShards(0).execute().actionGet();
+        healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().setWaitForNoRelocatingShards(true).execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> get the state, verify shard 1 primary moved from node1 to node2");
@@ -335,7 +335,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
                 assertAcked(client().admin().cluster().prepareReroute()
                         .add(new MoveAllocationCommand("test-blocks", 0, nodesIds.get(toggle % 2), nodesIds.get(++toggle % 2))));
 
-                ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForYellowStatus().setWaitForRelocatingShards(0).execute().actionGet();
+                ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForYellowStatus().setWaitForNoRelocatingShards(true).execute().actionGet();
                 assertThat(healthResponse.isTimedOut(), equalTo(false));
             } finally {
                 disableIndexBlock("test-blocks", blockSetting);

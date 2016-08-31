@@ -138,7 +138,7 @@ public class ESLoggerTests extends ESTestCase {
         List<LoggingEvent> deprecationEvents = deprecationAppender.getEvents();
         LoggingEvent event = deprecationEvents.get(0);
         assertThat(event, notNullValue());
-        assertThat(event.getLevel(), equalTo(Level.DEBUG));
+        assertThat(event.getLevel(), equalTo(Level.WARN));
         assertThat(event.getRenderedMessage(), equalTo("This is a deprecation message"));
     }
 

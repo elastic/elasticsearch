@@ -6,8 +6,8 @@ logger:
   # log action execution errors for easier debugging
   action: DEBUG
 
-  # deprecation logging, turn to DEBUG to see them
-  deprecation: INFO, deprecation_log_file
+  # deprecation logging, turn to INFO to disable them
+  deprecation: WARN, deprecation_log_file
 
   # reduce the logging for aws, too much is logged under the default INFO
   com.amazonaws: WARN

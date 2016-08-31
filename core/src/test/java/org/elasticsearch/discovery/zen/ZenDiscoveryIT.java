@@ -120,7 +120,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth()
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNodes("4")
-                .setWaitForRelocatingShards(0)
+                .setWaitForNoRelocatingShards(true)
                 .get();
         assertThat(clusterHealthResponse.isTimedOut(), is(false));
 

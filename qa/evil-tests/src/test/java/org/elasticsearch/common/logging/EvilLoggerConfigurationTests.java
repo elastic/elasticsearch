@@ -48,7 +48,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
             final Environment environment = new Environment(settings);
-            LogConfigurator.configure(environment);
+            LogConfigurator.configure(environment, true);
 
             {
                 final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
@@ -87,7 +87,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
             .put("logger.level", level)
             .build();
         final Environment environment = new Environment(settings);
-        LogConfigurator.configure(environment);
+        LogConfigurator.configure(environment, true);
 
         final String loggerName;
         if (LogManager.getContext(false).hasLogger("org.elasticsearch.test", new PrefixMessageFactory())) {
@@ -109,7 +109,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
             .put("logger.test_resolve_order", "TRACE")
             .build();
         final Environment environment = new Environment(settings);
-        LogConfigurator.configure(environment);
+        LogConfigurator.configure(environment, true);
 
         // args should overwrite whatever is in the config
         final String loggerName;

@@ -52,7 +52,7 @@ public class EvilLoggerTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
         final Environment environment = new Environment(settings);
-        LogConfigurator.configure(environment);
+        LogConfigurator.configure(environment, true);
 
         testLogger = ESLoggerFactory.getLogger("test");
         deprecationLogger = ESLoggerFactory.getDeprecationLogger("test");

@@ -227,7 +227,7 @@ final class Bootstrap {
         INSTANCE = new Bootstrap();
 
         Environment environment = initialEnvironment(foreground, pidFile, esSettings);
-        LogConfigurator.configure(environment);
+        LogConfigurator.configure(environment, true);
         checkForCustomConfFile();
 
         if (environment.pidFile() != null) {

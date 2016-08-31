@@ -21,6 +21,7 @@ package org.elasticsearch.index.translog;
 
 import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -30,7 +31,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
  */
 public class TranslogToolCli extends MultiCommand {
 
-    public TranslogToolCli() {
+    private TranslogToolCli() {
         super("A CLI tool for various Elasticsearch translog actions");
         subcommands.put("truncate", new TruncateTranslogCommand());
     }
@@ -43,11 +44,9 @@ public class TranslogToolCli extends MultiCommand {
         // same terminal.
         Environment loggingEnvironment = InternalSettingsPreparer.prepareEnvironment(Settings.builder()
                 .put("path.home", pathHome)
-                .put("appender.terminal.type", "terminal")
-                .put("rootLogger", "${logger.level}, terminal")
                 .put("logger.level", loggerLevel)
                 .build(), Terminal.DEFAULT);
-        // LogConfigurator.configure(loggingEnvironment.settings(), false);
+        LogConfigurator.configure(loggingEnvironment, false);
 
         exit(new TranslogToolCli().main(args, Terminal.DEFAULT));
     }

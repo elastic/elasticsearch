@@ -63,26 +63,28 @@ public class LogConfigurator {
     public static void init() {
     }
 
-    public static void configure(final Environment environment) throws IOException {
+    public static void configure(final Environment environment, final boolean resolveConfig) throws IOException {
         final Settings settings = environment.settings();
 
         setLogConfigurationSystemProperty(environment, settings);
 
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
 
-        final Set<FileVisitOption> options = EnumSet.of(FileVisitOption.FOLLOW_LINKS);
-        final List<AbstractConfiguration> configurations = new ArrayList<>();
-        final PropertiesConfigurationFactory factory = new PropertiesConfigurationFactory();
-        Files.walkFileTree(environment.configFile(), options, Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                if (file.getFileName().toString().equals("log4j2.properties")) {
-                    configurations.add((PropertiesConfiguration) factory.getConfiguration(file.toString(), file.toUri()));
+        if (resolveConfig) {
+            final Set<FileVisitOption> options = EnumSet.of(FileVisitOption.FOLLOW_LINKS);
+            final List<AbstractConfiguration> configurations = new ArrayList<>();
+            final PropertiesConfigurationFactory factory = new PropertiesConfigurationFactory();
+            Files.walkFileTree(environment.configFile(), options, Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    if (file.getFileName().toString().equals("log4j2.properties")) {
+                        configurations.add((PropertiesConfiguration) factory.getConfiguration(file.toString(), file.toUri()));
+                    }
+                    return FileVisitResult.CONTINUE;
                 }
-                return FileVisitResult.CONTINUE;
-            }
-        });
-        context.start(new CompositeConfiguration(configurations));
+            });
+            context.start(new CompositeConfiguration(configurations));
+        }
 
         if (ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.exists(settings)) {
             Loggers.setLevel(ESLoggerFactory.getRootLogger(), ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings));
@@ -95,7 +97,7 @@ public class LogConfigurator {
         }
     }
 
-    @SuppressForbidden(reason = "sets system property for logging configuraton")
+    @SuppressForbidden(reason = "sets system property for logging configuration")
     private static void setLogConfigurationSystemProperty(Environment environment, Settings settings) {
         System.setProperty("es.logs", environment.logsFile().resolve(ClusterName.CLUSTER_NAME_SETTING.get(settings).value()).toString());
     }

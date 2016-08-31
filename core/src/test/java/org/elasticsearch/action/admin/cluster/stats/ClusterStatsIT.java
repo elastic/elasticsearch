@@ -181,6 +181,12 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(msg, response.nodesStats.getProcess().getMinOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
         assertThat(msg, response.nodesStats.getProcess().getMaxOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
 
+        assertThat(msg, response.nodesStats.getOs().getMem().getFree().bytes(), Matchers.greaterThanOrEqualTo(0L));
+        assertThat(msg, response.nodesStats.getOs().getMem().getTotal().bytes(), Matchers.greaterThanOrEqualTo(0L));
+        assertThat(msg, response.nodesStats.getOs().getMem().getUsed().bytes(), Matchers.greaterThanOrEqualTo(0L));
+        assertThat(msg, response.nodesStats.getOs().getMem().getUsedPercent(), Matchers.greaterThanOrEqualTo((short)0));
+        assertThat(msg, response.nodesStats.getOs().getMem().getFreePercent(), Matchers.greaterThanOrEqualTo((short)0));
+
     }
 
     public void testAllocatedProcessors() throws Exception {

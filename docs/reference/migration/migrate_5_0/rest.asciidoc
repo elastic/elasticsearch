@@ -29,9 +29,9 @@ document exists in an index. The old endpoint will keep working until 6.0.
 
 ==== Removed `mem` section from `/_cluster/stats` response
 
-The `mem` section contained only one value, the total memory available
-throughout all nodes in the cluster. The section was removed as it didn't
-prove useful.
+The `mem` section contained only the `total` value, which was actually the
+memory available throughout all nodes in the cluster. The section contains now
+`total`, `free`, `used`, `used_percent` and `free_percent`.
 
 ==== Revised node roles aggregate returned by `/_cluster/stats`
 

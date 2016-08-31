@@ -349,7 +349,9 @@ The `setQuery(BytesReference)` method have been removed in favor of using `setQu
 ==== ClusterStatsResponse
 
 Removed the `getMemoryAvailable` method from `OsStats`, which could be previously accessed calling
-`clusterStatsResponse.getNodesStats().getOs().getMemoryAvailable()`.
+`clusterStatsResponse.getNodesStats().getOs().getMemoryAvailable()`. It is now replaced with
+`clusterStatsResponse.getNodesStats().getOs().getMem()` which exposes `getTotal()`, `getFree()`,
+`getUsed()`, `getFreePercent()` and `getUsedPercent()`.
 
 ==== setRefresh(boolean) has been removed
 

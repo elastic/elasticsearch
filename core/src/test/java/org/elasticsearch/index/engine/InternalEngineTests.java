@@ -2204,17 +2204,21 @@ public class InternalEngineTests extends ESTestCase {
         Engine.Index retry = randomAppendOnly(1, doc, true);
         if (randomBoolean()) {
             engine.index(operation);
+            assertFalse(engine.indexWriterHasDeletions());
             assertEquals(0, engine.getNumVersionLookups());
             assertNotNull(operation.getTranslogLocation());
             engine.index(retry);
+            assertTrue(engine.indexWriterHasDeletions());
             assertEquals(0, engine.getNumVersionLookups());
             assertNotNull(retry.getTranslogLocation());
             assertTrue(retry.getTranslogLocation().compareTo(operation.getTranslogLocation()) > 0);
         } else {
             engine.index(retry);
+            assertTrue(engine.indexWriterHasDeletions());
             assertEquals(0, engine.getNumVersionLookups());
             assertNotNull(retry.getTranslogLocation());
             engine.index(operation);
+            assertTrue(engine.indexWriterHasDeletions());
             assertEquals(0, engine.getNumVersionLookups());
             assertNotNull(retry.getTranslogLocation());
             assertTrue(retry.getTranslogLocation().compareTo(operation.getTranslogLocation()) < 0);
@@ -2365,6 +2369,7 @@ public class InternalEngineTests extends ESTestCase {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
             assertEquals(numDocs, topDocs.totalHits);
         }
+        assertTrue(engine.indexWriterHasDeletions());
     }
 
     public void testAppendConcurrently() throws InterruptedException, IOException {
@@ -2410,6 +2415,8 @@ public class InternalEngineTests extends ESTestCase {
         }
         assertEquals(0, engine.getNumVersionLookups());
         assertEquals(0, engine.getNumIndexVersionsLookups());
+        assertFalse(engine.indexWriterHasDeletions());
+
     }
 
     public static long getNumVersionLookups(InternalEngine engine) { // for other tests to access this

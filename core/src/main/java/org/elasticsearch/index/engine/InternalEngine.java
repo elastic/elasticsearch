@@ -1344,4 +1344,12 @@ public class InternalEngine extends Engine {
         numIndexVersionsLookups.inc();
         return true;
     }
+
+    /**
+     * Returns <code>true</code> iff the index writer has any deletions either buffered in memory or
+     * in the index.
+     */
+    boolean indexWriterHasDeletions() {
+        return indexWriter.hasDeletions();
+    }
 }

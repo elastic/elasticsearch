@@ -931,8 +931,8 @@ public abstract class Engine implements Closeable {
         }
 
         /**
-         * Returns <code>true</code> iff this index requests has been retried on the coordinating node and can therefor be delivered
-         * multiple times
+         * Returns <code>true</code> if this index requests has been retried on the coordinating node and can therefor be delivered
+         * multiple times. Note: this might also be set to true if an equivalent event occurred like the replay of the transaction log
          */
         public boolean isRetry() {
             return isRetry;

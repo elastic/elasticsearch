@@ -71,7 +71,9 @@ public final class RestClientBuilder {
     }
 
     /**
-     * Sets the default request headers, which will be sent along with each request
+     * Sets the default request headers, which will be sent along with each request.
+     * <p>
+     * Request-time headers will always overwrite any default headers.
      *
      * @throws NullPointerException if {@code defaultHeaders} or any header is {@code null}.
      */

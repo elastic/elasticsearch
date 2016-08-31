@@ -9,7 +9,6 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -17,14 +16,14 @@ import java.util.Collection;
  * TransportClient.Builder that installs the XPackPlugin by default.
  */
 @SuppressWarnings({"unchecked","varargs"})
-public class XPackTransportClient extends TransportClient {
+public class TestXPackTransportClient extends TransportClient {
 
     @SafeVarargs
-    public XPackTransportClient(Settings settings, Class<? extends Plugin>... plugins) {
+    public TestXPackTransportClient(Settings settings, Class<? extends Plugin>... plugins) {
         this(settings, Arrays.asList(plugins));
     }
 
-    public XPackTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins) {
+    public TestXPackTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins) {
         super(settings, Settings.EMPTY, addPlugins(plugins, XPackPlugin.class));
     }
 }

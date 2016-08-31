@@ -26,7 +26,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.xpack.XPackTransportClient;
+import org.elasticsearch.xpack.TestXPackTransportClient;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
@@ -57,7 +57,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
 
     // no SSL exception as this is the exception is returned when connecting
     public void testThatUnconfiguredCiphersAreRejected() {
-        try (TransportClient transportClient = new XPackTransportClient(Settings.builder()
+        try (TransportClient transportClient = new TestXPackTransportClient(Settings.builder()
                 .put(transportClientSettings())
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
@@ -76,7 +76,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
 
     // no SSL exception as this is the exception is returned when connecting
     public void testThatTransportClientUsingSSLv3ProtocolIsRejected() {
-        try(TransportClient transportClient = new XPackTransportClient(Settings.builder()
+        try(TransportClient transportClient = new TestXPackTransportClient(Settings.builder()
                 .put(transportClientSettings())
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())

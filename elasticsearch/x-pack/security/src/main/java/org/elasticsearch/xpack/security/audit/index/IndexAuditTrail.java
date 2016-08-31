@@ -49,7 +49,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
-import org.elasticsearch.xpack.XPackTransportClient;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
@@ -740,9 +740,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                     + REMOTE_CLIENT_SETTINGS.getKey() + ".hosts]");
         }
         final Settings theClientSetting = clientSettings.filter((s) -> s.startsWith("hosts") == false); // hosts is not a valid setting
-        final TransportClient transportClient = new XPackTransportClient(Settings.builder()
-                        .put("node.name", DEFAULT_CLIENT_NAME + "-" + Node.NODE_NAME_SETTING.get(settings))
-                        .put(theClientSetting).build());
+        final TransportClient transportClient = new TransportClient(Settings.builder()
+                .put("node.name", DEFAULT_CLIENT_NAME + "-" + Node.NODE_NAME_SETTING.get(settings))
+                .put(theClientSetting).build(), Settings.EMPTY, Collections.singletonList(XPackPlugin.class)) {};
         for (Tuple<String, Integer> pair : hostPortPairs) {
             try {
                 transportClient.addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName(pair.v1()), pair.v2()));

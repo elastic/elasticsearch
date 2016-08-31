@@ -21,7 +21,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.XPackTransportClient;
+import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -80,7 +80,7 @@ public class CustomRealmIT extends ESIntegTestCase {
                 .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER)
                 .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW)
                 .build();
-        try (TransportClient client = new XPackTransportClient(settings)) {
+        try (TransportClient client = new PreBuiltXPackTransportClient(settings)) {
             client.addTransportAddress(publishAddress);
             ClusterHealthResponse response = client.admin().cluster().prepareHealth().execute().actionGet();
             assertThat(response.isTimedOut(), is(false));
@@ -100,7 +100,7 @@ public class CustomRealmIT extends ESIntegTestCase {
                 .put(ThreadContext.PREFIX + "." + CustomRealm.USER_HEADER, CustomRealm.KNOWN_USER + randomAsciiOfLength(1))
                 .put(ThreadContext.PREFIX + "." + CustomRealm.PW_HEADER, CustomRealm.KNOWN_PW)
                 .build();
-        try (TransportClient client = new XPackTransportClient(settings)) {
+        try (TransportClient client = new PreBuiltXPackTransportClient(settings)) {
             client.addTransportAddress(publishAddress);
             client.admin().cluster().prepareHealth().execute().actionGet();
             fail("authentication failure should have resulted in a NoNodesAvailableException");

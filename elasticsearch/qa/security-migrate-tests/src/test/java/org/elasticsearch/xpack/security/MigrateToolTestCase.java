@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.xpack.XPackTransportClient;
+import org.elasticsearch.xpack.client.PreBuiltXPackTransportClient;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -77,12 +77,10 @@ public abstract class MigrateToolTestCase extends LuceneTestCase {
                 .put(Security.USER_SETTING.getKey(), "transport_user:changeme")
                 .build();
 
-        TransportClient client = new XPackTransportClient(clientSettings).addTransportAddresses(transportAddresses);
-
-        logger.info("--> Elasticsearch Java TransportClient started");
-
+        TransportClient client = new PreBuiltXPackTransportClient(clientSettings).addTransportAddresses(transportAddresses);
         Exception clientException = null;
         try {
+            logger.info("--> Elasticsearch Java TransportClient started");
             ClusterHealthResponse health = client.admin().cluster().prepareHealth().get();
             logger.info("--> connected to [{}] cluster which is running [{}] node(s).",
                     health.getClusterName(), health.getNumberOfNodes());

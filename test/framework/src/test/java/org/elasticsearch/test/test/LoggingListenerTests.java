@@ -33,6 +33,17 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
 
 public class LoggingListenerTests extends ESTestCase {
+
+    public void testTestRunStartedSupportsClassInDefaultPackage() throws Exception {
+        LoggingListener loggingListener = new LoggingListener();
+        Description description = Description.createTestDescription(Class.forName("Dummy"), "dummy");
+        try {
+            loggingListener.testRunStarted(description);
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
     public void testCustomLevelPerMethod() throws Exception {
         LoggingListener loggingListener = new LoggingListener();
 

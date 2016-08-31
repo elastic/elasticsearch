@@ -173,23 +173,10 @@ public class OsProbe {
     }
 
     public OsStats osStats() {
-        OsStats stats = new OsStats();
-        stats.timestamp = System.currentTimeMillis();
-        stats.cpu = new OsStats.Cpu();
-        stats.cpu.percent = getSystemCpuPercent();
-        stats.cpu.loadAverage = getSystemLoadAverage();
-
-        OsStats.Mem mem = new OsStats.Mem();
-        mem.total = getTotalPhysicalMemorySize();
-        mem.free = getFreePhysicalMemorySize();
-        stats.mem = mem;
-
-        OsStats.Swap swap = new OsStats.Swap();
-        swap.total = getTotalSwapSpaceSize();
-        swap.free = getFreeSwapSpaceSize();
-        stats.swap = swap;
-
-        return stats;
+        OsStats.Cpu cpu = new OsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage());
+        OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getFreePhysicalMemorySize());
+        OsStats.Swap swap = new OsStats.Swap(getTotalSwapSpaceSize(), getFreeSwapSpaceSize());
+        return new OsStats(System.currentTimeMillis(), cpu, mem , swap);
     }
 
     /**

@@ -57,6 +57,9 @@ class NodeInfo {
     /** config directory */
     File confDir
 
+    /** data directory */
+    File dataDir
+
     /** THE config file */
     File configFile
 
@@ -95,11 +98,23 @@ class NodeInfo {
         this.config = config
         this.nodeNum = nodeNum
         this.sharedDir = sharedDir
-        clusterName = "${task.path.replace(':', '_').substring(1)}"
+        if (config.clusterName != null) {
+            clusterName = config.clusterName
+        } else {
+            clusterName = "${task.path.replace(':', '_').substring(1)}"
+        }
         baseDir = new File(project.buildDir, "cluster/${task.name} node${nodeNum}")
         pidFile = new File(baseDir, 'es.pid')
         homeDir = homeDir(baseDir, config.distribution, nodeVersion)
         confDir = confDir(baseDir, config.distribution, nodeVersion)
+        if (config.dataDir != null) {
+            if (config.numNodes != 1) {
+                throw new IllegalArgumentException("Cannot set data dir for integ test with more than one node")
+            }
+            dataDir = config.dataDir
+        } else {
+            dataDir = new File(homeDir, "data")
+        }
         configFile = new File(confDir, 'elasticsearch.yml')
         // even for rpm/deb, the logs are under home because we dont start with real services
         File logsDir = new File(homeDir, 'logs')
@@ -140,7 +155,7 @@ class NodeInfo {
             }
         }
         env.put('ES_JVM_OPTIONS', new File(confDir, 'jvm.options'))
-        args.addAll("-E", "path.conf=${confDir}")
+        args.addAll("-E", "path.conf=${confDir}", "-E", "path.data=${dataDir}")
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             args.add('"') // end the entire command, quoted
         }

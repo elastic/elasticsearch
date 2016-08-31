@@ -1,0 +1,36 @@
+
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
+task oldClusterTest(type: RestIntegTestTask) {
+  mustRunAfter(precommit)
+  cluster {
+    distribution = 'zip'
+    bwcVersion = '2.4.0' // TODO: either randomize, or make this settable with sysprop
+    numBwcNodes = 2
+    numNodes = 0
+    clusterName = 'rolling-upgrade'
+  }
+  systemProperty 'tests.rest.suite', 'old_cluster'
+}
+
+task mixedClusterTest(type: RestIntegTestTask) {
+  dependsOn(oldClusterTest, 'oldClusterTest.node1
+  cluster {
+    distribution = 'zip'
+    clusterName = 'rolling-upgrade'
+  }
+  systemProperty 'tests.rest.suite', 'mixed_cluster'
+}
+
+task upgradedClusterTest(type: RestIntegTestTask) {
+  cluster {
+    distribution = 'zip'
+    clusterName = 'rolling-upgrade'
+  }
+  systemProperty 'tests.rest.suite', 'upgraded_cluster'
+}
+
+task integTest {
+  dependsOn = [upgradedClusterTest]
+}
+check.dependsOn(integTest)

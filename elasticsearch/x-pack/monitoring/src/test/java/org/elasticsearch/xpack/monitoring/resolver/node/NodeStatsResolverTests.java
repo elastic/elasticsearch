@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -81,6 +82,19 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
         if (Constants.WINDOWS && field.startsWith("node_stats.os.cpu.load_average")) {
             return;
         }
+
+        // we only report IoStats and spins on Linux
+        if (Constants.LINUX == false) {
+            if (field.startsWith("node_stats.fs.io_stats")) {
+                return;
+            }
+        }
+
+        // node_stats.fs.data.spins can be null and it's only reported on Linux
+        if (field.startsWith("node_stats.fs.data.spins")) {
+            return;
+        }
+
         super.assertSourceField(field, sourceFields);
     }
 
@@ -140,6 +154,22 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
                 new NodeIndicesStats(new CommonStats(), statsByShard), OsProbe.getInstance().osStats(),
                 ProcessProbe.getInstance().processStats(), JvmStats.jvmStats(),
                 new ThreadPoolStats(threadPoolStats),
-                new FsInfo(0, null, pathInfo), null, null, null, null, null, null);
+                new FsInfo(0, randomIoStats(), pathInfo), null, null, null, null, null, null);
+    }
+
+    @Nullable
+    private FsInfo.IoStats randomIoStats() {
+        if (Constants.LINUX) {
+            final int stats = randomIntBetween(1, 3);
+            final FsInfo.DeviceStats[] devices = new FsInfo.DeviceStats[stats];
+
+            for (int i = 0; i < devices.length; ++i) {
+                devices[i] = new FsInfo.DeviceStats(253, 0, "dm-" + i, 287734, 7185242, 8398869, 118857776, null);
+            }
+
+            return new FsInfo.IoStats(devices);
+        }
+
+        return null;
     }
 }

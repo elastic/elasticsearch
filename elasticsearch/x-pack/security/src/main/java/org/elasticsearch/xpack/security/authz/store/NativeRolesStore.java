@@ -25,18 +25,19 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -44,9 +45,6 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Cancellable;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
 import org.elasticsearch.xpack.security.action.role.ClearRolesCacheRequest;
@@ -62,20 +60,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
-import java.util.function.Function;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.security.Security.setting;
-import static org.elasticsearch.xpack.security.SecurityTemplateService.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.SecurityTemplateService.securityIndexMappingAndTemplateUpToDate;
 
 /**
@@ -94,8 +89,10 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
     public static final Setting<TimeValue> SCROLL_KEEP_ALIVE_SETTING =
             Setting.timeSetting(setting("authz.store.roles.index.scroll.keep_alive"), TimeValue.timeValueSeconds(10L), Property.NodeScope);
 
-    public static final Setting<TimeValue> POLL_INTERVAL_SETTING =
-            Setting.timeSetting(setting("authz.store.roles.index.reload.interval"), TimeValue.timeValueSeconds(30L), Property.NodeScope);
+    private static final Setting<Integer> CACHE_SIZE_SETTING =
+            Setting.intSetting(setting("authz.store.roles.index.cache.max_size"), 10000, Property.NodeScope);
+    private static final Setting<TimeValue> CACHE_TTL_SETTING =
+            Setting.timeSetting(setting("authz.store.roles.index.cache.ttl"), TimeValue.timeValueMinutes(20), Property.NodeScope);
 
     public enum State {
         INITIALIZED,
@@ -109,21 +106,34 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
     public static final String ROLE_DOC_TYPE = "role";
 
     private final InternalClient client;
-    private final ThreadPool threadPool;
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
-    private final ConcurrentHashMap<String, RoleAndVersion> roleCache = new ConcurrentHashMap<>();
+    private final Cache<String, RoleAndVersion> roleCache;
+    // the lock is used in an odd manner; when iterating over the cache we cannot have modifiers other than deletes using
+    // the iterator but when not iterating we can modify the cache without external locking. When making normal modifications to the cache
+    // the read lock is obtained so that we can allow concurrent modifications; however when we need to iterate over the keys or values of
+    // the cache the write lock must obtained to prevent any modifications
+    private final ReleasableLock readLock;
+    private final ReleasableLock writeLock;
+
+    {
+        final ReadWriteLock iterationLock = new ReentrantReadWriteLock();
+        readLock = new ReleasableLock(iterationLock.readLock());
+        writeLock = new ReleasableLock(iterationLock.writeLock());
+    }
 
     private SecurityClient securityClient;
     private int scrollSize;
     private TimeValue scrollKeepAlive;
-    private Cancellable pollerCancellable;
 
     private volatile boolean securityIndexExists = false;
 
-    public NativeRolesStore(Settings settings, InternalClient client, ThreadPool threadPool) {
+    public NativeRolesStore(Settings settings, InternalClient client) {
         super(settings);
         this.client = client;
-        this.threadPool = threadPool;
+        this.roleCache = CacheBuilder.<String, RoleAndVersion>builder()
+                .setMaximumWeight(CACHE_SIZE_SETTING.get(settings))
+                .setExpireAfterWrite(CACHE_TTL_SETTING.get(settings).getMillis())
+                .build();
     }
 
     public boolean canStart(ClusterState clusterState, boolean master) {
@@ -147,19 +157,6 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
                 this.securityClient = new SecurityClient(client);
                 this.scrollSize = SCROLL_SIZE_SETTING.get(settings);
                 this.scrollKeepAlive = SCROLL_KEEP_ALIVE_SETTING.get(settings);
-                TimeValue pollInterval = POLL_INTERVAL_SETTING.get(settings);
-                RolesStorePoller poller = new RolesStorePoller();
-                try {
-                    poller.doRun();
-                } catch (Exception e) {
-                    logger.warn(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                    "failed to perform initial poll of roles index [{}]. scheduling again in [{}]",
-                                    SECURITY_INDEX_NAME,
-                                    pollInterval),
-                            e);
-                }
-                pollerCancellable = threadPool.scheduleWithFixedDelay(poller, pollInterval, Names.GENERIC);
                 state.set(State.STARTED);
             }
         } catch (Exception e) {
@@ -170,11 +167,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
 
     public void stop() {
         if (state.compareAndSet(State.STARTED, State.STOPPING)) {
-            try {
-                pollerCancellable.cancel();
-            } finally {
-                state.set(State.STOPPED);
-            }
+            state.set(State.STOPPED);
         }
     }
 
@@ -348,15 +341,17 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
             return usageStats;
         }
 
-        long count = (long) roleCache.size();
-        for (RoleAndVersion rv : roleCache.values()) {
-            Role role = rv.getRole();
-            for (Group group : role.indices()) {
-                fls = fls || group.hasFields();
-                dls = dls || group.hasQuery();
-            }
-            if (fls && dls) {
-                break;
+        long count = roleCache.count();
+        try (final ReleasableLock ignored = writeLock.acquire()) {
+            for (RoleAndVersion rv : roleCache.values()) {
+                Role role = rv.getRole();
+                for (Group group : role.indices()) {
+                    fls = fls || group.hasFields();
+                    dls = dls || group.hasQuery();
+                }
+                if (fls && dls) {
+                    break;
+                }
             }
         }
 
@@ -415,51 +410,52 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
         final AtomicReference<GetResponse> getRef = new AtomicReference<>(null);
         final CountDownLatch latch = new CountDownLatch(1);
         try {
-            roleAndVersion = roleCache.computeIfAbsent(roleId, new Function<String, RoleAndVersion>() {
-                @Override
-                public RoleAndVersion apply(String key) {
-                    logger.debug("attempting to load role [{}] from index", key);
-                    executeGetRoleRequest(roleId, new LatchedActionListener<>(new ActionListener<GetResponse>() {
-                        @Override
-                        public void onResponse(GetResponse role) {
-                            getRef.set(role);
+            roleAndVersion = roleCache.computeIfAbsent(roleId, (key) -> {
+                logger.debug("attempting to load role [{}] from index", key);
+                executeGetRoleRequest(roleId, new LatchedActionListener<>(new ActionListener<GetResponse>() {
+                    @Override
+                    public void onResponse(GetResponse role) {
+                        getRef.set(role);
+                    }
+
+                    @Override
+                    public void onFailure(Exception t) {
+                        if (t instanceof IndexNotFoundException) {
+                            logger.trace(
+                                    (Supplier<?>) () -> new ParameterizedMessage(
+                                            "failed to retrieve role [{}] since security index does not exist", roleId), t);
+                        } else {
+                            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to retrieve role [{}]", roleId), t);
                         }
-
-                        @Override
-                        public void onFailure(Exception t) {
-                            if (t instanceof IndexNotFoundException) {
-                                logger.trace(
-                                        (Supplier<?>) () -> new ParameterizedMessage(
-                                                "failed to retrieve role [{}] since security index does not exist",
-                                                roleId),
-                                        t);
-                            } else {
-                                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to retrieve role [{}]", roleId), t);
-                            }
-                        }
-                    }, latch));
-
-                    try {
-                        latch.await(30, TimeUnit.SECONDS);
-                    } catch (InterruptedException e) {
-                        logger.error("timed out retrieving role [{}]", roleId);
                     }
+                }, latch));
 
-                    GetResponse response = getRef.get();
-                    if (response == null) {
-                        return null;
-                    }
+                try {
+                    latch.await(30, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    logger.error("timed out retrieving role [{}]", roleId);
+                }
 
-                    RoleDescriptor descriptor = transformRole(response);
-                    if (descriptor == null) {
-                        return null;
-                    }
-                    logger.debug("loaded role [{}] from index with version [{}]", key, response.getVersion());
+                GetResponse response = getRef.get();
+                if (response == null) {
+                    return null;
+                }
+
+                RoleDescriptor descriptor = transformRole(response);
+                if (descriptor == null) {
+                    return null;
+                }
+                logger.debug("loaded role [{}] from index with version [{}]", key, response.getVersion());
+                try (final ReleasableLock ignored = readLock.acquire()) {
                     return new RoleAndVersion(descriptor, response.getVersion());
                 }
             });
-        } catch (RuntimeException e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("could not get or load value from cache for role [{}]", roleId), e);
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof NullPointerException) {
+                logger.trace((Supplier<?>) () -> new ParameterizedMessage("role [{}] was not found", roleId), e);
+            } else {
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to load role [{}]", roleId), e);
+            }
         }
 
         return roleAndVersion;
@@ -504,19 +500,23 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
         if (state != State.STOPPED && state != State.FAILED) {
             throw new IllegalStateException("can only reset if stopped!!!");
         }
-        this.roleCache.clear();
+        invalidateAll();
         this.securityIndexExists = false;
         this.state.set(State.INITIALIZED);
     }
 
     public void invalidateAll() {
         logger.debug("invalidating all roles in cache");
-        roleCache.clear();
+        try (final ReleasableLock ignored = readLock.acquire()) {
+            roleCache.invalidateAll();
+        }
     }
 
     public void invalidate(String role) {
         logger.debug("invalidating role [{}] in cache", role);
-        roleCache.remove(role);
+        try (final ReleasableLock ignored = readLock.acquire()) {
+            roleCache.invalidate(role);
+        }
     }
 
     private <Response> void clearRoleCache(final String role, ActionListener<Response> listener, Response response) {
@@ -543,8 +543,8 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
         final boolean exists = event.state().metaData().indices().get(SecurityTemplateService.SECURITY_INDEX_NAME) != null;
         // make sure all the primaries are active
         if (exists && event.state().routingTable().index(SecurityTemplateService.SECURITY_INDEX_NAME).allPrimaryShardsActive()) {
-            logger.debug("security index [{}] all primary shards started, so polling can start",
-                    SecurityTemplateService.SECURITY_INDEX_NAME);
+            logger.debug(
+                    "security index [{}] all primary shards started, so polling can start", SecurityTemplateService.SECURITY_INDEX_NAME);
             securityIndexExists = true;
         } else {
             // always set the value - it may have changed...
@@ -571,97 +571,6 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
         } catch (Exception e) {
             logger.error((Supplier<?>) () -> new ParameterizedMessage("error in the format of data for role [{}]", name), e);
             return null;
-        }
-    }
-
-    private class RolesStorePoller extends AbstractRunnable {
-
-        @Override
-        protected void doRun() throws Exception {
-            if (isStopped()) {
-                return;
-            }
-            if (securityIndexExists == false) {
-                logger.trace("cannot poll for role changes since security index [{}] does not exist",
-                        SecurityTemplateService.SECURITY_INDEX_NAME);
-                return;
-            }
-
-            // hold a reference to the client since the poller may run after the class is stopped (we don't interrupt it running) and
-            // we reset when we test which sets the client to null...
-            final Client client = NativeRolesStore.this.client;
-
-            logger.trace("starting polling of roles index to check for changes");
-            SearchResponse response = null;
-            // create a copy of the keys in the cache since we will be modifying this list
-            final Set<String> existingRoles = new HashSet<>(roleCache.keySet());
-            try {
-                client.admin().indices().prepareRefresh(SecurityTemplateService.SECURITY_INDEX_NAME);
-                SearchRequest request = client.prepareSearch(SecurityTemplateService.SECURITY_INDEX_NAME)
-                        .setScroll(scrollKeepAlive)
-                        .setQuery(QueryBuilders.typeQuery(ROLE_DOC_TYPE))
-                        .setSize(scrollSize)
-                        .setFetchSource(true)
-                        .setVersion(true)
-                        .request();
-                response = client.search(request).actionGet();
-
-                boolean keepScrolling = response.getHits().getHits().length > 0;
-                while (keepScrolling) {
-                    if (isStopped()) {
-                        return;
-                    }
-                    for (SearchHit hit : response.getHits().getHits()) {
-                        final String roleName = hit.getId();
-                        final long version = hit.version();
-                        existingRoles.remove(roleName);
-                        // we use the locking mechanisms provided by the map/cache to help protect against concurrent operations
-                        // that will leave the cache in a bad state
-                        roleCache.computeIfPresent(roleName, new BiFunction<String, RoleAndVersion, RoleAndVersion>() {
-                            @Override
-                            public RoleAndVersion apply(String roleName, RoleAndVersion existing) {
-                                if (version > existing.getVersion()) {
-                                    RoleDescriptor rd = transformRole(hit.getId(), hit.getSourceRef());
-                                    if (rd != null) {
-                                        return new RoleAndVersion(rd, version);
-                                    }
-                                }
-                                return existing;
-                            }
-                        });
-                    }
-                    SearchScrollRequest scrollRequest = client.prepareSearchScroll(response.getScrollId())
-                            .setScroll(scrollKeepAlive).request();
-                    response = client.searchScroll(scrollRequest).actionGet();
-                    keepScrolling = response.getHits().getHits().length > 0;
-                }
-
-                // check to see if we had roles that do not exist in the index
-                if (existingRoles.isEmpty() == false) {
-                    for (String roleName : existingRoles) {
-                        logger.trace("role [{}] does not exist anymore, removing from cache", roleName);
-                        roleCache.remove(roleName);
-                    }
-                }
-            } catch (IndexNotFoundException e) {
-                logger.trace("security index does not exist", e);
-            } finally {
-                if (response != null) {
-                    ClearScrollRequest clearScrollRequest = client.prepareClearScroll().addScrollId(response.getScrollId()).request();
-                    client.clearScroll(clearScrollRequest).actionGet();
-                }
-            }
-            logger.trace("completed polling of roles index");
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            logger.error("error occurred while checking the native roles for changes", e);
-        }
-
-        private boolean isStopped() {
-            State state = state();
-            return state == State.STOPPED || state == State.STOPPING;
         }
     }
 
@@ -693,6 +602,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
     public static void addSettings(List<Setting<?>> settings) {
         settings.add(SCROLL_SIZE_SETTING);
         settings.add(SCROLL_KEEP_ALIVE_SETTING);
-        settings.add(POLL_INTERVAL_SETTING);
+        settings.add(CACHE_SIZE_SETTING);
+        settings.add(CACHE_TTL_SETTING);
     }
 }

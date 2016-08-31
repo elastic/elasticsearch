@@ -49,13 +49,10 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
 
     @Override
     public Set<String> resolve(User user, String action, TransportRequest request, MetaData metaData) {
-
         boolean isIndicesRequest = request instanceof CompositeIndicesRequest || request instanceof IndicesRequest;
-        assert isIndicesRequest : "Request [" + request + "] is not an Indices request, but should be.";
-
         // if for some reason we are missing an action... just for safety we'll reject
-        if (!isIndicesRequest) {
-            return Collections.emptySet();
+        if (isIndicesRequest == false) {
+            throw new IllegalStateException("Request [" + request + "] is not an Indices request, but should be.");
         }
 
         if (request instanceof CompositeIndicesRequest) {
@@ -74,7 +71,7 @@ public class DefaultIndicesAndAliasesResolver implements IndicesAndAliasesResolv
         final Set<String> indices;
         if (indicesRequest instanceof PutMappingRequest
                 && ((PutMappingRequest) indicesRequest).getConcreteIndex() != null) {
-            /**
+            /*
              * This is a special case since PutMappingRequests from dynamic mapping updates have a concrete index
              * if this index is set and it's in the list of authorized indices we are good and don't need to put
              * the list of indices in there, if we do so it will result in an invalid request and the update will fail.

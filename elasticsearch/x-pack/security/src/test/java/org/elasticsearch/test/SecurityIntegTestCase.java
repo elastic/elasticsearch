@@ -153,7 +153,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
             // TODO: disable this assertion for now, due to random runs with mock plugins. perhaps run without mock plugins?
 //            assertThat(nodeInfo.getPlugins().getInfos(), hasSize(2));
             Collection<String> pluginNames =
-                    nodeInfo.getPlugins().getPluginInfos().stream().map(p -> p.getName()).collect(Collectors.toList());
+                    nodeInfo.getPlugins().getPluginInfos().stream().map(p -> p.getClassname()).collect(Collectors.toList());
             assertThat("plugin [" + xpackPluginClass().getName() + "] not found in [" + pluginNames + "]", pluginNames,
                 hasItem(xpackPluginClass().getName()));
         }

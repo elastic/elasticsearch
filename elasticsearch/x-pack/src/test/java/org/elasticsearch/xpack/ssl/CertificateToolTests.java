@@ -42,6 +42,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.RSAKey;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -207,14 +208,15 @@ public class CertificateToolTests extends ESTestCase {
         assertEquals(4, certInfos.size());
 
         final int keysize = randomFrom(1024, 2048);
+        final int days = randomIntBetween(1, 1024);
         KeyPair keyPair = CertUtils.generateKeyPair(keysize);
-        X509Certificate caCert = CertUtils.generateCACertificate(new X500Principal("CN=test ca"), keyPair);
+        X509Certificate caCert = CertUtils.generateCACertificate(new X500Principal("CN=test ca"), keyPair, days);
 
         final boolean generatedCa = randomBoolean();
         final char[] keyPassword = randomBoolean() ? "changeme".toCharArray() : null;
         assertFalse(Files.exists(outputFile));
         CAInfo caInfo = new CAInfo(caCert, keyPair.getPrivate(), generatedCa, keyPassword);
-        CertificateTool.generateAndWriteSignedCertificates(outputFile, certInfos, caInfo, keysize);
+        CertificateTool.generateAndWriteSignedCertificates(outputFile, certInfos, caInfo, keysize, days);
         assertTrue(Files.exists(outputFile));
 
         FileSystem fileSystem = FileSystems.newFileSystem(new URI("jar:" + outputFile.toUri()), Collections.emptyMap());
@@ -229,6 +231,8 @@ public class CertificateToolTests extends ESTestCase {
                 X509Certificate parsedCaCert = readX509Certificate(reader);
                 assertThat(parsedCaCert.getSubjectX500Principal().getName(), containsString("test ca"));
                 assertEquals(caCert, parsedCaCert);
+                long daysBetween = ChronoUnit.DAYS.between(caCert.getNotBefore().toInstant(), caCert.getNotAfter().toInstant());
+                assertEquals(days, (int) daysBetween);
             }
 
             // check the CA key
@@ -283,15 +287,17 @@ public class CertificateToolTests extends ESTestCase {
             terminal.addSecretInput("testnode");
         }
 
+        final int days = randomIntBetween(1, 1024);
         CAInfo caInfo = CertificateTool.getCAInfo(terminal, "CN=foo", testNodeCertPath.toString(), testNodeKeyPath.toString(),
-                passwordPrompt ? null : "testnode".toCharArray(), passwordPrompt, env, randomFrom(1024, 2048));
+                passwordPrompt ? null : "testnode".toCharArray(), passwordPrompt, env, randomFrom(1024, 2048), days);
         assertTrue(terminal.getOutput().isEmpty());
-        assertThat(caInfo.caCert, instanceOf(X509Certificate.class));
         assertEquals(caInfo.caCert.getSubjectX500Principal().getName(),
                 "CN=Elasticsearch Test Node,OU=elasticsearch,O=org");
         assertThat(caInfo.privateKey.getAlgorithm(), containsString("RSA"));
         assertEquals(2048, ((RSAKey) caInfo.privateKey).getModulus().bitLength());
         assertFalse(caInfo.generated);
+        long daysBetween = ChronoUnit.DAYS.between(caInfo.caCert.getNotBefore().toInstant(), caInfo.caCert.getNotAfter().toInstant());
+        assertEquals(1460L, daysBetween);
 
         // test generation
         final boolean passwordProtected = randomBoolean();
@@ -303,13 +309,16 @@ public class CertificateToolTests extends ESTestCase {
             password = "testnode".toCharArray();
         }
         final int keysize = randomFrom(1024, 2048);
-        caInfo = CertificateTool.getCAInfo(terminal, "CN=foo bar", null, null, password, passwordProtected && passwordPrompt, env, keysize);
+        caInfo = CertificateTool.getCAInfo(terminal, "CN=foo bar", null, null, password, passwordProtected && passwordPrompt, env,
+                keysize, days);
         assertTrue(terminal.getOutput().isEmpty());
         assertThat(caInfo.caCert, instanceOf(X509Certificate.class));
         assertEquals(caInfo.caCert.getSubjectX500Principal().getName(), "CN=foo bar");
         assertThat(caInfo.privateKey.getAlgorithm(), containsString("RSA"));
         assertTrue(caInfo.generated);
         assertEquals(keysize, ((RSAKey) caInfo.privateKey).getModulus().bitLength());
+        daysBetween = ChronoUnit.DAYS.between(caInfo.caCert.getNotBefore().toInstant(), caInfo.caCert.getNotAfter().toInstant());
+        assertEquals(days, (int) daysBetween);
     }
 
     public void testNameValues() throws Exception {

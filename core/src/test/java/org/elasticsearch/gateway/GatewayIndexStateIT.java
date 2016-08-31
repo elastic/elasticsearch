@@ -408,7 +408,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 .health(Requests.clusterHealthRequest()
                     .waitForGreenStatus()
                     .waitForEvents(Priority.LANGUID)
-                    .waitForRelocatingShards(0).waitForNodes("2")).actionGet();
+                    .waitForNoRelocatingShards(true).waitForNodes("2")).actionGet();
         }
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         IndexMetaData metaData = state.getMetaData().index("test");
@@ -470,7 +470,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 .health(Requests.clusterHealthRequest()
                     .waitForGreenStatus()
                     .waitForEvents(Priority.LANGUID)
-                    .waitForRelocatingShards(0).waitForNodes("2")).actionGet();
+                    .waitForNoRelocatingShards(true).waitForNodes("2")).actionGet();
         }
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         IndexMetaData metaData = state.getMetaData().index("test");
@@ -507,7 +507,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 .health(Requests.clusterHealthRequest()
                     .waitForGreenStatus()
                     .waitForEvents(Priority.LANGUID)
-                    .waitForRelocatingShards(0).waitForNodes("2")).actionGet();
+                    .waitForNoRelocatingShards(true).waitForNodes("2")).actionGet();
         }
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         MetaData metaData = state.getMetaData();

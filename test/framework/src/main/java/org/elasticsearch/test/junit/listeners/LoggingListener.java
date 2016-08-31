@@ -47,7 +47,8 @@ public class LoggingListener extends RunListener {
 
     @Override
     public void testRunStarted(Description description) throws Exception {
-        previousPackageLoggingMap = processTestLogging(description.getTestClass().getPackage().getAnnotation(TestLogging.class));
+        Package testClassPackage = description.getTestClass().getPackage();
+        previousPackageLoggingMap = processTestLogging(testClassPackage != null ? testClassPackage.getAnnotation(TestLogging.class) : null);
         previousClassLoggingMap = processTestLogging(description.getAnnotation(TestLogging.class));
     }
 

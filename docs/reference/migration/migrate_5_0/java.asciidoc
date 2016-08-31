@@ -379,6 +379,18 @@ in favor of using `addTokenFilter(String)`/`addTokenFilter(Map)` and `addCharFil
 The `setTokenFilters(String...)` and `setCharFilters(String...)` methods have been removed
 in favor of using `addTokenFilter(String)`/`addTokenFilter(Map)` and `addCharFilter(String)`/`addCharFilter(Map)` each filters
 
+==== ClusterHealthRequest
+
+The `waitForRelocatingShards(int)` method has been removed in favor of `waitForNoRelocatingShards(boolean)`
+which instead uses a boolean flag to denote whether the cluster health operation should wait for there to
+be no relocating shards in the cluster before returning.
+
+==== ClusterHealthRequestBuilder
+
+The `setWaitForRelocatingShards(int)` method has been removed in favor of `setWaitForNoRelocatingShards(boolean)`
+which instead uses a boolean flag to denote whether the cluster health operation should wait for there to
+be no relocating shards in the cluster before returning.
+
 ==== BlobContainer Interface for Snapshot/Restore
 
 Some methods have been removed from the `BlobContainer` interface for Snapshot/Restore repositories.  In particular,

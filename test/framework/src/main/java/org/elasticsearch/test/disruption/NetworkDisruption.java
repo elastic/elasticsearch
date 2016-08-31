@@ -77,7 +77,7 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
     protected void ensureNodeCount(InternalTestCluster cluster) {
         assertFalse("cluster failed to form after disruption was healed", cluster.client().admin().cluster().prepareHealth()
             .setWaitForNodes("" + cluster.size())
-            .setWaitForRelocatingShards(0)
+            .setWaitForNoRelocatingShards(true)
             .get().isTimedOut());
     }
 

@@ -225,6 +225,7 @@ Reindex API::
 * Make reindex and lang-javascript compatible {pull}19933[#19933]
 
 Search::
+* AllTermQuery must implement equals/hashCode. {pull}20196[#20196] (issue: {issue}20161[#20161])
 * Add ref-counting to SearchContext to prevent accessing already closed readers {pull}20095[#20095] (issue: {issue}20008[#20008])
 * Fix `_only_nodes` preferences {pull}18483[#18483] (issues: {issue}12546[#12546], {issue}12700[#12700])
 * Speed up named queries. {pull}18470[#18470]

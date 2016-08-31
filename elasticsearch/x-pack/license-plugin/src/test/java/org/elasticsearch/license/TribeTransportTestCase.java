@@ -203,7 +203,7 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
     private void ensureYellow(TestCluster testCluster) {
         ClusterHealthResponse actionGet = testCluster.client().admin().cluster()
                         .health(Requests.clusterHealthRequest().waitForYellowStatus()
-                                .waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
+                                .waitForEvents(Priority.LANGUID).waitForNoRelocatingShards(true)).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info("ensureGreen timed out, cluster state:\n{}\n{}", testCluster.client().admin().cluster()
                     .prepareState().get().getState().prettyPrint(),

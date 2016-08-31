@@ -736,7 +736,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
 
         // pretty ugly but just a rip of ensureYellow that uses a different client
         ClusterHealthResponse actionGet = getClient().admin().cluster().health(Requests.clusterHealthRequest(indices)
-                .waitForRelocatingShards(0).waitForYellowStatus().waitForEvents(Priority.LANGUID)).actionGet();
+                .waitForNoRelocatingShards(true).waitForYellowStatus().waitForEvents(Priority.LANGUID)).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info("ensureYellow timed out, cluster state:\n{}\n{}",
                     getClient().admin().cluster().prepareState().get().getState().prettyPrint(),

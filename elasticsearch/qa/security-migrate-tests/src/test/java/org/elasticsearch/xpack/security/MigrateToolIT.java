@@ -13,11 +13,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.security.SecurityTemplateService;
 import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.security.action.user.PutUserResponse;
@@ -123,7 +120,7 @@ public class MigrateToolIT extends MigrateToolTestCase {
                 .timeout(TimeValue.timeValueSeconds(30))
                 .waitForYellowStatus()
                 .waitForEvents(Priority.LANGUID)
-                .waitForRelocatingShards(0))
+                .waitForNoRelocatingShards(true))
                 .actionGet();
         SearchResponse searchResp = client.filterWithHeader(Collections.singletonMap("Authorization", token)).prepareSearch("index1").get();
     }

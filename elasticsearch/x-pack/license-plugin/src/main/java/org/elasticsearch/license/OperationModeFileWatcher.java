@@ -99,9 +99,7 @@ public final class OperationModeFileWatcher implements FileChangesListener {
                 } catch (IOException e) {
                     logger.error(
                             (Supplier<?>) () -> new ParameterizedMessage(
-                                    "couldn't read operation mode from [{}]",
-                                    licenseModePath.toAbsolutePath().toString()),
-                            e);
+                                    "couldn't read operation mode from [{}]", licenseModePath.toAbsolutePath()), e);
                     return;
                 }
                 String operationMode = new String(content, StandardCharsets.UTF_8);
@@ -109,11 +107,8 @@ public final class OperationModeFileWatcher implements FileChangesListener {
                     currentOperationMode = OperationMode.resolve(operationMode);
                 } catch (IllegalArgumentException e) {
                     logger.error(
-                            (Supplier<?>)
-                                    () -> new ParameterizedMessage(
-                                            "invalid operation mode in [{}]",
-                                            licenseModePath.toAbsolutePath().toString()),
-                            e);
+                            (Supplier<?>) () -> new ParameterizedMessage(
+                                    "invalid operation mode in [{}]", licenseModePath.toAbsolutePath()), e);
                     return;
                 }
             }

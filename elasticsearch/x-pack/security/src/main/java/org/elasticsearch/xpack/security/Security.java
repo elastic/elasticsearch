@@ -302,7 +302,7 @@ public class Security implements ActionPlugin, IngestPlugin {
         components.add(authcService);
 
         final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService);
-        final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, threadPool);
+        final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client);
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(securityContext);
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore);
         final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,

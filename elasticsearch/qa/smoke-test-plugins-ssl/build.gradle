@@ -1,5 +1,14 @@
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.elasticsearch.gradle.test.NodeInfo
+
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.KeyManagerFactory
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManagerFactory
+import java.nio.charset.StandardCharsets
+import java.security.KeyStore
+import java.security.SecureRandom
 
 apply plugin: 'elasticsearch.rest-test'
 
@@ -177,25 +186,47 @@ integTest {
     setupCommand 'setupMonitoringUser',
                  'bin/x-pack/users', 'useradd', 'monitoring_agent', '-p', 'changeme', '-r', 'remote_monitoring_agent'
 
-    // Required to detect that the monitoring agent service has started
-    setting 'logger.level', 'DEBUG'
-
-    waitCondition = { node, ant ->
-      // HTTPS check is tricky to do, so we wait for the log file to indicate that the node is started
-      String waitForNodeStartProp = "waitForNodeStart${name}"
-      ant.waitfor(maxwait: '30', maxwaitunit: 'second', checkevery: '100', checkeveryunit: 'millisecond',
-              timeoutproperty: waitForNodeStartProp) {
-        and {
-          resourcecontains(resource: "${node.startLog.toString()}", substring: 'started')
-          resourcecontains(resource: "${node.startLog.toString()}", substring: 'monitoring service started')
+    waitCondition = { NodeInfo node, AntBuilder ant ->
+      File tmpFile = new File(node.cwd, 'wait.success')
+      KeyStore keyStore = KeyStore.getInstance("JKS");
+      keyStore.load(clientKeyStore.newInputStream(), 'keypass'.toCharArray());
+      KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+      kmf.init(keyStore, 'keypass'.toCharArray());
+      TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+      tmf.init(keyStore);
+      SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
+      sslContext.init(kmf.getKeyManagers(), tmf.getTrustManagers(), new SecureRandom());
+      for (int i = 0; i < 10; i++) {
+        // we use custom wait logic here for HTTPS
+        HttpsURLConnection httpURLConnection = null;
+        try {
+          httpURLConnection = (HttpsURLConnection) new URL("https://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}").openConnection();
+          httpURLConnection.setSSLSocketFactory(sslContext.getSocketFactory());
+          httpURLConnection.setRequestProperty("Authorization", "Basic " +
+                  Base64.getEncoder().encodeToString("test_user:changeme".getBytes(StandardCharsets.UTF_8)));
+          httpURLConnection.setRequestMethod("GET");
+          httpURLConnection.connect();
+          if (httpURLConnection.getResponseCode() == 200) {
+            tmpFile.withWriter StandardCharsets.UTF_8.name(), {
+              it.write(httpURLConnection.getInputStream().getText(StandardCharsets.UTF_8.name()))
+            }
+          }
+        } catch (IOException e) {
+          if (i == 9) {
+            logger.error("final attempt of calling cluster health failed", e)
+          } else {
+            logger.debug("failed to call cluster health", e)
+          }
+        } finally {
+          if (httpURLConnection != null) {
+            httpURLConnection.disconnect();
+          }
         }
-      }
 
-      if (ant.project.getProperty(waitForNodeStartProp)) {
-        println "Timed out when looking for node startup in log file ${node.startLog.toString()}"
-        return false;
+        // did not start, so wait a bit before trying again
+        Thread.sleep(500L);
       }
-      return true;
+      return tmpFile.exists()
     }
   }
 }

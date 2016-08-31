@@ -11,10 +11,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.ssl.SslHandler;
-import io.netty.util.concurrent.Future;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -35,9 +32,6 @@ import javax.net.ssl.SSLParameters;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.Security.settingPrefix;
@@ -129,28 +123,6 @@ public class SecurityNetty4Transport extends Netty4Transport {
     @Override
     protected ChannelHandler getClientChannelInitializer() {
         return new SecurityClientChannelInitializer();
-    }
-
-    /**
-     * This method ensures that all channels have their SSL handshakes completed. This is necessary to prevent the application from
-     * writing data while the handshake is in progress which could cause the handshake to fail.
-     */
-    @Override
-    protected void onAfterChannelsConnected(NodeChannels nodeChannels) {
-        List<Tuple<Future<Channel>, Channel>> handshakes = new ArrayList<>();
-        for (Channel channel : nodeChannels.allChannels) {
-            SslHandler handler = channel.pipeline().get(SslHandler.class);
-            if (handler != null) {
-                handshakes.add(Tuple.tuple(handler.handshakeFuture(), channel));
-            }
-        }
-
-        for (Tuple<Future<Channel>, Channel> handshake : handshakes) {
-            handshake.v1().awaitUninterruptibly(30L, TimeUnit.SECONDS);
-            if (!handshake.v1().isSuccess()) {
-                throw new ElasticsearchException("handshake failed for channel [{}]", handshake.v2());
-            }
-        }
     }
 
     class SecurityServerChannelInitializer extends ServerChannelInitializer {

@@ -24,9 +24,9 @@ import static org.elasticsearch.test.SecurityTestsUtils.assertAuthorizationExcep
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
-import static org.hamcrest.Matchers.is;
 
 public class IndicesAndAliasesResolverIntegrationTests extends SecurityIntegTestCase {
+
     @Override
     protected String configRoles() {
         return SecuritySettingsSource.DEFAULT_ROLE + ":\n" +
@@ -57,50 +57,30 @@ public class IndicesAndAliasesResolverIntegrationTests extends SecurityIntegTest
     public void testSearchNonAuthorizedWildcard() {
         //wildcard doesn't match any authorized index
         createIndices("test1", "test2", "index1", "index2");
-        try {
-            client().prepareSearch("index*").get();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch("index*").get());
+        assertEquals("no such index", e.getMessage());
     }
 
     public void testEmptyClusterSearchForAll() {
-        try {
-            client().prepareSearch().get();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch().get());
+        assertEquals("no such index", e.getMessage());
     }
 
     public void testEmptyClusterSearchForWildcard() {
-        try {
-            client().prepareSearch("*").get();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch("*").get());
+        assertEquals("no such index", e.getMessage());
     }
 
     public void testEmptyAuthorizedIndicesSearchForAll() {
         createIndices("index1", "index2");
-        try {
-            client().prepareSearch().get();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch().get());
+        assertEquals("no such index", e.getMessage());
     }
 
     public void testEmptyAuthorizedIndicesSearchForWildcard() {
         createIndices("index1", "index2");
-        try {
-            client().prepareSearch("*").get();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch("*").get());
+        assertEquals("no such index", e.getMessage());
     }
 
     public void testExplicitNonAuthorizedIndex() {
@@ -187,14 +167,10 @@ public class IndicesAndAliasesResolverIntegrationTests extends SecurityIntegTest
     public void testMultiSearchWildcard() {
         //test4 is missing but authorized, only that specific item fails
         createIndices("test1", "test2", "test3", "index1");
-        try {
-            client().prepareMultiSearch()
-                    .add(Requests.searchRequest())
-                    .add(Requests.searchRequest("index*")).get();
-            fail("Expected IndexNotFoundException");
-        } catch (IndexNotFoundException e) {
-            assertThat(e.getMessage(), is("no such index"));
-        }
+        IndexNotFoundException e = expectThrows(IndexNotFoundException.class,
+                () -> client().prepareMultiSearch().add(Requests.searchRequest())
+                        .add(Requests.searchRequest("index*")).get());
+        assertEquals("no such index", e.getMessage());
     }
 
     private static void assertReturnedIndices(SearchResponse searchResponse, String... indices) {
@@ -207,12 +183,8 @@ public class IndicesAndAliasesResolverIntegrationTests extends SecurityIntegTest
     }
 
     private static void assertThrowsAuthorizationException(ActionRequestBuilder actionRequestBuilder) {
-        try {
-            actionRequestBuilder.get();
-            fail("search should fail due to attempt to access non authorized indices");
-        } catch(ElasticsearchSecurityException e) {
-            assertAuthorizationException(e, containsString("is unauthorized for user ["));
-        }
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, actionRequestBuilder::get);
+        assertAuthorizationException(e, containsString("is unauthorized for user ["));
     }
 
     private void createIndices(String... indices) {
@@ -233,7 +205,6 @@ public class IndicesAndAliasesResolverIntegrationTests extends SecurityIntegTest
             }
         }
 
-        ensureGreen();
         for (String index : indices) {
             client().prepareIndex(index, "type").setSource("field", "value").get();
         }

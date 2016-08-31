@@ -52,20 +52,24 @@ public final class RenameProcessor extends AbstractProcessor {
 
     @Override
     public void execute(IngestDocument document) {
-        if (document.hasField(field) == false) {
+        if (document.hasField(field, true) == false) {
             throw new IllegalArgumentException("field [" + field + "] doesn't exist");
         }
-        if (document.hasField(targetField)) {
+        // We fail here if the target field point to an array slot that is out of range.
+        // If we didn't do this then we would fail if we set the value in the target_field
+        // and then on failure processors would not see that value we tried to rename as we already
+        // removed it.
+        if (document.hasField(targetField, true)) {
             throw new IllegalArgumentException("field [" + targetField + "] already exists");
         }
 
-        Object oldValue = document.getFieldValue(field, Object.class);
-        document.setFieldValue(targetField, oldValue);
+        Object value = document.getFieldValue(field, Object.class);
+        document.removeField(field);
         try {
-            document.removeField(field);
+            document.setFieldValue(targetField, value);
         } catch (Exception e) {
-            //remove the new field if the removal of the old one failed
-            document.removeField(targetField);
+            // setting the value back to the original field shouldn't as we just fetched it from that field:
+            document.setFieldValue(field, value);
             throw e;
         }
     }

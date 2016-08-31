@@ -31,6 +31,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class FileUtilsTests extends ESTestCase {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/20240")
     public void testLoadSingleYamlSuite() throws Exception {
         Map<String,Set<Path>> yamlSuites = FileUtils.findYamlSuites(null, "/rest-api-spec/test", "/rest-api-spec/test/suite1/10_basic");
         assertSingleFile(yamlSuites, "suite1", "10_basic.yaml");
@@ -44,6 +45,7 @@ public class FileUtilsTests extends ESTestCase {
         assertSingleFile(yamlSuites, "suite1", "10_basic.yaml");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/20240")
     public void testLoadMultipleYamlSuites() throws Exception {
         //single directory
         Map<String,Set<Path>> yamlSuites = FileUtils.findYamlSuites(null, "/rest-api-spec/test", "suite1");

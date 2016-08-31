@@ -311,7 +311,7 @@ public class Node implements Closeable {
             final TribeService tribeService = new TribeService(settings, clusterService, nodeEnvironment.nodeId());
             resourcesToClose.add(tribeService);
             final IngestService ingestService = new IngestService(settings, threadPool, this.environment,
-                scriptModule.getScriptService(), pluginsService.filterPlugins(IngestPlugin.class));
+                scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(), pluginsService.filterPlugins(IngestPlugin.class));
 
             ModulesBuilder modules = new ModulesBuilder();
             // plugin modules must be added here, before others or we can get crazy injection errors...

@@ -50,7 +50,7 @@ PUT /my_source_index/_settings
 It can take a while to relocate the source index.  Progress can be tracked
 with the <<cat-recovery,`_cat recovery` API>>, or the <<cluster-health,
 `cluster health` API>> can be used to wait until all shards have relocated
-with the `wait_for_relocating_shards` parameter.
+with the `wait_for_no_relocating_shards` parameter.
 
 [float]
 === Shrinking an index

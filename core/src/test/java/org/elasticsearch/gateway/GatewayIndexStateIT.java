@@ -56,7 +56,6 @@ import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -409,7 +408,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 .health(Requests.clusterHealthRequest()
                     .waitForGreenStatus()
                     .waitForEvents(Priority.LANGUID)
-                    .waitForRelocatingShards(0).waitForNodes("2")).actionGet();
+                    .waitForNoRelocatingShards(true).waitForNodes("2")).actionGet();
         }
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         IndexMetaData metaData = state.getMetaData().index("test");
@@ -471,7 +470,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 .health(Requests.clusterHealthRequest()
                     .waitForGreenStatus()
                     .waitForEvents(Priority.LANGUID)
-                    .waitForRelocatingShards(0).waitForNodes("2")).actionGet();
+                    .waitForNoRelocatingShards(true).waitForNodes("2")).actionGet();
         }
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         IndexMetaData metaData = state.getMetaData().index("test");
@@ -508,7 +507,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                 .health(Requests.clusterHealthRequest()
                     .waitForGreenStatus()
                     .waitForEvents(Priority.LANGUID)
-                    .waitForRelocatingShards(0).waitForNodes("2")).actionGet();
+                    .waitForNoRelocatingShards(true).waitForNodes("2")).actionGet();
         }
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         MetaData metaData = state.getMetaData();

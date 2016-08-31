@@ -39,7 +39,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testIngestPlugin() {
         ThreadPool tp = Mockito.mock(ThreadPool.class);
-        IngestService ingestService = new IngestService(Settings.EMPTY, tp, null, null, Collections.singletonList(DUMMY_PLUGIN));
+        IngestService ingestService = new IngestService(Settings.EMPTY, tp, null, null, null, Collections.singletonList(DUMMY_PLUGIN));
         Map<String, Processor.Factory> factories = ingestService.getPipelineStore().getProcessorFactories();
         assertTrue(factories.containsKey("foo"));
         assertEquals(1, factories.size());
@@ -48,7 +48,7 @@ public class IngestServiceTests extends ESTestCase {
     public void testIngestPluginDuplicate() {
         ThreadPool tp = Mockito.mock(ThreadPool.class);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            new IngestService(Settings.EMPTY, tp, null, null, Arrays.asList(DUMMY_PLUGIN, DUMMY_PLUGIN))
+            new IngestService(Settings.EMPTY, tp, null, null, null, Arrays.asList(DUMMY_PLUGIN, DUMMY_PLUGIN))
         );
         assertTrue(e.getMessage(), e.getMessage().contains("already registered"));
     }

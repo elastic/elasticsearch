@@ -78,7 +78,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         internalCluster().startNodesAsync(2, settings).get();
 
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3"));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("3"));
 
         logger.info("--> add two more nodes");
         internalCluster().startNodesAsync(2, settings).get();
@@ -87,7 +87,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         setMinimumMasterNodes(3);
 
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("5"));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("5"));
 
         logger.info("--> refreshing and checking data");
         refresh();
@@ -98,14 +98,14 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         // now start shutting nodes down
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("4"));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("4"));
 
         // going down to 3 nodes. note that the min_master_node may not be in effect when we shutdown the 4th
         // node, but that's OK as it is set to 3 before.
         setMinimumMasterNodes(2);
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("3"));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("3"));
 
         logger.info("--> stopped two nodes, verifying data");
         refresh();
@@ -116,14 +116,14 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         // closing the 3rd node
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForNodes("2"));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("2"));
 
         // closing the 2nd node
         setMinimumMasterNodes(1);
         internalCluster().stopRandomDataNode();
 
         // make sure the cluster state is yellow, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForYellowStatus().setWaitForRelocatingShards(0).setWaitForNodes("1"));
+        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout).setWaitForYellowStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("1"));
 
         logger.info("--> one node left, verifying data");
         refresh();

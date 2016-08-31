@@ -48,6 +48,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -109,7 +110,14 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
     // the iterator but when not iterating we can modify the cache without external locking. When making normal modifications to the cache
     // the read lock is obtained so that we can allow concurrent modifications; however when we need to iterate over the keys or values of
     // the cache the write lock must obtained to prevent any modifications
-    private final ReadWriteLock iterationLock = new ReentrantReadWriteLock();
+    private final ReleasableLock readLock;
+    private final ReleasableLock writeLock;
+
+    {
+        final ReadWriteLock iterationLock = new ReentrantReadWriteLock();
+        readLock = new ReleasableLock(iterationLock.readLock());
+        writeLock = new ReleasableLock(iterationLock.writeLock());
+    }
 
     private SecurityClient securityClient;
     private int scrollSize;
@@ -332,8 +340,7 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
         }
 
         long count = roleCache.count();
-        iterationLock.writeLock().lock();
-        try {
+        try (final ReleasableLock ignored = writeLock.acquire()) {
             for (RoleAndVersion rv : roleCache.values()) {
                 Role role = rv.getRole();
                 for (Group group : role.indices()) {
@@ -344,8 +351,6 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
                     break;
                 }
             }
-        } finally {
-            iterationLock.writeLock().unlock();
         }
 
         // slow path - query for necessary information
@@ -437,11 +442,8 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
                     return null;
                 }
                 logger.debug("loaded role [{}] from index with version [{}]", key, response.getVersion());
-                iterationLock.readLock().lock();
-                try {
+                try (final ReleasableLock ignored = readLock.acquire()) {
                     return new RoleAndVersion(descriptor, response.getVersion());
-                } finally {
-                    iterationLock.readLock().unlock();
                 }
             });
         } catch (ExecutionException e) {
@@ -498,21 +500,15 @@ public class NativeRolesStore extends AbstractComponent implements RolesStore, C
 
     public void invalidateAll() {
         logger.debug("invalidating all roles in cache");
-        iterationLock.readLock().lock();
-        try {
+        try (final ReleasableLock ignored = readLock.acquire()) {
             roleCache.invalidateAll();
-        } finally {
-            iterationLock.readLock().unlock();
         }
     }
 
     public void invalidate(String role) {
         logger.debug("invalidating role [{}] in cache", role);
-        iterationLock.readLock().lock();
-        try {
+        try (final ReleasableLock ignored = readLock.acquire()) {
             roleCache.invalidate(role);
-        } finally {
-            iterationLock.readLock().unlock();
         }
     }
 

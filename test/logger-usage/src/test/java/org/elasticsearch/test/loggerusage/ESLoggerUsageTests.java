@@ -39,6 +39,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class ESLoggerUsageTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/20243")
     public void testLoggerUsageChecks() throws IOException {
         for (Method method : getClass().getMethods()) {
             if (method.getDeclaringClass().equals(getClass())) {
@@ -59,6 +60,7 @@ public class ESLoggerUsageTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/20243")
     public void testLoggerUsageCheckerCompatibilityWithESLogger() throws NoSuchMethodException {
         assertThat(ESLoggerUsageChecker.LOGGER_CLASS, equalTo(Logger.class.getName()));
         assertThat(ESLoggerUsageChecker.THROWABLE_CLASS, equalTo(Throwable.class.getName()));

@@ -99,44 +99,14 @@ public class OsStats implements Writeable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.OS);
         builder.field(Fields.TIMESTAMP, getTimestamp());
-        builder.startObject(Fields.CPU);
-        builder.field(Fields.PERCENT, cpu.getPercent());
-        if (cpu.getLoadAverage() != null && Arrays.stream(cpu.getLoadAverage()).anyMatch(load -> load != -1)) {
-            builder.startObject(Fields.LOAD_AVERAGE);
-            if (cpu.getLoadAverage()[0] != -1) {
-                builder.field(Fields.LOAD_AVERAGE_1M, cpu.getLoadAverage()[0]);
-            }
-            if (cpu.getLoadAverage()[1] != -1) {
-                builder.field(Fields.LOAD_AVERAGE_5M, cpu.getLoadAverage()[1]);
-            }
-            if (cpu.getLoadAverage()[2] != -1) {
-                builder.field(Fields.LOAD_AVERAGE_15M, cpu.getLoadAverage()[2]);
-            }
-            builder.endObject();
-        }
-        builder.endObject();
-
-        builder.startObject(Fields.MEM);
-        builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, mem.getTotal());
-        builder.byteSizeField(Fields.FREE_IN_BYTES, Fields.FREE, mem.getFree());
-        builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, mem.getUsed());
-
-        builder.field(Fields.FREE_PERCENT, mem.getFreePercent());
-        builder.field(Fields.USED_PERCENT, mem.getUsedPercent());
-
-        builder.endObject();
-
-        builder.startObject(Fields.SWAP);
-        builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, swap.getTotal());
-        builder.byteSizeField(Fields.FREE_IN_BYTES, Fields.FREE, swap.getFree());
-        builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, swap.getUsed());
-        builder.endObject();
-
+        cpu.toXContent(builder, params);
+        mem.toXContent(builder, params);
+        swap.toXContent(builder, params);
         builder.endObject();
         return builder;
     }
 
-    public static class Cpu implements Writeable {
+    public static class Cpu implements Writeable, ToXContent {
 
         private final short percent;
         private final double[] loadAverage;
@@ -173,9 +143,30 @@ public class OsStats implements Writeable, ToXContent {
         public double[] getLoadAverage() {
             return loadAverage;
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(Fields.CPU);
+            builder.field(Fields.PERCENT, getPercent());
+            if (getLoadAverage() != null && Arrays.stream(getLoadAverage()).anyMatch(load -> load != -1)) {
+                builder.startObject(Fields.LOAD_AVERAGE);
+                if (getLoadAverage()[0] != -1) {
+                    builder.field(Fields.LOAD_AVERAGE_1M, getLoadAverage()[0]);
+                }
+                if (getLoadAverage()[1] != -1) {
+                    builder.field(Fields.LOAD_AVERAGE_5M, getLoadAverage()[1]);
+                }
+                if (getLoadAverage()[2] != -1) {
+                    builder.field(Fields.LOAD_AVERAGE_15M, getLoadAverage()[2]);
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            return builder;
+        }
     }
 
-    public static class Swap implements Writeable {
+    public static class Swap implements Writeable, ToXContent {
 
         private final long total;
         private final long free;
@@ -207,9 +198,19 @@ public class OsStats implements Writeable, ToXContent {
         public ByteSizeValue getTotal() {
             return new ByteSizeValue(total);
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(Fields.SWAP);
+            builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, getTotal());
+            builder.byteSizeField(Fields.FREE_IN_BYTES, Fields.FREE, getFree());
+            builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, getUsed());
+            builder.endObject();
+            return builder;
+        }
     }
 
-    public static class Mem implements Writeable {
+    public static class Mem implements Writeable, ToXContent {
 
         private final long total;
         private final long free;
@@ -248,6 +249,18 @@ public class OsStats implements Writeable, ToXContent {
 
         public short getFreePercent() {
             return calculatePercentage(free, total);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(Fields.MEM);
+            builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, getTotal());
+            builder.byteSizeField(Fields.FREE_IN_BYTES, Fields.FREE, getFree());
+            builder.byteSizeField(Fields.USED_IN_BYTES, Fields.USED, getUsed());
+            builder.field(Fields.FREE_PERCENT, getFreePercent());
+            builder.field(Fields.USED_PERCENT, getUsedPercent());
+            builder.endObject();
+            return builder;
         }
     }
 

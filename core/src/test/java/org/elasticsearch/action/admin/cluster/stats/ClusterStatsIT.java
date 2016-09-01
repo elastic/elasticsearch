@@ -21,12 +21,15 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -181,12 +184,20 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(msg, response.nodesStats.getProcess().getMinOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
         assertThat(msg, response.nodesStats.getProcess().getMaxOpenFileDescriptors(), Matchers.greaterThanOrEqualTo(-1L));
 
-        assertThat(msg, response.nodesStats.getOs().getMem().getFree().bytes(), Matchers.greaterThanOrEqualTo(0L));
-        assertThat(msg, response.nodesStats.getOs().getMem().getTotal().bytes(), Matchers.greaterThanOrEqualTo(0L));
-        assertThat(msg, response.nodesStats.getOs().getMem().getUsed().bytes(), Matchers.greaterThanOrEqualTo(0L));
-        assertThat(msg, response.nodesStats.getOs().getMem().getUsedPercent(), Matchers.greaterThanOrEqualTo((short)0));
-        assertThat(msg, response.nodesStats.getOs().getMem().getFreePercent(), Matchers.greaterThanOrEqualTo((short)0));
-
+        NodesStatsResponse nodesStatsResponse = client().admin().cluster().prepareNodesStats().setOs(true).get();
+        long total = 0;
+        long free = 0;
+        long used = 0;
+        for (NodeStats nodeStats : nodesStatsResponse.getNodes()) {
+            total += nodeStats.getOs().getMem().getTotal().bytes();
+            free += nodeStats.getOs().getMem().getFree().bytes();
+            used += nodeStats.getOs().getMem().getUsed().bytes();
+        }
+        assertEquals(msg, free, response.nodesStats.getOs().getMem().getFree().bytes());
+        assertEquals(msg, total, response.nodesStats.getOs().getMem().getTotal().bytes());
+        assertEquals(msg, used, response.nodesStats.getOs().getMem().getUsed().bytes());
+        assertEquals(msg, OsStats.calculatePercentage(used, total), response.nodesStats.getOs().getMem().getUsedPercent());
+        assertEquals(msg, OsStats.calculatePercentage(free, total), response.nodesStats.getOs().getMem().getFreePercent());
     }
 
     public void testAllocatedProcessors() throws Exception {

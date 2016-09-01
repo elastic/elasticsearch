@@ -265,7 +265,7 @@ public class OsStats implements Writeable, ToXContent {
         }
     }
 
-    private static short calculatePercentage(long used, long max) {
+    public static short calculatePercentage(long used, long max) {
         return max <= 0 ? 0 : (short) (Math.round((100d * used) / max));
     }
 }

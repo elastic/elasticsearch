@@ -36,12 +36,7 @@ public class OsProbeTests extends ESTestCase {
 
     public void testOsInfo() {
         int allocatedProcessors = randomIntBetween(1, Runtime.getRuntime().availableProcessors());
-        long refreshInterval;
-        if (randomBoolean()) {
-            refreshInterval = -1;
-        } else {
-            refreshInterval = randomPositiveLong();
-        }
+        long refreshInterval = randomBoolean() ? -1 : randomPositiveLong();
         OsInfo info = probe.osInfo(refreshInterval, allocatedProcessors);
         assertNotNull(info);
         assertEquals(refreshInterval, info.getRefreshInterval());

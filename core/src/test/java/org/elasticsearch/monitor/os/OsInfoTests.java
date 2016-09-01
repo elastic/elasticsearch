@@ -30,12 +30,7 @@ public class OsInfoTests extends ESTestCase {
     public void testSerialization() throws IOException {
         int availableProcessors = randomIntBetween(1, 64);
         int allocatedProcessors = randomIntBetween(1, availableProcessors);
-        long refreshInterval;
-        if (randomBoolean()) {
-            refreshInterval = -1;
-        } else {
-            refreshInterval = randomPositiveLong();
-        }
+        long refreshInterval = randomBoolean() ? -1 : randomPositiveLong();
         String name = randomAsciiOfLengthBetween(3, 10);
         String arch = randomAsciiOfLengthBetween(3, 10);
         String version = randomAsciiOfLengthBetween(3, 10);

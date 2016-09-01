@@ -181,6 +181,21 @@ public class RestAnalyzeActionTests extends ESTestCase {
             assertThat(e.getMessage(), startsWith("Unknown parameter [char_filters]"));
         }
 
+        content =  XContentFactory.jsonBuilder()
+            .startObject()
+            .field("text", "THIS IS A TEST")
+            .field("tokenizer", "keyword")
+            .array("token_filter", "lowercase")
+            .endObject().bytes();
+
+        analyzeRequest = new AnalyzeRequest("for test");
+
+        try {
+            RestAnalyzeAction.buildFromContent(content, analyzeRequest, new ParseFieldMatcher(Settings.EMPTY));
+        } catch (Exception e) {
+            assertThat(e, instanceOf(IllegalArgumentException.class));
+            assertThat(e.getMessage(), startsWith("Unknown parameter [token_filter]"));
+        }
     }
 
 }

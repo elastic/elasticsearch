@@ -67,8 +67,8 @@ removed in Elasticsearch 6.0.0.
 
 ==== Analyze API changes
 
-The deprecated `filters`/`token_filters`/`char_filters` parameter has been
-renamed `filter`/`token_filter`/`char_filter`.
+The deprecated `filters`/`char_filters` parameter has been
+renamed `filter`/`char_filter` and `token_filters` parameter has been removed.
 
 ==== `DELETE /_query` endpoint removed
 

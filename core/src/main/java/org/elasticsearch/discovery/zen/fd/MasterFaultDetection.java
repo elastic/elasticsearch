@@ -64,7 +64,6 @@ public class MasterFaultDetection extends FaultDetection {
 
     }
 
-    private final ClusterService clusterService;
     private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
 
     private volatile MasterPinger masterPinger;
@@ -79,8 +78,7 @@ public class MasterFaultDetection extends FaultDetection {
 
     public MasterFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService,
                                 ClusterService clusterService) {
-        super(settings, threadPool, transportService, clusterService.getClusterName());
-        this.clusterService = clusterService;
+        super(settings, threadPool, transportService, clusterService.getClusterName(), clusterService);
 
         logger.debug("[master] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout,
             pingRetryCount);

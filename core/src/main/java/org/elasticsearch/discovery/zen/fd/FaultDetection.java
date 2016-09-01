@@ -20,6 +20,7 @@ package org.elasticsearch.discovery.zen.fd;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -51,6 +52,7 @@ public abstract class FaultDetection extends AbstractComponent {
     protected final ThreadPool threadPool;
     protected final ClusterName clusterName;
     protected final TransportService transportService;
+    protected final ClusterService clusterService;
 
     // used mainly for testing, should always be true
     protected final boolean registerConnectionListener;
@@ -61,11 +63,13 @@ public abstract class FaultDetection extends AbstractComponent {
     protected final TimeValue pingRetryTimeout;
     protected final int pingRetryCount;
 
-    public FaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
+    public FaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName,
+                          ClusterService clusterService) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.clusterName = clusterName;
+        this.clusterService = clusterService;
 
         this.connectOnNetworkDisconnect = CONNECT_ON_NETWORK_DISCONNECT_SETTING.get(settings);
         this.pingInterval = PING_INTERVAL_SETTING.get(settings);

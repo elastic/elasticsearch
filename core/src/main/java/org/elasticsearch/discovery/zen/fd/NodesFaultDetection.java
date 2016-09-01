@@ -24,6 +24,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -69,8 +70,9 @@ public class NodesFaultDetection extends FaultDetection {
 
     private volatile DiscoveryNode localNode;
 
-    public NodesFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
-        super(settings, threadPool, transportService, clusterName);
+    public NodesFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName,
+                               ClusterService clusterService) {
+        super(settings, threadPool, transportService, clusterName, clusterService);
 
         logger.debug("[node  ] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout,
             pingRetryCount);
@@ -282,6 +284,18 @@ public class NodesFaultDetection extends FaultDetection {
                 // Don't introduce new exception for bwc reasons
                 throw new IllegalStateException("Got pinged with cluster name [" + request.clusterName + "], but I'm part of cluster ["
                     + clusterName + "]");
+            }
+
+            final DiscoveryNode currentMasterNode = clusterService.state().nodes().getMasterNode();
+            if (currentMasterNode != null
+                    && request.masterNode != null
+                    && currentMasterNode.equals(request.masterNode) == false) {
+                // this node has a different node as master than the one that sent this ping message, so notify
+                // the sending node that this node does not believe it to be the master
+                // TODO: should we throw a specialized exception type here that can be caught by the
+                // TransportService#sendRequest's exception handler so we don't keep retrying to send to this node?
+                throw new IllegalStateException("Got pinged by node [" + request.masterNode + "] but I believe master to be ["
+                                                    + currentMasterNode + "]");
             }
 
             notifyPingReceived(request);

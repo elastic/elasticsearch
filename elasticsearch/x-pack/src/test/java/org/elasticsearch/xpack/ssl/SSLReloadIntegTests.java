@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.ssl;
+package org.elasticsearch.xpack.ssl;
 
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x509.Extension;
@@ -71,7 +71,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
         Settings settings = super.nodeSettings(nodeOrdinal);
         Settings.Builder builder = Settings.builder();
         for (Entry<String, String> entry : settings.getAsMap().entrySet()) {
-            if (entry.getKey().startsWith(Security.setting("ssl.")) == false) {
+            if (entry.getKey().startsWith("xpack.ssl.") == false) {
                 builder.put(entry.getKey(), entry.getValue());
             }
         }
@@ -79,10 +79,10 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
         builder.put("resource.reload.interval.high", "1s")
                 .put(SecuritySettingsSource.getSSLSettingsForStore(
                         "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode"))
-                .put("xpack.security.ssl.keystore.path", nodeStorePath);
+                .put("xpack.ssl.keystore.path", nodeStorePath);
 
-        if (builder.get("xpack.security.ssl.truststore.path") != null) {
-            builder.put("xpack.security.ssl.truststore.path", nodeStorePath);
+        if (builder.get("xpack.ssl.truststore.path") != null) {
+            builder.put("xpack.ssl.truststore.path", nodeStorePath);
         }
 
         return builder.build();
@@ -106,10 +106,10 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
 
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("xpack.security.ssl.keystore.path", keystorePath)
-                .put("xpack.security.ssl.keystore.password", "changeme")
-                .put("xpack.security.ssl.truststore.path", nodeStorePath)
-                .put("xpack.security.ssl.truststore.password", "testnode")
+                .put("xpack.ssl.keystore.path", keystorePath)
+                .put("xpack.ssl.keystore.password", "changeme")
+                .put("xpack.ssl.truststore.path", nodeStorePath)
+                .put("xpack.ssl.truststore.password", "testnode")
                 .build();
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(settings, new Environment(settings));

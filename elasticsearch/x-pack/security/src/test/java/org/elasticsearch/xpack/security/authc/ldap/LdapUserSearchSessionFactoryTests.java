@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
-import org.elasticsearch.xpack.security.ssl.SSLService;
+import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.security.support.NoOpLogger;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.junit.Before;
@@ -59,8 +59,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
          */
         globalSettings = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("xpack.security.ssl.keystore.path", keystore)
-                .put("xpack.security.ssl.keystore.password", "changeit")
+                .put("xpack.ssl.keystore.path", keystore)
+                .put("xpack.ssl.keystore.password", "changeit")
                 .build();
         sslService = new SSLService(globalSettings, env);
     }

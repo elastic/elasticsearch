@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.After;
@@ -71,9 +70,9 @@ public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
         final Settings.Builder builder =
                 Settings.builder()
                 .put(Security.USER_SETTING.getKey(), USER + ":" + PASS)
-                .put(SecurityNetty3Transport.SSL_SETTING.getKey(), true)
-                .put("xpack.security.ssl.keystore.path", clientKeyStore)
-                .put("xpack.security.ssl.keystore.password", KEYSTORE_PASS);
+                .put("xpack.security.transport.ssl.enabled", true)
+                .put("xpack.ssl.keystore.path", clientKeyStore)
+                .put("xpack.ssl.keystore.password", KEYSTORE_PASS);
         if (useSecurity3) {
             builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME3);
         } else {

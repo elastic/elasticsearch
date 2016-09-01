@@ -10,7 +10,7 @@ import com.unboundid.ldap.sdk.LDAPConnection;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.ssl.SSLService;
+import org.elasticsearch.xpack.ssl.SSLService;
 
 import java.util.ArrayList;
 import java.util.Arrays;

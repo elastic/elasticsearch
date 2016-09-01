@@ -5,25 +5,20 @@
  */
 package org.elasticsearch.xpack.common.http;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.common.http.auth.ApplicableHttpAuth;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
+import org.elasticsearch.xpack.ssl.SSLService;
 
 import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.KeyManager;
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,12 +27,8 @@ import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.AccessController;
-import java.security.KeyStore;
 import java.security.PrivilegedAction;
-import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,30 +36,13 @@ import java.util.Map;
 /**
  * Client class to wrap http connections
  */
-public class HttpClient extends AbstractLifecycleComponent {
+public class HttpClient extends AbstractComponent {
 
     static final String SETTINGS_SSL_PREFIX = "xpack.http.ssl.";
     static final String SETTINGS_PROXY_PREFIX = "xpack.http.proxy.";
-    static final String SETTINGS_SSL_SECURITY_PREFIX = "xpack.security.ssl.";
 
-    public static final String SETTINGS_SSL_PROTOCOL = SETTINGS_SSL_PREFIX + "protocol";
-    static final String SETTINGS_SSL_SECURITY_PROTOCOL = SETTINGS_SSL_SECURITY_PREFIX + "protocol";
-    public static final String SETTINGS_SSL_KEYSTORE = SETTINGS_SSL_PREFIX + "keystore.path";
-    static final String SETTINGS_SSL_SECURITY_KEYSTORE = SETTINGS_SSL_SECURITY_PREFIX + "keystore.path";
-    public static final String SETTINGS_SSL_KEYSTORE_PASSWORD = SETTINGS_SSL_PREFIX + "keystore.password";
-    static final String SETTINGS_SSL_SECURITY_KEYSTORE_PASSWORD = SETTINGS_SSL_SECURITY_PREFIX + "keystore.password";
-    public static final String SETTINGS_SSL_KEYSTORE_KEY_PASSWORD = SETTINGS_SSL_PREFIX + "keystore.key_password";
-    static final String SETTINGS_SSL_SECURITY_KEYSTORE_KEY_PASSWORD = SETTINGS_SSL_SECURITY_PREFIX + "keystore.key_password";
-    public static final String SETTINGS_SSL_KEYSTORE_ALGORITHM = SETTINGS_SSL_PREFIX + "keystore.algorithm";
-    static final String SETTINGS_SSL_SECURITY_KEYSTORE_ALGORITHM = SETTINGS_SSL_SECURITY_PREFIX + "keystore.algorithm";
-    public static final String SETTINGS_SSL_TRUSTSTORE = SETTINGS_SSL_PREFIX + "truststore.path";
-    static final String SETTINGS_SSL_SECURITY_TRUSTSTORE = SETTINGS_SSL_SECURITY_PREFIX + "truststore.path";
-    public static final String SETTINGS_SSL_TRUSTSTORE_PASSWORD = SETTINGS_SSL_PREFIX + "truststore.password";
-    static final String SETTINGS_SSL_SECURITY_TRUSTSTORE_PASSWORD = SETTINGS_SSL_SECURITY_PREFIX + "truststore.password";
-    public static final String SETTINGS_SSL_TRUSTSTORE_ALGORITHM = SETTINGS_SSL_PREFIX + "truststore.algorithm";
-    static final String SETTINGS_SSL_SECURITY_TRUSTSTORE_ALGORITHM = SETTINGS_SSL_SECURITY_PREFIX + "truststore.algorithm";
-    public static final String SETTINGS_PROXY_HOST = SETTINGS_PROXY_PREFIX + "host";
-    public static final String SETTINGS_PROXY_PORT = SETTINGS_PROXY_PREFIX + "port";
+    static final String SETTINGS_PROXY_HOST = SETTINGS_PROXY_PREFIX + "host";
+    static final String SETTINGS_PROXY_PORT = SETTINGS_PROXY_PREFIX + "port";
 
     private final HttpAuthRegistry httpAuthRegistry;
     private final Environment env;
@@ -78,16 +52,12 @@ public class HttpClient extends AbstractLifecycleComponent {
     private SSLSocketFactory sslSocketFactory;
     private HttpProxy proxy = HttpProxy.NO_PROXY;
 
-    public HttpClient(Settings settings, HttpAuthRegistry httpAuthRegistry, Environment env) {
+    public HttpClient(Settings settings, HttpAuthRegistry httpAuthRegistry, Environment env, SSLService sslService) {
         super(settings);
         this.httpAuthRegistry = httpAuthRegistry;
         this.env = env;
         defaultConnectionTimeout = settings.getAsTime("xpack.http.default_connection_timeout", TimeValue.timeValueSeconds(10));
         defaultReadTimeout = settings.getAsTime("xpack.http.default_read_timeout", TimeValue.timeValueSeconds(10));
-    }
-
-    @Override
-    protected void doStart() throws ElasticsearchException {
         Integer proxyPort = settings.getAsInt(SETTINGS_PROXY_PORT, null);
         String proxyHost = settings.get(SETTINGS_PROXY_HOST, null);
         if (proxyPort != null && Strings.hasText(proxyHost)) {
@@ -99,22 +69,7 @@ public class HttpClient extends AbstractLifecycleComponent {
                         SETTINGS_PROXY_PORT);
             }
         }
-
-        if (!settings.getByPrefix(SETTINGS_SSL_PREFIX).getAsMap().isEmpty() ||
-                !settings.getByPrefix(SETTINGS_SSL_SECURITY_PREFIX).getAsMap().isEmpty()) {
-            sslSocketFactory = createSSLSocketFactory(settings);
-        } else {
-            logger.trace("no ssl context configured");
-            sslSocketFactory = null;
-        }
-    }
-
-    @Override
-    protected void doStop() throws ElasticsearchException {
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
+        sslSocketFactory = sslService.sslSocketFactory(settings.getByPrefix(SETTINGS_SSL_PREFIX));
     }
 
     public HttpResponse execute(HttpRequest request) throws IOException {
@@ -153,7 +108,7 @@ public class HttpClient extends AbstractLifecycleComponent {
         HttpProxy proxyToUse = request.proxy != null ? request.proxy : proxy;
 
         HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection(proxyToUse.proxy());
-        if (urlConnection instanceof HttpsURLConnection && sslSocketFactory != null) {
+        if (urlConnection instanceof HttpsURLConnection) {
             final HttpsURLConnection httpsConn = (HttpsURLConnection) urlConnection;
             final SSLSocketFactory factory = sslSocketFactory;
             SecurityManager sm = System.getSecurityManager();
@@ -224,107 +179,8 @@ public class HttpClient extends AbstractLifecycleComponent {
         return new HttpResponse(statusCode, body, responseHeaders);
     }
 
-    /** SSL Initialization **/
-    private SSLSocketFactory createSSLSocketFactory(Settings settings) {
-        try {
-            String sslContextProtocol = settings.get(SETTINGS_SSL_PROTOCOL, settings.get(SETTINGS_SSL_SECURITY_PROTOCOL, "TLS"));
-            String keyStore = settings.get(SETTINGS_SSL_KEYSTORE, settings.get(SETTINGS_SSL_SECURITY_KEYSTORE,
-                    System.getProperty("javax.net.ssl.keyStore")));
-            String keyStorePassword = settings.get(SETTINGS_SSL_KEYSTORE_PASSWORD, settings.get(SETTINGS_SSL_SECURITY_KEYSTORE_PASSWORD,
-                    System.getProperty("javax.net.ssl.keyStorePassword")));
-            String keyPassword = settings.get(SETTINGS_SSL_KEYSTORE_KEY_PASSWORD, settings.get(SETTINGS_SSL_SECURITY_KEYSTORE_KEY_PASSWORD,
-                    keyStorePassword));
-            String keyStoreAlgorithm = settings.get(SETTINGS_SSL_KEYSTORE_ALGORITHM, settings.get(SETTINGS_SSL_SECURITY_KEYSTORE_ALGORITHM,
-                    System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm())));
-            String trustStore = settings.get(SETTINGS_SSL_TRUSTSTORE, settings.get(SETTINGS_SSL_SECURITY_TRUSTSTORE,
-                    System.getProperty("javax.net.ssl.trustStore")));
-            String trustStorePassword = settings.get(SETTINGS_SSL_TRUSTSTORE_PASSWORD,
-                    settings.get(SETTINGS_SSL_SECURITY_TRUSTSTORE_PASSWORD, System.getProperty("javax.net.ssl.trustStorePassword")));
-            String trustStoreAlgorithm = settings.get(SETTINGS_SSL_TRUSTSTORE_ALGORITHM,
-                    settings.get(SETTINGS_SSL_SECURITY_TRUSTSTORE_ALGORITHM,
-                            System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm())));
-
-            if (keyStore != null) {
-                if (trustStore == null) {
-                    logger.debug("keystore defined with no truststore defined, using keystore as truststore");
-                    trustStore = keyStore;
-                    trustStorePassword = keyStorePassword;
-                    trustStoreAlgorithm = keyStoreAlgorithm;
-                }
-            } else if (trustStore == null) {
-                logger.debug("no truststore defined, using system default");
-            }
-
-            if (trustStoreAlgorithm == null) {
-                trustStoreAlgorithm = TrustManagerFactory.getDefaultAlgorithm();
-            }
-            logger.debug("using protocol [{}], keyStore [{}], keyStoreAlgorithm [{}], trustStore [{}] and trustAlgorithm [{}]",
-                    sslContextProtocol, keyStore, keyStoreAlgorithm, trustStore, trustStoreAlgorithm);
-
-            SSLContext sslContext = SSLContext.getInstance(sslContextProtocol);
-            KeyManager[] keyManagers = keyManagers(env, keyStore, keyStorePassword, keyStoreAlgorithm, keyPassword);
-            TrustManager[] trustManagers = trustManagers(env, trustStore, trustStorePassword, trustStoreAlgorithm);
-            sslContext.init(keyManagers, trustManagers, new SecureRandom());
-            return sslContext.getSocketFactory();
-        } catch (Exception e) {
-            throw new RuntimeException("http client failed to initialize the SSLContext", e);
-        }
-    }
-
+    // TODO: we shouldn't expose this just for tests
     public SSLSocketFactory getSslSocketFactory() {
         return sslSocketFactory;
-    }
-
-    private static KeyManager[] keyManagers(Environment env, String keyStore, String keyStorePassword, String keyStoreAlgorithm,
-                                            String keyPassword) {
-        if (keyStore == null) {
-            return null;
-        }
-        Path path = env.configFile().resolve(keyStore);
-        if (Files.notExists(path)) {
-            return null;
-        }
-
-        try {
-            // Load KeyStore
-            KeyStore ks = readKeystore(path, keyStorePassword);
-
-            // Initialize KeyManagerFactory
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance(keyStoreAlgorithm);
-            kmf.init(ks, keyPassword.toCharArray());
-            return kmf.getKeyManagers();
-        } catch (Exception e) {
-            throw new RuntimeException("http client failed to initialize a KeyManagerFactory", e);
-        }
-    }
-
-    private static TrustManager[] trustManagers(Environment env, String trustStore, String trustStorePassword, String trustStoreAlgorithm) {
-        try {
-            // Load TrustStore
-            KeyStore ks = null;
-            if (trustStore != null) {
-                Path trustStorePath = env.configFile().resolve(trustStore);
-                if (Files.exists(trustStorePath)) {
-                    ks = readKeystore(trustStorePath, trustStorePassword);
-                }
-            }
-
-            // Initialize a trust manager factory with the trusted store
-            TrustManagerFactory trustFactory = TrustManagerFactory.getInstance(trustStoreAlgorithm);
-            trustFactory.init(ks);
-            return trustFactory.getTrustManagers();
-        } catch (Exception e) {
-            throw new RuntimeException("http client failed to initialize a TrustManagerFactory", e);
-        }
-    }
-
-    private static KeyStore readKeystore(Path path, String password) throws Exception {
-        try (InputStream in = Files.newInputStream(path)) {
-            // Load TrustStore
-            KeyStore ks = KeyStore.getInstance("jks");
-            assert password != null;
-            ks.load(in, password.toCharArray());
-            return ks;
-        }
     }
 }

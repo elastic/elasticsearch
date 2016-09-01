@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.monitoring.rest.action.RestMonitoringBulkAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.ssl.SSLService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -98,7 +99,7 @@ public class Monitoring implements ActionPlugin {
     }
 
     public Collection<Object> createComponents(InternalClient client, ThreadPool threadPool, ClusterService clusterService,
-                                               LicenseService licenseService) {
+                                               LicenseService licenseService, SSLService sslService) {
         if (enabled == false || tribeNode) {
             return Collections.emptyList();
         }
@@ -107,8 +108,10 @@ public class Monitoring implements ActionPlugin {
         final MonitoringSettings monitoringSettings = new MonitoringSettings(settings, clusterSettings);
         final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool, licenseState);
 
+        // TODO do exporters and their ssl config really need to be dynamic? https://github.com/elastic/x-plugins/issues/3117
+        final SSLService dynamicSSLService = sslService.createDynamicSSLService();
         Map<String, Exporter.Factory> exporterFactories = new HashMap<>();
-        exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, env));
+        exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, env, dynamicSSLService));
         exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, clusterService, cleanerService));
         final Exporters exporters = new Exporters(settings, exporterFactories, clusterService);
 

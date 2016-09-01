@@ -172,8 +172,8 @@ integTest {
 
     setting 'xpack.security.transport.ssl.enabled', 'true'
     setting 'xpack.security.http.ssl.enabled', 'true'
-    setting 'xpack.security.ssl.keystore.path', nodeKeystore.name
-    setting 'xpack.security.ssl.keystore.password', 'keypass'
+    setting 'xpack.ssl.keystore.path', nodeKeystore.name
+    setting 'xpack.ssl.keystore.password', 'keypass'
 
     plugin ':x-plugins:elasticsearch:x-pack'
 

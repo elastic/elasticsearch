@@ -19,7 +19,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
+import org.elasticsearch.xpack.ssl.SSLClientAuth;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -64,7 +64,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         if (sslTransportEnabled()) {
             settingsBuilder.put("transport.profiles.client.xpack.security.truststore.path", store) // settings for client truststore
                            .put("transport.profiles.client.xpack.security.truststore.password", "testnode")
-                           .put(SecurityNetty3Transport.SSL_SETTING.getKey(), true);
+                           .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED);
         }
 
         return settingsBuilder
@@ -97,7 +97,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put("network.host", "localhost")
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("discovery.zen.ping.unicast.hosts", unicastHost)
-                .put(SecurityNetty3Transport.SSL_SETTING.getKey(), sslTransportEnabled())
+                .put("xpack.security.transport.ssl.enabled", sslTransportEnabled())
                 .put("xpack.security.audit.enabled", false)
                 .put("path.home", home)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
@@ -133,7 +133,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put(Security.USER_SETTING.getKey(), "test_user:changeme")
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("discovery.zen.ping.unicast.hosts", "localhost:" + randomClientPort)
-                .put(SecurityNetty3Transport.SSL_SETTING.getKey(), sslTransportEnabled())
+                .put("xpack.security.transport.ssl.enabled", sslTransportEnabled())
                 .put("xpack.security.audit.enabled", false)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put("discovery.initial_state_timeout", "2s")

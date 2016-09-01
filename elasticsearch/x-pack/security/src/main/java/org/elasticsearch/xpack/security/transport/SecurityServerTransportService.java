@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.accesscontrol.RequestContext;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -36,32 +37,33 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport.CLIENT_AUTH_SETTING;
-import static org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport.PROFILE_CLIENT_AUTH_SETTING;
-import static org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport.SSL_SETTING;
+import static org.elasticsearch.xpack.XPackSettings.TRANSPORT_SSL_ENABLED;
+import static org.elasticsearch.xpack.security.Security.setting;
 
 public class SecurityServerTransportService extends TransportService {
 
-    public static final String SETTING_NAME = "xpack.security.type";
+    private static final String SETTING_NAME = "xpack.security.type";
 
-    protected final AuthenticationService authcService;
-    protected final AuthorizationService authzService;
-    protected final SecurityActionMapper actionMapper;
-    protected final XPackLicenseState licenseState;
-
-    protected final Map<String, ServerTransportFilter> profileFilters;
+    private final AuthenticationService authcService;
+    private final AuthorizationService authzService;
+    private final SecurityActionMapper actionMapper;
+    private final SSLService sslService;
+    private final Map<String, ServerTransportFilter> profileFilters;
+    final XPackLicenseState licenseState;
 
     @Inject
     public SecurityServerTransportService(Settings settings, Transport transport, ThreadPool threadPool,
                                           AuthenticationService authcService,
                                           AuthorizationService authzService,
                                           SecurityActionMapper actionMapper,
-                                          XPackLicenseState licenseState) {
+                                          XPackLicenseState licenseState,
+                                          SSLService sslService) {
         super(settings, transport, threadPool);
         this.authcService = authcService;
         this.authzService = authzService;
         this.actionMapper = actionMapper;
         this.licenseState = licenseState;
+        this.sslService = sslService;
         this.profileFilters = initializeProfileFilters();
     }
 
@@ -119,10 +121,12 @@ public class SecurityServerTransportService extends TransportService {
         Map<String, Settings> profileSettingsMap = settings.getGroups("transport.profiles.", true);
         Map<String, ServerTransportFilter> profileFilters = new HashMap<>(profileSettingsMap.size() + 1);
 
+        final Settings transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
         for (Map.Entry<String, Settings> entry : profileSettingsMap.entrySet()) {
             Settings profileSettings = entry.getValue();
-            final boolean profileSsl = SecurityNetty3Transport.profileSsl(profileSettings, settings);
-            final boolean clientAuth = PROFILE_CLIENT_AUTH_SETTING.get(profileSettings, settings).enabled();
+            final boolean profileSsl = SecurityNetty3Transport.PROFILE_SSL_SETTING.get(profileSettings);
+            final Settings profileSslSettings = SecurityNetty3Transport.profileSslSettings(profileSettings);
+            final boolean clientAuth = sslService.isSSLClientAuthEnabled(profileSslSettings, transportSSLSettings);
             final boolean extractClientCert = profileSsl && clientAuth;
             String type = entry.getValue().get(SETTING_NAME, "node");
             switch (type) {
@@ -137,8 +141,8 @@ public class SecurityServerTransportService extends TransportService {
         }
 
         if (!profileFilters.containsKey(TransportSettings.DEFAULT_PROFILE)) {
-            final boolean profileSsl = SSL_SETTING.get(settings);
-            final boolean clientAuth = CLIENT_AUTH_SETTING.get(settings).enabled();
+            final boolean profileSsl = TRANSPORT_SSL_ENABLED.get(settings);
+            final boolean clientAuth = sslService.isSSLClientAuthEnabled(transportSSLSettings);
             final boolean extractClientCert = profileSsl && clientAuth;
             profileFilters.put(TransportSettings.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService,
                     actionMapper, threadPool.getThreadContext(), extractClientCert));
@@ -159,9 +163,9 @@ public class SecurityServerTransportService extends TransportService {
         private final XPackLicenseState licenseState;
         private final ThreadContext threadContext;
 
-        public ProfileSecuredRequestHandler(String action, TransportRequestHandler<T> handler,
-                                            Map<String, ServerTransportFilter> profileFilters, XPackLicenseState licenseState,
-                                            ThreadContext threadContext) {
+        private ProfileSecuredRequestHandler(String action, TransportRequestHandler<T> handler,
+                                             Map<String,ServerTransportFilter> profileFilters, XPackLicenseState licenseState,
+                                             ThreadContext threadContext) {
             this.action = action;
             this.handler = handler;
             this.profileFilters = profileFilters;

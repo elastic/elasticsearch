@@ -89,6 +89,8 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.SecurityFeatureSet;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.ssl.SSLConfigurationReloader;
+import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.support.clock.SystemClock;
 import org.elasticsearch.xpack.watcher.Watcher;
@@ -152,6 +154,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     protected final XPackExtensionsService extensionsService;
 
     protected XPackLicenseState licenseState;
+    protected SSLService sslService;
     protected Licensing licensing;
     protected Security security;
     protected Monitoring monitoring;
@@ -163,9 +166,10 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         this.transportClientMode = transportClientMode(settings);
         this.env = transportClientMode ? null : new Environment(settings);
         this.licenseState = new XPackLicenseState();
+        this.sslService = new SSLService(settings, env);
 
         this.licensing = new Licensing(settings);
-        this.security = new Security(settings, env, licenseState);
+        this.security = new Security(settings, env, licenseState, sslService);
         this.monitoring = new Monitoring(settings, env, licenseState);
         this.watcher = new Watcher(settings);
         this.graph = new Graph(settings);
@@ -207,6 +211,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                SearchRequestParsers searchRequestParsers) {
         List<Object> components = new ArrayList<>();
+        components.add(sslService);
+
         final InternalClient internalClient = new InternalClient(settings, threadPool, client, security.getCryptoService());
         components.add(internalClient);
 
@@ -217,7 +223,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
         components.addAll(security.createComponents(internalClient, threadPool, clusterService, resourceWatcherService,
                                                     extensionsService.getExtensions()));
-        components.addAll(monitoring.createComponents(internalClient, threadPool, clusterService, licenseService));
+        components.addAll(monitoring.createComponents(internalClient, threadPool, clusterService, licenseService, sslService));
 
         // watcher http stuff
         Map<String, HttpAuthFactory> httpAuthFactories = new HashMap<>();
@@ -226,12 +232,14 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         HttpAuthRegistry httpAuthRegistry = new HttpAuthRegistry(httpAuthFactories);
         HttpRequestTemplate.Parser httpTemplateParser = new HttpRequestTemplate.Parser(httpAuthRegistry);
         components.add(httpTemplateParser);
-        final HttpClient httpClient = new HttpClient(settings, httpAuthRegistry, env);
+        final HttpClient httpClient = new HttpClient(settings, httpAuthRegistry, env, sslService);
         components.add(httpClient);
 
         components.addAll(createNotificationComponents(clusterService.getClusterSettings(), httpClient,
             httpTemplateParser, scriptService));
 
+        // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
+        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService);
         return components;
     }
 
@@ -288,7 +296,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         settings.addAll(MonitoringSettings.getSettings());
         settings.addAll(watcher.getSettings());
         settings.addAll(licensing.getSettings());
-
         settings.addAll(XPackSettings.getAllSettings());
 
         // we add the `xpack.version` setting to all internal indices

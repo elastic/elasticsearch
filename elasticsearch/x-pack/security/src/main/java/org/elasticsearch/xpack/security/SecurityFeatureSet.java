@@ -26,12 +26,13 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RolesStore;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 
+import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
+import static org.elasticsearch.xpack.XPackSettings.TRANSPORT_SSL_ENABLED;
+
 /**
- *
+ * Indicates whether the features of Security are currently in use
  */
 public class SecurityFeatureSet implements XPackFeatureSet {
 
@@ -114,8 +115,8 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     static Map<String, Object> sslUsage(Settings settings) {
         Map<String, Object> map = new HashMap<>(2);
-        map.put("http", Collections.singletonMap("enabled", SecurityNetty3HttpServerTransport.SSL_SETTING.get(settings)));
-        map.put("transport", Collections.singletonMap("enabled", SecurityNetty3Transport.SSL_SETTING.get(settings)));
+        map.put("http", Collections.singletonMap("enabled", HTTP_SSL_ENABLED.get(settings)));
+        map.put("transport", Collections.singletonMap("enabled", TRANSPORT_SSL_ENABLED.get(settings)));
         return map;
     }
 

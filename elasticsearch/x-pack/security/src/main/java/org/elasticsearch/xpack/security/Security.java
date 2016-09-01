@@ -96,9 +96,6 @@ import org.elasticsearch.xpack.security.rest.action.user.RestChangePasswordActio
 import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
-import org.elasticsearch.xpack.security.ssl.SSLConfigurationReloader;
-import org.elasticsearch.xpack.security.ssl.SSLService;
-import org.elasticsearch.xpack.security.support.OptionalSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
@@ -106,6 +103,7 @@ import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
+import org.elasticsearch.xpack.ssl.SSLService;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -135,7 +133,8 @@ public class Security implements ActionPlugin, IngestPlugin {
 
     public static final String NAME3 = XPackPlugin.SECURITY + "3";
     public static final String NAME4 = XPackPlugin.SECURITY + "4";
-    public static final Setting<Optional<String>> USER_SETTING = OptionalSettings.createString(setting("user"), Property.NodeScope);
+    public static final Setting<Optional<String>> USER_SETTING =
+            new Setting<>(setting("user"), (String) null, Optional::ofNullable, Property.NodeScope);
 
     public static final Setting<List<String>> AUDIT_OUTPUTS_SETTING =
         Setting.listSetting(setting("audit.outputs"),
@@ -149,8 +148,9 @@ public class Security implements ActionPlugin, IngestPlugin {
     private final boolean transportClientMode;
     private final XPackLicenseState licenseState;
     private final CryptoService cryptoService;
+    private final SSLService sslService;
 
-    public Security(Settings settings, Environment env, XPackLicenseState licenseState) throws IOException {
+    public Security(Settings settings, Environment env, XPackLicenseState licenseState, SSLService sslService) throws IOException {
         this.settings = settings;
         this.env = env;
         this.transportClientMode = XPackPlugin.transportClientMode(settings);
@@ -162,6 +162,7 @@ public class Security implements ActionPlugin, IngestPlugin {
             cryptoService = null;
         }
         this.licenseState = licenseState;
+        this.sslService = sslService;
     }
 
     public CryptoService getCryptoService() {
@@ -180,7 +181,7 @@ public class Security implements ActionPlugin, IngestPlugin {
             }
             modules.add(b -> {
                 // for transport client we still must inject these ssl classes with guice
-                b.bind(SSLService.class).toInstance(new SSLService(settings, null));
+                b.bind(SSLService.class).toInstance(sslService);
             });
 
             return modules;
@@ -224,11 +225,6 @@ public class Security implements ActionPlugin, IngestPlugin {
         final SecurityContext securityContext = new SecurityContext(settings, threadPool, cryptoService);
         components.add(securityContext);
 
-        final SSLService sslService = new SSLService(settings, env);
-        // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
-        new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService);
-        components.add(sslService);
-
         // realms construction
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, threadPool);
         final ReservedRealm reservedRealm = new ReservedRealm(env, settings, nativeUsersStore);
@@ -238,7 +234,7 @@ public class Security implements ActionPlugin, IngestPlugin {
         realmFactories.put(ActiveDirectoryRealm.TYPE,
             config -> new ActiveDirectoryRealm(config, resourceWatcherService, sslService));
         realmFactories.put(LdapRealm.TYPE, config -> new LdapRealm(config, resourceWatcherService, sslService));
-        realmFactories.put(PkiRealm.TYPE, config -> new PkiRealm(config, resourceWatcherService));
+        realmFactories.put(PkiRealm.TYPE, config -> new PkiRealm(config, resourceWatcherService, sslService));
         for (XPackExtension extension : extensions) {
             Map<String, Realm.Factory> newRealms = extension.getRealms();
             for (Map.Entry<String, Realm.Factory> entry : newRealms.entrySet()) {
@@ -375,12 +371,6 @@ public class Security implements ActionPlugin, IngestPlugin {
         // always register for both client and node modes
         settingsList.add(USER_SETTING);
 
-        // SSL settings
-        SSLService.addSettings(settingsList);
-
-        // transport settings
-        SecurityNetty3Transport.addSettings(settingsList);
-
         if (transportClientMode) {
             return settingsList;
         }
@@ -402,9 +392,6 @@ public class Security implements ActionPlugin, IngestPlugin {
         NativeRolesStore.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
         AuthorizationService.addSettings(settingsList);
-
-        // HTTP settings
-        SecurityNetty3HttpServerTransport.addSettings(settingsList);
 
         // encryption settings
         CryptoService.addSettings(settingsList);

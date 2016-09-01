@@ -28,6 +28,7 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
+// TODO: we do not need individual tests for monitoring and security... maybe watcher even has one too?
 public class MonitoringSettingsFilterTests extends MonitoringIntegTestCase {
 
     @Override
@@ -40,9 +41,10 @@ public class MonitoringSettingsFilterTests extends MonitoringIntegTestCase {
                 .put("xpack.monitoring.exporters._http.enabled", false)
                 .put("xpack.monitoring.exporters._http.auth.username", "_user")
                 .put("xpack.monitoring.exporters._http.auth.password", "_passwd")
-                .put("xpack.monitoring.exporters._http.ssl.truststore.path", "/path/to/truststore")
-                .put("xpack.monitoring.exporters._http.ssl.truststore.password", "_passwd")
-                .put("xpack.monitoring.exporters._http.ssl.hostname_verification", true)
+                .put("xpack.monitoring.exporters._http.ssl.truststore.path",
+                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks"))
+                .put("xpack.monitoring.exporters._http.ssl.truststore.password", "truststore-testnode-only")
+                .put("xpack.monitoring.exporters._http.ssl.verification_mode", "full")
                 .build();
     }
 
@@ -77,7 +79,7 @@ public class MonitoringSettingsFilterTests extends MonitoringIntegTestCase {
             assertNullSetting(settings, "xpack.monitoring.exporters._http.auth.password");
             assertNullSetting(settings, "xpack.monitoring.exporters._http.ssl.truststore.path");
             assertNullSetting(settings, "xpack.monitoring.exporters._http.ssl.truststore.password");
-            assertNullSetting(settings, "xpack.monitoring.exporters._http.ssl.hostname_verification");
+            assertNullSetting(settings, "xpack.monitoring.exporters._http.ssl.verification_mode");
         }
     }
 

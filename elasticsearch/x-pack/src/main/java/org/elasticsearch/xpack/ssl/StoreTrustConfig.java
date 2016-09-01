@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.ssl;
+package org.elasticsearch.xpack.ssl;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
@@ -13,38 +13,36 @@ import javax.net.ssl.X509ExtendedTrustManager;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
+/**
+ * Trust configuration that is backed by a {@link java.security.KeyStore}
+ */
 class StoreTrustConfig extends TrustConfig {
 
     final String trustStorePath;
     final String trustStorePassword;
     final String trustStoreAlgorithm;
 
-    StoreTrustConfig(boolean includeSystem, String trustStorePath, String trustStorePassword, String trustStoreAlgorithm) {
-        super(includeSystem);
+    /**
+     * Create a new configuration based on the provided parameters
+     * @param trustStorePath the path to the truststore
+     * @param trustStorePassword the password for the truststore
+     * @param trustStoreAlgorithm the algorithm to use for reading the truststore
+     */
+    StoreTrustConfig(String trustStorePath, String trustStorePassword, String trustStoreAlgorithm) {
         this.trustStorePath = trustStorePath;
-        this.trustStorePassword = trustStorePassword;
+        this.trustStorePassword = trustStorePath != null ?
+                Objects.requireNonNull(trustStorePassword, "truststore password must be specified") : trustStorePassword;
         this.trustStoreAlgorithm = trustStoreAlgorithm;
     }
 
     @Override
-    X509ExtendedTrustManager nonSystemTrustManager(@Nullable Environment environment) {
-        if (trustStorePath == null) {
-            return null;
-        }
+    X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
         try {
-            return CertUtils.trustManagers(trustStorePath, trustStorePassword, trustStoreAlgorithm, environment);
+            return CertUtils.trustManager(trustStorePath, trustStorePassword, trustStoreAlgorithm, environment);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
-        }
-    }
-
-    @Override
-    void validate() {
-        if (trustStorePath != null) {
-            if (trustStorePassword == null) {
-                throw new IllegalArgumentException("no truststore password configured");
-            }
         }
     }
 
@@ -66,9 +64,7 @@ class StoreTrustConfig extends TrustConfig {
         if (trustStorePath != null ? !trustStorePath.equals(that.trustStorePath) : that.trustStorePath != null) return false;
         if (trustStorePassword != null ? !trustStorePassword.equals(that.trustStorePassword) : that.trustStorePassword != null)
             return false;
-        return trustStoreAlgorithm != null ? trustStoreAlgorithm.equals(that.trustStoreAlgorithm) : that.trustStoreAlgorithm ==
-                null;
-
+        return trustStoreAlgorithm != null ? trustStoreAlgorithm.equals(that.trustStoreAlgorithm) : that.trustStoreAlgorithm == null;
     }
 
     @Override

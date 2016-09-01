@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.Action.Result.Status;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
@@ -224,8 +225,8 @@ public class WebhookActionTests extends ESTestCase {
 
     public void testThatSelectingProxyWorks() throws Exception {
         Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
-        HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment);
-        httpClient.start();
+        HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment,
+                new SSLService(environment.settings(), environment));
 
         MockWebServer proxyServer = new MockWebServer();
         try {

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.ssl;
+package org.elasticsearch.xpack.ssl;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
@@ -17,7 +17,11 @@ import java.nio.file.Path;
 import java.security.KeyStore;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
+/**
+ * A key configuration that is backed by a {@link KeyStore}
+ */
 class StoreKeyConfig extends KeyConfig {
 
     final String keyStorePath;
@@ -26,11 +30,18 @@ class StoreKeyConfig extends KeyConfig {
     final String keyPassword;
     final String trustStoreAlgorithm;
 
-    StoreKeyConfig(boolean includeSystem, String keyStorePath, String keyStorePassword, String keyPassword,
-                   String keyStoreAlgorithm, String trustStoreAlgorithm) {
-        super(includeSystem);
-        this.keyStorePath = keyStorePath;
-        this.keyStorePassword = keyStorePassword;
+    /**
+     * Creates a new configuration that can be used to load key and trust material from a {@link KeyStore}
+     * @param keyStorePath the path to the keystore file
+     * @param keyStorePassword the password for the keystore
+     * @param keyPassword the password for the private key in the keystore
+     * @param keyStoreAlgorithm the algorithm for the keystore
+     * @param trustStoreAlgorithm the algorithm to use when loading as a truststore
+     */
+    StoreKeyConfig(String keyStorePath, String keyStorePassword, String keyPassword, String keyStoreAlgorithm,
+                   String trustStoreAlgorithm) {
+        this.keyStorePath = Objects.requireNonNull(keyStorePath, "keystore path must be specified");
+        this.keyStorePassword = Objects.requireNonNull(keyStorePassword, "keystore password must be specified");
         this.keyPassword = keyPassword;
         this.keyStoreAlgorithm = keyStoreAlgorithm;
         this.trustStoreAlgorithm = trustStoreAlgorithm;
@@ -39,31 +50,22 @@ class StoreKeyConfig extends KeyConfig {
     @Override
     X509ExtendedKeyManager createKeyManager(@Nullable Environment environment) {
         try (InputStream in = Files.newInputStream(CertUtils.resolvePath(keyStorePath, environment))) {
-            // TODO remove reliance on JKS since we can PKCS12 stores...
+            // TODO remove reliance on JKS since we can use PKCS12 stores in JDK8+...
             KeyStore ks = KeyStore.getInstance("jks");
             assert keyStorePassword != null;
             ks.load(in, keyStorePassword.toCharArray());
-            return CertUtils.keyManagers(ks, keyPassword.toCharArray(), keyStoreAlgorithm);
+            return CertUtils.keyManager(ks, keyPassword.toCharArray(), keyStoreAlgorithm);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a KeyManagerFactory", e);
         }
     }
 
     @Override
-    X509ExtendedTrustManager nonSystemTrustManager(@Nullable Environment environment) {
+    X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
         try {
-            return CertUtils.trustManagers(keyStorePath, keyStorePassword, trustStoreAlgorithm, environment);
+            return CertUtils.trustManager(keyStorePath, keyStorePassword, trustStoreAlgorithm, environment);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
-        }
-    }
-
-    @Override
-    void validate() {
-        if (keyStorePath == null) {
-            throw new IllegalArgumentException("keystore path must be specified");
-        } else if (keyStorePassword == null) {
-            throw new IllegalArgumentException("no keystore password configured");
         }
     }
 

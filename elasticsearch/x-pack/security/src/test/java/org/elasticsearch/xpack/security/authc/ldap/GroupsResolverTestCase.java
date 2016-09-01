@@ -12,7 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.security.ssl.SSLService;
+import org.elasticsearch.xpack.ssl.SSLService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -34,8 +34,8 @@ public abstract class GroupsResolverTestCase extends ESTestCase {
         boolean useGlobalSSL = randomBoolean();
         Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
         if (useGlobalSSL) {
-            builder.put("xpack.security.ssl.keystore.path", keystore)
-                    .put("xpack.security.ssl.keystore.password", "changeit");
+            builder.put("xpack.ssl.keystore.path", keystore)
+                    .put("xpack.ssl.keystore.password", "changeit");
         } else {
             // fake a realm so ssl will get loaded
             builder.put("xpack.security.authc.realms.foo.ssl.keystore.path", keystore);

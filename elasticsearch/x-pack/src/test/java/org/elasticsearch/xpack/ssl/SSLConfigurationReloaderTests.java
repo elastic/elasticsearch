@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.ssl;
+package org.elasticsearch.xpack.ssl;
 
 import org.apache.lucene.util.SetOnce;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.security.ssl.SSLConfiguration.Global;
 import org.junit.After;
 import org.junit.Before;
 
@@ -77,8 +76,8 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), keystorePath);
         final Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("xpack.security.ssl.keystore.path", keystorePath)
-                .put("xpack.security.ssl.keystore.password", "testnode")
+                .put("xpack.ssl.keystore.path", keystorePath)
+                .put("xpack.ssl.keystore.password", "testnode")
                 .build();
         final Environment env = randomBoolean() ? null : new Environment(settings);
 
@@ -136,10 +135,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"), clientCertPath);
         final Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
-                .put("xpack.security.ssl.key.path", keyPath)
-                .put("xpack.security.ssl.key.password", "testnode")
-                .put("xpack.security.ssl.cert", certPath)
-                .putArray("xpack.security.ssl.ca", certPath.toString(), clientCertPath.toString())
+                .put("xpack.ssl.key", keyPath)
+                .put("xpack.ssl.key_passphrase", "testnode")
+                .put("xpack.ssl.certificate", certPath)
+                .putArray("xpack.ssl.certificate_authorities", certPath.toString(), clientCertPath.toString())
                 .build();
         final Environment env = randomBoolean() ? null :
                 new Environment(Settings.builder().put("path.home", createTempDir()).build());
@@ -201,8 +200,8 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Path trustStorePath = tempDir.resolve("testnode.jks");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), trustStorePath);
         Settings settings = Settings.builder()
-                .put("xpack.security.ssl.truststore.path", trustStorePath)
-                .put("xpack.security.ssl.truststore.password", "testnode")
+                .put("xpack.ssl.truststore.path", trustStorePath)
+                .put("xpack.ssl.truststore.password", "testnode")
                 .put("path.home", createTempDir())
                 .build();
         Environment env = randomBoolean() ? null : new Environment(settings);
@@ -247,9 +246,8 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Path clientCertPath = tempDir.resolve("testclient.crt");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"), clientCertPath);
         Settings settings = Settings.builder()
-                .putArray("xpack.security.ssl.ca", clientCertPath.toString())
+                .putArray("xpack.ssl.certificate_authorities", clientCertPath.toString())
                 .put("path.home", createTempDir())
-                .put(Global.INCLUDE_JDK_CERTS_SETTING.getKey(), false)
                 .build();
         Environment env = randomBoolean() ? null : new Environment(settings);
 
@@ -291,8 +289,8 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Path keystorePath = tempDir.resolve("testnode.jks");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), keystorePath);
         Settings settings = Settings.builder()
-                .put("xpack.security.ssl.keystore.path", keystorePath)
-                .put("xpack.security.ssl.keystore.password", "testnode")
+                .put("xpack.ssl.keystore.path", keystorePath)
+                .put("xpack.ssl.keystore.password", "testnode")
                 .put("path.home", createTempDir())
                 .build();
         Environment env = randomBoolean() ? null : new Environment(settings);
@@ -329,10 +327,10 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"), certPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"), clientCertPath);
         Settings settings = Settings.builder()
-                .put("xpack.security.ssl.key.path", keyPath)
-                .put("xpack.security.ssl.key.password", "testnode")
-                .put("xpack.security.ssl.cert", certPath)
-                .putArray("xpack.security.ssl.ca", certPath.toString(), clientCertPath.toString())
+                .put("xpack.ssl.key", keyPath)
+                .put("xpack.ssl.key_passphrase", "testnode")
+                .put("xpack.ssl.certificate", certPath)
+                .putArray("xpack.ssl.certificate_authorities", certPath.toString(), clientCertPath.toString())
                 .put("path.home", createTempDir())
                 .build();
         Environment env = randomBoolean() ? null : new Environment(settings);
@@ -364,8 +362,8 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Path trustStorePath = tempDir.resolve("testnode.jks");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"), trustStorePath);
         Settings settings = Settings.builder()
-                .put("xpack.security.ssl.truststore.path", trustStorePath)
-                .put("xpack.security.ssl.truststore.password", "testnode")
+                .put("xpack.ssl.truststore.path", trustStorePath)
+                .put("xpack.ssl.truststore.password", "testnode")
                 .put("path.home", createTempDir())
                 .build();
         Environment env = randomBoolean() ? null : new Environment(settings);
@@ -397,7 +395,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         Path clientCertPath = tempDir.resolve("testclient.crt");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"), clientCertPath);
         Settings settings = Settings.builder()
-                .putArray("xpack.security.ssl.ca", clientCertPath.toString())
+                .putArray("xpack.ssl.certificate_authorities", clientCertPath.toString())
                 .put("path.home", createTempDir())
                 .build();
         Environment env = randomBoolean() ? null : new Environment(settings);

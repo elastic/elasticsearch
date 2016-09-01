@@ -98,7 +98,7 @@ if [ -e "$CONF_DIR" ]; then
 fi
 
 cd "$ES_HOME" > /dev/null
-"$JAVA" $ES_JAVA_OPTS -cp "$ES_CLASSPATH" -Des.path.home="$ES_HOME" org.elasticsearch.xpack.security.ssl.CertificateTool "${args[@]}"
+"$JAVA" $ES_JAVA_OPTS -cp "$ES_CLASSPATH" -Des.path.home="$ES_HOME" org.elasticsearch.xpack.ssl.CertificateTool "${args[@]}"
 status=$?
 cd - > /dev/null
 exit $status

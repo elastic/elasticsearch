@@ -32,14 +32,12 @@ import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.agent.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.xpack.monitoring.agent.resolver.ResolversRegistry;
 import org.elasticsearch.xpack.monitoring.support.VersionUtils;
+import org.elasticsearch.xpack.ssl.SSLService;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.TrustManagerFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -50,10 +48,7 @@ import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.AccessController;
-import java.security.KeyStore;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -106,13 +101,6 @@ public class HttpExporter extends Exporter {
      */
     public static final String PIPELINE_CHECK_TIMEOUT_SETTING = "index.pipeline.master_timeout";
 
-    public static final String SSL_SETTING = "ssl";
-    public static final String SSL_PROTOCOL_SETTING = "protocol";
-    public static final String SSL_TRUSTSTORE_SETTING = "truststore.path";
-    public static final String SSL_TRUSTSTORE_PASSWORD_SETTING = "truststore.password";
-    public static final String SSL_TRUSTSTORE_ALGORITHM_SETTING = "truststore.algorithm";
-    public static final String SSL_HOSTNAME_VERIFICATION_SETTING = SSL_SETTING + ".hostname_verification";
-
     /**
      * Minimum supported version of the remote monitoring cluster.
      * <p>
@@ -156,7 +144,7 @@ public class HttpExporter extends Exporter {
     final ConnectionKeepAliveWorker keepAliveWorker;
     Thread keepAliveThread;
 
-    public HttpExporter(Config config, Environment env) {
+    public HttpExporter(Config config, Environment env, SSLService sslService) {
         super(config);
 
         this.env = env;
@@ -174,8 +162,9 @@ public class HttpExporter extends Exporter {
         keepAlive = config.settings().getAsBoolean(CONNECTION_KEEP_ALIVE_SETTING, true);
         keepAliveWorker = new ConnectionKeepAliveWorker();
 
-        sslSocketFactory = createSSLSocketFactory(config.settings().getAsSettings(SSL_SETTING));
-        hostnameVerification = config.settings().getAsBoolean(SSL_HOSTNAME_VERIFICATION_SETTING, true);
+        final Settings sslSettings = config.settings().getByPrefix("ssl.");
+        sslSocketFactory = sslService.sslSocketFactory(sslSettings);
+        hostnameVerification = sslService.getVerificationMode(sslSettings, Settings.EMPTY).isHostnameVerificationEnabled();
 
         resolvers = new ResolversRegistry(config.settings());
         // Checks that required templates are loaded
@@ -758,64 +747,6 @@ public class HttpExporter extends Exporter {
             keepAliveThread.setDaemon(true);
             keepAliveThread.start();
         }
-    }
-
-    /**
-     * SSL Initialization *
-     */
-    public SSLSocketFactory createSSLSocketFactory(Settings settings) {
-        if (settings.names().isEmpty()) {
-            logger.trace("no ssl context configured");
-            return null;
-        }
-        SSLContext sslContext;
-        // Initialize sslContext
-        try {
-            String protocol = settings.get(SSL_PROTOCOL_SETTING, "TLS");
-            String trustStore = settings.get(SSL_TRUSTSTORE_SETTING, System.getProperty("javax.net.ssl.trustStore"));
-            String trustStorePassword = settings.get(SSL_TRUSTSTORE_PASSWORD_SETTING,
-                    System.getProperty("javax.net.ssl.trustStorePassword"));
-            String trustStoreAlgorithm = settings.get(SSL_TRUSTSTORE_ALGORITHM_SETTING,
-                    System.getProperty("ssl.TrustManagerFactory.algorithm"));
-
-            if (trustStore == null) {
-                throw new SettingsException("missing required setting [" + SSL_TRUSTSTORE_SETTING + "]");
-            }
-
-            if (trustStoreAlgorithm == null) {
-                trustStoreAlgorithm = TrustManagerFactory.getDefaultAlgorithm();
-            }
-
-            logger.debug("using ssl trust store [{}] with algorithm [{}]", trustStore, trustStoreAlgorithm);
-
-            Path trustStorePath = env.configFile().resolve(trustStore);
-            if (!Files.exists(trustStorePath)) {
-                throw new SettingsException("could not find trust store file [" + trustStorePath + "]");
-            }
-
-            TrustManager[] trustManagers;
-            try (InputStream trustStoreStream = Files.newInputStream(trustStorePath)) {
-                // Load TrustStore
-                KeyStore ks = KeyStore.getInstance("jks");
-                ks.load(trustStoreStream, trustStorePassword == null ? null : trustStorePassword.toCharArray());
-
-                // Initialize a trust manager factory with the trusted store
-                TrustManagerFactory trustFactory = TrustManagerFactory.getInstance(trustStoreAlgorithm);
-                trustFactory.init(ks);
-
-                // Retrieve the trust managers from the factory
-                trustManagers = trustFactory.getTrustManagers();
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to initialize a TrustManagerFactory", e);
-            }
-
-            sslContext = SSLContext.getInstance(protocol);
-            sslContext.init(null, trustManagers, null);
-
-        } catch (Exception e) {
-            throw new ElasticsearchException("failed to initialize ssl", e);
-        }
-        return sslContext.getSocketFactory();
     }
 
     BasicAuth resolveAuth(Settings setting) {

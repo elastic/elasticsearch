@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.monitoring.agent.exporter.Exporter;
+import org.elasticsearch.xpack.ssl.SSLService;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -37,7 +38,7 @@ public class HttpExporterSimpleTests extends ESTestCase {
         final Exporter.Config config = createConfig("_http", builder.build());
 
         final SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new HttpExporter(config, environment);
+            new HttpExporter(config, environment, new SSLService(builder.build(), environment));
         });
 
         assertThat(exception.getMessage(), equalTo(expected));
@@ -58,7 +59,7 @@ public class HttpExporterSimpleTests extends ESTestCase {
         final Exporter.Config config = createConfig("_http", builder.build());
 
         final SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new HttpExporter(config, environment);
+            new HttpExporter(config, environment, new SSLService(builder.build(), environment));
         });
 
         assertThat(exception.getMessage(), equalTo(expected));
@@ -80,7 +81,7 @@ public class HttpExporterSimpleTests extends ESTestCase {
         final Exporter.Config config = createConfig("_http", builder.build());
 
         final SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new HttpExporter(config, environment);
+            new HttpExporter(config, environment, new SSLService(builder.build(), environment));
         });
 
         assertThat(exception.getMessage(), equalTo("missing required setting [xpack.monitoring.exporters._http.host]"));
@@ -106,7 +107,7 @@ public class HttpExporterSimpleTests extends ESTestCase {
         final Exporter.Config config = createConfig("_http", builder.build());
 
         final SettingsException exception = expectThrows(SettingsException.class, () -> {
-            new HttpExporter(config, environment);
+            new HttpExporter(config, environment, new SSLService(builder.build(), environment));
         });
 
         assertThat(exception.getMessage(), equalTo("[xpack.monitoring.exporters._http.host] invalid host: [" + invalidHost + "]"));
@@ -119,7 +120,7 @@ public class HttpExporterSimpleTests extends ESTestCase {
 
         final Exporter.Config config = createConfig("_http", builder.build());
 
-        new HttpExporter(config, environment);
+        new HttpExporter(config, environment, new SSLService(builder.build(), environment));
     }
 
     /**

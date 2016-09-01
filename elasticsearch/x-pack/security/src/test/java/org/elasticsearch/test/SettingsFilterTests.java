@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.test;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Guice;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.Setting;
@@ -12,8 +13,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.hamcrest.Matcher;
 
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -53,26 +57,32 @@ public class SettingsFilterTests extends ESTestCase {
         configureFilteredSetting("xpack.security.authc.realms.pki1.truststore.password", "truststore-testnode-only");
         configureFilteredSetting("xpack.security.authc.realms.pki1.truststore.algorithm", "SunX509");
 
-        configureFilteredSetting("xpack.security.ssl.keystore.path", "/path/to/keystore");
-        configureFilteredSetting("xpack.security.ssl.ciphers", "_ciphers");
-        configureFilteredSetting("xpack.security.ssl.supported_protocols", randomFrom("TLSv1", "TLSv1.1", "TLSv1.2"));
-        configureFilteredSetting("xpack.security.ssl.keystore.password", randomAsciiOfLength(5));
-        configureFilteredSetting("xpack.security.ssl.keystore.algorithm", "_algorithm");
-        configureFilteredSetting("xpack.security.ssl.keystore.key_password", randomAsciiOfLength(5));
-        configureFilteredSetting("xpack.security.ssl.truststore.password", randomAsciiOfLength(5));
-        configureFilteredSetting("xpack.security.ssl.truststore.algorithm", "_algorithm");
+        configureFilteredSetting("xpack.ssl.keystore.path",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks").toString());
+        configureFilteredSetting("xpack.ssl.cipher_suites",
+                Strings.arrayToCommaDelimitedString(XPackSettings.DEFAULT_CIPHERS.toArray()));
+        configureFilteredSetting("xpack.ssl.supported_protocols", randomFrom("TLSv1", "TLSv1.1", "TLSv1.2"));
+        configureFilteredSetting("xpack.ssl.keystore.password", "testnode");
+        configureFilteredSetting("xpack.ssl.keystore.algorithm", KeyManagerFactory.getDefaultAlgorithm());
+        configureFilteredSetting("xpack.ssl.keystore.key_password", "testnode");
+        configureFilteredSetting("xpack.ssl.truststore.password", randomAsciiOfLength(5));
+        configureFilteredSetting("xpack.ssl.truststore.algorithm", TrustManagerFactory.getDefaultAlgorithm());
 
         // client profile
         configureUnfilteredSetting("transport.profiles.client.port", "9500-9600");
-        configureFilteredSetting("transport.profiles.client.xpack.security.keystore.path", "/path/to/keystore");
-        configureFilteredSetting("transport.profiles.client.xpack.security.ciphers", "_ciphers");
-        configureFilteredSetting("transport.profiles.client.xpack.security.supported_protocols",
+        configureFilteredSetting("transport.profiles.client.xpack.security.ssl.keystore.path",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks").toString());
+        configureFilteredSetting("transport.profiles.client.xpack.security.ssl.cipher_suites",
+                Strings.arrayToCommaDelimitedString(XPackSettings.DEFAULT_CIPHERS.toArray()));
+        configureFilteredSetting("transport.profiles.client.xpack.security.ssl.supported_protocols",
                 randomFrom("TLSv1", "TLSv1.1", "TLSv1.2"));
-        configureFilteredSetting("transport.profiles.client.xpack.security.keystore.password", randomAsciiOfLength(5));
-        configureFilteredSetting("transport.profiles.client.xpack.security.keystore.algorithm", "_algorithm");
-        configureFilteredSetting("transport.profiles.client.xpack.security.keystore.key_password", randomAsciiOfLength(5));
-        configureFilteredSetting("transport.profiles.client.xpack.security.truststore.password", randomAsciiOfLength(5));
-        configureFilteredSetting("transport.profiles.client.xpack.security.truststore.algorithm", "_algorithm");
+        configureFilteredSetting("transport.profiles.client.xpack.security.ssl.keystore.password", "testnode");
+        configureFilteredSetting("transport.profiles.client.xpack.security.ssl.keystore.algorithm",
+                KeyManagerFactory.getDefaultAlgorithm());
+        configureFilteredSetting("transport.profiles.client.xpack.security.ssl.keystore.key_password", "testnode");
+        configureFilteredSetting("transport.profiles.client.xpack.security.ssl.truststore.password", randomAsciiOfLength(5));
+        configureFilteredSetting("transport.profiles.client.xpack.security.ssl.truststore.algorithm",
+                TrustManagerFactory.getDefaultAlgorithm());
 
         // custom settings, potentially added by a plugin
         configureFilteredSetting("foo.bar", "_secret");

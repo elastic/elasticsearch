@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.ssl;
+package org.elasticsearch.xpack.ssl;
 
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo;
@@ -30,7 +30,6 @@ import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
@@ -71,13 +70,21 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.function.Supplier;
 
-class CertUtils {
+/**
+ * Utility methods that deal with {@link Certificate}, {@link KeyStore}, {@link X509ExtendedTrustManager}, {@link X509ExtendedKeyManager}
+ * and other certificate related objects.
+ */
+public class CertUtils {
 
     private static final int SERIAL_BIT_LENGTH = 20 * 8;
     static final BouncyCastleProvider BC_PROV = new BouncyCastleProvider();
 
     private CertUtils() {}
 
+    /**
+     * Resolves a path with or without an {@link Environment} as we may be running in a transport client where we do not have access to
+     * the environment
+     */
     @SuppressForbidden(reason = "we don't have the environment to resolve files from when running in a transport client")
     static Path resolvePath(String path, @Nullable Environment environment) {
         if (environment != null) {
@@ -86,15 +93,21 @@ class CertUtils {
         return PathUtils.get(Strings.cleanPath(path));
     }
 
-    static X509ExtendedKeyManager keyManagers(Certificate[] certificateChain, PrivateKey privateKey, char[] password) throws Exception {
+    /**
+     * Returns a {@link X509ExtendedKeyManager} that is built from the provided private key and certificate chain
+     */
+    static X509ExtendedKeyManager keyManager(Certificate[] certificateChain, PrivateKey privateKey, char[] password) throws Exception {
         KeyStore keyStore = KeyStore.getInstance("jks");
         keyStore.load(null, null);
         // password must be non-null for keystore...
         keyStore.setKeyEntry("key", privateKey, password, certificateChain);
-        return keyManagers(keyStore, password, KeyManagerFactory.getDefaultAlgorithm());
+        return keyManager(keyStore, password, KeyManagerFactory.getDefaultAlgorithm());
     }
 
-    static X509ExtendedKeyManager keyManagers(KeyStore keyStore, char[] password, String algorithm) throws Exception {
+    /**
+     * Returns a {@link X509ExtendedKeyManager} that is built from the provided keystore
+     */
+    static X509ExtendedKeyManager keyManager(KeyStore keyStore, char[] password, String algorithm) throws Exception {
         KeyManagerFactory kmf = KeyManagerFactory.getInstance(algorithm);
         kmf.init(keyStore, password);
         KeyManager[] keyManagers = kmf.getKeyManagers();
@@ -106,7 +119,13 @@ class CertUtils {
         throw new IllegalStateException("failed to find a X509ExtendedKeyManager");
     }
 
-    static X509ExtendedTrustManager trustManagers(Certificate[] certificates) throws Exception {
+    /**
+     * Creates a {@link X509ExtendedTrustManager} based on the provided certificates
+     * @param certificates the certificates to trust
+     * @return a trust manager that trusts the provided certificates
+     * @throws Exception if there is an error loading the certificates or trust manager
+     */
+    public static X509ExtendedTrustManager trustManager(Certificate[] certificates) throws Exception {
         KeyStore store = KeyStore.getInstance("jks");
         store.load(null, null);
         int counter = 0;
@@ -114,23 +133,33 @@ class CertUtils {
             store.setCertificateEntry("cert" + counter, certificate);
             counter++;
         }
-        return trustManagers(store, TrustManagerFactory.getDefaultAlgorithm());
+        return trustManager(store, TrustManagerFactory.getDefaultAlgorithm());
     }
 
-    static X509ExtendedTrustManager trustManagers(String trustStorePath, String trustStorePassword, String trustStoreAlgorithm,
-                                                  Environment env) throws Exception {
+    /**
+     * Loads the truststore and creates a {@link X509ExtendedTrustManager}
+     * @param trustStorePath the path to the truststore
+     * @param trustStorePassword the password to the truststore
+     * @param trustStoreAlgorithm the algorithm to use for the truststore
+     * @param env the environment to use for file resolution. May be {@code null}
+     * @return a trust manager with the trust material from the store
+     * @throws Exception if an error occurs when loading the truststore or the trust manager
+     */
+    public static X509ExtendedTrustManager trustManager(String trustStorePath, String trustStorePassword, String trustStoreAlgorithm,
+                                                        @Nullable Environment env) throws Exception {
         try (InputStream in = Files.newInputStream(resolvePath(trustStorePath, env))) {
             // TODO remove reliance on JKS since we can PKCS12 stores...
             KeyStore trustStore = KeyStore.getInstance("jks");
             assert trustStorePassword != null;
             trustStore.load(in, trustStorePassword.toCharArray());
-            return CertUtils.trustManagers(trustStore, trustStoreAlgorithm);
-        } catch (Exception e) {
-            throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
+            return CertUtils.trustManager(trustStore, trustStoreAlgorithm);
         }
     }
 
-    static X509ExtendedTrustManager trustManagers(KeyStore keyStore, String algorithm) throws Exception {
+    /**
+     * Creates a {@link X509ExtendedTrustManager} based on the trust material in the provided {@link KeyStore}
+     */
+    static X509ExtendedTrustManager trustManager(KeyStore keyStore, String algorithm) throws Exception {
         TrustManagerFactory tmf = TrustManagerFactory.getInstance(algorithm);
         tmf.init(keyStore);
         TrustManager[] trustManagers = tmf.getTrustManagers();
@@ -142,7 +171,14 @@ class CertUtils {
         throw new IllegalStateException("failed to find a X509ExtendedTrustManager");
     }
 
-    static Certificate[] readCertificates(List<String> certPaths, Environment environment) throws Exception {
+    /**
+     * Reads the provided paths and parses them into {@link Certificate} objects
+     * @param certPaths the paths to the PEM encoded certificates
+     * @param environment the environment to resolve files against. May be {@code null}
+     * @return an array of {@link Certificate} objects
+     * @throws Exception if an error occurs reading a file or parsing a certificate
+     */
+    public static Certificate[] readCertificates(List<String> certPaths, @Nullable Environment environment) throws Exception {
         List<Certificate> certificates = new ArrayList<>(certPaths.size());
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
         for (String path : certPaths) {
@@ -153,6 +189,9 @@ class CertUtils {
         return certificates.toArray(new Certificate[certificates.size()]);
     }
 
+    /**
+     * Reads the certificates from the provided reader
+     */
     static void readCertificates(Reader reader, List<Certificate> certificates, CertificateFactory certFactory) throws Exception {
         try (PEMParser pemParser = new PEMParser(reader)) {
 
@@ -178,6 +217,9 @@ class CertUtils {
         }
     }
 
+    /**
+     * Reads the private key from the reader and optionally uses the password supplier to retrieve a password if the key is encrypted
+     */
     static PrivateKey readPrivateKey(Reader reader, Supplier<char[]> passwordSupplier) throws Exception {
         try (PEMParser parser = new PEMParser(reader)) {
             Object parsed;
@@ -219,17 +261,35 @@ class CertUtils {
         }
     }
 
+    /**
+     * Generates a CA certificate
+     */
     static X509Certificate generateCACertificate(X500Principal x500Principal, KeyPair keyPair) throws Exception {
         return generateSignedCertificate(x500Principal, null, keyPair, null, null, true);
     }
 
+    /**
+     * Generates a signed certificate using the provided CA private key and information from the CA certificate
+     */
     static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
                                                      X509Certificate caCert, PrivateKey caPrivKey) throws Exception {
         return generateSignedCertificate(principal, subjectAltNames, keyPair, caCert, caPrivKey, false);
     }
 
+    /**
+     * Generates a signed certificate
+     * @param principal the principal of the certificate; commonly referred to as the distinguished name (DN)
+     * @param subjectAltNames the subject alternative names that should be added to the certificate as an X509v3 extension. May be
+     *                        {@code null}
+     * @param keyPair the key pair that will be associated with the certificate
+     * @param caCert the CA certificate. If {@code null}, this results in a self signed certificate
+     * @param caPrivKey the CA private key. If {@code null}, this results in a self signed certificate
+     * @param isCa whether or not the generated certificate is a CA
+     * @return a signed {@link X509Certificate}
+     * @throws Exception if an error occurs during the certificate creation
+     */
     private static X509Certificate generateSignedCertificate(X500Principal principal, GeneralNames subjectAltNames, KeyPair keyPair,
-                                                     X509Certificate caCert, PrivateKey caPrivKey, boolean ca) throws Exception {
+                                                     X509Certificate caCert, PrivateKey caPrivKey, boolean isCa) throws Exception {
         final DateTime notBefore = new DateTime(DateTimeZone.UTC);
         final DateTime notAfter = notBefore.plusYears(1);
         final BigInteger serial = CertUtils.getSerial();
@@ -259,7 +319,7 @@ class CertUtils {
         if (subjectAltNames != null) {
             builder.addExtension(Extension.subjectAlternativeName, false, subjectAltNames);
         }
-        builder.addExtension(Extension.basicConstraints, ca, new BasicConstraints(ca));
+        builder.addExtension(Extension.basicConstraints, isCa, new BasicConstraints(isCa));
 
         PrivateKey signingKey = caPrivKey != null ? caPrivKey : keyPair.getPrivate();
         ContentSigner signer = new JcaContentSignerBuilder("SHA256withRSA").build(signingKey);
@@ -267,6 +327,15 @@ class CertUtils {
         return new JcaX509CertificateConverter().getCertificate(certificateHolder);
     }
 
+    /**
+     * Generates a certificate signing request
+     * @param keyPair the key pair that will be associated by the certificate generated from the certificate signing request
+     * @param principal the principal of the certificate; commonly referred to as the distinguished name (DN)
+     * @param sanList the subject alternative names that should be added to the certificate as an X509v3 extension. May be
+*                     {@code null}
+     * @return a certificate signing request
+     * @throws Exception if an error occurs generating or signing the CSR
+     */
     static PKCS10CertificationRequest generateCSR(KeyPair keyPair, X500Principal principal, GeneralNames sanList) throws Exception {
         JcaPKCS10CertificationRequestBuilder builder = new JcaPKCS10CertificationRequestBuilder(principal, keyPair.getPublic());
         if (sanList != null) {
@@ -278,6 +347,9 @@ class CertUtils {
         return builder.build(new JcaContentSignerBuilder("SHA256withRSA").setProvider(CertUtils.BC_PROV).build(keyPair.getPrivate()));
     }
 
+    /**
+     * Gets a random serial for a certificate that is generated from a {@link SecureRandom}
+     */
     static BigInteger getSerial() {
         SecureRandom random = new SecureRandom();
         BigInteger serial = new BigInteger(SERIAL_BIT_LENGTH, random);
@@ -285,6 +357,9 @@ class CertUtils {
         return serial;
     }
 
+    /**
+     * Generates a RSA key pair with the provided key size (in bits)
+     */
     static KeyPair generateKeyPair(int keysize) throws Exception {
         // generate a private key
         KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
@@ -292,6 +367,9 @@ class CertUtils {
         return keyPairGenerator.generateKeyPair();
     }
 
+    /**
+     * Converts the {@link InetAddress} objects into a {@link GeneralNames} object that is used to represent subject alternative names.
+     */
     static GeneralNames getSubjectAlternativeNames(boolean resolveName, Set<InetAddress> addresses) throws Exception {
         Set<GeneralName> generalNameList = new HashSet<>();
         for (InetAddress address : addresses) {
@@ -308,7 +386,7 @@ class CertUtils {
     }
 
     @SuppressForbidden(reason = "need to use getHostName to resolve DNS name and getHostAddress to ensure we resolved the name")
-    static void addSubjectAlternativeNames(boolean resolveName, InetAddress inetAddress, Set<GeneralName> list) {
+    private static void addSubjectAlternativeNames(boolean resolveName, InetAddress inetAddress, Set<GeneralName> list) {
         String hostaddress = inetAddress.getHostAddress();
         String ip = NetworkAddress.format(inetAddress);
         list.add(new GeneralName(GeneralName.iPAddress, ip));

@@ -7,20 +7,18 @@ package org.elasticsearch.xpack.security.transport.netty3;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty3.Netty3Transport;
-import org.elasticsearch.xpack.security.ssl.SSLService;
-import org.elasticsearch.xpack.security.transport.SSLClientAuth;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelHandlerContext;
@@ -31,69 +29,21 @@ import org.jboss.netty.channel.SimpleChannelHandler;
 import org.jboss.netty.handler.ssl.SslHandler;
 
 import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLParameters;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.List;
 
 import static org.elasticsearch.xpack.security.Security.setting;
-import static org.elasticsearch.xpack.security.Security.settingPrefix;
 import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isCloseDuringHandshakeException;
 import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isNotSslRecordException;
+import static org.elasticsearch.xpack.XPackSettings.TRANSPORT_SSL_ENABLED;
 
 public class SecurityNetty3Transport extends Netty3Transport {
 
-    public static final String CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED.name();
-    public static final boolean SSL_DEFAULT = false;
-
-    public static final Setting<Boolean> DEPRECATED_HOSTNAME_VERIFICATION_SETTING =
-            Setting.boolSetting(
-                    setting("ssl.hostname_verification"),
-                    true,
-                    new Property[]{Property.NodeScope, Property.Filtered, Property.Deprecated, Property.Shared});
-
-    public static final Setting<Boolean> HOSTNAME_VERIFICATION_SETTING =
-            Setting.boolSetting(setting("ssl.hostname_verification.enabled"), DEPRECATED_HOSTNAME_VERIFICATION_SETTING,
-                    Property.NodeScope, Property.Filtered, Property.Shared);
-
-    public static final Setting<Boolean> HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING =
-            Setting.boolSetting(
-                    setting("ssl.hostname_verification.resolve_name"),
-                    true,
-                    new Property[]{Property.NodeScope, Property.Filtered, Property.Shared});
-
-    public static final Setting<Boolean> DEPRECATED_SSL_SETTING =
-            Setting.boolSetting(setting("transport.ssl"), SSL_DEFAULT,
-                    Property.Filtered, Property.NodeScope, Property.Deprecated, Property.Shared);
-
-    public static final Setting<Boolean> SSL_SETTING =
-            Setting.boolSetting(
-                    setting("transport.ssl.enabled"),
-                    DEPRECATED_SSL_SETTING,
-                    new Property[]{Property.Filtered, Property.NodeScope, Property.Shared});
-
-    public static final Setting<SSLClientAuth> CLIENT_AUTH_SETTING =
-            new Setting<>(
-                    setting("transport.ssl.client.auth"),
-                    CLIENT_AUTH_DEFAULT,
-                    SSLClientAuth::parse,
-                    new Property[]{Property.NodeScope, Property.Filtered, Property.Shared});
-
-    public static final Setting<Boolean> DEPRECATED_PROFILE_SSL_SETTING =
-            Setting.boolSetting(setting("ssl"), SSL_SETTING, Property.Filtered, Property.NodeScope, Property.Deprecated, Property.Shared);
-
-    public static final Setting<Boolean> PROFILE_SSL_SETTING =
-            Setting.boolSetting(setting("ssl.enabled"), SSL_DEFAULT, Property.Filtered, Property.NodeScope, Property.Shared);
-
-    public static final Setting<SSLClientAuth> PROFILE_CLIENT_AUTH_SETTING =
-            new Setting<>(
-                    setting("ssl.client.auth"),
-                    CLIENT_AUTH_SETTING,
-                    SSLClientAuth::parse,
-                    new Property[]{Property.NodeScope, Property.Filtered, Property.Shared});
+    public static final Setting<Boolean> PROFILE_SSL_SETTING = Setting.boolSetting(setting("ssl.enabled"), false);
 
     private final SSLService sslService;
     @Nullable private final IPFilter authenticator;
+    private final Settings transportSSLSettings;
     private final boolean ssl;
 
     @Inject
@@ -102,8 +52,10 @@ public class SecurityNetty3Transport extends Netty3Transport {
                                    CircuitBreakerService circuitBreakerService) {
         super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
         this.authenticator = authenticator;
-        this.ssl = SSL_SETTING.get(settings);
+        this.ssl = TRANSPORT_SSL_ENABLED.get(settings);
         this.sslService = sslService;
+        this.transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
+
     }
 
     @Override
@@ -147,42 +99,36 @@ public class SecurityNetty3Transport extends Netty3Transport {
         }
     }
 
-    public static boolean profileSsl(Settings profileSettings, Settings settings) {
-        // we can't use the fallback mechanism here since it may not exist in the profile settings and we get the wrong value
-        // for the profile if they use the old setting
-        if (PROFILE_SSL_SETTING.exists(profileSettings)) {
-            return PROFILE_SSL_SETTING.get(profileSettings);
-        } else if (DEPRECATED_PROFILE_SSL_SETTING.exists(profileSettings)) {
-            return DEPRECATED_PROFILE_SSL_SETTING.get(profileSettings);
-        } else {
-            return SSL_SETTING.get(settings);
-        }
+    public static Settings profileSslSettings(Settings profileSettings) {
+        return profileSettings.getByPrefix(setting("ssl."));
     }
 
     private class SslServerChannelPipelineFactory extends ServerChannelPipelineFactory {
 
-        private final boolean sslEnabled;
-        private final Settings securityProfileSettings;
-        private final SSLClientAuth sslClientAuth;
+        private final boolean profileSsl;
+        private final Settings profileSslSettings;
 
-        public SslServerChannelPipelineFactory(Netty3Transport nettyTransport, String name, Settings settings, Settings profileSettings) {
+        SslServerChannelPipelineFactory(Netty3Transport nettyTransport, String name, Settings settings, Settings profileSettings) {
             super(nettyTransport, name, settings);
-            this.sslEnabled = profileSsl(profileSettings, settings);
-            this.securityProfileSettings = profileSettings.getByPrefix(settingPrefix());
-            this.sslClientAuth = PROFILE_CLIENT_AUTH_SETTING.get(profileSettings, settings);
-            if (sslEnabled && sslService.isConfigurationValidForServerUsage(securityProfileSettings) == false) {
-                throw new IllegalArgumentException("a key must be provided to run as a server");
+            this.profileSsl = PROFILE_SSL_SETTING.exists(profileSettings) ? PROFILE_SSL_SETTING.get(profileSettings) : ssl;
+            this.profileSslSettings = profileSslSettings(profileSettings);
+            if (profileSsl && sslService.isConfigurationValidForServerUsage(profileSslSettings, transportSSLSettings) == false) {
+                if (TransportSettings.DEFAULT_PROFILE.equals(name)) {
+                    throw new IllegalArgumentException("a key must be provided to run as a server. the key should be configured using the "
+                            + "[xpack.security.transport.ssl.key] or [xpack.security.transport.ssl.keystore.path] setting");
+                }
+                throw new IllegalArgumentException("a key must be provided to run as a server. the key should be configured using the "
+                        + "[transport.profiles." + name + ".xpack.security.ssl.key] or [transport.profiles." + name
+                        + ".xpack.security.ssl.keystore.path] setting");
             }
         }
 
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
-            if (sslEnabled) {
-                SSLEngine serverEngine = sslService.createSSLEngine(securityProfileSettings);
+            if (profileSsl) {
+                final SSLEngine serverEngine = sslService.createSSLEngine(profileSslSettings, transportSSLSettings);
                 serverEngine.setUseClientMode(false);
-                sslClientAuth.configure(serverEngine);
-
                 pipeline.addFirst("ssl", new SslHandler(serverEngine));
             }
             if (authenticator != null) {
@@ -194,8 +140,12 @@ public class SecurityNetty3Transport extends Netty3Transport {
 
     private class SslClientChannelPipelineFactory extends ClientChannelPipelineFactory {
 
-        public SslClientChannelPipelineFactory(Netty3Transport transport) {
+        private final boolean hostnameVerificationEnabled;
+
+        SslClientChannelPipelineFactory(Netty3Transport transport) {
             super(transport);
+            this.hostnameVerificationEnabled =
+                    sslService.getVerificationMode(transportSSLSettings, Settings.EMPTY).isHostnameVerificationEnabled();
         }
 
         @Override
@@ -216,19 +166,13 @@ public class SecurityNetty3Transport extends Netty3Transport {
             @Override
             public void connectRequested(ChannelHandlerContext ctx, ChannelStateEvent e) {
                 SSLEngine sslEngine;
-                if (HOSTNAME_VERIFICATION_SETTING.get(settings)) {
+                if (hostnameVerificationEnabled) {
                     InetSocketAddress inetSocketAddress = (InetSocketAddress) e.getValue();
-                    sslEngine = sslService.createSSLEngine(Settings.EMPTY, getHostname(inetSocketAddress),
+                    // we create the socket based on the name given. don't reverse DNS
+                    sslEngine = sslService.createSSLEngine(transportSSLSettings, Settings.EMPTY, inetSocketAddress.getHostString(),
                             inetSocketAddress.getPort());
-
-                    // By default, a SSLEngine will not perform hostname verification. In order to perform hostname verification
-                    // we need to specify a EndpointIdentificationAlgorithm. We use the HTTPS algorithm to prevent against
-                    // man in the middle attacks for transport connections
-                    SSLParameters parameters = new SSLParameters();
-                    parameters.setEndpointIdentificationAlgorithm("HTTPS");
-                    sslEngine.setSSLParameters(parameters);
                 } else {
-                    sslEngine = sslService.createSSLEngine(Settings.EMPTY);
+                    sslEngine = sslService.createSSLEngine(transportSSLSettings, Settings.EMPTY);
                 }
 
                 sslEngine.setUseClientMode(true);
@@ -237,36 +181,6 @@ public class SecurityNetty3Transport extends Netty3Transport {
 
                 ctx.sendDownstream(e);
             }
-
-            @SuppressForbidden(reason = "need to use getHostName to resolve DNS name for SSL connections and hostname verification")
-            private String getHostname(InetSocketAddress inetSocketAddress) {
-                String hostname;
-                if (HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.get(settings)) {
-                    hostname = inetSocketAddress.getHostName();
-                } else {
-                    hostname = inetSocketAddress.getHostString();
-                }
-
-                if (logger.isTraceEnabled()) {
-                    logger.trace("resolved hostname [{}] for address [{}] to be used in ssl hostname verification", hostname,
-                            inetSocketAddress);
-                }
-                return hostname;
-            }
         }
-    }
-
-    public static void addSettings(List<Setting<?>> settingsModule) {
-        settingsModule.add(SSL_SETTING);
-        settingsModule.add(HOSTNAME_VERIFICATION_SETTING);
-        settingsModule.add(HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING);
-        settingsModule.add(CLIENT_AUTH_SETTING);
-        settingsModule.add(PROFILE_SSL_SETTING);
-        settingsModule.add(PROFILE_CLIENT_AUTH_SETTING);
-
-        // deprecated transport settings
-        settingsModule.add(DEPRECATED_SSL_SETTING);
-        settingsModule.add(DEPRECATED_PROFILE_SSL_SETTING);
-        settingsModule.add(DEPRECATED_HOSTNAME_VERIFICATION_SETTING);
     }
 }

@@ -23,8 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.xpack.security.ssl.SSLService;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
+import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackTransportClient;
@@ -48,7 +47,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true).build();
+                .put("xpack.security.http.ssl.enabled", true).build();
     }
 
     @Override
@@ -62,7 +61,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
                 .put(transportClientSettings())
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
-                .putArray("xpack.security.ssl.ciphers", new String[]{"TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA"})
+                .putArray("xpack.ssl.cipher_suites", "TLS_ECDH_anon_WITH_RC4_128_SHA", "SSL_RSA_WITH_3DES_EDE_CBC_SHA")
                 .build())) {
 
             TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());
@@ -81,7 +80,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
                 .put(transportClientSettings())
                 .put("node.name", "programmatic_transport_client")
                 .put("cluster.name", internalCluster().getClusterName())
-                .putArray("xpack.security.ssl.supported_protocols", new String[]{"SSLv3"})
+                .putArray("xpack.ssl.supported_protocols", new String[]{"SSLv3"})
                 .build())) {
 
             TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());

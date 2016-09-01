@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.XPackTransportClient;
@@ -229,7 +228,7 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
         Settings settings = Settings.builder()
                 .put(extraSettings)
                 .put("cluster.name", clusterName)
-                .put(SecurityNetty3Transport.SSL_SETTING.getKey(), false)
+                .put("xpack.security.transport.ssl.enabled", false)
                 .build();
 
         return new XPackTransportClient(settings)

@@ -25,8 +25,6 @@ import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.xpack.XPackPlugin;
 
@@ -36,11 +34,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
-import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 
@@ -87,7 +83,6 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     private final byte[] systemKey;
     private final boolean sslTransportEnabled;
     private final boolean hostnameVerificationEnabled;
-    private final boolean hostnameVerificationResolveNameEnabled;
 
     /**
      * Creates a new {@link org.elasticsearch.test.NodeConfigurationSource} for the security configuration.
@@ -117,7 +112,6 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         this.subfolderPrefix = scope.name();
         this.sslTransportEnabled = sslTransportEnabled;
         this.hostnameVerificationEnabled = randomBoolean();
-        this.hostnameVerificationResolveNameEnabled = randomBoolean();
     }
 
     @Override
@@ -218,29 +212,29 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     public Settings getNodeSSLSettings() {
         if (randomBoolean()) {
             return getSSLSettingsForPEMFiles("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem", "testnode",
-                    Collections.singletonList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"),
+                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
                     Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.crt",
                             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/active-directory-ca.crt",
                             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
                             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/openldap.crt",
                             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"),
-                    sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled, false);
+                    sslTransportEnabled, hostnameVerificationEnabled, false);
         }
         return getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode",
-                sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled, false);
+                sslTransportEnabled, hostnameVerificationEnabled, false);
     }
 
     public Settings getClientSSLSettings() {
         if (randomBoolean()) {
             return getSSLSettingsForPEMFiles("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem", "testclient",
-                    Collections.singletonList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"),
+                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
                     Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
                             "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"),
-                    sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled, true);
+                    sslTransportEnabled, hostnameVerificationEnabled, true);
         }
 
         return getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient",
-                sslTransportEnabled, hostnameVerificationEnabled, hostnameVerificationResolveNameEnabled, true);
+                sslTransportEnabled, hostnameVerificationEnabled, true);
     }
 
     /**
@@ -251,67 +245,57 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
      * @return the configuration settings
      */
     public static Settings getSSLSettingsForStore(String resourcePathToStore, String password) {
-        return getSSLSettingsForStore(resourcePathToStore, password, true, true, true, true);
+        return getSSLSettingsForStore(resourcePathToStore, password, true, true, true);
     }
 
     private static Settings getSSLSettingsForStore(String resourcePathToStore, String password, boolean sslTransportEnabled,
-                                                   boolean hostnameVerificationEnabled, boolean hostnameVerificationResolveNameEnabled,
-                                                   boolean transportClient) {
+                                                   boolean hostnameVerificationEnabled, boolean transportClient) {
         Path store = resolveResourcePath(resourcePathToStore);
 
-        final String sslEnabledSetting =
-                randomFrom(SecurityNetty3Transport.SSL_SETTING.getKey(), SecurityNetty3Transport.DEPRECATED_SSL_SETTING.getKey());
-        Settings.Builder builder = Settings.builder().put(sslEnabledSetting, sslTransportEnabled);
+        Settings.Builder builder = Settings.builder().put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), sslTransportEnabled);
 
         if (transportClient == false) {
-            builder.put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), false);
+            builder.put("xpack.security.http.ssl.enabled", false);
         }
 
         if (sslTransportEnabled) {
-            builder.put("xpack.security.ssl.keystore.path", store)
-                    .put("xpack.security.ssl.keystore.password", password)
-                    .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_SETTING.getKey(), hostnameVerificationEnabled)
-                    .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.getKey(),
-                            hostnameVerificationResolveNameEnabled);
+            builder.put("xpack.ssl.keystore.path", store)
+                    .put("xpack.ssl.keystore.password", password)
+                    .put("xpack.ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");
         }
 
         if (sslTransportEnabled && randomBoolean()) {
-            builder.put("xpack.security.ssl.truststore.path", store)
-                    .put("xpack.security.ssl.truststore.password", password);
+            builder.put("xpack.ssl.truststore.path", store)
+                    .put("xpack.ssl.truststore.password", password);
         }
         return builder.build();
     }
 
-    private static Settings getSSLSettingsForPEMFiles(String keyPath, String password, List<String> certificateFiles,
+    private static Settings getSSLSettingsForPEMFiles(String keyPath, String password, String certificatePath,
                                             List<String> trustedCertificates, boolean sslTransportEnabled,
-                                            boolean hostnameVerificationEnabled, boolean hostnameVerificationResolveNameEnabled,
-                                            boolean transportClient) {
+                                            boolean hostnameVerificationEnabled, boolean transportClient) {
         Settings.Builder builder = Settings.builder();
-        final String sslEnabledSetting =
-                randomFrom(SecurityNetty3Transport.SSL_SETTING.getKey(), SecurityNetty3Transport.DEPRECATED_SSL_SETTING.getKey());
-        builder.put(sslEnabledSetting, sslTransportEnabled);
+        builder.put(XPackSettings.TRANSPORT_SSL_ENABLED.getKey(), sslTransportEnabled);
 
         if (transportClient == false) {
-            builder.put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), false);
+            builder.put("xpack.security.http.ssl.enabled", false);
         }
 
         if (sslTransportEnabled) {
-            builder.put("xpack.security.ssl.key.path", resolveResourcePath(keyPath))
-                    .put("xpack.security.ssl.key.password", password)
-                    .put("xpack.security.ssl.cert", Strings.arrayToCommaDelimitedString(resolvePathsToString(certificateFiles)))
-                    .put(randomFrom(SecurityNetty3Transport.HOSTNAME_VERIFICATION_SETTING.getKey(),
-                            SecurityNetty3Transport.DEPRECATED_HOSTNAME_VERIFICATION_SETTING.getKey()), hostnameVerificationEnabled)
-                    .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.getKey(),
-                            hostnameVerificationResolveNameEnabled);
+            builder.put("xpack.ssl.key", resolveResourcePath(keyPath))
+                    .put("xpack.ssl.key_passphrase", password)
+                    .put("xpack.ssl.certificate", resolveResourcePath(certificatePath))
+                    .put("xpack.ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");
 
             if (trustedCertificates.isEmpty() == false) {
-                builder.put("xpack.security.ssl.ca", Strings.arrayToCommaDelimitedString(resolvePathsToString(trustedCertificates)));
+                builder.put("xpack.ssl.certificate_authorities",
+                        Strings.arrayToCommaDelimitedString(resolvePathsToString(trustedCertificates)));
             }
         }
         return builder.build();
     }
 
-    static String[] resolvePathsToString(List<String> resourcePaths) {
+    private static String[] resolvePathsToString(List<String> resourcePaths) {
         List<String> resolvedPaths = new ArrayList<>(resourcePaths.size());
         for (String resource : resourcePaths) {
             resolvedPaths.add(resolveResourcePath(resource).toString());
@@ -319,7 +303,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         return resolvedPaths.toArray(new String[resolvedPaths.size()]);
     }
 
-    static Path resolveResourcePath(String resourcePathToStore) {
+    private static Path resolveResourcePath(String resourcePathToStore) {
         try {
             Path path = PathUtils.get(SecuritySettingsSource.class.getResource(resourcePathToStore).toURI());
             if (Files.notExists(path)) {

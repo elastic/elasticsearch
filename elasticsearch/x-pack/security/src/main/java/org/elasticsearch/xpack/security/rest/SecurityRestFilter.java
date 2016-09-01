@@ -24,13 +24,15 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
+import org.elasticsearch.xpack.ssl.SSLService;
 import org.jboss.netty.handler.ssl.SslHandler;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLPeerUnverifiedException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+
+import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
 
 /**
  *
@@ -45,14 +47,15 @@ public class SecurityRestFilter extends RestFilter {
 
     @Inject
     public SecurityRestFilter(AuthenticationService service, RestController controller, Settings settings,
-                              ThreadPool threadPool, XPackLicenseState licenseState) {
+                              ThreadPool threadPool, XPackLicenseState licenseState, SSLService sslService) {
         this.service = service;
         this.licenseState = licenseState;
         this.threadContext = threadPool.getThreadContext();
+        this.logger = Loggers.getLogger(getClass(), settings);
+        final boolean ssl = HTTP_SSL_ENABLED.get(settings);
+        Settings httpSSLSettings = SSLService.getHttpTransportSSLSettings(settings);
+        this.extractClientCertificate = ssl && sslService.isSSLClientAuthEnabled(httpSSLSettings);
         controller.registerFilter(this);
-        boolean ssl = SecurityNetty3HttpServerTransport.SSL_SETTING.get(settings);
-        extractClientCertificate = ssl && SecurityNetty3HttpServerTransport.CLIENT_AUTH_SETTING.get(settings).enabled();
-        logger = Loggers.getLogger(getClass(), settings);
     }
 
     @Override

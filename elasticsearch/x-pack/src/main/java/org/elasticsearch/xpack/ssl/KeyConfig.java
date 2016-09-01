@@ -3,41 +3,28 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.ssl;
+package org.elasticsearch.xpack.ssl;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.env.Environment;
 
-import javax.net.ssl.SSLEngine;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
-import java.net.Socket;
 import java.nio.file.Path;
-import java.security.Principal;
-import java.security.PrivateKey;
-import java.security.cert.X509Certificate;
 import java.util.Collections;
 import java.util.List;
 
 abstract class KeyConfig extends TrustConfig {
 
-    KeyConfig(boolean includeSystem) {
-        super(includeSystem);
-    }
-
-    static final KeyConfig NONE = new KeyConfig(false) {
+    static final KeyConfig NONE = new KeyConfig() {
         @Override
         X509ExtendedKeyManager createKeyManager(@Nullable Environment environment) {
             return null;
         }
 
         @Override
-        X509ExtendedTrustManager nonSystemTrustManager(@Nullable Environment environment) {
+        X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
             return null;
-        }
-
-        @Override
-        void validate() {
         }
 
         @Override
@@ -48,6 +35,16 @@ abstract class KeyConfig extends TrustConfig {
         @Override
         public String toString() {
             return "NONE";
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o == this;
+        }
+
+        @Override
+        public int hashCode() {
+            return System.identityHashCode(this);
         }
     };
 

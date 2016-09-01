@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.ssl;
+package org.elasticsearch.xpack.ssl;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
@@ -15,30 +15,30 @@ import java.nio.file.Path;
 import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
+/**
+ * Implementation of trust configuration that is backed by PEM encoded certificate files.
+ */
 class PEMTrustConfig extends TrustConfig {
 
-    final List<String> caPaths;
+    private final List<String> caPaths;
 
-    PEMTrustConfig(boolean includeSystem, List<String> caPaths) {
-        super(includeSystem);
-        this.caPaths = caPaths;
+    /**
+     * Create a new trust configuration that is built from the certificate files
+     * @param caPaths the paths to the certificate files to trust
+     */
+    PEMTrustConfig(List<String> caPaths) {
+        this.caPaths = Objects.requireNonNull(caPaths, "ca paths must be specified");
     }
 
     @Override
-    X509ExtendedTrustManager nonSystemTrustManager(@Nullable Environment environment) {
+    X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
         try {
             Certificate[] certificates = CertUtils.readCertificates(caPaths, environment);
-            return CertUtils.trustManagers(certificates);
+            return CertUtils.trustManager(certificates);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
-        }
-    }
-
-    @Override
-    void validate() {
-        if (caPaths == null) {
-            throw new IllegalArgumentException("no ca paths have been configured");
         }
     }
 

@@ -19,6 +19,7 @@ import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
+import org.elasticsearch.xpack.ssl.SSLService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -57,8 +58,7 @@ public class HttpClientTests extends ESTestCase {
         authRegistry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(null)));
         webServer = startWebServer();
         webPort = webServer.getPort();
-        httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment);
-        httpClient.start();
+        httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment, new SSLService(environment.settings(), environment));
     }
 
     @After
@@ -162,24 +162,23 @@ public class HttpClientTests extends ESTestCase {
         Settings settings;
         if (randomBoolean()) {
             settings = Settings.builder()
-                    .put(HttpClient.SETTINGS_SSL_TRUSTSTORE, resource.toString())
-                    .put(HttpClient.SETTINGS_SSL_TRUSTSTORE_PASSWORD, "truststore-testnode-only")
+                    .put("xpack.http.ssl.truststore.path", resource.toString())
+                    .put("xpack.http.ssl.truststore.password", "truststore-testnode-only")
                     .build();
         } else {
             settings = Settings.builder()
-                    .put(HttpClient.SETTINGS_SSL_SECURITY_TRUSTSTORE, resource.toString())
-                    .put(HttpClient.SETTINGS_SSL_SECURITY_TRUSTSTORE_PASSWORD, "truststore-testnode-only")
+                    .put("xpack.ssl.truststore.path", resource.toString())
+                    .put("xpack.ssl.truststore.password", "truststore-testnode-only")
                     .build();
         }
-        HttpClient httpClient = new HttpClient(settings, authRegistry, environment);
-        httpClient.start();
+        HttpClient httpClient = new HttpClient(settings, authRegistry, environment, new SSLService(settings, environment));
 
         // We can't use the client created above for the server since it is only a truststore
-        HttpClient httpClient2 = new HttpClient(Settings.builder()
-            .put(HttpClient.SETTINGS_SSL_KEYSTORE, getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks"))
-            .put(HttpClient.SETTINGS_SSL_KEYSTORE_PASSWORD, "testnode")
-            .build(), authRegistry, environment);
-        httpClient2.start();
+        Settings settings2 = Settings.builder()
+                .put("xpack.http.ssl.keystore.path", getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks"))
+                .put("xpack.http.ssl.keystore.password", "testnode")
+                .build();
+        HttpClient httpClient2 = new HttpClient(settings2, authRegistry, environment, new SSLService(settings2, environment));
         webServer.useHttps(httpClient2.getSslSocketFactory(), false);
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
@@ -200,18 +199,17 @@ public class HttpClientTests extends ESTestCase {
         Settings settings;
         if (randomBoolean()) {
             settings = Settings.builder()
-                    .put(HttpClient.SETTINGS_SSL_KEYSTORE, resource.toString())
-                    .put(HttpClient.SETTINGS_SSL_KEYSTORE_PASSWORD, "testnode")
+                    .put("xpack.http.ssl.keystore.path", resource.toString())
+                    .put("xpack.http.ssl.keystore.password", "testnode")
                     .build();
         } else {
             settings = Settings.builder()
-                    .put(HttpClient.SETTINGS_SSL_SECURITY_KEYSTORE, resource.toString())
-                    .put(HttpClient.SETTINGS_SSL_SECURITY_KEYSTORE_PASSWORD, "testnode")
+                    .put("xpack.ssl.keystore.path", resource.toString())
+                    .put("xpack.ssl.keystore.password", "testnode")
                     .build();
         }
 
-        HttpClient httpClient = new HttpClient(settings, authRegistry, environment);
-        httpClient.start();
+        HttpClient httpClient = new HttpClient(settings, authRegistry, environment, new SSLService(settings, environment));
         webServer.useHttps(new ClientAuthRequiringSSLSocketFactory(httpClient.getSslSocketFactory()), false);
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
@@ -235,31 +233,30 @@ public class HttpClientTests extends ESTestCase {
         final boolean watcherSettings = randomBoolean();
         if (watcherSettings) {
             settings = Settings.builder()
-                    .put(HttpClient.SETTINGS_SSL_KEYSTORE, resource.toString())
-                    .put(HttpClient.SETTINGS_SSL_KEYSTORE_PASSWORD, "testnode")
-                    .put(HttpClient.SETTINGS_SSL_KEYSTORE_KEY_PASSWORD, "testnode1")
+                    .put("xpack.http.ssl.keystore.path", resource.toString())
+                    .put("xpack.http.ssl.keystore.password", "testnode")
+                    .put("xpack.http.ssl.keystore.key_password", "testnode1")
                     .build();
         } else {
             settings = Settings.builder()
-                    .put(HttpClient.SETTINGS_SSL_SECURITY_KEYSTORE, resource.toString())
-                    .put(HttpClient.SETTINGS_SSL_SECURITY_KEYSTORE_PASSWORD, "testnode")
-                    .put(HttpClient.SETTINGS_SSL_SECURITY_KEYSTORE_KEY_PASSWORD, "testnode1")
+                    .put("xpack.ssl.keystore.path", resource.toString())
+                    .put("xpack.ssl.keystore.password", "testnode")
+                    .put("xpack.ssl.keystore.key_password", "testnode1")
                     .build();
         }
 
-        HttpClient httpClient = new HttpClient(settings, authRegistry, environment);
-        httpClient.start();
+        HttpClient httpClient = new HttpClient(settings, authRegistry, environment, new SSLService(settings, environment));
         assertThat(httpClient.getSslSocketFactory(), notNullValue());
 
         Settings.Builder badSettings = Settings.builder().put(settings);
         if (watcherSettings) {
-            badSettings.remove(HttpClient.SETTINGS_SSL_KEYSTORE_KEY_PASSWORD);
+            badSettings.remove("xpack.http.ssl.keystore.key_password");
         } else {
-            badSettings.remove(HttpClient.SETTINGS_SSL_SECURITY_KEYSTORE_KEY_PASSWORD);
+            badSettings.remove("xpack.ssl.keystore.key_password");
         }
 
         try {
-            new HttpClient(badSettings.build(), authRegistry, environment).start();
+            new HttpClient(badSettings.build(), authRegistry, environment, new SSLService(badSettings.build(), environment));
             fail("an exception should have been thrown since the key is not recoverable without the password");
         } catch (Exception e) {
             UnrecoverableKeyException rootCause = (UnrecoverableKeyException) ExceptionsHelper.unwrap(e, UnrecoverableKeyException.class);
@@ -294,9 +291,8 @@ public class HttpClientTests extends ESTestCase {
 
     @Network
     public void testHttpsWithoutTruststore() throws Exception {
-        HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment);
-        httpClient.start();
-        assertThat(httpClient.getSslSocketFactory(), nullValue());
+        HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment, new SSLService(Settings.EMPTY, environment));
+        assertThat(httpClient.getSslSocketFactory(), notNullValue());
 
         // Known server with a valid cert from a commercial CA
         HttpRequest.Builder request = HttpRequest.builder("www.elastic.co", 443).scheme(Scheme.HTTPS);
@@ -309,13 +305,12 @@ public class HttpClientTests extends ESTestCase {
     @Network
     public void testHttpsWithoutTruststoreAndSSLIntegrationActive() throws Exception {
         // Add some settings with  SSL prefix to force socket factory creation
-        String setting = (randomBoolean() ? HttpClient.SETTINGS_SSL_PREFIX : HttpClient.SETTINGS_SSL_SECURITY_PREFIX) +
+        String setting = (randomBoolean() ? HttpClient.SETTINGS_SSL_PREFIX : "xpack.ssl.") +
                 "foo.bar";
         Settings settings = Settings.builder()
                 .put(setting, randomBoolean())
                 .build();
-        HttpClient httpClient = new HttpClient(settings, authRegistry, environment);
-        httpClient.start();
+        HttpClient httpClient = new HttpClient(settings, authRegistry, environment, new SSLService(Settings.EMPTY, environment));
         assertThat(httpClient.getSslSocketFactory(), notNullValue());
 
         // Known server with a valid cert from a commercial CA
@@ -336,8 +331,7 @@ public class HttpClientTests extends ESTestCase {
                     .put(HttpClient.SETTINGS_PROXY_HOST, "localhost")
                     .put(HttpClient.SETTINGS_PROXY_PORT, proxyServer.getPort())
                     .build();
-            HttpClient httpClient = new HttpClient(settings, authRegistry, environment);
-            httpClient.start();
+            HttpClient httpClient = new HttpClient(settings, authRegistry, environment, new SSLService(settings, environment));
 
             HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webPort)
                     .method(HttpMethod.GET)
@@ -365,8 +359,7 @@ public class HttpClientTests extends ESTestCase {
                     .put(HttpClient.SETTINGS_PROXY_HOST, "localhost")
                     .put(HttpClient.SETTINGS_PROXY_PORT, proxyServer.getPort() + 1)
                     .build();
-            HttpClient httpClient = new HttpClient(settings, authRegistry, environment);
-            httpClient.start();
+            HttpClient httpClient = new HttpClient(settings, authRegistry, environment, new SSLService(settings, environment));
 
             HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webPort)
                     .method(HttpMethod.GET)

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.ssl;
+package org.elasticsearch.xpack.ssl;
 
 import org.bouncycastle.asn1.ASN1String;
 import org.bouncycastle.asn1.DEROctetString;
@@ -24,9 +24,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.security.ssl.CertificateTool.CAInfo;
-import org.elasticsearch.xpack.security.ssl.CertificateTool.CertificateInformation;
-import org.elasticsearch.xpack.security.ssl.CertificateTool.Name;
+import org.elasticsearch.xpack.ssl.CertificateTool.CAInfo;
+import org.elasticsearch.xpack.ssl.CertificateTool.CertificateInformation;
+import org.elasticsearch.xpack.ssl.CertificateTool.Name;
 
 import javax.security.auth.x500.X500Principal;
 import java.io.Reader;

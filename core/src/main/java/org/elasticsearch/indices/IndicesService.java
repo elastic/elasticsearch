@@ -20,6 +20,9 @@
 package org.elasticsearch.indices;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
@@ -49,7 +52,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -97,8 +99,8 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.search.internal.SearchContext;
@@ -218,7 +220,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 try {
                     removeIndex(index, "shutdown", false);
                 } catch (Exception e) {
-                    logger.warn("failed to remove index on stop [{}]", e, index);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to remove index on stop [{}]", index), e);
                 } finally {
                     latch.countDown();
                 }
@@ -296,7 +298,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     }
                 } catch (IllegalIndexShardStateException e) {
                     // we can safely ignore illegal state on ones that are closing for example
-                    logger.trace("{} ignoring shard stats", e, indexShard.shardId());
+                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("{} ignoring shard stats", indexShard.shardId()), e);
                 }
             }
         }
@@ -474,7 +476,7 @@ public class IndicesService extends AbstractLifecycleComponent
         try {
             removeIndex(index, reason, false);
         } catch (Exception e) {
-            logger.warn("failed to remove index ({})", e, reason);
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to remove index ({})", reason), e);
         }
     }
 
@@ -565,7 +567,7 @@ public class IndicesService extends AbstractLifecycleComponent
         try {
             removeIndex(index, reason, true);
         } catch (Exception e) {
-            logger.warn("failed to delete index ({})", e, reason);
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to delete index ({})", reason), e);
         }
     }
 
@@ -585,7 +587,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
                 deleteIndexStore(reason, metaData, clusterState);
             } catch (IOException e) {
-                logger.warn("[{}] failed to delete unassigned index (reason [{}])", e, metaData.getIndex(), reason);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to delete unassigned index (reason [{}])", metaData.getIndex(), reason), e);
             }
         }
     }
@@ -637,9 +639,9 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             success = true;
         } catch (LockObtainFailedException ex) {
-            logger.debug("{} failed to delete index store - at least one shards is still locked", ex, index);
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} failed to delete index store - at least one shards is still locked", index), ex);
         } catch (Exception ex) {
-            logger.warn("{} failed to delete index", ex, index);
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{} failed to delete index", index), ex);
         } finally {
             if (success == false) {
                 addPendingDelete(index, indexSettings);
@@ -746,7 +748,7 @@ public class IndicesService extends AbstractLifecycleComponent
             try {
                 metaData = metaStateService.loadIndexState(index);
             } catch (IOException e) {
-                logger.warn("[{}] failed to load state file from a stale deleted index, folders will be left on disk", e, index);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to load state file from a stale deleted index, folders will be left on disk", index), e);
                 return null;
             }
             final IndexSettings indexSettings = buildIndexSettings(metaData);
@@ -755,7 +757,7 @@ public class IndicesService extends AbstractLifecycleComponent
             } catch (IOException e) {
                 // we just warn about the exception here because if deleteIndexStoreIfDeletionAllowed
                 // throws an exception, it gets added to the list of pending deletes to be tried again
-                logger.warn("[{}] failed to delete index on disk", e, metaData.getIndex());
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to delete index on disk", metaData.getIndex()), e);
             }
             return metaData;
         }
@@ -927,7 +929,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                 nodeEnv.deleteIndexDirectoryUnderLock(index, indexSettings);
                                 iterator.remove();
                             } catch (IOException ex) {
-                                logger.debug("{} retry pending delete", ex, index);
+                                logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} retry pending delete", index), ex);
                             }
                         } else {
                             assert delete.shardId != -1;
@@ -937,7 +939,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                     deleteShardStore("pending delete", shardLock, delete.settings);
                                     iterator.remove();
                                 } catch (IOException ex) {
-                                    logger.debug("{} retry pending delete", ex, shardLock.getShardId());
+                                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} retry pending delete", shardLock.getShardId()), ex);
                                 }
                             } else {
                                 logger.warn("{} no shard lock for pending delete", delete.shardId);
@@ -1000,13 +1002,13 @@ public class IndicesService extends AbstractLifecycleComponent
     private static final class CacheCleaner implements Runnable, Releasable {
 
         private final IndicesFieldDataCache cache;
-        private final ESLogger logger;
+        private final Logger logger;
         private final ThreadPool threadPool;
         private final TimeValue interval;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final IndicesRequestCache requestCache;
 
-        public CacheCleaner(IndicesFieldDataCache cache, IndicesRequestCache requestCache, ESLogger logger, ThreadPool threadPool, TimeValue interval) {
+        public CacheCleaner(IndicesFieldDataCache cache, IndicesRequestCache requestCache, Logger logger, ThreadPool threadPool, TimeValue interval) {
             this.cache = cache;
             this.requestCache = requestCache;
             this.logger = logger;

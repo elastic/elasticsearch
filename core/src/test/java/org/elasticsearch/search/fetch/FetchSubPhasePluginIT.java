@@ -26,7 +26,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;

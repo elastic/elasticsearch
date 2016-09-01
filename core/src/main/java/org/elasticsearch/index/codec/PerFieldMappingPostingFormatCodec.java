@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.codec;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene62.Lucene62Codec;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper2x;
@@ -40,14 +40,14 @@ import org.elasticsearch.index.mapper.MapperService;
  */
 // LUCENE UPGRADE: make sure to move to a new codec depending on the lucene version
 public class PerFieldMappingPostingFormatCodec extends Lucene62Codec {
-    private final ESLogger logger;
+    private final Logger logger;
     private final MapperService mapperService;
 
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMappingPostingFormatCodec.class) : "PerFieldMappingPostingFormatCodec must subclass the latest lucene codec: " + Lucene.LATEST_CODEC;
     }
 
-    public PerFieldMappingPostingFormatCodec(Lucene50StoredFieldsFormat.Mode compressionMode, MapperService mapperService, ESLogger logger) {
+    public PerFieldMappingPostingFormatCodec(Lucene50StoredFieldsFormat.Mode compressionMode, MapperService mapperService, Logger logger) {
         super(compressionMode);
         this.mapperService = mapperService;
         this.logger = logger;

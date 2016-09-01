@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -27,7 +28,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -56,7 +56,7 @@ import static org.junit.Assert.assertThat;
  */
 public final class ExternalTestCluster extends TestCluster {
 
-    private static final ESLogger logger = Loggers.getLogger(ExternalTestCluster.class);
+    private static final Logger logger = Loggers.getLogger(ExternalTestCluster.class);
 
     private static final AtomicInteger counter = new AtomicInteger();
     public static final String EXTERNAL_CLUSTER_PREFIX = "external_";

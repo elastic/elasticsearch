@@ -873,7 +873,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public ClusterHealthStatus ensureGreen(TimeValue timeout, String... indices) {
         ClusterHealthResponse actionGet = client().admin().cluster()
-                .health(Requests.clusterHealthRequest(indices).timeout(timeout).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
+                .health(Requests.clusterHealthRequest(indices).timeout(timeout).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForNoRelocatingShards(true)).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info("ensureGreen timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
             fail("timed out waiting for green state");
@@ -895,7 +895,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * using the cluster health API.
      */
     public ClusterHealthStatus waitForRelocation(ClusterHealthStatus status) {
-        ClusterHealthRequest request = Requests.clusterHealthRequest().waitForRelocatingShards(0);
+        ClusterHealthRequest request = Requests.clusterHealthRequest().waitForNoRelocatingShards(true);
         if (status != null) {
             request.waitForStatus(status);
         }
@@ -997,7 +997,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public ClusterHealthStatus ensureYellow(String... indices) {
         ClusterHealthResponse actionGet = client().admin().cluster()
-                .health(Requests.clusterHealthRequest(indices).waitForRelocatingShards(0).waitForYellowStatus().waitForEvents(Priority.LANGUID)).actionGet();
+                .health(Requests.clusterHealthRequest(indices).waitForNoRelocatingShards(true).waitForYellowStatus().waitForEvents(Priority.LANGUID)).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info("ensureYellow timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
             assertThat("timed out waiting for yellow", actionGet.isTimedOut(), equalTo(false));
@@ -1106,7 +1106,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 .setWaitForNodes(Integer.toString(nodeCount))
                 .setTimeout(timeValue)
                 .setLocal(local)
-                .setWaitForRelocatingShards(0)
+                .setWaitForNoRelocatingShards(true)
                 .get();
         if (clusterHealthResponse.isTimedOut()) {
             ClusterStateResponse stateResponse = client(viaNode).admin().cluster().prepareState().get();

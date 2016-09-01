@@ -125,8 +125,6 @@ thirdPartyAudit.excludes = [
         'net.jpountz.lz4.LZ4FastDecompressor',
         'net.jpountz.xxhash.StreamingXXHash32',
         'net.jpountz.xxhash.XXHashFactory',
-        'org.apache.logging.log4j.LogManager',
-        'org.apache.logging.log4j.Logger',
         'org.apache.tomcat.Apr',
         'org.apache.tomcat.jni.CertificateRequestedCallback',
         'org.apache.tomcat.jni.CertificateRequestedCallback$KeyMaterial',

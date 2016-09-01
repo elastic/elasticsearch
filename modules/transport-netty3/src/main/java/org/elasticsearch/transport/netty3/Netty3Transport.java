@@ -19,13 +19,14 @@
 
 package org.elasticsearch.transport.netty3;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkService.TcpSettings;
@@ -46,7 +47,6 @@ import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.TransportSettings;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.bootstrap.ServerBootstrap;
-import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.AdaptiveReceiveBufferSizePredictorFactory;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFuture;
@@ -554,7 +554,7 @@ public class Netty3Transport extends TcpTransport<Channel> {
                 try {
                     serverBootstrap.releaseExternalResources();
                 } catch (Exception e) {
-                    logger.debug("Error closing serverBootstrap for profile [{}]", e, name);
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("Error closing serverBootstrap for profile [{}]", name), e);
                 }
             }
             serverBootstraps.clear();

@@ -84,7 +84,7 @@ suggester in the same spot you'd use the `term` suggester:
 
 [source,js]
 --------------------------------------------------
-POST _suggest?pretty -d'
+POST _suggest
 {
   "text": "noble prize",
   "simple_phrase": {

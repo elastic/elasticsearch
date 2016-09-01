@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -27,7 +28,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskListener;
@@ -165,9 +165,9 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
 
         private final TransportAction<Request, Response> action;
         private final AtomicInteger index = new AtomicInteger();
-        private final ESLogger logger;
+        private final Logger logger;
 
-        private RequestFilterChain(TransportAction<Request, Response> action, ESLogger logger) {
+        private RequestFilterChain(TransportAction<Request, Response> action, Logger logger) {
             this.action = action;
             this.logger = logger;
         }
@@ -201,9 +201,9 @@ public abstract class TransportAction<Request extends ActionRequest<Request>, Re
 
         private final ActionFilter[] filters;
         private final AtomicInteger index;
-        private final ESLogger logger;
+        private final Logger logger;
 
-        private ResponseFilterChain(ActionFilter[] filters, ESLogger logger) {
+        private ResponseFilterChain(ActionFilter[] filters, Logger logger) {
             this.filters = filters;
             this.index = new AtomicInteger(filters.length);
             this.logger = logger;

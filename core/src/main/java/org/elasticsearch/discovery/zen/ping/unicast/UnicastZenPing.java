@@ -20,6 +20,8 @@
 package org.elasticsearch.discovery.zen.ping.unicast;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -46,7 +48,6 @@ import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportChannel;
@@ -55,6 +56,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
@@ -413,13 +415,18 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
                             success = true;
                         } catch (ConnectTransportException e) {
                             // can't connect to the node - this is a more common path!
-                            logger.trace("[{}] failed to connect to {}", e, sendPingsHandler.id(), finalNodeToSend);
+                            logger.trace(
+                                (Supplier<?>) () -> new ParameterizedMessage(
+                                    "[{}] failed to connect to {}", sendPingsHandler.id(), finalNodeToSend), e);
                         } catch (RemoteTransportException e) {
                             // something went wrong on the other side
-                            logger.debug("[{}] received a remote error as a response to ping {}", e,
-                                    sendPingsHandler.id(), finalNodeToSend);
+                            logger.debug(
+                                (Supplier<?>) () -> new ParameterizedMessage(
+                                    "[{}] received a remote error as a response to ping {}", sendPingsHandler.id(), finalNodeToSend), e);
                         } catch (Exception e) {
-                            logger.warn("[{}] failed send ping to {}", e, sendPingsHandler.id(), finalNodeToSend);
+                            logger.warn(
+                                (Supplier<?>) () -> new ParameterizedMessage(
+                                    "[{}] failed send ping to {}", sendPingsHandler.id(), finalNodeToSend), e);
                         } finally {
                             if (!success) {
                                 latch.countDown();
@@ -486,9 +493,9 @@ public class UnicastZenPing extends AbstractLifecycleComponent implements ZenPin
                 latch.countDown();
                 if (exp instanceof ConnectTransportException) {
                     // ok, not connected...
-                    logger.trace("failed to connect to {}", exp, nodeToSend);
+                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to connect to {}", nodeToSend), exp);
                 } else {
-                    logger.warn("failed to send ping to [{}]", exp, node);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to send ping to [{}]", node), exp);
                 }
             }
         });

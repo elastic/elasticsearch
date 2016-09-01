@@ -201,30 +201,14 @@ public class NodeInfo extends BaseNodeResponse {
         if (in.readBoolean()) {
             settings = Settings.readSettingsFromStream(in);
         }
-        if (in.readBoolean()) {
-            os = new OsInfo(in);
-        }
-        if (in.readBoolean()) {
-            process = new ProcessInfo(in);
-        }
-        if (in.readBoolean()) {
-            jvm = new JvmInfo(in);
-        }
-        if (in.readBoolean()) {
-            threadPool = new ThreadPoolInfo(in);
-        }
-        if (in.readBoolean()) {
-            transport = new TransportInfo(in);
-        }
-        if (in.readBoolean()) {
-            http = new HttpInfo(in);
-        }
-        if (in.readBoolean()) {
-            plugins = new PluginsAndModules(in);
-        }
-        if (in.readBoolean()) {
-            ingest = new IngestInfo(in);
-        }
+        os = in.readOptionalWriteable(OsInfo::new);
+        process = in.readOptionalWriteable(ProcessInfo::new);
+        jvm = in.readOptionalWriteable(JvmInfo::new);
+        threadPool = in.readOptionalWriteable(ThreadPoolInfo::new);
+        transport = in.readOptionalWriteable(TransportInfo::new);
+        http = in.readOptionalWriteable(HttpInfo::new);
+        plugins = in.readOptionalWriteable(PluginsAndModules::new);
+        ingest = in.readOptionalWriteable(IngestInfo::new);
     }
 
     @Override
@@ -244,53 +228,13 @@ public class NodeInfo extends BaseNodeResponse {
             out.writeBoolean(true);
             Settings.writeSettingsToStream(settings, out);
         }
-        if (os == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            os.writeTo(out);
-        }
-        if (process == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            process.writeTo(out);
-        }
-        if (jvm == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            jvm.writeTo(out);
-        }
-        if (threadPool == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            threadPool.writeTo(out);
-        }
-        if (transport == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            transport.writeTo(out);
-        }
-        if (http == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            http.writeTo(out);
-        }
-        if (plugins == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            plugins.writeTo(out);
-        }
-        if (ingest == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            ingest.writeTo(out);
-        }
+        out.writeOptionalWriteable(os);
+        out.writeOptionalWriteable(process);
+        out.writeOptionalWriteable(jvm);
+        out.writeOptionalWriteable(threadPool);
+        out.writeOptionalWriteable(transport);
+        out.writeOptionalWriteable(http);
+        out.writeOptionalWriteable(plugins);
+        out.writeOptionalWriteable(ingest);
     }
 }

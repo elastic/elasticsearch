@@ -214,7 +214,7 @@ public class NodeInfo extends BaseNodeResponse {
             threadPool = new ThreadPoolInfo(in);
         }
         if (in.readBoolean()) {
-            transport = TransportInfo.readTransportInfo(in);
+            transport = new TransportInfo(in);
         }
         if (in.readBoolean()) {
             http = new HttpInfo(in);

@@ -119,7 +119,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     @BeforeClass
     public static void initDefaultSettings() {
         if (SECURITY_DEFAULT_SETTINGS == null) {
-            SECURITY_DEFAULT_SETTINGS = new SecuritySettingsSource(defaultMaxNumberOfNodes(), randomBoolean(), createTempDir(), Scope.SUITE);
+            SECURITY_DEFAULT_SETTINGS =
+                    new SecuritySettingsSource(defaultMaxNumberOfNodes(), randomBoolean(), createTempDir(), Scope.SUITE);
         }
     }
 

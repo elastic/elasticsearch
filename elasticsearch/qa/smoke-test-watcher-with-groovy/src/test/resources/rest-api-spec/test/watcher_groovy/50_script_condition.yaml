@@ -70,6 +70,8 @@
   - match: { _id: "watch_with_groovy_closure" }
 
   - do:
+      warnings:
+        - '[groovy] scripts are deprecated, use [painless] scripts instead'
       xpack.watcher.execute_watch:
         id: "watch_with_groovy_closure"
         body: >
@@ -118,6 +120,8 @@
           { "status": "red", "@timestamp": "2005-01-01T00:01:55" }
 
   - do:
+      warnings:
+        - '[groovy] scripts are deprecated, use [painless] scripts instead'
       xpack.watcher.execute_watch:
         id: "watch_with_groovy_closure"
         body: >

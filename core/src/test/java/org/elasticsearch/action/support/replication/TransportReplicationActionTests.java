@@ -169,12 +169,14 @@ public class TransportReplicationActionTests extends ESTestCase {
         reroutePhase.run();
         assertListenerThrows("failed to timeout on retryable block", listener, ClusterBlockException.class);
         assertPhase(task, "failed");
+        assertFalse(request.isRetrySet.get());
 
         listener = new PlainActionFuture<>();
-        reroutePhase = action.new ReroutePhase(task, new Request(), listener);
+        reroutePhase = action.new ReroutePhase(task, request = new Request(), listener);
         reroutePhase.run();
         assertFalse("primary phase should wait on retryable block", listener.isDone());
         assertPhase(task, "waiting_for_retry");
+        assertTrue(request.isRetrySet.get());
 
         block = ClusterBlocks.builder()
             .addGlobalBlock(new ClusterBlock(1, "non retryable", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
@@ -204,6 +206,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         reroutePhase.run();
         assertListenerThrows("unassigned primary didn't cause a timeout", listener, UnavailableShardsException.class);
         assertPhase(task, "failed");
+        assertTrue(request.isRetrySet.get());
 
         request = new Request(shardId);
         listener = new PlainActionFuture<>();
@@ -211,6 +214,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         reroutePhase.run();
         assertFalse("unassigned primary didn't cause a retry", listener.isDone());
         assertPhase(task, "waiting_for_retry");
+        assertTrue(request.isRetrySet.get());
 
         setState(clusterService, state(index, true, ShardRoutingState.STARTED));
         logger.debug("--> primary assigned state:\n{}", clusterService.state().prettyPrint());
@@ -249,12 +253,14 @@ public class TransportReplicationActionTests extends ESTestCase {
         Action.ReroutePhase reroutePhase = action.new ReroutePhase(null, request, listener);
         reroutePhase.run();
         assertListenerThrows("cluster state too old didn't cause a timeout", listener, UnavailableShardsException.class);
+        assertTrue(request.isRetrySet.compareAndSet(true, false));
 
         request = new Request(shardId).routedBasedOnClusterVersion(clusterService.state().version() + 1);
         listener = new PlainActionFuture<>();
         reroutePhase = action.new ReroutePhase(null, request, listener);
         reroutePhase.run();
         assertFalse("cluster state too old didn't cause a retry", listener.isDone());
+        assertTrue(request.isRetrySet.get());
 
         // finish relocation
         ShardRouting relocationTarget = clusterService.state().getRoutingTable().shardRoutingTable(shardId)
@@ -290,11 +296,14 @@ public class TransportReplicationActionTests extends ESTestCase {
         reroutePhase.run();
         assertListenerThrows("must throw index not found exception", listener, IndexNotFoundException.class);
         assertPhase(task, "failed");
+        assertTrue(request.isRetrySet.get());
         request = new Request(new ShardId(index, "_na_", 10)).timeout("1ms");
         listener = new PlainActionFuture<>();
         reroutePhase = action.new ReroutePhase(null, request, listener);
         reroutePhase.run();
         assertListenerThrows("must throw shard not found exception", listener, ShardNotFoundException.class);
+        assertFalse(request.isRetrySet.get()); //TODO I'd have expected this to be true but we fail too early?
+
     }
 
     public void testStalePrimaryShardOnReroute() throws InterruptedException {
@@ -319,6 +328,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(capturedRequests, arrayWithSize(1));
         assertThat(capturedRequests[0].action, equalTo("testAction[p]"));
         assertPhase(task, "waiting_on_primary");
+        assertFalse(request.isRetrySet.get());
         transport.handleRemoteError(capturedRequests[0].requestId, randomRetryPrimaryException(shardId));
 
 
@@ -380,6 +390,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             assertThat(capturedRequests.get(0).action, equalTo("testAction"));
             assertPhase(task, "rerouted");
         }
+        assertFalse(request.isRetrySet.get());
         assertIndexShardUninitialized();
     }
 
@@ -419,6 +430,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             assertTrue(listener.isDone());
             listener.get();
             assertPhase(task, "finished");
+            assertFalse(request.isRetrySet.get());
         } else {
             assertFalse(executed.get());
             assertIndexShardCounter(0);  // it should have been freed.
@@ -432,6 +444,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             assertTrue(listener.isDone());
             listener.get();
             assertPhase(task, "finished");
+            assertFalse(request.isRetrySet.get());
         }
     }
 
@@ -463,6 +476,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         }.run();
         assertThat(executed.get(), equalTo(true));
         assertPhase(task, "finished");
+        assertFalse(request.isRetrySet.get());
     }
 
     public void testPrimaryReference() throws Exception {
@@ -745,6 +759,7 @@ public class TransportReplicationActionTests extends ESTestCase {
     public static class Request extends ReplicationRequest<Request> {
         public AtomicBoolean processedOnPrimary = new AtomicBoolean();
         public AtomicInteger processedOnReplicas = new AtomicInteger();
+        public AtomicBoolean isRetrySet = new AtomicBoolean(false);
 
         public Request() {
         }
@@ -765,6 +780,12 @@ public class TransportReplicationActionTests extends ESTestCase {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
+        }
+
+        @Override
+        public void onRetry() {
+            super.onRetry();
+            isRetrySet.set(true);
         }
     }
 

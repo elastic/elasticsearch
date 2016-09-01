@@ -26,9 +26,9 @@ import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import com.sun.jna.ptr.PointerByReference;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
@@ -92,7 +92,7 @@ import java.util.Map;
  */
 // not an example of how to write code!!!
 final class Seccomp {
-    private static final ESLogger logger = Loggers.getLogger(Seccomp.class);
+    private static final Logger logger = Loggers.getLogger(Seccomp.class);
 
     // Linux implementation, based on seccomp(2) or prctl(2) with bpf filtering
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -44,7 +45,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -76,7 +76,7 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
-    private final ESLogger logger = Loggers.getLogger(NodeVersionAllocationDeciderTests.class);
+    private final Logger logger = Loggers.getLogger(NodeVersionAllocationDeciderTests.class);
 
     public void testDoNotAllocateFromPrimary() {
         AllocationService strategy = createAllocationService(Settings.builder()

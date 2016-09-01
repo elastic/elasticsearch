@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.SnapshotInProgressAl
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -132,7 +133,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     if (ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).exists(settings) == false) {
                         builder.putNull(key);
                     } else {
-                        builder.put(key, ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings).name());
+                        builder.put(key, ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings));
                     }
                 }
             }
@@ -144,12 +145,18 @@ public final class ClusterSettings extends AbstractScopedSettings {
             for (String key : value.getAsMap().keySet()) {
                 assert loggerPredicate.test(key);
                 String component = key.substring("logger.".length());
+                if ("level".equals(component)) {
+                    continue;
+                }
                 if ("_root".equals(component)) {
                     final String rootLevel = value.get(key);
-                    ESLoggerFactory.getRootLogger().setLevel(rootLevel == null ? ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings)
-                            .name() : rootLevel);
+                    if (rootLevel == null) {
+                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(settings));
+                    } else {
+                        Loggers.setLevel(ESLoggerFactory.getRootLogger(), rootLevel);
+                    }
                 } else {
-                    ESLoggerFactory.getLogger(component).setLevel(value.get(key));
+                    Loggers.setLevel(ESLoggerFactory.getLogger(component), value.get(key));
                 }
             }
         }

@@ -19,16 +19,20 @@
 
 package org.elasticsearch.indices.settings;
 
-import org.apache.log4j.AppenderSkeleton;
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
-import org.apache.log4j.spi.LoggingEvent;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.TestLoggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
@@ -348,13 +352,17 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         logger.info("test: test done");
     }
 
-    private static class MockAppender extends AppenderSkeleton {
+    private static class MockAppender extends AbstractAppender {
         public boolean sawUpdateMaxThreadCount;
         public boolean sawUpdateAutoThrottle;
 
+        public MockAppender(final String name) throws IllegalAccessException {
+            super(name, RegexFilter.createFilter(".*(\n.*)*", new String[0], true, null, null), null);
+        }
+
         @Override
-        protected void append(LoggingEvent event) {
-            String message = event.getMessage().toString();
+        public void append(LogEvent event) {
+            String message = event.getMessage().getFormattedMessage();
             if (event.getLevel() == Level.TRACE &&
                 event.getLoggerName().endsWith("lucene.iw")) {
             }
@@ -366,22 +374,14 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             }
         }
 
-        @Override
-        public boolean requiresLayout() {
-            return false;
-        }
-
-        @Override
-        public void close() {
-        }
     }
 
-    public void testUpdateAutoThrottleSettings() {
-        MockAppender mockAppender = new MockAppender();
-        Logger rootLogger = Logger.getRootLogger();
+    public void testUpdateAutoThrottleSettings() throws IllegalAccessException {
+        MockAppender mockAppender = new MockAppender("testUpdateAutoThrottleSettings");
+        Logger rootLogger = LogManager.getRootLogger();
         Level savedLevel = rootLogger.getLevel();
-        rootLogger.addAppender(mockAppender);
-        rootLogger.setLevel(Level.TRACE);
+        TestLoggers.addAppender(rootLogger, mockAppender);
+        Loggers.setLevel(rootLogger, Level.TRACE);
 
         try {
             // No throttling at first, only 1 non-replicated shard, force lots of merging:
@@ -412,18 +412,18 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test").get();
             assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.AUTO_THROTTLE_SETTING.getKey()), equalTo("false"));
         } finally {
-            rootLogger.removeAppender(mockAppender);
-            rootLogger.setLevel(savedLevel);
+            TestLoggers.removeAppender(rootLogger, mockAppender);
+            Loggers.setLevel(rootLogger, savedLevel);
         }
     }
 
     // #6882: make sure we can change index.merge.scheduler.max_thread_count live
-    public void testUpdateMergeMaxThreadCount() {
-        MockAppender mockAppender = new MockAppender();
-        Logger rootLogger = Logger.getRootLogger();
+    public void testUpdateMergeMaxThreadCount() throws IllegalAccessException {
+        MockAppender mockAppender = new MockAppender("testUpdateMergeMaxThreadCount");
+        Logger rootLogger = LogManager.getRootLogger();
         Level savedLevel = rootLogger.getLevel();
-        rootLogger.addAppender(mockAppender);
-        rootLogger.setLevel(Level.TRACE);
+        TestLoggers.addAppender(rootLogger, mockAppender);
+        Loggers.setLevel(rootLogger, Level.TRACE);
 
         try {
 
@@ -456,8 +456,8 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             assertThat(getSettingsResponse.getSetting("test", MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey()), equalTo("1"));
 
         } finally {
-            rootLogger.removeAppender(mockAppender);
-            rootLogger.setLevel(savedLevel);
+            TestLoggers.removeAppender(rootLogger, mockAppender);
+            Loggers.setLevel(rootLogger, savedLevel);
         }
     }
 

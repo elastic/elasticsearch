@@ -20,6 +20,7 @@
 package org.elasticsearch.index.shard;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
@@ -33,7 +34,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -62,10 +62,10 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
  */
 final class StoreRecovery {
 
-    private final ESLogger logger;
+    private final Logger logger;
     private final ShardId shardId;
 
-    StoreRecovery(ShardId shardId, ESLogger logger) {
+    StoreRecovery(ShardId shardId, Logger logger) {
         this.logger = logger;
         this.shardId = shardId;
     }

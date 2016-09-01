@@ -24,7 +24,8 @@ dependencies {
   testCompile "org.elasticsearch.test:framework:${version}"
 }
 
-loggerUsageCheck.enabled = false
+// https://github.com/elastic/elasticsearch/issues/20243
+// loggerUsageCheck.enabled = false
 
 forbiddenApisMain.enabled = true // disabled by parent project
 forbiddenApisMain {

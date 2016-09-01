@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.discovery;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -45,10 +45,10 @@ public class BlockingClusterStatePublishResponseHandlerTests extends ESTestCase 
         final boolean fail;
         final DiscoveryNode node;
         final CyclicBarrier barrier;
-        final ESLogger logger;
+        final Logger logger;
         final BlockingClusterStatePublishResponseHandler handler;
 
-        public PublishResponder(boolean fail, DiscoveryNode node, CyclicBarrier barrier, ESLogger logger, BlockingClusterStatePublishResponseHandler handler) {
+        public PublishResponder(boolean fail, DiscoveryNode node, CyclicBarrier barrier, Logger logger, BlockingClusterStatePublishResponseHandler handler) {
             this.fail = fail;
 
             this.node = node;

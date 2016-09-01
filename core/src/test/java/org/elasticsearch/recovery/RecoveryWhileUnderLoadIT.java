@@ -19,16 +19,16 @@
 
 package org.elasticsearch.recovery;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -54,7 +54,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
 
 @TestLogging("_root:DEBUG,index.shard:TRACE")
 public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
-    private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadIT.class);
+    private final Logger logger = Loggers.getLogger(RecoveryWhileUnderLoadIT.class);
 
     public void testRecoverWhileUnderLoadAllocateReplicasTest() throws Exception {
         logger.info("--> creating test index ...");

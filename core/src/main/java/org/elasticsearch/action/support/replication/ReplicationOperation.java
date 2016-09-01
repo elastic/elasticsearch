@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.action.support.replication;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -31,7 +33,6 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.ShardId;
@@ -56,7 +57,7 @@ public class ReplicationOperation<
             ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
             PrimaryResultT extends ReplicationOperation.PrimaryResult<ReplicaRequest>
         > {
-    private final ESLogger logger;
+    private final Logger logger;
     private final Request request;
     private final Supplier<ClusterState> clusterStateSupplier;
     private final String opType;
@@ -86,7 +87,7 @@ public class ReplicationOperation<
     public ReplicationOperation(Request request, Primary<Request, ReplicaRequest, PrimaryResultT> primary,
                                 ActionListener<PrimaryResultT> listener,
                                 boolean executeOnReplicas, Replicas<ReplicaRequest> replicas,
-                                Supplier<ClusterState> clusterStateSupplier, ESLogger logger, String opType) {
+                                Supplier<ClusterState> clusterStateSupplier, Logger logger, String opType) {
         this.executeOnReplicas = executeOnReplicas;
         this.replicasProxy = replicas;
         this.primary = primary;
@@ -189,8 +190,14 @@ public class ReplicationOperation<
 
             @Override
             public void onFailure(Exception replicaException) {
-                logger.trace("[{}] failure while performing [{}] on replica {}, request [{}]", replicaException, shard.shardId(), opType,
-                    shard, replicaRequest);
+                logger.trace(
+                    (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
+                        "[{}] failure while performing [{}] on replica {}, request [{}]",
+                        shard.shardId(),
+                        opType,
+                        shard,
+                        replicaRequest),
+                    replicaException);
                 if (ignoreReplicaException(replicaException)) {
                     decPendingAndFinishIfNeeded();
                 } else {
@@ -198,7 +205,9 @@ public class ReplicationOperation<
                     shardReplicaFailures.add(new ReplicationResponse.ShardInfo.Failure(
                         shard.shardId(), shard.currentNodeId(), replicaException, restStatus, false));
                     String message = String.format(Locale.ROOT, "failed to perform %s on replica %s", opType, shard);
-                    logger.warn("[{}] {}", replicaException, shard.shardId(), message);
+                    logger.warn(
+                        (org.apache.logging.log4j.util.Supplier<?>)
+                            () -> new ParameterizedMessage("[{}] {}", shard.shardId(), message), replicaException);
                     replicasProxy.failShard(shard, replicaRequest.primaryTerm(), message, replicaException,
                         ReplicationOperation.this::decPendingAndFinishIfNeeded,
                         ReplicationOperation.this::onPrimaryDemoted,

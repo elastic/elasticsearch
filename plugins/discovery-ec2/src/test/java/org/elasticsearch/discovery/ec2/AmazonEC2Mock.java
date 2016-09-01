@@ -373,7 +373,7 @@ import com.amazonaws.services.ec2.model.TerminateInstancesResult;
 import com.amazonaws.services.ec2.model.UnassignPrivateIpAddressesRequest;
 import com.amazonaws.services.ec2.model.UnmonitorInstancesRequest;
 import com.amazonaws.services.ec2.model.UnmonitorInstancesResult;
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.util.ArrayList;
@@ -386,7 +386,7 @@ import java.util.regex.Pattern;
 
 public class AmazonEC2Mock implements AmazonEC2 {
 
-    private static final ESLogger logger = ESLoggerFactory.getLogger(AmazonEC2Mock.class.getName());
+    private static final Logger logger = ESLoggerFactory.getLogger(AmazonEC2Mock.class.getName());
 
     public static final String PREFIX_PRIVATE_IP = "10.0.0.";
     public static final String PREFIX_PUBLIC_IP = "8.8.8.";

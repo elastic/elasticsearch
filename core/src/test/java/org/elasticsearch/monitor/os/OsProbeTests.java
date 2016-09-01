@@ -32,16 +32,28 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class OsProbeTests extends ESTestCase {
-    OsProbe probe = OsProbe.getInstance();
+    private OsProbe probe = OsProbe.getInstance();
 
     public void testOsInfo() {
-        OsInfo info = probe.osInfo();
+        int allocatedProcessors = randomIntBetween(1, Runtime.getRuntime().availableProcessors());
+        long refreshInterval;
+        if (randomBoolean()) {
+            refreshInterval = -1;
+        } else {
+            refreshInterval = randomLong();
+            while (refreshInterval == Long.MIN_VALUE) {
+                refreshInterval = randomLong();
+            }
+            refreshInterval = Math.abs(refreshInterval);
+        }
+        OsInfo info = probe.osInfo(refreshInterval, allocatedProcessors);
         assertNotNull(info);
-        assertThat(info.getRefreshInterval(), anyOf(equalTo(-1L), greaterThanOrEqualTo(0L)));
-        assertThat(info.getName(), equalTo(Constants.OS_NAME));
-        assertThat(info.getArch(), equalTo(Constants.OS_ARCH));
-        assertThat(info.getVersion(), equalTo(Constants.OS_VERSION));
-        assertThat(info.getAvailableProcessors(), equalTo(Runtime.getRuntime().availableProcessors()));
+        assertEquals(refreshInterval, info.getRefreshInterval());
+        assertEquals(Constants.OS_NAME, info.getName());
+        assertEquals(Constants.OS_ARCH, info.getArch());
+        assertEquals(Constants.OS_VERSION, info.getVersion());
+        assertEquals(allocatedProcessors, info.getAllocatedProcessors());
+        assertEquals(Runtime.getRuntime().availableProcessors(), info.getAvailableProcessors());
     }
 
     public void testOsStats() {

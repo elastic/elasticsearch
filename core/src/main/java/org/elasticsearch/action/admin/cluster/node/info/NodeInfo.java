@@ -37,10 +37,6 @@ import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.transport.TransportInfo;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-
-import static java.util.Collections.unmodifiableMap;
 
 /**
  * Node information (static, does not change over time).
@@ -206,7 +202,7 @@ public class NodeInfo extends BaseNodeResponse {
             settings = Settings.readSettingsFromStream(in);
         }
         if (in.readBoolean()) {
-            os = OsInfo.readOsInfo(in);
+            os = new OsInfo(in);
         }
         if (in.readBoolean()) {
             process = ProcessInfo.readProcessInfo(in);

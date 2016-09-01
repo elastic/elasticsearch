@@ -21,11 +21,11 @@ package org.elasticsearch.index.store;
 
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.BaseDirectoryTestCase;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 
@@ -43,6 +43,6 @@ public abstract class EsBaseDirectoryTestCase extends BaseDirectoryTestCase {
         BootstrapForTesting.ensureInitialized();
     }
 
-    protected final ESLogger logger = Loggers.getLogger(getClass());
+    protected final Logger logger = Loggers.getLogger(getClass());
 
 }

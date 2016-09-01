@@ -19,12 +19,12 @@
 
 package org.elasticsearch.index.analysis.synonyms;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.all.AllTokenStream;
 import org.elasticsearch.common.settings.Settings;
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class SynonymsAnalysisTests extends ESTestCase {
-    protected final ESLogger logger = Loggers.getLogger(getClass());
+    protected final Logger logger = Loggers.getLogger(getClass());
     private AnalysisService analysisService;
 
     public void testSynonymsAnalysis() throws IOException {

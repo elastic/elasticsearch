@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
@@ -44,11 +44,11 @@ import static org.elasticsearch.index.mapper.SourceToParse.source;
  */
 public class TranslogRecoveryPerformer {
     private final MapperService mapperService;
-    private final ESLogger logger;
+    private final Logger logger;
     private final Map<String, Mapping> recoveredTypes = new HashMap<>();
     private final ShardId shardId;
 
-    protected TranslogRecoveryPerformer(ShardId shardId, MapperService mapperService, ESLogger logger) {
+    protected TranslogRecoveryPerformer(ShardId shardId, MapperService mapperService, Logger logger) {
         this.shardId = shardId;
         this.mapperService = mapperService;
         this.logger = logger;

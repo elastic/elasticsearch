@@ -295,7 +295,7 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
       that'll happen when createEtc runs. */
     outputs.file "${packagingFiles}/etc/elasticsearch/elasticsearch.yml"
     outputs.file "${packagingFiles}/etc/elasticsearch/jvm.options"
-    outputs.file "${packagingFiles}/etc/elasticsearch/logging.yml"
+    outputs.file "${packagingFiles}/etc/elasticsearch/log4j2.properties"
   }
 
   task createPidDir(type: EmptyDirTask) {
@@ -375,7 +375,7 @@ configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
 
     configurationFile '/etc/elasticsearch/elasticsearch.yml'
     configurationFile '/etc/elasticsearch/jvm.options'
-    configurationFile '/etc/elasticsearch/logging.yml'
+    configurationFile '/etc/elasticsearch/log4j2.properties'
     into('/etc/elasticsearch') {
       fileMode 0750
       permissionGroup 'elasticsearch'

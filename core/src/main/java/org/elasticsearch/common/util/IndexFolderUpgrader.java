@@ -19,9 +19,9 @@
 
 package org.elasticsearch.common.util;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
@@ -41,7 +41,7 @@ import java.nio.file.StandardCopyOption;
 public class IndexFolderUpgrader {
     private final NodeEnvironment nodeEnv;
     private final Settings settings;
-    private final ESLogger logger = Loggers.getLogger(IndexFolderUpgrader.class);
+    private final Logger logger = Loggers.getLogger(IndexFolderUpgrader.class);
 
     /**
      * Creates a new upgrader instance

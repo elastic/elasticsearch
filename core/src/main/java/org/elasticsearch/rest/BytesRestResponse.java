@@ -19,11 +19,13 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -111,7 +113,7 @@ public class BytesRestResponse extends RestResponse {
         return this.status;
     }
 
-    private static final ESLogger SUPPRESSED_ERROR_LOGGER = ESLoggerFactory.getLogger("rest.suppressed");
+    private static final Logger SUPPRESSED_ERROR_LOGGER = ESLoggerFactory.getLogger("rest.suppressed");
 
     private static XContentBuilder convert(RestChannel channel, RestStatus status, Exception e) throws IOException {
         XContentBuilder builder = channel.newErrorBuilder().startObject();
@@ -123,9 +125,9 @@ public class BytesRestResponse extends RestResponse {
                 params =  new ToXContent.DelegatingMapParams(Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false"), channel.request());
             } else {
                 if (status.getStatus() < 500) {
-                    SUPPRESSED_ERROR_LOGGER.debug("path: {}, params: {}", e, channel.request().rawPath(), channel.request().params());
+                    SUPPRESSED_ERROR_LOGGER.debug((Supplier<?>) () -> new ParameterizedMessage("path: {}, params: {}", channel.request().rawPath(), channel.request().params()), e);
                 } else {
-                    SUPPRESSED_ERROR_LOGGER.warn("path: {}, params: {}", e, channel.request().rawPath(), channel.request().params());
+                    SUPPRESSED_ERROR_LOGGER.warn((Supplier<?>) () -> new ParameterizedMessage("path: {}, params: {}", channel.request().rawPath(), channel.request().params()), e);
                 }
                 params = channel.request();
             }

@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.action.admin.indices.template.delete;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -73,7 +75,7 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeActio
 
             @Override
             public void onFailure(Exception e) {
-                logger.debug("failed to delete templates [{}]", e, request.name());
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to delete templates [{}]", request.name()), e);
                 listener.onFailure(e);
             }
         });

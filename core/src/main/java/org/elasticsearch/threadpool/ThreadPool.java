@@ -19,6 +19,8 @@
 
 package org.elasticsearch.threadpool;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.Nullable;
@@ -413,7 +415,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
             try {
                 runnable.run();
             } catch (Exception e) {
-                logger.warn("failed to run {}", e, runnable.toString());
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to run {}", runnable.toString()), e);
                 throw e;
             }
         }
@@ -779,14 +781,14 @@ public class ThreadPool extends AbstractComponent implements Closeable {
 
         @Override
         public void onFailure(Exception e) {
-            threadPool.logger.warn("failed to run scheduled task [{}] on thread pool [{}]", e, runnable.toString(), executor);
+            threadPool.logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]", runnable.toString(), executor), e);
         }
 
         @Override
         public void onRejection(Exception e) {
             run = false;
             if (threadPool.logger.isDebugEnabled()) {
-                threadPool.logger.debug("scheduled task [{}] was rejected on thread pool [{}]", e, runnable, executor);
+                threadPool.logger.debug((Supplier<?>) () -> new ParameterizedMessage("scheduled task [{}] was rejected on thread pool [{}]", runnable, executor), e);
             }
         }
 

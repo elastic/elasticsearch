@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentLocation;
 
@@ -44,7 +44,7 @@ import static org.junit.Assert.assertThat;
  */
 public class MatchAssertion extends Assertion {
 
-    private static final ESLogger logger = Loggers.getLogger(MatchAssertion.class);
+    private static final Logger logger = Loggers.getLogger(MatchAssertion.class);
 
     public MatchAssertion(XContentLocation location, String field, Object expectedValue) {
         super(location, field, expectedValue);

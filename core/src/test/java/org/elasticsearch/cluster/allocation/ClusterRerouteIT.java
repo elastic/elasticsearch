@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.allocation;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
@@ -39,7 +40,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -69,7 +69,7 @@ import static org.hamcrest.Matchers.hasSize;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class ClusterRerouteIT extends ESIntegTestCase {
-    private final ESLogger logger = Loggers.getLogger(ClusterRerouteIT.class);
+    private final Logger logger = Loggers.getLogger(ClusterRerouteIT.class);
 
     public void testRerouteWithCommands_disableAllocationSettings() throws Exception {
         Settings commonSettings = Settings.builder()

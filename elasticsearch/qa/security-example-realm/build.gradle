@@ -5,8 +5,10 @@ apply plugin: 'elasticsearch.build'
 
 dependencies {
   provided "org.elasticsearch:elasticsearch:${versions.elasticsearch}"
-  testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
   provided project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
+
+  testCompile "org.elasticsearch.test:framework:${project.versions.elasticsearch}"
+  testCompile project(path: ':x-plugins:elasticsearch:x-pack-transport', configuration: 'runtime')
 }
 
 Map generateSubstitutions() {

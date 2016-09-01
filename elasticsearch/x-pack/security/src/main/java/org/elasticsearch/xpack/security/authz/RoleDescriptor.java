@@ -168,7 +168,7 @@ public class RoleDescriptor implements ToXContent {
 
     public static RoleDescriptor parse(String name, XContentParser parser) throws IOException {
         // validate name
-        Validation.Error validationError = Validation.Roles.validateRoleName(name);
+        Validation.Error validationError = Validation.Roles.validateRoleName(name, true);
         if (validationError != null) {
             ValidationException ve = new ValidationException();
             ve.addValidationError(validationError.toString());

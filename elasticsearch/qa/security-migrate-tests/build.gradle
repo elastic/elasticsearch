@@ -2,6 +2,7 @@ apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
   testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
+  testCompile project(path: ':x-plugins:elasticsearch:x-pack-transport', configuration: 'runtime')
 }
 
 integTest {

@@ -33,7 +33,7 @@ import org.elasticsearch.transport.Netty3Plugin;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.XPackTransportClient;
+import org.elasticsearch.xpack.TestXPackTransportClient;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
@@ -190,7 +190,7 @@ public class LicensingTests extends SecurityIntegTestCase {
 
     public void testSecurityActionsByLicenseType() throws Exception {
         // security actions should not work!
-        try (TransportClient client = new XPackTransportClient(internalCluster().transportClient().settings())) {
+        try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             new SecurityClient(client).prepareGetUsers().get();
             fail("security actions should not be enabled!");
@@ -204,7 +204,7 @@ public class LicensingTests extends SecurityIntegTestCase {
                 License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
         enableLicensing(mode);
         // security actions should not work!
-        try (TransportClient client = new XPackTransportClient(internalCluster().transportClient().settings())) {
+        try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             GetUsersResponse response = new SecurityClient(client).prepareGetUsers().get();
             assertNotNull(response);
@@ -219,7 +219,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         builder.remove(ThreadContext.PREFIX + "." + UsernamePasswordToken.BASIC_AUTH_HEADER);
 
         // basic has no auth
-        try (TransportClient client = new XPackTransportClient(builder.build())) {
+        try (TransportClient client = new TestXPackTransportClient(builder.build())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             assertGreenClusterState(client);
         }
@@ -229,7 +229,7 @@ public class LicensingTests extends SecurityIntegTestCase {
             License.OperationMode.PLATINUM, License.OperationMode.STANDARD);
         enableLicensing(mode);
 
-        try (TransportClient client = new XPackTransportClient(builder.build())) {
+        try (TransportClient client = new TestXPackTransportClient(builder.build())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             client.admin().cluster().prepareHealth().get();
             fail("should not have been able to connect to a node!");

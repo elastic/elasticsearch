@@ -519,9 +519,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                 "\n" +
                 "admin:\n" +
                 "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n" +
-                "transport_client:\n" +
-                "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n" +
-                "\n" +
                 "monitor:\n" +
                 "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/nodes/liveness' ]\n"
                 ;

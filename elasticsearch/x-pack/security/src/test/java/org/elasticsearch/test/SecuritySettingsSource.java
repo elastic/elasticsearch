@@ -57,7 +57,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     public static final String DEFAULT_PASSWORD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString(DEFAULT_PASSWORD.toCharArray())));
     public static final String DEFAULT_ROLE = "user";
 
-    public static final String DEFAULT_TRANSPORT_CLIENT_ROLE = "trans_client_user";
+    public static final String DEFAULT_TRANSPORT_CLIENT_ROLE = "transport_client";
     public static final String DEFAULT_TRANSPORT_CLIENT_USER_NAME = "test_trans_client_user";
 
     public static final String CONFIG_STANDARD_USER =
@@ -73,10 +73,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                     "  cluster: [ ALL ]\n" +
                     "  indices:\n" +
                     "    - names: '*'\n" +
-                    "      privileges: [ ALL ]\n" +
-            DEFAULT_TRANSPORT_CLIENT_ROLE + ":\n" +
-                    "  cluster:\n" +
-                    "    - transport_client";
+                    "      privileges: [ ALL ]\n";
 
     private final Path parentFolder;
     private final String subfolderPrefix;

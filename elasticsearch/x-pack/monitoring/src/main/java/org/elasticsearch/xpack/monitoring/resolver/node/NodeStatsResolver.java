@@ -98,7 +98,16 @@ public class NodeStatsResolver extends MonitoringIndexNameResolver.Timestamped<N
             "node_stats.thread_pool.search.rejected",
             "node_stats.thread_pool.watcher.threads",
             "node_stats.thread_pool.watcher.queue",
-            "node_stats.thread_pool.watcher.rejected");
+            "node_stats.thread_pool.watcher.rejected",
+            // Linux Only (at least for now)
+            // Disk Info
+            "node_stats.fs.data.spins",
+            // Node IO Stats
+            "node_stats.fs.io_stats.operations",
+            "node_stats.fs.io_stats.read_operations",
+            "node_stats.fs.io_stats.write_operations",
+            "node_stats.fs.io_stats.read_kilobytes",
+            "node_stats.fs.io_stats.write_kilobytes");
         FILTERS = Collections.unmodifiableSet(filters);
     }
 

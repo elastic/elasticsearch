@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 public class OsStats implements Writeable, ToXContent {
 
@@ -38,9 +39,9 @@ public class OsStats implements Writeable, ToXContent {
 
     public OsStats(long timestamp, Cpu cpu, Mem mem, Swap swap) {
         this.timestamp = timestamp;
-        this.cpu = cpu;
-        this.mem = mem;
-        this.swap = swap;
+        this.cpu = Objects.requireNonNull(cpu, "cpu must not be null");
+        this.mem = Objects.requireNonNull(mem, "mem must not be null");;
+        this.swap = Objects.requireNonNull(swap, "swap must not be null");;
     }
 
     public OsStats(StreamInput in) throws IOException {

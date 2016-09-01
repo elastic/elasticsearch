@@ -138,9 +138,9 @@ public class NodeInfoStreamingTests extends ESTestCase {
         profileAddresses.put("test_address", dummyBoundTransportAddress);
         TransportInfo transport = new TransportInfo(dummyBoundTransportAddress, profileAddresses);
         HttpInfo htttpInfo = new HttpInfo(dummyBoundTransportAddress, randomLong());
-        PluginsAndModules plugins = new PluginsAndModules();
-        plugins.addModule(DummyPluginInfo.INSTANCE);
-        plugins.addPlugin(DummyPluginInfo.INSTANCE);
+
+        PluginsAndModules plugins = new PluginsAndModules(Collections.singletonList(DummyPluginInfo.INSTANCE),
+                Collections.singletonList(DummyPluginInfo.INSTANCE));
         IngestInfo ingestInfo = new IngestInfo(Collections.emptyList());
         ByteSizeValue indexingBuffer;
         if (random().nextBoolean()) {

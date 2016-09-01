@@ -220,8 +220,7 @@ public class NodeInfo extends BaseNodeResponse {
             http = new HttpInfo(in);
         }
         if (in.readBoolean()) {
-            plugins = new PluginsAndModules();
-            plugins.readFrom(in);
+            plugins = new PluginsAndModules(in);
         }
         if (in.readBoolean()) {
             ingest = new IngestInfo(in);

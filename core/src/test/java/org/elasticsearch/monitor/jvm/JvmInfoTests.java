@@ -21,11 +21,7 @@ package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.bootstrap.JavaVersion;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-
-import java.io.IOException;
 
 public class JvmInfoTests extends ESTestCase {
 
@@ -60,40 +56,5 @@ public class JvmInfoTests extends ESTestCase {
         if (!containsPositiveFlag) return false;
         final int index = argline.lastIndexOf(flag);
         return argline.charAt(index - 1) == '+';
-    }
-
-    public void testSerialization() throws IOException {
-        JvmInfo jvmInfo = JvmInfo.jvmInfo();
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            jvmInfo.writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {
-                JvmInfo deserializedJvmInfo = new JvmInfo(in);
-                assertEquals(jvmInfo.getVersion(), deserializedJvmInfo.getVersion());
-                assertEquals(jvmInfo.getVmName(), deserializedJvmInfo.getVmName());
-                assertEquals(jvmInfo.getVmVendor(), deserializedJvmInfo.getVmVendor());
-                assertEquals(jvmInfo.getVmVersion(), deserializedJvmInfo.getVmVersion());
-                assertEquals(jvmInfo.getBootClassPath(), deserializedJvmInfo.getBootClassPath());
-                assertEquals(jvmInfo.getClassPath(), deserializedJvmInfo.getClassPath());
-                assertEquals(jvmInfo.getPid(), deserializedJvmInfo.getPid());
-                assertEquals(jvmInfo.getStartTime(), deserializedJvmInfo.getStartTime());
-                assertEquals(jvmInfo.versionUpdatePack(), deserializedJvmInfo.versionUpdatePack());
-                assertEquals(jvmInfo.versionAsInteger(), deserializedJvmInfo.versionAsInteger());
-                assertEquals(jvmInfo.getMem().getDirectMemoryMax(), deserializedJvmInfo.getMem().getDirectMemoryMax());
-                assertEquals(jvmInfo.getMem().getHeapInit(), deserializedJvmInfo.getMem().getHeapInit());
-                assertEquals(jvmInfo.getMem().getHeapMax(), deserializedJvmInfo.getMem().getHeapMax());
-                assertEquals(jvmInfo.getMem().getNonHeapInit(), deserializedJvmInfo.getMem().getNonHeapInit());
-                assertEquals(jvmInfo.getMem().getNonHeapMax(), deserializedJvmInfo.getMem().getNonHeapMax());
-                assertEquals(jvmInfo.getSystemProperties(), deserializedJvmInfo.getSystemProperties());
-                assertArrayEquals(jvmInfo.getInputArguments(), deserializedJvmInfo.getInputArguments());
-                assertArrayEquals(jvmInfo.getGcCollectors(), deserializedJvmInfo.getGcCollectors());
-                assertArrayEquals(jvmInfo.getMemoryPools(), deserializedJvmInfo.getMemoryPools());
-                assertEquals(jvmInfo.useCompressedOops(), deserializedJvmInfo.useCompressedOops());
-                assertEquals(-1, deserializedJvmInfo.getConfiguredInitialHeapSize());
-                assertEquals(-1, deserializedJvmInfo.getConfiguredMaxHeapSize());
-                assertEquals("unknown", deserializedJvmInfo.useG1GC());
-                assertNull(deserializedJvmInfo.onError());
-                assertNull(deserializedJvmInfo.onOutOfMemoryError());
-            }
-        }
     }
 }

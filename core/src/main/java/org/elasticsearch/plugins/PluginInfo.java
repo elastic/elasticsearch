@@ -57,7 +57,7 @@ public class PluginInfo implements Writeable, ToXContent {
      * @param description Its description
      * @param version     Version number
      */
-    PluginInfo(String name, String description, String version, String classname) {
+    public PluginInfo(String name, String description, String version, String classname) {
         this.name = name;
         this.description = description;
         this.version = version;

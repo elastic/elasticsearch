@@ -1,0 +1,126 @@
+[[dots-in-names]]
+== Dots in field names
+
+In Elasticsearch 5.0, dots are permitted in field names and each step in the
+path is interpreted as an object field, except for the last step.  For instance,
+indexing the following document in Elasticsearch 5.0:
+
+[source,js]
+-----
+{
+  "server.latency.max": 100
+}
+-----
+
+
+would result in the following mapping:
+
+[source,js]
+-----
+{
+  "properties": {
+    "server": {
+      "type": "object",
+      "properties": {
+        "latency": {
+          "type": "object",
+          "properties": {
+            "max": {
+              "type": "long"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+-----
+
+
+Elasticsearch 2.x does not support this _dots-to-object_ transformation and so
+dots in field names are not allowed in versions 2.0 - 2.3.
+
+[float]
+=== Enabling support for dots in field names
+
+Elasticsearch 2.4.0 adds a system property called `mapper.allow_dots_in_name`
+which will disable the check for dots in field names.  You can enable this
+system property as follows:
+
+[source,sh]
+-----
+export ES_JAVA_OPTS="-Dmapper.allow_dots_in_name=true"
+./bin/elasticsearch
+-----
+
+(ES_JAVA_OPTS can be set in the `/etc/default/elasticsearch` file if you're
+using the Debian package, or in the `/etc/sysconfig/elasticsearch` file if
+you're using the RPM.)
+
+With this sytem property enabled, indexing the document above in 2.4.0 will
+result in the following mapping:
+
+[source,js]
+-----
+{
+  "properties": {
+    "server.latency.max": {
+      "type": "long"
+    }
+  }
+}
+-----
+
+[float]
+=== Upgrading fields with dots to 5.x
+
+Indices created in 1.x must be reindexed in 2.4 before being upgraded to 5.x,
+regardless of whether they have fields with dots or not.
+
+Indices created in 2.4 can be upgraded to 5.x directly, as long as there are
+no conflicts (see below). If there are dots in field names, the mapping will
+be automatically updated to the object-style mapping shown in
+<<dots-in-names>>.
+
+[WARNING]
+.Dots can create conflicting fields
+=============================
+
+Indices containing fields that would produce conflicts when upgrading to the
+object-style mapping cannot be upgraded to 5.x.  For instance, the following
+mapping can be upgraded:
+
+[source,js]
+-----
+{
+  "properties": {
+    "server.latency": {<1>
+      "type": "long"
+    },
+    "server.name": {<1>
+      "type": "string"
+    }
+  }
+}
+-----
+<1> The `server` field will become an `object` field in both cases.
+
+This mapping **cannot** be upgraded:
+
+[source,js]
+-----
+{
+  "properties": {
+    "server.latency": {<1>
+      "type": "long"
+    },
+    "server": {<1>
+      "type": "string"
+    }
+  }
+}
+-----
+<1> The `server` field is an `object` in `server.latency`, but a `string` in `server`. This is a conflict and will prevent the index from being opened in 5.x.
+
+=============================
+

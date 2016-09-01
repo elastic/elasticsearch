@@ -40,6 +40,9 @@ type.  A `user` type might contain `title`, `name`, and `age` fields, while a
 Fields with the same name in different mapping types in the same index
 <<field-conflicts,must have the same mapping>>.
 
+IMPORTANT: In Elasticsearch versions 2.0 - 2.3, dots are not permitted in field names.
+Elasticsearch 2.4 adds a setting to allow dots, but this setting should be
+used with caution.  See <<dots-in-names>> for more information.
 
 [float]
 == Field datatypes
@@ -165,6 +168,8 @@ PUT my_index <1>
 
 
 --
+
+include::mapping/dots-in-names.asciidoc[]
 
 include::mapping/types.asciidoc[]
 

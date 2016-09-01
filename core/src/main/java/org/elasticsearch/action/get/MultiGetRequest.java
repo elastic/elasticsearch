@@ -28,6 +28,7 @@ import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -388,6 +389,9 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                         routing = parser.text();
                     } else if ("_parent".equals(currentFieldName) || "parent".equals(currentFieldName)) {
                         parent = parser.text();
+                    } else if ("fields".equals(currentFieldName)) {
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "Deprecated field [fields] used, expected [stored_fields] instead");
                     } else if ("stored_fields".equals(currentFieldName)) {
                         storedFields = new ArrayList<>();
                         storedFields.add(parser.text());
@@ -405,7 +409,10 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
                         }
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
-                    if ("stored_fields".equals(currentFieldName)) {
+                    if ("fields".equals(currentFieldName)) {
+                        throw new ParsingException(parser.getTokenLocation(),
+                            "Deprecated field [fields] used, expected [stored_fields] instead");
+                    } else if ("stored_fields".equals(currentFieldName)) {
                         storedFields = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             storedFields.add(parser.text());

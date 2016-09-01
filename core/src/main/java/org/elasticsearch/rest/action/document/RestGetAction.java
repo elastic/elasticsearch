@@ -58,7 +58,10 @@ public class RestGetAction extends BaseRestHandler {
         getRequest.parent(request.param("parent"));
         getRequest.preference(request.param("preference"));
         getRequest.realtime(request.paramAsBoolean("realtime", getRequest.realtime()));
-
+        if (request.param("fields") != null) {
+            throw new IllegalArgumentException("The parameter [fields] is no longer supported, " +
+                "please use [stored_fields] to retrieve stored fields or _source filtering if the field is not stored");
+        }
         String sField = request.param("stored_fields");
         if (sField != null) {
             String[] sFields = Strings.splitStringByCommaToArray(sField);

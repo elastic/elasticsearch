@@ -1004,7 +1004,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(multiGetResponse.getResponses().length, equalTo(1));
         return multiGetResponse.getResponses()[0].getResponse();
     }
-    
+
     private GetResponse getDocument(String index, String type, String docId, String field, @Nullable String routing) {
         GetRequestBuilder getRequestBuilder = client().prepareGet().setIndex(index).setType(type).setId(docId).setStoredFields(field);
         if (routing != null) {

@@ -78,6 +78,10 @@ public class RestExplainAction extends BaseRestHandler {
             explainRequest.query(query);
         }
 
+        if (request.param("fields") != null) {
+            throw new IllegalArgumentException("The parameter [fields] is no longer supported, " +
+                "please use [stored_fields] to retrieve stored fields");
+        }
         String sField = request.param("stored_fields");
         if (sField != null) {
             String[] sFields = Strings.splitStringByCommaToArray(sField);

@@ -566,20 +566,24 @@
                 },
                 "io_stats": {
                   "properties": {
-                    "operations": {
-                      "type": "long"
-                    },
-                    "read_operations": {
-                      "type": "long"
-                    },
-                    "write_operations": {
-                      "type": "long"
-                    },
-                    "read_kilobytes": {
-                      "type": "long"
-                    },
-                    "write_kilobytes": {
-                      "type": "long"
+                    "total": {
+                      "properties": {
+                        "operations": {
+                          "type": "long"
+                        },
+                        "read_operations": {
+                          "type": "long"
+                        },
+                        "write_operations": {
+                          "type": "long"
+                        },
+                        "read_kilobytes": {
+                          "type": "long"
+                        },
+                        "write_kilobytes": {
+                          "type": "long"
+                        }
+                      }
                     }
                   }
                 }

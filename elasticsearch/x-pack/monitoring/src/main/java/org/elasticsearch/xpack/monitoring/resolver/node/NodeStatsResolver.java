@@ -103,11 +103,11 @@ public class NodeStatsResolver extends MonitoringIndexNameResolver.Timestamped<N
             // Disk Info
             "node_stats.fs.data.spins",
             // Node IO Stats
-            "node_stats.fs.io_stats.operations",
-            "node_stats.fs.io_stats.read_operations",
-            "node_stats.fs.io_stats.write_operations",
-            "node_stats.fs.io_stats.read_kilobytes",
-            "node_stats.fs.io_stats.write_kilobytes");
+            "node_stats.fs.io_stats.total.operations",
+            "node_stats.fs.io_stats.total.read_operations",
+            "node_stats.fs.io_stats.total.write_operations",
+            "node_stats.fs.io_stats.total.read_kilobytes",
+            "node_stats.fs.io_stats.total.write_kilobytes");
         FILTERS = Collections.unmodifiableSet(filters);
     }
 

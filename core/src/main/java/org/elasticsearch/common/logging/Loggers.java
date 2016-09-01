@@ -43,11 +43,6 @@ import static org.elasticsearch.common.util.CollectionUtils.asArrayList;
  */
 public class Loggers {
 
-    static {
-        // ensure that the status logger is configured before we touch any loggers
-        LogConfigurator.init();
-    }
-
     private static final String commonPrefix = System.getProperty("es.logger.prefix", "org.elasticsearch.");
 
     public static final String SPACE = " ";

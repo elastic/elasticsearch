@@ -181,4 +181,5 @@ The request returns the following result:
   }
 }
 --------------------------------------------------
+// TESTRESPONSE
 <1> Output only "keyword" attribute, since specify "attributes" in the request.

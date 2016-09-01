@@ -65,8 +65,6 @@ public class BootstrapForTesting {
     // without making things complex???
 
     static {
-        LogConfigurator.init();
-
         // make sure java.io.tmpdir exists always (in case code uses it in a static initializer)
         Path javaTmpDir = PathUtils.get(Objects.requireNonNull(System.getProperty("java.io.tmpdir"),
                                                                "please set ${java.io.tmpdir} in pom.xml"));

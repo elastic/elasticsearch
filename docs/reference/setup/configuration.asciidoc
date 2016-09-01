@@ -174,5 +174,9 @@ This will create a daily rolling deprecation log file in your log directory.
 Check this file regularly, especially when you intend to upgrade to a new
 major version.
 
+The default logging configuration has set the roll policy for the deprecation
+logs to roll and compress after 1 GB, and to preserve a maximum of five log
+files (four rolled logs, and the active log).
+
 You can disable it in the `config/log4j2.properties` file by setting the deprecation
 log level to `info`.

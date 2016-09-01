@@ -211,7 +211,7 @@ public class NodeInfo extends BaseNodeResponse {
             jvm = new JvmInfo(in);
         }
         if (in.readBoolean()) {
-            threadPool = ThreadPoolInfo.readThreadPoolInfo(in);
+            threadPool = new ThreadPoolInfo(in);
         }
         if (in.readBoolean()) {
             transport = TransportInfo.readTransportInfo(in);

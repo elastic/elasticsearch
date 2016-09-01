@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class OsProbeTests extends ESTestCase {
-    private OsProbe probe = OsProbe.getInstance();
+    private final OsProbe probe = OsProbe.getInstance();
 
     public void testOsInfo() {
         int allocatedProcessors = randomIntBetween(1, Runtime.getRuntime().availableProcessors());
@@ -40,11 +40,7 @@ public class OsProbeTests extends ESTestCase {
         if (randomBoolean()) {
             refreshInterval = -1;
         } else {
-            refreshInterval = randomLong();
-            while (refreshInterval == Long.MIN_VALUE) {
-                refreshInterval = randomLong();
-            }
-            refreshInterval = Math.abs(refreshInterval);
+            refreshInterval = randomPositiveLong();
         }
         OsInfo info = probe.osInfo(refreshInterval, allocatedProcessors);
         assertNotNull(info);

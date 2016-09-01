@@ -128,7 +128,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         serviceAttributes.put("test", "attribute");
         Settings settings = Settings.builder().put("test", "setting").build();
         OsInfo osInfo = DummyOsInfo.INSTANCE;
-        ProcessInfo process = new ProcessInfo(randomInt(), randomBoolean());
+        ProcessInfo process = new ProcessInfo(randomInt(), randomBoolean(), randomPositiveLong());
         JvmInfo jvm = JvmInfo.jvmInfo();
         List<ThreadPool.Info> threadPoolInfos = new ArrayList<>();
         threadPoolInfos.add(new ThreadPool.Info("test_threadpool", ThreadPool.ThreadPoolType.FIXED, 5));

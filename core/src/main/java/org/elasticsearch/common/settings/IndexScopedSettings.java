@@ -141,6 +141,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         FsDirectoryService.INDEX_LOCK_FACTOR_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
         EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
+        EngineConfig.INDEX_ENABLE_REALTIME_GET,
         IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS,
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {

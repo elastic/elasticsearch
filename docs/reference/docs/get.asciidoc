@@ -56,6 +56,10 @@ When getting a document, one can specify `fields` to fetch from it. They
 will, when possible, be fetched as stored fields (fields mapped as
 <<mapping-store,stored>> in the mapping).
 
+The realtime get can be disabled for an entire index by setting `index.enable_realtime_get` to
+`false`. This setting can not be changed at runtime. If realtime get is disabled
+all calls to the get API with the `realtime` flag set to `true` with fail.
+
 [float]
 [[type]]
 === Optional Type

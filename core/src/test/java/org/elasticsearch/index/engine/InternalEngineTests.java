@@ -65,6 +65,7 @@ import org.elasticsearch.common.logging.TestLoggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
@@ -171,13 +172,7 @@ public class InternalEngineTests extends ESTestCase {
         } else {
             codecName = "default";
         }
-        defaultSettings = IndexSettingsModule.newIndexSettings("test", Settings.builder()
-                .put(IndexSettings.INDEX_GC_DELETES_SETTING, "1h") // make sure this doesn't kick in on us
-                .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codecName)
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
-                        between(10, 10 * IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.get(Settings.EMPTY)))
-                .build()); // TODO randomize more settings
+        defaultSettings = buildDefaultSettings(codecName, Settings.EMPTY);
         threadPool = new TestThreadPool(getClass().getName());
         store = createStore();
         storeReplica = createStore();
@@ -209,6 +204,18 @@ public class InternalEngineTests extends ESTestCase {
             new CodecService(null, logger), config.getEventListener(), config.getTranslogRecoveryPerformer(), config.getQueryCache(),
             config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(), config.getRefreshListeners());
     }
+
+    private static final IndexSettings buildDefaultSettings(String codecName, Settings others) {
+        return IndexSettingsModule.newIndexSettings("test", Settings.builder()
+            .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), "1h") // make sure this doesn't kick in on us
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codecName)
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.getKey(),
+                between(10, 10 * IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.get(Settings.EMPTY)))
+            .put(others)
+            .build()); // TODO randomize more settings
+    }
+
 
     @Override
     @After
@@ -710,6 +717,30 @@ public class InternalEngineTests extends ESTestCase {
         getThread.join();
         assertTrue(latestGetResult.get().exists());
         latestGetResult.get().release();
+    }
+
+    public void testDisableRealtimeGet() throws IOException {
+        Settings settings = Settings.builder().put(EngineConfig.INDEX_ENABLE_REALTIME_GET.getKey(), false).build();
+        IndexSettings indexSettings = buildDefaultSettings(codecName, settings);
+        try (Store store = createStore();
+             InternalEngine noRtGetEngine = createEngine(indexSettings, store, createTempDir(), newMergePolicy())) {
+            Document document = testDocumentWithTextField();
+            document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, null);
+            engine.index(new Engine.Index(newUid("1"), doc));
+            noRtGetEngine.index(new Engine.Index(newUid("1"), doc));
+            Engine.GetResult getResult = engine.get(new Engine.Get(true, newUid("1")));
+            assertThat(getResult.exists(), equalTo(true));
+            assertThat(getResult.docIdAndVersion(), notNullValue());
+            getResult.release();
+
+            getResult = engine.get(new Engine.Get(true, newUid("1")));
+            assertThat(getResult.exists(), equalTo(true));
+            assertThat(getResult.docIdAndVersion(), notNullValue());
+            getResult.release();
+            expectThrows(IllegalArgumentException.class, () -> noRtGetEngine.get(new Engine.Get(true, newUid("1"))));
+            assertFalse(noRtGetEngine.get(new Engine.Get(false, newUid("1"))).exists());
+        }
     }
 
     public void testSimpleOperations() throws Exception {
@@ -2202,56 +2233,78 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public void testDoubleDelivery() throws IOException {
-        final ParsedDocument doc = testParsedDocument("1", "1", "test", null, 100, -1, testDocumentWithTextField(), new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
-        Engine.Index operation = randomAppendOnly(1, doc, false);
-        Engine.Index retry = randomAppendOnly(1, doc, true);
-        if (randomBoolean()) {
-            engine.index(operation);
-            assertFalse(engine.indexWriterHasDeletions());
-            assertEquals(0, engine.getNumVersionLookups());
-            assertNotNull(operation.getTranslogLocation());
-            engine.index(retry);
-            assertTrue(engine.indexWriterHasDeletions());
-            assertEquals(0, engine.getNumVersionLookups());
-            assertNotNull(retry.getTranslogLocation());
-            assertTrue(retry.getTranslogLocation().compareTo(operation.getTranslogLocation()) > 0);
-        } else {
-            engine.index(retry);
-            assertTrue(engine.indexWriterHasDeletions());
-            assertEquals(0, engine.getNumVersionLookups());
-            assertNotNull(retry.getTranslogLocation());
-            engine.index(operation);
-            assertTrue(engine.indexWriterHasDeletions());
-            assertEquals(0, engine.getNumVersionLookups());
-            assertNotNull(retry.getTranslogLocation());
-            assertTrue(retry.getTranslogLocation().compareTo(operation.getTranslogLocation()) < 0);
-        }
+        Settings settings = Settings.builder().put(EngineConfig.INDEX_ENABLE_REALTIME_GET.getKey(), randomBoolean()).build();
+        IndexSettings indexSettings = buildDefaultSettings(codecName, settings);
+        try (Store store = createStore();
+             InternalEngine engine = createEngine(indexSettings, store, createTempDir(), newMergePolicy())) {
+            final ParsedDocument doc = testParsedDocument("1", "1", "test", null, 100, -1, testDocumentWithTextField(), new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
+            Engine.Index operation = randomAppendOnly(1, doc, false);
+            Engine.Index retry = randomAppendOnly(1, doc, true);
+            if (randomBoolean()) {
+                engine.index(operation);
+                assertFalse(engine.indexWriterHasDeletions());
+                assertEquals(0, engine.getNumVersionLookups());
+                assertNotNull(operation.getTranslogLocation());
+                engine.index(retry);
+                assertTrue(engine.indexWriterHasDeletions());
+                assertEquals(0, engine.getNumVersionLookups());
+                assertNotNull(retry.getTranslogLocation());
+                assertTrue(retry.getTranslogLocation().compareTo(operation.getTranslogLocation()) > 0);
+            } else {
+                engine.index(retry);
+                assertTrue(engine.indexWriterHasDeletions());
+                assertEquals(0, engine.getNumVersionLookups());
+                assertNotNull(retry.getTranslogLocation());
+                engine.index(operation);
+                assertTrue(engine.indexWriterHasDeletions());
+                assertEquals(0, engine.getNumVersionLookups());
+                assertNotNull(retry.getTranslogLocation());
+                assertTrue(retry.getTranslogLocation().compareTo(operation.getTranslogLocation()) < 0);
+            }
+            if (engine.engineConfig.isRealtimeGet()) {
+                SegmentsStats segmentsStats = engine.segmentsStats(false);
+                ByteSizeValue versionMapMemory = segmentsStats.getVersionMapMemory();
+                assertTrue(versionMapMemory.bytes() > 0);
+            } else {
+                SegmentsStats segmentsStats = engine.segmentsStats(false);
+                ByteSizeValue versionMapMemory = segmentsStats.getVersionMapMemory();
+                assertEquals(versionMapMemory.bytes(), 0);
+            }
 
-        engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
-            assertEquals(1, topDocs.totalHits);
-        }
-        operation = randomAppendOnly(1, doc, false);
-        retry = randomAppendOnly(1, doc, true);
-        if (randomBoolean()) {
-            engine.index(operation);
-            assertNotNull(operation.getTranslogLocation());
-            engine.index(retry);
-            assertNotNull(retry.getTranslogLocation());
-            assertTrue(retry.getTranslogLocation().compareTo(operation.getTranslogLocation()) > 0);
-        } else {
-            engine.index(retry);
-            assertNotNull(retry.getTranslogLocation());
-            engine.index(operation);
-            assertNotNull(retry.getTranslogLocation());
-            assertTrue(retry.getTranslogLocation().compareTo(operation.getTranslogLocation()) < 0);
-        }
-
-        engine.refresh("test");
-        try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-            TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
-            assertEquals(1, topDocs.totalHits);
+            engine.refresh("test");
+            try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+                TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
+                assertEquals(1, topDocs.totalHits);
+            }
+            operation = randomAppendOnly(1, doc, false);
+            retry = randomAppendOnly(1, doc, true);
+            if (randomBoolean()) {
+                engine.index(operation);
+                assertNotNull(operation.getTranslogLocation());
+                engine.index(retry);
+                assertNotNull(retry.getTranslogLocation());
+                assertTrue(retry.getTranslogLocation().compareTo(operation.getTranslogLocation()) > 0);
+            } else {
+                engine.index(retry);
+                assertNotNull(retry.getTranslogLocation());
+                engine.index(operation);
+                assertNotNull(retry.getTranslogLocation());
+                assertTrue(retry.getTranslogLocation().compareTo(operation.getTranslogLocation()) < 0);
+            }
+            if (engine.engineConfig.isRealtimeGet()) {
+                SegmentsStats segmentsStats = engine.segmentsStats(false);
+                ByteSizeValue versionMapMemory = segmentsStats.getVersionMapMemory();
+                assertTrue(versionMapMemory.bytes() > 0);
+            } else {
+                SegmentsStats segmentsStats = engine.segmentsStats(false);
+                ByteSizeValue versionMapMemory = segmentsStats.getVersionMapMemory();
+                assertEquals(versionMapMemory.bytes(), 0);
+            }
+            engine.refresh("test");
+            try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
+                TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
+                assertEquals(1, topDocs.totalHits);
+            }
         }
     }
 
@@ -2294,7 +2347,6 @@ public class InternalEngineTests extends ESTestCase {
         final ParsedDocument doc = testParsedDocument("1", "1", "test", null, 100, -1, testDocumentWithTextField(), new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
         boolean isRetry = true;
         long autoGeneratedIdTimestamp = 0;
-
 
         Engine.Index firstIndexRequest = new Engine.Index(newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), autoGeneratedIdTimestamp, isRetry);
         engine.index(firstIndexRequest);

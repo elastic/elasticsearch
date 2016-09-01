@@ -119,6 +119,7 @@ public class InternalEngine extends Engine {
     // incoming indexing ops to a single thread:
     private final AtomicInteger throttleRequestCount = new AtomicInteger();
     private final EngineConfig.OpenMode openMode;
+    private final boolean isRealtimeGetEnabled;
     private final AtomicBoolean allowCommits = new AtomicBoolean(true);
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final CounterMetric numVersionLookups = new CounterMetric();
@@ -132,6 +133,7 @@ public class InternalEngine extends Engine {
             // no optimization for pre 5.0.0.alpha6 since translog might not have all information needed
             maxUnsafeAutoIdTimestamp.set(Long.MAX_VALUE);
         }
+        isRealtimeGetEnabled = engineConfig.isRealtimeGet();
         this.versionMap = new LiveVersionMap();
         store.incRef();
         IndexWriter writer = null;
@@ -331,6 +333,9 @@ public class InternalEngine extends Engine {
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (get.realtime()) {
+                if (isRealtimeGetEnabled == false) {
+                    throw new IllegalArgumentException("get with realtime=true is disabled on this index");
+                }
                 VersionValue versionValue = versionMap.getUnderLock(get.uid());
                 if (versionValue != null) {
                     if (versionValue.delete()) {
@@ -389,12 +394,15 @@ public class InternalEngine extends Engine {
             final T op,
             final long updatedVersion,
             final Function<T, Translog.Operation> toTranslogOp,
-            final VersionValueSupplier toVersionValue) throws IOException {
+            final VersionValueSupplier toVersionValue, final boolean updateVersionMap) throws IOException {
         if (op.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
             final Translog.Location translogLocation = translog.add(toTranslogOp.apply(op));
             op.setTranslogLocation(translogLocation);
         }
-        versionMap.putUnderLock(op.uid().bytes(), toVersionValue.apply(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis()));
+        if (updateVersionMap) {
+            versionMap.putUnderLock(op.uid().bytes(), toVersionValue.apply(updatedVersion,
+                engineConfig.getThreadPool().estimatedTimeInMillis()));
+        }
 
     }
 
@@ -476,6 +484,7 @@ public class InternalEngine extends Engine {
             // if anything is fishy here ie. there is a retry we go and force updateDocument below so we are updating the document in the
             // lucene index without checking the version map but we still do the version check
             final boolean forceUpdateDocument;
+            final boolean updateVersionMap;
             if (canOptimizeAddDocument(index)) {
                 long deOptimizeTimestamp = maxUnsafeAutoIdTimestamp.get();
                 if (index.isRetry()) {
@@ -494,6 +503,7 @@ public class InternalEngine extends Engine {
                 }
                 currentVersion = Versions.NOT_FOUND;
                 deleted = true;
+                updateVersionMap = isRealtimeGetEnabled;
             } else {
                 // update the document
                 forceUpdateDocument = false; // we don't force it - it depends on the version
@@ -506,6 +516,7 @@ public class InternalEngine extends Engine {
                     currentVersion = checkDeletedAndGCed(versionValue);
                     deleted = versionValue.delete();
                 }
+                updateVersionMap = true;
             }
             final long expectedVersion = index.version();
             if (checkVersionConflict(index, currentVersion, expectedVersion, deleted)) {
@@ -520,7 +531,7 @@ public class InternalEngine extends Engine {
             } else {
                 update(index, indexWriter);
             }
-            maybeAddToTranslog(index, updatedVersion, Translog.Index::new, NEW_VERSION_VALUE);
+            maybeAddToTranslog(index, updatedVersion, Translog.Index::new, NEW_VERSION_VALUE, updateVersionMap);
         }
     }
 
@@ -596,7 +607,7 @@ public class InternalEngine extends Engine {
 
             delete.updateVersion(updatedVersion, found);
 
-            maybeAddToTranslog(delete, updatedVersion, Translog.Delete::new, DeleteVersionValue::new);
+            maybeAddToTranslog(delete, updatedVersion, Translog.Delete::new, DeleteVersionValue::new, true);
         }
     }
 

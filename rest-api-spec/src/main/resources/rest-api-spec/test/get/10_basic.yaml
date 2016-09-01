@@ -29,3 +29,46 @@
   - match: { _type:    test   }
   - match: { _id:      中文      }
   - match: { _source:  { foo: "Hello: 中文" } }
+
+---
+"Realtime Disabled":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index.enable_realtime_get: false
+  - do:
+      index:
+        index: test_index
+        type:  test
+        id:    中文
+        body:  { "foo": "Hello: 中文" }
+
+  - do:
+      catch: /illegal_argument_exception/
+      get:
+        index: test_index
+        type:  test
+        id:    中文
+
+  - do:
+      catch:        missing
+      get:
+          index:    test_index
+          type:     test
+          id:       1
+          realtime: false
+
+  - do:
+      get:
+        index: test_index
+        type:  test
+        id:    中文
+        realtime: false
+        refresh:  1
+
+  - is_true: found
+
+

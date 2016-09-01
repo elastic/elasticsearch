@@ -580,7 +580,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName, "type").setCreate(true).setSource("{}"));
+            requests.add(client().prepareIndex(indexName, "type").setSource("{}"));
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);

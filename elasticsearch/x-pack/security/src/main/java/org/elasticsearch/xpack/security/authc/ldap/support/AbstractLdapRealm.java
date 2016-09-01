@@ -5,17 +5,19 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap.support;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import com.unboundid.ldap.sdk.LDAPException;
-import org.elasticsearch.xpack.security.user.User;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.RefreshListener;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.security.user.User;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Supporting class for LDAP realms
@@ -75,7 +77,7 @@ public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm {
 
     private void logException(String action, Exception e, String principal) {
         if (logger.isDebugEnabled()) {
-            logger.debug("{} failed for user [{}]", e, action, principal);
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} failed for user [{}]", action, principal), e);
         } else {
             String causeMessage = (e.getCause() == null) ? null : e.getCause().getMessage();
             if (causeMessage == null) {

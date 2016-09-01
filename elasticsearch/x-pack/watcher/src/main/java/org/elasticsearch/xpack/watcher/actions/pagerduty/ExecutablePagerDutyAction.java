@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.xpack.watcher.actions.pagerduty;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.watcher.actions.Action;
-import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
+import org.elasticsearch.xpack.notification.pagerduty.IncidentEvent;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyService;
 import org.elasticsearch.xpack.notification.pagerduty.SentEvent;
-import org.elasticsearch.xpack.notification.pagerduty.IncidentEvent;
+import org.elasticsearch.xpack.watcher.actions.Action;
+import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
 import org.elasticsearch.xpack.watcher.watch.Payload;
@@ -27,7 +27,7 @@ public class ExecutablePagerDutyAction extends ExecutableAction<PagerDutyAction>
     private final TextTemplateEngine templateEngine;
     private final PagerDutyService pagerDutyService;
 
-    public ExecutablePagerDutyAction(PagerDutyAction action, ESLogger logger, PagerDutyService pagerDutyService,
+    public ExecutablePagerDutyAction(PagerDutyAction action, Logger logger, PagerDutyService pagerDutyService,
                                      TextTemplateEngine templateEngine) {
         super(action, logger);
         this.pagerDutyService = pagerDutyService;

@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.xpack.watcher.input.search;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -27,6 +29,7 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.watcher.input.search.SearchInput.TYPE;
 
 /**
  * An input that executes search and returns the search response as the initial payload
@@ -39,7 +42,7 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
     private final WatcherSearchTemplateService searchTemplateService;
     @Nullable private final TimeValue timeout;
 
-    public ExecutableSearchInput(SearchInput input, ESLogger logger, WatcherClientProxy client,
+    public ExecutableSearchInput(SearchInput input, Logger logger, WatcherClientProxy client,
                                  WatcherSearchTemplateService searchTemplateService, @Nullable TimeValue defaultTimeout) {
         super(input, logger);
         this.client = client;
@@ -57,7 +60,7 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
             request = new WatcherSearchTemplateRequest(input.getRequest(), renderedTemplate);
             return doExecute(ctx, request);
         } catch (Exception e) {
-            logger.error("failed to execute [{}] input for [{}]", e, SearchInput.TYPE, ctx.watch());
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute [{}] input for [{}]", TYPE, ctx.watch()), e);
             return new SearchInput.Result(request, e);
         }
     }

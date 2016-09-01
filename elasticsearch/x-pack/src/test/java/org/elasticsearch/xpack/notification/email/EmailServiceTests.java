@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.xpack.notification.email;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.secret.Secret;
-import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
@@ -32,7 +31,7 @@ public class EmailServiceTests extends ESTestCase {
         service = new EmailService(Settings.EMPTY, null,
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(EmailService.EMAIL_ACCOUNT_SETTING))) {
             @Override
-            protected Accounts createAccounts(Settings settings, ESLogger logger) {
+            protected Accounts createAccounts(Settings settings, Logger logger) {
                 return accounts;
             }
         };

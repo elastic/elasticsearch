@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.monitoring.agent.exporter;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -34,7 +34,7 @@ public abstract class Exporter implements AutoCloseable {
     public static final String USE_INGEST_PIPELINE_SETTING = "use_ingest";
 
     protected final Config config;
-    protected final ESLogger logger;
+    protected final Logger logger;
 
     @Nullable protected final TimeValue bulkTimeout;
 
@@ -146,7 +146,7 @@ public abstract class Exporter implements AutoCloseable {
             return settings;
         }
 
-        public ESLogger logger(Class clazz) {
+        public Logger logger(Class clazz) {
             return Loggers.getLogger(clazz, globalSettings, name);
         }
     }

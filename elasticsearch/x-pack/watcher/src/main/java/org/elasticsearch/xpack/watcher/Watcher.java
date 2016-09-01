@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -12,7 +13,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
@@ -96,7 +96,7 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
     private static final ScriptContext.Plugin SCRIPT_PLUGIN = new ScriptContext.Plugin("xpack", "watch");
     public static final ScriptContext SCRIPT_CONTEXT = SCRIPT_PLUGIN::getKey;
 
-    private static final ESLogger logger = Loggers.getLogger(XPackPlugin.class);
+    private static final Logger logger = Loggers.getLogger(XPackPlugin.class);
 
     static {
         MetaData.registerPrototype(WatcherMetaData.TYPE, WatcherMetaData.PROTO);

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.notification.hipchat;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -71,7 +71,7 @@ public class IntegrationAccountTests extends ESTestCase {
         Settings settings = sb.build();
 
         IntegrationAccount account = new IntegrationAccount(accountName, settings, HipChatServer.DEFAULT, mock(HttpClient.class),
-                mock(ESLogger.class));
+                mock(Logger.class));
 
         assertThat(account.profile, is(HipChatAccount.Profile.INTEGRATION));
         assertThat(account.name, equalTo(accountName));
@@ -88,7 +88,7 @@ public class IntegrationAccountTests extends ESTestCase {
         Settings.Builder sb = Settings.builder();
         sb.put(IntegrationAccount.ROOM_SETTING, randomAsciiOfLength(10));
         try {
-            new IntegrationAccount("_name", sb.build(), HipChatServer.DEFAULT, mock(HttpClient.class), mock(ESLogger.class));
+            new IntegrationAccount("_name", sb.build(), HipChatServer.DEFAULT, mock(HttpClient.class), mock(Logger.class));
             fail("Expected SettingsException");
         } catch (SettingsException e) {
             assertThat(e.getMessage(), is("hipchat account [_name] missing required [auth_token] setting"));
@@ -99,7 +99,7 @@ public class IntegrationAccountTests extends ESTestCase {
         Settings.Builder sb = Settings.builder();
         sb.put(IntegrationAccount.AUTH_TOKEN_SETTING, randomAsciiOfLength(50));
         try {
-            new IntegrationAccount("_name", sb.build(), HipChatServer.DEFAULT, mock(HttpClient.class), mock(ESLogger.class));
+            new IntegrationAccount("_name", sb.build(), HipChatServer.DEFAULT, mock(HttpClient.class), mock(Logger.class));
             fail("Expected SettingsException");
         } catch (SettingsException e) {
             assertThat(e.getMessage(), containsString("missing required [room] setting for [integration] account profile"));
@@ -111,7 +111,7 @@ public class IntegrationAccountTests extends ESTestCase {
         sb.put(IntegrationAccount.AUTH_TOKEN_SETTING, randomAsciiOfLength(50));
         sb.put(IntegrationAccount.ROOM_SETTING, "_r1,_r2");
         try {
-            new IntegrationAccount("_name", sb.build(), HipChatServer.DEFAULT, mock(HttpClient.class), mock(ESLogger.class));
+            new IntegrationAccount("_name", sb.build(), HipChatServer.DEFAULT, mock(HttpClient.class), mock(Logger.class));
             fail("Expected SettingsException");
         } catch (SettingsException e) {
             assertThat(e.getMessage(), containsString("[room] setting for [integration] account must only be set with a single value"));
@@ -125,7 +125,7 @@ public class IntegrationAccountTests extends ESTestCase {
                 .put("port", "443")
                 .put("auth_token", "_token")
                 .put("room", "_room")
-                .build(), HipChatServer.DEFAULT, httpClient, mock(ESLogger.class));
+                .build(), HipChatServer.DEFAULT, httpClient, mock(Logger.class));
 
         HipChatMessage.Format format = randomFrom(HipChatMessage.Format.values());
         HipChatMessage.Color color = randomFrom(HipChatMessage.Color.values());

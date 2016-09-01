@@ -5,20 +5,20 @@
  */
 package org.elasticsearch.xpack.watcher.actions.email;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.watcher.actions.Action;
-import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.support.Variables;
-import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.notification.email.Attachment;
 import org.elasticsearch.xpack.notification.email.DataAttachment;
 import org.elasticsearch.xpack.notification.email.Email;
 import org.elasticsearch.xpack.notification.email.EmailService;
 import org.elasticsearch.xpack.notification.email.HtmlSanitizer;
 import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentParser;
+import org.elasticsearch.xpack.watcher.actions.Action;
+import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.watcher.support.Variables;
+import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -32,7 +32,7 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
     final HtmlSanitizer htmlSanitizer;
     private final Map<String, EmailAttachmentParser> emailAttachmentParsers;
 
-    public ExecutableEmailAction(EmailAction action, ESLogger logger, EmailService emailService, TextTemplateEngine templateEngine,
+    public ExecutableEmailAction(EmailAction action, Logger logger, EmailService emailService, TextTemplateEngine templateEngine,
                                  HtmlSanitizer htmlSanitizer, Map<String, EmailAttachmentParser> emailAttachmentParsers) {
         super(action, logger);
         this.emailService = emailService;

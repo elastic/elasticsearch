@@ -6,6 +6,9 @@
 package org.elasticsearch.xpack.security.authc.support;
 
 import com.unboundid.ldap.sdk.DN;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.audit.logfile.CapturingLogger;
@@ -166,7 +169,7 @@ public class DnRoleMapperTests extends ESTestCase {
 
     public void testParseFile() throws Exception {
         Path file = getDataPath("role_mapping.yml");
-        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         Map<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), is(3));
@@ -196,18 +199,18 @@ public class DnRoleMapperTests extends ESTestCase {
     public void testParseFile_Empty() throws Exception {
         Path file = createTempDir().resolve("foo.yaml");
         Files.createFile(file);
-        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.DEBUG);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.DEBUG);
         Map<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
-        List<CapturingLogger.Msg> msgs = logger.output(CapturingLogger.Level.DEBUG);
-        assertThat(msgs.size(), is(1));
-        assertThat(msgs.get(0).text, containsString("[0] role mappings found"));
+        List<String> events = CapturingLogger.output(logger.getName(), Level.DEBUG);
+        assertThat(events.size(), is(1));
+        assertThat(events.get(0), containsString("[0] role mappings found"));
     }
 
     public void testParseFile_WhenFileDoesNotExist() throws Exception {
         Path file = createTempDir().resolve(randomAsciiOfLength(10));
-        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         Map<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
@@ -217,7 +220,7 @@ public class DnRoleMapperTests extends ESTestCase {
         Path file = createTempFile();
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
-        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         try {
             DnRoleMapper.parseFile(file, logger, "_type", "_name");
             fail("expected a parse failure");
@@ -230,13 +233,13 @@ public class DnRoleMapperTests extends ESTestCase {
         Path file = createTempFile();
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, Collections.singletonList("aldlfkjldjdflkjd"), StandardCharsets.UTF_16);
-        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
         Map<DN, Set<String>> mappings = DnRoleMapper.parseFileLenient(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
-        List<CapturingLogger.Msg> msgs = logger.output(CapturingLogger.Level.ERROR);
-        assertThat(msgs.size(), is(1));
-        assertThat(msgs.get(0).text, containsString("failed to parse role mappings file"));
+        List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
+        assertThat(events.size(), is(1));
+        assertThat(events.get(0), containsString("failed to parse role mappings file"));
     }
 
     public void testYaml() throws Exception {

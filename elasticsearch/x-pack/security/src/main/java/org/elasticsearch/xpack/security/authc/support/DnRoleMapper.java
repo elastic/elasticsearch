@@ -7,16 +7,18 @@ package org.elasticsearch.xpack.security.authc.support;
 
 import com.unboundid.ldap.sdk.DN;
 import com.unboundid.ldap.sdk.LDAPException;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.security.authc.RealmConfig;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,7 +46,7 @@ public class DnRoleMapper {
     public static final String ROLE_MAPPING_FILE_SETTING = "files.role_mapping";
     public static final String USE_UNMAPPED_GROUPS_AS_ROLES_SETTING = "unmapped_groups_as_roles";
 
-    protected final ESLogger logger;
+    protected final Logger logger;
     protected final RealmConfig config;
 
     private final String realmType;
@@ -89,16 +91,18 @@ public class DnRoleMapper {
      * logging the error and skipping/removing all mappings. This is aligned with how we handle other auto-loaded files
      * in security.
      */
-    public static Map<DN, Set<String>> parseFileLenient(Path path, ESLogger logger, String realmType, String realmName) {
+    public static Map<DN, Set<String>> parseFileLenient(Path path, Logger logger, String realmType, String realmName) {
         try {
             return parseFile(path, logger, realmType, realmName);
         } catch (Exception e) {
-            logger.error("failed to parse role mappings file [{}]. skipping/removing all mappings...", e, path.toAbsolutePath());
+            logger.error(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                            "failed to parse role mappings file [{}]. skipping/removing all mappings...", path.toAbsolutePath()), e);
             return emptyMap();
         }
     }
 
-    public static Map<DN, Set<String>> parseFile(Path path, ESLogger logger, String realmType, String realmName) {
+    public static Map<DN, Set<String>> parseFile(Path path, Logger logger, String realmType, String realmName) {
 
         logger.trace("reading realm [{}/{}] role mappings file [{}]...", realmType, realmName, path.toAbsolutePath());
 
@@ -124,8 +128,15 @@ public class DnRoleMapper {
                         }
                         dnRoles.add(role);
                     } catch (LDAPException e) {
-                        logger.error("invalid DN [{}] found in [{}] role mappings [{}] for realm [{}/{}]. skipping... ", e, providedDn,
-                                realmType, path.toAbsolutePath(), realmType, realmName);
+                        logger.error(
+                                (Supplier<?>) () -> new ParameterizedMessage(
+                                        "invalid DN [{}] found in [{}] role mappings [{}] for realm [{}/{}]. skipping... ",
+                                        providedDn,
+                                        realmType,
+                                        path.toAbsolutePath(),
+                                        realmType,
+                                        realmName),
+                                e);
                     }
                 }
 

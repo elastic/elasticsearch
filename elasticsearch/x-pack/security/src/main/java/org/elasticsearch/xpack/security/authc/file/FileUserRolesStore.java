@@ -5,19 +5,21 @@
  */
 package org.elasticsearch.xpack.security.authc.file;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.internal.Nullable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.security.authc.RealmConfig;
-import org.elasticsearch.xpack.security.authc.support.RefreshListener;
-import org.elasticsearch.xpack.security.support.NoOpLogger;
-import org.elasticsearch.xpack.security.support.Validation;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.security.authc.RealmConfig;
+import org.elasticsearch.xpack.security.authc.support.RefreshListener;
+import org.elasticsearch.xpack.security.support.NoOpLogger;
+import org.elasticsearch.xpack.security.support.Validation;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -40,7 +42,7 @@ public class FileUserRolesStore {
 
     private static final Pattern USERS_DELIM = Pattern.compile("\\s*,\\s*");
 
-    private final ESLogger logger;
+    private final Logger logger;
 
     private final Path file;
     private CopyOnWriteArrayList<RefreshListener> listeners;
@@ -92,11 +94,14 @@ public class FileUserRolesStore {
      * Internally in this class, we try to load the file, but if for some reason we can't, we're being more lenient by
      * logging the error and skipping all enries. This is aligned with how we handle other auto-loaded files in security.
      */
-    static Map<String, String[]> parseFileLenient(Path path, ESLogger logger) {
+    static Map<String, String[]> parseFileLenient(Path path, Logger logger) {
         try {
             return parseFile(path, logger);
         } catch (Exception e) {
-            logger.error("failed to parse users_roles file [{}]. skipping/removing all entries...", e, path.toAbsolutePath());
+            logger.error(
+                    (Supplier<?>) () -> new ParameterizedMessage("failed to parse users_roles file [{}]. skipping/removing all entries...",
+                            path.toAbsolutePath()),
+                    e);
             return emptyMap();
         }
     }
@@ -106,7 +111,7 @@ public class FileUserRolesStore {
      * an empty map is returned. The read file holds a mapping per line of the form "role -&gt; users" while the returned
      * map holds entries of the form  "user -&gt; roles".
      */
-    public static Map<String, String[]> parseFile(Path path, @Nullable ESLogger logger) {
+    public static Map<String, String[]> parseFile(Path path, @Nullable Logger logger) {
         if (logger == null) {
             logger = NoOpLogger.INSTANCE;
         }

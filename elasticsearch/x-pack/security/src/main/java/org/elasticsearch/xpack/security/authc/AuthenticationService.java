@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
-import java.io.IOException;
-import java.util.List;
-
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -18,14 +17,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.xpack.security.audit.AuditTrailService;
-import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
-import org.elasticsearch.xpack.security.user.AnonymousUser;
-import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.security.audit.AuditTrail;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.security.audit.AuditTrail;
+import org.elasticsearch.xpack.security.audit.AuditTrailService;
+import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
+import org.elasticsearch.xpack.security.user.AnonymousUser;
+import org.elasticsearch.xpack.security.user.User;
+
+import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 
@@ -188,7 +190,7 @@ public class AuthenticationService extends AbstractComponent {
                 }
             } catch (Exception e) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug("failed to extract token from request: [{}]", e, request);
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to extract token from request: [{}]", request), e);
                 } else {
                     logger.warn("failed to extract token from request: [{}]: {}", request, e.getMessage());
                 }
@@ -228,7 +230,9 @@ public class AuthenticationService extends AbstractComponent {
                     }
                 }
             } catch (Exception e) {
-                logger.debug("authentication failed for principal [{}], [{}] ", e, token.principal(), request);
+                logger.debug(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                                "authentication failed for principal [{}], [{}] ", token.principal(), request), e);
                 throw request.exceptionProcessingRequest(e, token);
             } finally {
                 token.clearCredentials();
@@ -282,7 +286,12 @@ public class AuthenticationService extends AbstractComponent {
                 // authorization error
                 user = new User(user.principal(), user.roles(), new User(runAsUsername, Strings.EMPTY_ARRAY));
             } catch (Exception e) {
-                logger.debug("run as failed for principal [{}], [{}], run as username [{}]", e, token.principal(), request, runAsUsername);
+                logger.debug(
+                        (Supplier<?>) () -> new ParameterizedMessage("run as failed for principal [{}], [{}], run as username [{}]",
+                                token.principal(),
+                                request,
+                                runAsUsername),
+                        e);
                 throw request.exceptionProcessingRequest(e, token);
             }
             return user;

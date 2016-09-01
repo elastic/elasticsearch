@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher.test;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContent;
@@ -174,14 +174,14 @@ public final class WatcherTestUtils {
 
 
     public static Watch createTestWatch(String watchName, HttpClient httpClient, EmailService emailService,
-                                        WatcherSearchTemplateService searchTemplateService, ESLogger logger) throws AddressException {
+                                        WatcherSearchTemplateService searchTemplateService, Logger logger) throws AddressException {
         WatcherClientProxy client = WatcherClientProxy.of(ESIntegTestCase.client());
         return createTestWatch(watchName, client, httpClient, emailService, searchTemplateService, logger);
     }
 
 
     public static Watch createTestWatch(String watchName, WatcherClientProxy client, HttpClient httpClient, EmailService emailService,
-                                        WatcherSearchTemplateService searchTemplateService, ESLogger logger) throws AddressException {
+                                        WatcherSearchTemplateService searchTemplateService, Logger logger) throws AddressException {
 
         WatcherSearchTemplateRequest transformRequest =
                 templateRequest(searchSource().query(matchAllQuery()), "my-payload-index");

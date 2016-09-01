@@ -5,16 +5,15 @@
  */
 package org.elasticsearch.xpack.notification.email;
 
-import javax.mail.MessagingException;
-
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
+
+import javax.mail.MessagingException;
 
 /**
  * A component to store email credentials and handle sending email notifications.
@@ -62,7 +61,7 @@ public class EmailService extends AbstractComponent {
         return new EmailSent(account.name(), email);
     }
 
-    protected Accounts createAccounts(Settings settings, ESLogger logger) {
+    protected Accounts createAccounts(Settings settings, Logger logger) {
         return new Accounts(settings, cryptoService, logger);
     }
 

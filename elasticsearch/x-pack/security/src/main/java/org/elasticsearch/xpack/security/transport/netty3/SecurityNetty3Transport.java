@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.security.transport.netty3;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
@@ -15,11 +17,11 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.netty3.Netty3Transport;
 import org.elasticsearch.xpack.security.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.SSLClientAuth;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.netty3.Netty3Transport;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.ChannelPipeline;
@@ -126,14 +128,16 @@ public class SecurityNetty3Transport extends Netty3Transport {
     protected void onException(Channel channel, Exception e) throws IOException {
         if (isNotSslRecordException(e)) {
             if (logger.isTraceEnabled()) {
-                logger.trace("received plaintext traffic on a encrypted channel, closing connection {}", e, channel);
+                logger.trace(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                                "received plaintext traffic on a encrypted channel, closing connection {}", channel), e);
             } else {
                 logger.warn("received plaintext traffic on a encrypted channel, closing connection {}", channel);
             }
             disconnectFromNodeChannel(channel, e);
         } else if (isCloseDuringHandshakeException(e)) {
             if (logger.isTraceEnabled()) {
-                logger.trace("connection {} closed during handshake", e, channel);
+                logger.trace((Supplier<?>) () -> new ParameterizedMessage("connection {} closed during handshake", channel), e);
             } else {
                 logger.warn("connection {} closed during handshake", channel);
             }

@@ -5,7 +5,8 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
-import org.elasticsearch.common.inject.Inject;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
@@ -16,9 +17,9 @@ import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.support.Exceptions;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
+import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.security.user.ElasticUser;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -131,7 +132,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
             }
             return passwordHash;
         } catch (Exception e) {
-            logger.error("failed to retrieve password hash for reserved user [{}]", e, username);
+            logger.error(
+                    (Supplier<?>) () -> new ParameterizedMessage("failed to retrieve password hash for reserved user [{}]", username), e);
             return null;
         }
     }

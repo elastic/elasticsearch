@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
@@ -18,9 +18,9 @@ import java.io.IOException;
 public abstract class ExecutableCondition<C extends Condition, R extends Condition.Result> implements ToXContent {
 
     protected final C condition;
-    protected final ESLogger logger;
+    protected final Logger logger;
 
-    protected ExecutableCondition(C condition, ESLogger logger) {
+    protected ExecutableCondition(C condition, Logger logger) {
         this.condition = condition;
         this.logger = logger;
     }

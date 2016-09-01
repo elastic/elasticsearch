@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanQuery;
@@ -33,7 +34,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -104,7 +104,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
     private final BitsetFilterCache bitsetFilterCache;
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
-    private final ESLogger logger;
+    private final Logger logger;
     private final ScriptService scriptService;
 
     public SecurityIndexSearcherWrapper(IndexSettings indexSettings, QueryShardContext queryShardContext,

@@ -5,21 +5,23 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 
-import java.util.stream.StreamSupport;
+import static java.util.stream.StreamSupport.stream;
 
 /**
  */
 public class AsyncTriggerListener implements TriggerEngine.Listener {
 
-    private final ESLogger logger;
+    private final Logger logger;
     private final ExecutionService executionService;
 
     @Inject
@@ -34,8 +36,11 @@ public class AsyncTriggerListener implements TriggerEngine.Listener {
         try {
             executionService.processEventsAsync(events);
         } catch (Exception e) {
-            logger.error("failed to process triggered events [{}]", e,
-                    (Object) StreamSupport.stream(events.spliterator(), false).toArray(size -> new TriggerEvent[size]));
+            logger.error(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                            "failed to process triggered events [{}]",
+                            (Object) stream(events.spliterator(), false).toArray(size -> new TriggerEvent[size])),
+                    e);
         }
 
     }

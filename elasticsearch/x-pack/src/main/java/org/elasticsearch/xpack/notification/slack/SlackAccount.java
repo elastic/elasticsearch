@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.notification.slack;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -37,10 +37,10 @@ public class SlackAccount {
     final String name;
     final URI url;
     final HttpClient httpClient;
-    final ESLogger logger;
+    final Logger logger;
     final SlackMessageDefaults messageDefaults;
 
-    public SlackAccount(String name, Settings settings, Settings defaultSettings, HttpClient httpClient, ESLogger logger) {
+    public SlackAccount(String name, Settings settings, Settings defaultSettings, HttpClient httpClient, Logger logger) {
         this.name = name;
         this.url = url(name, settings, defaultSettings);
         this.messageDefaults = new SlackMessageDefaults(settings.getAsSettings(MESSAGE_DEFAULTS_SETTING));

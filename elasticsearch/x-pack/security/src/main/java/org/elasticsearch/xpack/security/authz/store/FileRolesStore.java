@@ -5,22 +5,13 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.regex.Pattern;
-
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
@@ -36,6 +27,17 @@ import org.elasticsearch.xpack.security.authz.permission.IndicesPermission.Group
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.support.NoOpLogger;
 import org.elasticsearch.xpack.security.support.Validation;
+
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -115,7 +117,7 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
         return XPackPlugin.resolveConfigFile(env, "roles.yml");
     }
 
-    public static Set<String> parseFileForRoleNames(Path path, ESLogger logger) {
+    public static Set<String> parseFileForRoleNames(Path path, Logger logger) {
         Map<String, Role> roleMap = parseFile(path, logger, false, Settings.EMPTY);
         if (roleMap == null) {
             return emptySet();
@@ -123,11 +125,11 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
         return roleMap.keySet();
     }
 
-    public static Map<String, Role> parseFile(Path path, ESLogger logger, Settings settings) {
+    public static Map<String, Role> parseFile(Path path, Logger logger, Settings settings) {
         return parseFile(path, logger, true, settings);
     }
 
-    public static Map<String, Role> parseFile(Path path, ESLogger logger, boolean resolvePermission, Settings settings) {
+    public static Map<String, Role> parseFile(Path path, Logger logger, boolean resolvePermission, Settings settings) {
         if (logger == null) {
             logger = NoOpLogger.INSTANCE;
         }
@@ -150,7 +152,11 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
                 }
 
             } catch (IOException ioe) {
-                logger.error("failed to read roles file [{}]. skipping all roles...", ioe, path.toAbsolutePath());
+                logger.error(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                                "failed to read roles file [{}]. skipping all roles...",
+                                path.toAbsolutePath()),
+                        ioe);
                 return emptyMap();
             }
         } else {
@@ -162,7 +168,7 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
         return unmodifiableMap(roles);
     }
 
-    public static Map<String, RoleDescriptor> parseRoleDescriptors(Path path, ESLogger logger,
+    public static Map<String, RoleDescriptor> parseRoleDescriptors(Path path, Logger logger,
                                                                    boolean resolvePermission, Settings settings) {
         if (logger == null) {
             logger = NoOpLogger.INSTANCE;
@@ -180,7 +186,11 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
                     }
                 }
             } catch (IOException ioe) {
-                logger.error("failed to read roles file [{}]. skipping all roles...", ioe, path.toAbsolutePath());
+                logger.error(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                                "failed to read roles file [{}]. skipping all roles...",
+                                path.toAbsolutePath()),
+                        ioe);
                 return emptyMap();
             }
         }
@@ -188,7 +198,7 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
     }
 
     @Nullable
-    private static Role parseRole(String segment, Path path, ESLogger logger, boolean resolvePermissions, Settings settings) {
+    private static Role parseRole(String segment, Path path, Logger logger, boolean resolvePermissions, Settings settings) {
         RoleDescriptor descriptor = parseRoleDescriptor(segment, path, logger, resolvePermissions, settings);
 
         if (descriptor != null) {
@@ -210,7 +220,7 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
     }
 
     @Nullable
-    private static RoleDescriptor parseRoleDescriptor(String segment, Path path, ESLogger logger,
+    private static RoleDescriptor parseRoleDescriptor(String segment, Path path, Logger logger,
                                                       boolean resolvePermissions, Settings settings) {
         String roleName = null;
         try {
@@ -245,15 +255,26 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
         } catch (ElasticsearchParseException e) {
             assert roleName != null;
             if (logger.isDebugEnabled()) {
-                logger.debug("parsing exception for role [{}]", e, roleName);
+                final String finalRoleName = roleName;
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("parsing exception for role [{}]", finalRoleName), e);
             } else {
                 logger.error(e.getMessage() + ". skipping role...");
             }
         } catch (IOException e) {
             if (roleName != null) {
-                logger.error("invalid role definition [{}] in roles file [{}]. skipping role...", e, roleName, path);
+                final String finalRoleName = roleName;
+                logger.error(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                                "invalid role definition [{}] in roles file [{}]. skipping role...",
+                                finalRoleName,
+                                path),
+                        e);
             } else {
-                logger.error("invalid role definition in roles file [{}]. skipping role...", e, path);
+                logger.error(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                                "invalid role definition in roles file [{}]. skipping role...",
+                                path),
+                        e);
             }
         }
         return null;
@@ -301,7 +322,9 @@ public class FileRolesStore extends AbstractLifecycleComponent implements RolesS
                     permissions = parseFile(file, logger, settings);
                     logger.info("updated roles (roles file [{}] changed)", file.toAbsolutePath());
                 } catch (Exception e) {
-                    logger.error("could not reload roles file [{}]. Current roles remain unmodified", e, file.toAbsolutePath());
+                    logger.error(
+                            (Supplier<?>) () -> new ParameterizedMessage(
+                                    "could not reload roles file [{}]. Current roles remain unmodified", file.toAbsolutePath()), e);
                     return;
                 }
                 listener.onRefresh();

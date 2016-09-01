@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.security.audit.logfile;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
@@ -18,16 +18,16 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.xpack.security.user.SystemUser;
-import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.security.user.XPackUser;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authz.privilege.SystemPrivilege;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.security.user.SystemUser;
+import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.security.user.XPackUser;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -36,9 +36,9 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
+import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.indices;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestContent;
-import static org.elasticsearch.xpack.security.Security.setting;
 
 /**
  *
@@ -53,7 +53,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail {
     public static final Setting<Boolean> NODE_NAME_SETTING =
             Setting.boolSetting(setting("audit.logfile.prefix.emit_node_name"), true, Property.NodeScope);
 
-    private final ESLogger logger;
+    private final Logger logger;
     private final ClusterService clusterService;
     private final ThreadContext threadContext;
 
@@ -68,7 +68,7 @@ public class LoggingAuditTrail extends AbstractComponent implements AuditTrail {
         this(settings, clusterService, Loggers.getLogger(LoggingAuditTrail.class), threadPool.getThreadContext());
     }
 
-    LoggingAuditTrail(Settings settings, ClusterService clusterService, ESLogger logger, ThreadContext threadContext) {
+    LoggingAuditTrail(Settings settings, ClusterService clusterService, Logger logger, ThreadContext threadContext) {
         super(settings);
         this.logger = logger;
         this.clusterService = clusterService;

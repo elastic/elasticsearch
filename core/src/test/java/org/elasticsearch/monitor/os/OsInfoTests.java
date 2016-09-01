@@ -34,11 +34,7 @@ public class OsInfoTests extends ESTestCase {
         if (randomBoolean()) {
             refreshInterval = -1;
         } else {
-            refreshInterval = randomLong();
-            while (refreshInterval == Long.MIN_VALUE) {
-                refreshInterval = randomLong();
-            }
-            refreshInterval = Math.abs(refreshInterval);
+            refreshInterval = randomPositiveLong();
         }
         String name = randomAsciiOfLengthBetween(3, 10);
         String arch = randomAsciiOfLengthBetween(3, 10);

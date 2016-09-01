@@ -171,12 +171,7 @@ public class ByteSizeValueTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        //negative values cannot be serialized at the moment, we do abs but that is not enough with Long.MIN_VALUE
-        long l = Long.MIN_VALUE;
-        while (l == Long.MIN_VALUE) {
-            l = randomLong();
-        }
-        ByteSizeValue byteSizeValue = new ByteSizeValue(Math.abs(l), randomFrom(ByteSizeUnit.values()));
+        ByteSizeValue byteSizeValue = new ByteSizeValue(randomPositiveLong(), randomFrom(ByteSizeUnit.values()));
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             byteSizeValue.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {

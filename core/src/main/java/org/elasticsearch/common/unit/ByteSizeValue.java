@@ -177,7 +177,8 @@ public class ByteSizeValue implements Writeable {
         return parseBytesSizeValue(sValue, null, settingName);
     }
 
-    public static ByteSizeValue parseBytesSizeValue(String sValue, ByteSizeValue defaultValue, String settingName) throws ElasticsearchParseException {
+    public static ByteSizeValue parseBytesSizeValue(String sValue, ByteSizeValue defaultValue, String settingName)
+            throws ElasticsearchParseException {
         settingName = Objects.requireNonNull(settingName);
         if (sValue == null) {
             return defaultValue;
@@ -215,7 +216,9 @@ public class ByteSizeValue implements Writeable {
                 bytes = 0;
             } else {
                 // Missing units:
-                throw new ElasticsearchParseException("failed to parse setting [{}] with value [{}] as a size in bytes: unit is missing or unrecognized", settingName, sValue);
+                throw new ElasticsearchParseException(
+                        "failed to parse setting [{}] with value [{}] as a size in bytes: unit is missing or unrecognized",
+                        settingName, sValue);
             }
         } catch (NumberFormatException e) {
             throw new ElasticsearchParseException("failed to parse [{}]", e, sValue);

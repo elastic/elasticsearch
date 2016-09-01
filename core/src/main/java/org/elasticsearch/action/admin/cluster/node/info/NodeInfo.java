@@ -81,8 +81,8 @@ public class NodeInfo extends BaseNodeResponse {
 
     public NodeInfo(Version version, Build build, DiscoveryNode node, @Nullable Settings settings,
                     @Nullable OsInfo os, @Nullable ProcessInfo process, @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool,
-                    @Nullable TransportInfo transport, @Nullable HttpInfo http, @Nullable PluginsAndModules plugins, @Nullable IngestInfo ingest,
-                    @Nullable ByteSizeValue totalIndexingBuffer) {
+                    @Nullable TransportInfo transport, @Nullable HttpInfo http, @Nullable PluginsAndModules plugins,
+                    @Nullable IngestInfo ingest, @Nullable ByteSizeValue totalIndexingBuffer) {
         super(node);
         this.version = version;
         this.build = build;

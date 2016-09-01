@@ -76,7 +76,8 @@ public class NodeInfoStreamingTests extends ESTestCase {
         assertExpectedUnchanged(nodeInfo, readNodeInfo);
 
     }
-    // checks all properties that are expected to be unchanged. Once we start changing them between versions this method has to be changed as well
+    // checks all properties that are expected to be unchanged.
+    // Once we start changing them between versions this method has to be changed as well
     private void assertExpectedUnchanged(NodeInfo nodeInfo, NodeInfo readNodeInfo) throws IOException {
         assertThat(nodeInfo.getBuild().toString(), equalTo(readNodeInfo.getBuild().toString()));
         assertThat(nodeInfo.getHostname(), equalTo(readNodeInfo.getHostname()));
@@ -120,12 +121,10 @@ public class NodeInfoStreamingTests extends ESTestCase {
         assertThat(param1Builder.string(), equalTo(param2Builder.string()));
     }
 
-    private NodeInfo createNodeInfo() {
+    private static NodeInfo createNodeInfo() {
         Build build = Build.CURRENT;
         DiscoveryNode node = new DiscoveryNode("test_node", LocalTransportAddress.buildUnique(),
                 emptyMap(), emptySet(), VersionUtils.randomVersion(random()));
-        Map<String, String> serviceAttributes = new HashMap<>();
-        serviceAttributes.put("test", "attribute");
         Settings settings = Settings.builder().put("test", "setting").build();
         OsInfo osInfo = DummyOsInfo.INSTANCE;
         ProcessInfo process = new ProcessInfo(randomInt(), randomBoolean(), randomPositiveLong());
@@ -134,7 +133,8 @@ public class NodeInfoStreamingTests extends ESTestCase {
         threadPoolInfos.add(new ThreadPool.Info("test_threadpool", ThreadPool.ThreadPoolType.FIXED, 5));
         ThreadPoolInfo threadPoolInfo = new ThreadPoolInfo(threadPoolInfos);
         Map<String, BoundTransportAddress> profileAddresses = new HashMap<>();
-        BoundTransportAddress dummyBoundTransportAddress = new BoundTransportAddress(new TransportAddress[]{LocalTransportAddress.buildUnique()}, LocalTransportAddress.buildUnique());
+        BoundTransportAddress dummyBoundTransportAddress = new BoundTransportAddress(
+                new TransportAddress[]{LocalTransportAddress.buildUnique()}, LocalTransportAddress.buildUnique());
         profileAddresses.put("test_address", dummyBoundTransportAddress);
         TransportInfo transport = new TransportInfo(dummyBoundTransportAddress, profileAddresses);
         HttpInfo htttpInfo = new HttpInfo(dummyBoundTransportAddress, randomLong());

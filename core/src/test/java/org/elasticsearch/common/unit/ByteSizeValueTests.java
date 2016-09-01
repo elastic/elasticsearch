@@ -20,8 +20,12 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -163,6 +167,22 @@ public class ByteSizeValueTests extends ESTestCase {
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("failed to parse setting [test]"));
+        }
+    }
+
+    public void testSerialization() throws IOException {
+        //negative values cannot be serialized at the moment, we do abs but that is not enough with Long.MIN_VALUE
+        long l = Long.MIN_VALUE;
+        while (l == Long.MIN_VALUE) {
+            l = randomLong();
+        }
+        ByteSizeValue byteSizeValue = new ByteSizeValue(Math.abs(l), randomFrom(ByteSizeUnit.values()));
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            byteSizeValue.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                ByteSizeValue deserializedByteSizeValue = new ByteSizeValue(in);
+                assertEquals(byteSizeValue, deserializedByteSizeValue);
+            }
         }
     }
 }

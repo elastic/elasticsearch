@@ -115,7 +115,9 @@ public class ActionWrapper implements ToXContent {
                                                     new Action.Result.ConditionFailed(action.type(), "condition not met. skipping"));
                 }
             } catch (RuntimeException e) {
-                action.logger().error("failed to execute action [{}/{}]. failed to execute condition", e, ctx.watch().id(), id);
+                action.logger().error(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                                "failed to execute action [{}/{}]. failed to execute condition", ctx.watch().id(), id), e);
                 return new ActionWrapper.Result(id, new Action.Result.ConditionFailed(action.type(),
                                                 "condition failed. skipping: {}", e.getMessage()));
             }

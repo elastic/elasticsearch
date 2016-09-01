@@ -217,7 +217,7 @@ public class NodeInfo extends BaseNodeResponse {
             transport = TransportInfo.readTransportInfo(in);
         }
         if (in.readBoolean()) {
-            http = HttpInfo.readHttpInfo(in);
+            http = new HttpInfo(in);
         }
         if (in.readBoolean()) {
             plugins = new PluginsAndModules();

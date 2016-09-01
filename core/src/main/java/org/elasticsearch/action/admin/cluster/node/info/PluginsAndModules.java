@@ -47,13 +47,13 @@ public class PluginsAndModules implements Writeable, ToXContent {
         int pluginsSize = in.readInt();
         List<PluginInfo> plugins = new ArrayList<>(pluginsSize);
         for (int i = 0; i < pluginsSize; i++) {
-            plugins.add(PluginInfo.readFromStream(in));
+            plugins.add(new PluginInfo(in));
         }
         this.plugins = Collections.unmodifiableList(plugins);
         int modulesSize = in.readInt();
         List<PluginInfo> modules = new ArrayList<>(modulesSize);
         for (int i = 0; i < modulesSize; i++) {
-            modules.add(PluginInfo.readFromStream(in));
+            modules.add(new PluginInfo(in));
         }
         this.modules = Collections.unmodifiableList(modules);
     }

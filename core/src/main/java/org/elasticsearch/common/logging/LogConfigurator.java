@@ -50,23 +50,15 @@ import java.util.Set;
 
 public class LogConfigurator {
 
-    static {
-        // we initialize the status logger immediately otherwise Log4j will complain when we try to get the context
-        final ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
-        builder.setStatusLevel(Level.ERROR);
-        Configurator.initialize(builder.build());
-    }
-
-    /**
-     * for triggering class initialization
-     */
-    public static void init() {
-    }
-
     public static void configure(final Environment environment, final boolean resolveConfig) throws IOException {
         final Settings settings = environment.settings();
 
         setLogConfigurationSystemProperty(environment, settings);
+
+        // we initialize the status logger immediately otherwise Log4j will complain when we try to get the context
+        final ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
+        builder.setStatusLevel(Level.ERROR);
+        Configurator.initialize(builder.build());
 
         final LoggerContext context = (LoggerContext) LogManager.getContext(false);
 

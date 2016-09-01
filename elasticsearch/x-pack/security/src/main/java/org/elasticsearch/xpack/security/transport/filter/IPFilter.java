@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.security.transport.filter;
 
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -96,7 +96,7 @@ public class IPFilter {
     private final XPackLicenseState licenseState;
     private final boolean alwaysAllowBoundAddresses;
 
-    private final ESLogger logger;
+    private final Logger logger;
     private volatile Map<String, SecurityIpFilterRule[]> rules = Collections.emptyMap();
     private volatile boolean isIpFilterEnabled;
     private volatile boolean isHttpFilterEnabled;

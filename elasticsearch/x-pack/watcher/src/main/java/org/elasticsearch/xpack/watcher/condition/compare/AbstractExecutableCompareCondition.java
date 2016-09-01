@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.watcher.condition.compare;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -28,7 +28,7 @@ public abstract class AbstractExecutableCompareCondition<C extends Condition, R 
 
     private final Clock clock;
 
-    public AbstractExecutableCompareCondition(C condition, ESLogger logger, Clock clock) {
+    public AbstractExecutableCompareCondition(C condition, Logger logger, Clock clock) {
         super(condition, logger);
         this.clock = clock;
     }

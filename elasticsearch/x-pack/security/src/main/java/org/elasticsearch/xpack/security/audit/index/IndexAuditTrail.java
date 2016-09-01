@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.security.audit.index;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
@@ -19,17 +22,16 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -45,18 +47,18 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportMessage;
+import org.elasticsearch.xpack.XPackTransportClient;
 import org.elasticsearch.xpack.security.InternalClient;
-import org.elasticsearch.xpack.security.user.SystemUser;
-import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.xpack.security.user.XPackUser;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authz.privilege.SystemPrivilege;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportMessage;
-import org.elasticsearch.xpack.XPackTransportClient;
+import org.elasticsearch.xpack.security.user.SystemUser;
+import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.security.user.XPackUser;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -82,6 +84,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.indices;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestContent;
 import static org.elasticsearch.xpack.security.audit.index.IndexAuditLevel.ACCESS_DENIED;
@@ -96,7 +99,6 @@ import static org.elasticsearch.xpack.security.audit.index.IndexAuditLevel.SYSTE
 import static org.elasticsearch.xpack.security.audit.index.IndexAuditLevel.TAMPERED_REQUEST;
 import static org.elasticsearch.xpack.security.audit.index.IndexAuditLevel.parse;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.resolve;
-import static org.elasticsearch.xpack.security.Security.setting;
 
 /**
  * Audit trail implementation that writes events into an index.
@@ -188,8 +190,12 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         try {
             events = parse(includedEvents, excludedEvents);
         } catch (IllegalArgumentException e) {
-            logger.warn("invalid event type specified, using default for audit index output. include events [{}], exclude events [{}]",
-                    e, includedEvents, excludedEvents);
+            logger.warn(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                            "invalid event type specified, using default for audit index output. include events [{}], exclude events [{}]",
+                            includedEvents,
+                            excludedEvents),
+                    e);
             events = parse(DEFAULT_EVENT_INCLUDES, Collections.emptyList());
         }
         this.indexToRemoteCluster = REMOTE_CLIENT_SETTINGS.get(settings).names().size() > 0;
@@ -706,7 +712,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         return eventQueue.peek();
     }
 
-    private static Client initializeRemoteClient(Settings settings, ESLogger logger) {
+    private static Client initializeRemoteClient(Settings settings, Logger logger) {
         Settings clientSettings = REMOTE_CLIENT_SETTINGS.get(settings);
         String[] hosts = clientSettings.getAsArray("hosts");
         if (hosts.length == 0) {
@@ -842,7 +848,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
-                logger.error("failed to bulk index audit events: [{}]", failure, failure.getMessage());
+                logger.error(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                                "failed to bulk index audit events: [{}]", failure.getMessage()), failure);
             }
         }).setBulkActions(bulkSize)
                 .setFlushInterval(interval)
@@ -866,8 +874,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
                     INDEX_TEMPLATE_NAME);
             threadPool.generic().execute(new AbstractRunnable() {
                 @Override
-                public void onFailure(Exception throwable) {
-                    logger.error("failed to update security audit index template [{}]", throwable, INDEX_TEMPLATE_NAME);
+                public void onFailure(Exception e) {
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage(
+                            "failed to update security audit index template [{}]", INDEX_TEMPLATE_NAME), e);
                 }
 
                 @Override

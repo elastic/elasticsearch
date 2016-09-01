@@ -10,8 +10,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.monitoring.agent.resolver.bulk.MonitoringBulkTimestampedResolver;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
+import org.elasticsearch.xpack.monitoring.resolver.bulk.MonitoringBulkTimestampedResolver;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 
 import java.util.List;

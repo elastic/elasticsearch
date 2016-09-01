@@ -14,10 +14,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.common.http.HttpClient;
-import org.elasticsearch.xpack.common.http.HttpMethod;
-import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
+import org.elasticsearch.xpack.ssl.SSLService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -48,8 +46,8 @@ public class HttpReadTimeoutTests extends ESTestCase {
 
     public void testDefaultTimeout() throws Exception {
         Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
-        HttpClient httpClient = new HttpClient(Settings.EMPTY, mock(HttpAuthRegistry.class), environment);
-        httpClient.start();
+        HttpClient httpClient = new HttpClient(Settings.EMPTY, mock(HttpAuthRegistry.class), environment,
+                new SSLService(environment.settings(), environment));
 
         // we're not going to enqueue an response... so the server will just hang
 
@@ -76,8 +74,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
 
         HttpClient httpClient = new HttpClient(Settings.builder()
                 .put("xpack.http.default_read_timeout", "3s").build()
-                , mock(HttpAuthRegistry.class), environment);
-        httpClient.start();
+                , mock(HttpAuthRegistry.class), environment, new SSLService(environment.settings(), environment));
 
         final String path = '/' + randomAsciiOfLength(5);
         final CountDownLatch latch = new CountDownLatch(1);
@@ -109,8 +106,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
 
         HttpClient httpClient = new HttpClient(Settings.builder()
                 .put("xpack.http.default_read_timeout", "10s").build()
-                , mock(HttpAuthRegistry.class), environment);
-        httpClient.start();
+                , mock(HttpAuthRegistry.class), environment, new SSLService(environment.settings(), environment));
 
         final String path = '/' + randomAsciiOfLength(5);
         final CountDownLatch latch = new CountDownLatch(1);

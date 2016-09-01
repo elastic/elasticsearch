@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -15,9 +17,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.xpack.common.stats.Counters;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.Watcher;
-import org.elasticsearch.xpack.common.stats.Counters;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
@@ -199,7 +201,7 @@ public class ExecutionService extends AbstractComponent {
                     try {
                         executeAsync(contexts.get(slot), triggeredWatch);
                     } catch (Exception e) {
-                        logger.error("failed to execute watch [{}]", e, triggeredWatch.id());
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute watch [{}]", triggeredWatch.id()), e);
                     }
                 }
             }
@@ -280,14 +282,14 @@ public class ExecutionService extends AbstractComponent {
                         historyStore.put(record);
                     }
                 } catch (Exception e) {
-                    logger.error("failed to update watch record [{}]", e, ctx.id());
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to update watch record [{}]", ctx.id()), e);
                     // TODO log watch record in logger, when saving in history store failed, otherwise the info is gone!
                 }
             }
             try {
                 triggeredWatchStore.delete(ctx.id());
             } catch (Exception e) {
-                logger.error("failed to delete triggered watch [{}]", e, ctx.id());
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to delete triggered watch [{}]", ctx.id()), e);
             }
             currentExecutions.remove(ctx.watch().id());
             if (logger.isTraceEnabled()) {
@@ -315,7 +317,7 @@ public class ExecutionService extends AbstractComponent {
     private void logWatchRecord(WatchExecutionContext ctx, Exception e) {
         // failed watches stack traces are only logged in debug, otherwise they should be checked out in the history
         if (logger.isDebugEnabled()) {
-            logger.debug("failed to execute watch [{}]", e, ctx.id());
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to execute watch [{}]", ctx.id()), e);
         } else {
             logger.warn("Failed to execute watch [{}]", ctx.id());
         }
@@ -461,7 +463,8 @@ public class ExecutionService extends AbstractComponent {
             try {
                 execute(ctx);
             } catch (Exception e) {
-                logger.error("could not execute watch [{}]/[{}]", e, ctx.watch().id(), ctx.id());
+                logger.error(
+                        (Supplier<?>) () -> new ParameterizedMessage("could not execute watch [{}]/[{}]", ctx.watch().id(), ctx.id()), e);
             }
         }
     }

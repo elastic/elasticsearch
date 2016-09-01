@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -48,9 +51,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 
-/**
- *
- */
 public class FileRolesStoreTests extends ESTestCase {
 
     public void testParseFile() throws Exception {
@@ -207,7 +207,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
     public void testParseFileWithFLSAndDLSDisabled() throws Exception {
         Path path = getDataPath("roles.yml");
-        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.ERROR);
         Map<String, Role> roles = FileRolesStore.parseFile(path, logger, Settings.builder()
                 .put(XPackSettings.DLS_FLS_ENABLED.getKey(), false)
                 .build());
@@ -217,14 +217,18 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(roles.get("role_query"), nullValue());
         assertThat(roles.get("role_query_fields"), nullValue());
 
-        List<CapturingLogger.Msg> entries = logger.output(CapturingLogger.Level.ERROR);
-        assertThat(entries, hasSize(3));
-        assertThat(entries.get(0).text, startsWith("invalid role definition [role_fields] in roles file [" + path.toAbsolutePath() +
-                "]. document and field level security is not enabled."));
-        assertThat(entries.get(1).text, startsWith("invalid role definition [role_query] in roles file [" + path.toAbsolutePath() +
-                "]. document and field level security is not enabled."));
-        assertThat(entries.get(2).text, startsWith("invalid role definition [role_query_fields] in roles file [" + path.toAbsolutePath() +
-                "]. document and field level security is not enabled."));
+        List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
+        assertThat(events, hasSize(3));
+        assertThat(
+                events.get(0),
+                startsWith("invalid role definition [role_fields] in roles file [" + path.toAbsolutePath() +
+                        "]. document and field level security is not enabled."));
+        assertThat(events.get(1),
+                startsWith("invalid role definition [role_query] in roles file [" + path.toAbsolutePath() +
+                        "]. document and field level security is not enabled."));
+        assertThat(events.get(2),
+                startsWith("invalid role definition [role_query_fields] in roles file [" + path.toAbsolutePath() +
+                        "]. document and field level security is not enabled."));
     }
 
     /**
@@ -310,7 +314,7 @@ public class FileRolesStoreTests extends ESTestCase {
 
     public void testThatInvalidRoleDefinitions() throws Exception {
         Path path = getDataPath("invalid_roles.yml");
-        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.ERROR);
         Map<String, Role> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY);
         assertThat(roles.size(), is(1));
         assertThat(roles, hasKey("valid_role"));
@@ -318,33 +322,37 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role, notNullValue());
         assertThat(role.name(), equalTo("valid_role"));
 
-        List<CapturingLogger.Msg> entries = logger.output(CapturingLogger.Level.ERROR);
+        List<String> entries = CapturingLogger.output(logger.getName(), Level.ERROR);
         assertThat(entries, hasSize(6));
-        assertThat(entries.get(0).text, startsWith("invalid role definition [$dlk39] in roles file [" + path.toAbsolutePath() +
-                "]. invalid role name"));
-        assertThat(entries.get(1).text, startsWith("invalid role definition [role1] in roles file [" + path.toAbsolutePath() + "]"));
-        assertThat(entries.get(2).text, startsWith("failed to parse role [role2]"));
-        assertThat(entries.get(3).text, startsWith("failed to parse role [role3]"));
-        assertThat(entries.get(4).text, startsWith("failed to parse role [role4]"));
-        assertThat(entries.get(5).text, startsWith("failed to parse indices privileges for role [role5]"));
+        assertThat(
+                entries.get(0),
+                startsWith("invalid role definition [$dlk39] in roles file [" + path.toAbsolutePath() + "]. invalid role name"));
+        assertThat(
+                entries.get(1),
+                startsWith("invalid role definition [role1] in roles file [" + path.toAbsolutePath() + "]"));
+        assertThat(entries.get(2), startsWith("failed to parse role [role2]"));
+        assertThat(entries.get(3), startsWith("failed to parse role [role3]"));
+        assertThat(entries.get(4), startsWith("failed to parse role [role4]"));
+        assertThat(entries.get(5), startsWith("failed to parse indices privileges for role [role5]"));
     }
 
     public void testThatRoleNamesDoesNotResolvePermissions() throws Exception {
         Path path = getDataPath("invalid_roles.yml");
-        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.ERROR);
         Set<String> roleNames = FileRolesStore.parseFileForRoleNames(path, logger);
         assertThat(roleNames.size(), is(6));
         assertThat(roleNames, containsInAnyOrder("valid_role", "role1", "role2", "role3", "role4", "role5"));
 
-        List<CapturingLogger.Msg> entries = logger.output(CapturingLogger.Level.ERROR);
-        assertThat(entries, hasSize(1));
-        assertThat(entries.get(0).text, startsWith("invalid role definition [$dlk39] in roles file [" + path.toAbsolutePath() +
-                "]. invalid role name"));
+        List<String> events = CapturingLogger.output(logger.getName(), Level.ERROR);
+        assertThat(events, hasSize(1));
+        assertThat(
+                events.get(0),
+                startsWith("invalid role definition [$dlk39] in roles file [" + path.toAbsolutePath() + "]. invalid role name"));
     }
 
     public void testReservedRoles() throws Exception {
 
-        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
+        Logger logger = CapturingLogger.newCapturingLogger(Level.INFO);
 
         Path path = getDataPath("reserved_roles.yml");
         Map<String, Role> roles = FileRolesStore.parseFile(path, logger, Settings.EMPTY);
@@ -353,14 +361,14 @@ public class FileRolesStoreTests extends ESTestCase {
 
         assertThat(roles, hasKey("admin"));
 
-        List<CapturingLogger.Msg> messages = logger.output(CapturingLogger.Level.WARN);
-        assertThat(messages, notNullValue());
-        assertThat(messages, hasSize(4));
+        List<String> events = CapturingLogger.output(logger.getName(), Level.WARN);
+        assertThat(events, notNullValue());
+        assertThat(events, hasSize(4));
         // the system role will always be checked first
-        assertThat(messages.get(0).text, containsString("role [_system] is reserved"));
-        assertThat(messages.get(1).text, containsString("role [superuser] is reserved"));
-        assertThat(messages.get(2).text, containsString("role [kibana] is reserved"));
-        assertThat(messages.get(3).text, containsString("role [transport_client] is reserved"));
+        assertThat(events.get(0), containsString("role [_system] is reserved"));
+        assertThat(events.get(1), containsString("role [superuser] is reserved"));
+        assertThat(events.get(2), containsString("role [kibana] is reserved"));
+        assertThat(events.get(3), containsString("role [transport_client] is reserved"));
     }
 
     public void testUsageStats() throws Exception {

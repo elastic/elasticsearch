@@ -384,11 +384,9 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         logger.info("created watch [{}] at [{}]", watchName, SystemClock.INSTANCE.nowUTC());
 
         client().prepareIndex("events", "event")
-                .setCreate(true)
                 .setSource("level", "a")
                 .get();
         client().prepareIndex("events", "event")
-                .setCreate(true)
                 .setSource("level", "a")
                 .get();
 
@@ -397,7 +395,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertWatchWithNoActionNeeded(watchName, 1);
 
         client().prepareIndex("events", "event")
-                .setCreate(true)
                 .setSource("level", "b")
                 .get();
         refresh();
@@ -405,7 +402,6 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertWatchWithNoActionNeeded(watchName, 2);
 
         client().prepareIndex("events", "event")
-                .setCreate(true)
                 .setSource("level", "a")
                 .get();
         refresh();

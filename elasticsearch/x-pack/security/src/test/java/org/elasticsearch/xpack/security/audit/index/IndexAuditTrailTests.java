@@ -173,7 +173,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                 builder.put("xpack.security.audit.index.client." + entry.getKey(), entry.getValue());
             }
         } else {
-            builder.put("xpack.security.audit.index.client." + SecurityNetty3Transport.SSL_SETTING.getKey(), false);
+            builder.put("xpack.security.audit.index.client.xpack.ssl.client_authentication", "none");
         }
         remoteSettings = builder.build();
     }

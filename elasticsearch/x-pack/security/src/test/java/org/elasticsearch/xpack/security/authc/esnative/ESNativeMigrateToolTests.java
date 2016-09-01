@@ -44,7 +44,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         Settings s = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), useSSL)
+                .put("xpack.security.http.ssl.enabled", useSSL)
                 .build();
         return s;
     }

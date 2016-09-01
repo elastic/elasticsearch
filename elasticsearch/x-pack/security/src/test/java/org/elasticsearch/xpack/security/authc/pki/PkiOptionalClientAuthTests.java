@@ -21,9 +21,7 @@ import org.elasticsearch.xpack.XPackTransportClient;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.security.transport.SSLClientAuth;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
+import org.elasticsearch.xpack.ssl.SSLClientAuth;
 import org.junit.BeforeClass;
 
 import javax.net.ssl.SSLContext;
@@ -56,8 +54,8 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true)
-                .put(SecurityNetty3HttpServerTransport.CLIENT_AUTH_SETTING.getKey(), SSLClientAuth.OPTIONAL)
+                .put("xpack.security.http.ssl.enabled", true)
+                .put("xpack.security.http.ssl.client_authentication", SSLClientAuth.OPTIONAL)
                 .put("xpack.security.authc.realms.file.type", "file")
                 .put("xpack.security.authc.realms.file.order", "0")
                 .put("xpack.security.authc.realms.pki1.type", "pki")
@@ -68,7 +66,7 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
                 .put("xpack.security.authc.realms.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
                 .put("transport.profiles.want_client_auth.port", randomClientPortRange)
                 .put("transport.profiles.want_client_auth.bind_host", "localhost")
-                .put("transport.profiles.want_client_auth.xpack.security.ssl.client.auth", SSLClientAuth.OPTIONAL)
+                .put("transport.profiles.want_client_auth.xpack.security.ssl.client_authentication", SSLClientAuth.OPTIONAL)
                 .build();
     }
 
@@ -106,7 +104,7 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
                 .put(sslSettingsForStore)
                 .put(Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
-                .put(SecurityNetty3Transport.SSL_SETTING.getKey(), true)
+                .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED)
                 .build();
 
 

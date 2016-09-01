@@ -11,10 +11,10 @@ import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.SearchRequest;
 import com.unboundid.ldap.sdk.SearchResult;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.ssl.SSLService;
+import org.elasticsearch.xpack.ssl.SSLService;
 
 import java.util.concurrent.ExecutionException;
 
@@ -106,12 +106,12 @@ public class ActiveDirectorySessionFactory extends SessionFactory {
     abstract static class ADAuthenticator {
 
         final TimeValue timeout;
-        final ESLogger logger;
+        final Logger logger;
         final GroupsResolver groupsResolver;
         final String userSearchDN;
         final LdapSearchScope userSearchScope;
 
-        ADAuthenticator(Settings settings, TimeValue timeout, ESLogger logger, GroupsResolver groupsResolver, String domainDN) {
+        ADAuthenticator(Settings settings, TimeValue timeout, Logger logger, GroupsResolver groupsResolver, String domainDN) {
             this.timeout = timeout;
             this.logger = logger;
             this.groupsResolver = groupsResolver;
@@ -161,7 +161,7 @@ public class ActiveDirectorySessionFactory extends SessionFactory {
         final String userSearchFilter;
 
         final String domainName;
-        DefaultADAuthenticator(Settings settings, TimeValue timeout, ESLogger logger, GroupsResolver groupsResolver, String domainDN) {
+        DefaultADAuthenticator(Settings settings, TimeValue timeout, Logger logger, GroupsResolver groupsResolver, String domainDN) {
             super(settings, timeout, logger, groupsResolver, domainDN);
             domainName = settings.get(AD_DOMAIN_NAME_SETTING);
             userSearchFilter = settings.get(AD_USER_SEARCH_FILTER_SETTING, "(&(objectClass=user)(|(sAMAccountName={0})" +
@@ -190,7 +190,7 @@ public class ActiveDirectorySessionFactory extends SessionFactory {
         final String domainDN;
         final Settings settings;
 
-        DownLevelADAuthenticator(Settings settings, TimeValue timeout, ESLogger logger, GroupsResolver groupsResolver, String domainDN) {
+        DownLevelADAuthenticator(Settings settings, TimeValue timeout, Logger logger, GroupsResolver groupsResolver, String domainDN) {
             super(settings, timeout, logger, groupsResolver, domainDN);
             this.domainDN = domainDN;
             this.settings = settings;
@@ -271,7 +271,7 @@ public class ActiveDirectorySessionFactory extends SessionFactory {
 
         private static final String UPN_USER_FILTER = "(&(objectClass=user)(|(sAMAccountName={0})(userPrincipalName={1})))";
 
-        UpnADAuthenticator(Settings settings, TimeValue timeout, ESLogger logger, GroupsResolver groupsResolver, String domainDN) {
+        UpnADAuthenticator(Settings settings, TimeValue timeout, Logger logger, GroupsResolver groupsResolver, String domainDN) {
             super(settings, timeout, logger, groupsResolver, domainDN);
         }
 

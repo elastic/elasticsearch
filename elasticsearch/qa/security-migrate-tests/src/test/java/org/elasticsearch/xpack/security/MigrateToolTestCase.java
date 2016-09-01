@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -60,7 +60,7 @@ public abstract class MigrateToolTestCase extends LuceneTestCase {
      */
     public static final String TESTS_CLUSTER_DEFAULT = "localhost:9300";
 
-    protected static final ESLogger logger = ESLoggerFactory.getLogger(MigrateToolTestCase.class.getName());
+    protected static final Logger logger = ESLoggerFactory.getLogger(MigrateToolTestCase.class.getName());
 
     private static final AtomicInteger counter = new AtomicInteger();
     private static Client client;

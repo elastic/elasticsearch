@@ -5,39 +5,41 @@
  */
 package org.elasticsearch.xpack.security.authc.pki;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.authc.Realms;
+import org.elasticsearch.xpack.ssl.CertUtils;
+import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
-import org.elasticsearch.xpack.security.transport.SSLClientAuth;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.XPackPlugin;
 
-import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.security.KeyStore;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
+import static org.elasticsearch.xpack.XPackSettings.TRANSPORT_SSL_ENABLED;
 
 public class PkiRealm extends Realm {
 
@@ -48,23 +50,23 @@ public class PkiRealm extends Realm {
     // For client based cert validation, the auth type must be specified but UNKNOWN is an acceptable value
     public static final String AUTH_TYPE = "UNKNOWN";
 
-    private final X509TrustManager[] trustManagers;
+    private final X509TrustManager trustManager;
     private final Pattern principalPattern;
     private final DnRoleMapper roleMapper;
 
 
-    public PkiRealm(RealmConfig config, ResourceWatcherService watcherService) {
-        this(config, new DnRoleMapper(TYPE, config, watcherService, null));
+    public PkiRealm(RealmConfig config, ResourceWatcherService watcherService, SSLService sslService) {
+        this(config, new DnRoleMapper(TYPE, config, watcherService, null), sslService);
     }
 
     // pkg private for testing
-    PkiRealm(RealmConfig config, DnRoleMapper roleMapper) {
+    PkiRealm(RealmConfig config, DnRoleMapper roleMapper, SSLService sslService) {
         super(TYPE, config);
-        this.trustManagers = trustManagers(config.settings(), config.env());
+        this.trustManager = trustManagers(config);
         this.principalPattern = Pattern.compile(config.settings().get("username_pattern", DEFAULT_USERNAME_PATTERN),
                 Pattern.CASE_INSENSITIVE);
         this.roleMapper = roleMapper;
-        checkSSLEnabled(config, logger);
+        checkSSLEnabled(config, sslService);
     }
 
     @Override
@@ -80,7 +82,7 @@ public class PkiRealm extends Realm {
     @Override
     public User authenticate(AuthenticationToken authToken) {
         X509AuthenticationToken token = (X509AuthenticationToken)authToken;
-        if (!isCertificateChainTrusted(trustManagers, token, logger)) {
+        if (isCertificateChainTrusted(trustManager, token, logger) == false) {
             return null;
         }
 
@@ -98,7 +100,7 @@ public class PkiRealm extends Realm {
         return false;
     }
 
-    static X509AuthenticationToken token(Object pkiHeaderValue, Pattern principalPattern, ESLogger logger) {
+    static X509AuthenticationToken token(Object pkiHeaderValue, Pattern principalPattern, Logger logger) {
         if (pkiHeaderValue == null) {
             return null;
         }
@@ -128,92 +130,95 @@ public class PkiRealm extends Realm {
         return new X509AuthenticationToken(certificates, principal, dn);
     }
 
-    static boolean isCertificateChainTrusted(X509TrustManager[] trustManagers, X509AuthenticationToken token, ESLogger logger) {
-        if (trustManagers.length > 0) {
-            boolean trusted = false;
-            for (X509TrustManager trustManager : trustManagers) {
-                try {
-                    trustManager.checkClientTrusted(token.credentials(), AUTH_TYPE);
-                    trusted = true;
-                    break;
-                } catch (CertificateException e) {
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("failed certificate validation for principal [{}]", e, token.principal());
-                    } else if (logger.isDebugEnabled()) {
-                        logger.debug("failed certificate validation for principal [{}]", token.principal());
-                    }
+    static boolean isCertificateChainTrusted(X509TrustManager trustManager, X509AuthenticationToken token, Logger logger) {
+        if (trustManager != null) {
+            try {
+                trustManager.checkClientTrusted(token.credentials(), AUTH_TYPE);
+                return true;
+            } catch (CertificateException e) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace((Supplier<?>)
+                            () -> new ParameterizedMessage("failed certificate validation for principal [{}]", token.principal()), e);
+                } else if (logger.isDebugEnabled()) {
+                    logger.debug("failed certificate validation for principal [{}]", token.principal());
                 }
             }
-
-            return trusted;
+            return false;
         }
 
         // No extra trust managers specified, so at this point we can be considered authenticated.
         return true;
     }
 
-    static X509TrustManager[] trustManagers(Settings settings, Environment env) {
+    static X509TrustManager trustManagers(RealmConfig realmConfig) {
+        final Settings settings = realmConfig.settings();
+        final Environment env = realmConfig.env();
+        String[] certificateAuthorities = settings.getAsArray("certificate_authorities", null);
         String truststorePath = settings.get("truststore.path");
-        if (truststorePath == null) {
-            return new X509TrustManager[0];
+        if (truststorePath == null && certificateAuthorities == null) {
+            return null;
+        } else if (truststorePath != null && certificateAuthorities != null) {
+            final String settingPrefix = Realms.REALMS_GROUPS_SETTINGS.getKey() + realmConfig.name() + ".";
+            throw new IllegalArgumentException("[" + settingPrefix + "truststore.path] and [" + settingPrefix + "certificate_authorities]" +
+                    " cannot be used at the same time");
+        } else if (truststorePath != null) {
+            return trustManagersFromTruststore(realmConfig);
         }
+        return trustManagersFromCAs(settings, env);
+    }
 
+    private static X509TrustManager trustManagersFromTruststore(RealmConfig realmConfig) {
+        final Settings settings = realmConfig.settings();
+        String truststorePath = settings.get("truststore.path");
         String password = settings.get("truststore.password");
         if (password == null) {
-            throw new IllegalArgumentException("no truststore password configured");
+            final String settingPrefix = Realms.REALMS_GROUPS_SETTINGS.getKey() + realmConfig.name() + ".";
+            throw new IllegalArgumentException("[" + settingPrefix + "truststore.password] is not configured");
         }
 
         String trustStoreAlgorithm = settings.get("truststore.algorithm", System.getProperty("ssl.TrustManagerFactory.algorithm",
                 TrustManagerFactory.getDefaultAlgorithm()));
-        TrustManager[] trustManagers;
-        try (InputStream in = Files.newInputStream(XPackPlugin.resolveConfigFile(env, truststorePath))) {
-            // Load TrustStore
-            KeyStore ks = KeyStore.getInstance("jks");
-            ks.load(in, password.toCharArray());
-
-            // Initialize a trust manager factory with the trusted store
-            TrustManagerFactory trustFactory = TrustManagerFactory.getInstance(trustStoreAlgorithm);
-            trustFactory.init(ks);
-            trustManagers = trustFactory.getTrustManagers();
+        try {
+            return CertUtils.trustManager(truststorePath, password, trustStoreAlgorithm, realmConfig.env());
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to load specified truststore", e);
         }
+    }
 
-        List<X509TrustManager> trustManagerList = new ArrayList<>();
-        for (TrustManager trustManager : trustManagers) {
-            if (trustManager instanceof X509TrustManager) {
-                trustManagerList.add((X509TrustManager) trustManager);
-            }
+    private static X509TrustManager trustManagersFromCAs(Settings settings, Environment env) {
+        String[] certificateAuthorities = settings.getAsArray("certificate_authorities", null);
+        assert certificateAuthorities != null;
+        try {
+            Certificate[] certificates = CertUtils.readCertificates(Arrays.asList(certificateAuthorities), env);
+            return CertUtils.trustManager(certificates);
+        } catch (Exception e) {
+            throw new ElasticsearchException("failed to load certificate authorities for PKI realm", e);
         }
-
-        if (trustManagerList.isEmpty()) {
-            throw new IllegalArgumentException("no valid certificates found in truststore");
-        }
-
-        return trustManagerList.toArray(new X509TrustManager[trustManagerList.size()]);
     }
 
     /**
      * Checks to see if both SSL and Client authentication are enabled on at least one network communication layer. If
-     * not an error message will be logged
+     * not an exception will be thrown
      *
      * @param config this realm's configuration
-     * @param logger the logger to use if there is a configuration issue
+     * @param sslService the SSLService to use for ssl configurations
      */
-    static void checkSSLEnabled(RealmConfig config, ESLogger logger) {
+    static void checkSSLEnabled(RealmConfig config, SSLService sslService) {
         Settings settings = config.globalSettings();
 
-        final boolean httpSsl = SecurityNetty3HttpServerTransport.SSL_SETTING.get(settings);
-        final boolean httpClientAuth = SecurityNetty3HttpServerTransport.CLIENT_AUTH_SETTING.get(settings).enabled();
         // HTTP
+        final boolean httpSsl = HTTP_SSL_ENABLED.get(settings);
+        Settings httpSSLSettings = SSLService.getHttpTransportSSLSettings(settings);
+        final boolean httpClientAuth = sslService.isSSLClientAuthEnabled(httpSSLSettings);
         if (httpSsl && httpClientAuth) {
             return;
         }
 
         // Default Transport
-        final boolean ssl = SecurityNetty3Transport.SSL_SETTING.get(settings);
-        final SSLClientAuth clientAuth = SecurityNetty3Transport.CLIENT_AUTH_SETTING.get(settings);
-        if (ssl && clientAuth.enabled()) {
+        final boolean ssl = TRANSPORT_SSL_ENABLED.get(settings);
+        final Settings transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
+        final boolean clientAuthEnabled = sslService.isSSLClientAuthEnabled(transportSSLSettings);
+        if (ssl && clientAuthEnabled) {
             return;
         }
 
@@ -221,13 +226,14 @@ public class PkiRealm extends Realm {
         Map<String, Settings> groupedSettings = settings.getGroups("transport.profiles.");
         for (Map.Entry<String, Settings> entry : groupedSettings.entrySet()) {
             Settings profileSettings = entry.getValue().getByPrefix(Security.settingPrefix());
-            if (SecurityNetty3Transport.profileSsl(profileSettings, settings)
-                    && SecurityNetty3Transport.CLIENT_AUTH_SETTING.get(profileSettings, settings).enabled()) {
+            if (SecurityNetty3Transport.PROFILE_SSL_SETTING.get(profileSettings)
+                    && sslService.isSSLClientAuthEnabled(
+                            SecurityNetty3Transport.profileSslSettings(profileSettings), transportSSLSettings)) {
                 return;
             }
         }
 
-        logger.error("PKI realm [{}] is enabled but cannot be used as neither HTTP or Transport have both SSL and client authentication " +
-                "enabled", config.name());
+        throw new IllegalStateException("PKI realm [" + config.name() + "] is enabled but cannot be used as neither HTTP or Transport " +
+                "has SSL with client authentication enabled");
     }
 }

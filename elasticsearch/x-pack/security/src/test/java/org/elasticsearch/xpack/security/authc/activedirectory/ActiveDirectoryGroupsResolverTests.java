@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.is;
 @Network
 public class ActiveDirectoryGroupsResolverTests extends GroupsResolverTestCase {
 
-    public static final String BRUCE_BANNER_DN = "cn=Bruce Banner,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
+    private static final String BRUCE_BANNER_DN = "cn=Bruce Banner,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
 
     public void testResolveSubTree() throws Exception {
         Settings settings = Settings.builder()

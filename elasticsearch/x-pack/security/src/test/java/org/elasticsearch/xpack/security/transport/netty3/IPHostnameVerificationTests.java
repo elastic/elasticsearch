@@ -9,6 +9,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.ssl.SSLClientAuth;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,6 +17,7 @@ import java.util.Map.Entry;
 
 import static org.hamcrest.CoreMatchers.is;
 
+// TODO delete this test?
 public class IPHostnameVerificationTests extends SecurityIntegTestCase {
     Path keystore;
 
@@ -29,7 +31,7 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
         Settings settings = super.nodeSettings(nodeOrdinal);
         Settings.Builder builder = Settings.builder();
         for (Entry<String, String> entry : settings.getAsMap().entrySet()) {
-            if (entry.getKey().startsWith("xpack.security.ssl.") == false) {
+            if (entry.getKey().startsWith("xpack.ssl.") == false) {
                 builder.put(entry.getKey(), entry.getValue());
             }
         }
@@ -54,15 +56,14 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
             throw new RuntimeException(e);
         }
 
-        return settingsBuilder.put("xpack.security.ssl.keystore.path", keystore.toAbsolutePath()) // settings for client truststore
-                .put("xpack.security.ssl.keystore.password", "testnode-ip-only")
-                .put("xpack.security.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
-                .put("xpack.security.ssl.truststore.password", "testnode-ip-only")
+        return settingsBuilder.put("xpack.ssl.keystore.path", keystore.toAbsolutePath()) // settings for client truststore
+                .put("xpack.ssl.keystore.password", "testnode-ip-only")
+                .put("xpack.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
+                .put("xpack.ssl.truststore.password", "testnode-ip-only")
                 .put(TransportSettings.BIND_HOST.getKey(), "127.0.0.1")
                 .put("network.host", "127.0.0.1")
-                .put("xpack.security.ssl.client.auth", "false")
-                .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_SETTING.getKey(), true)
-                .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.getKey(), false)
+                .put("xpack.ssl.client_authentication", SSLClientAuth.NONE)
+                .put("xpack.ssl.verification_mode", "full")
                 .build();
     }
 
@@ -71,19 +72,18 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
         Settings clientSettings = super.transportClientSettings();
         Settings.Builder builder = Settings.builder();
         for (Entry<String, String> entry : clientSettings.getAsMap().entrySet()) {
-            if (entry.getKey().startsWith("xpack.security.ssl.") == false) {
+            if (entry.getKey().startsWith("xpack.ssl.") == false) {
                 builder.put(entry.getKey(), entry.getValue());
             }
         }
         clientSettings = builder.build();
 
         return Settings.builder().put(clientSettings)
-                .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_SETTING.getKey(), true)
-                .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING.getKey(), false)
-                .put("xpack.security.ssl.keystore.path", keystore.toAbsolutePath())
-                .put("xpack.security.ssl.keystore.password", "testnode-ip-only")
-                .put("xpack.security.ssl.truststore.path", keystore.toAbsolutePath())
-                .put("xpack.security.ssl.truststore.password", "testnode-ip-only")
+                .put("xpack.ssl.verification_mode", "certificate")
+                .put("xpack.ssl.keystore.path", keystore.toAbsolutePath())
+                .put("xpack.ssl.keystore.password", "testnode-ip-only")
+                .put("xpack.ssl.truststore.path", keystore.toAbsolutePath())
+                .put("xpack.ssl.truststore.password", "testnode-ip-only")
                 .build();
     }
 

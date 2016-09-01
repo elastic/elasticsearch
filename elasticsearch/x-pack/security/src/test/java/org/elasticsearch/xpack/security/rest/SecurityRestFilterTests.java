@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.ssl.SSLService;
 import org.junit.Before;
 
 import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;
@@ -46,7 +47,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         when(licenseState.isAuthAllowed()).thenReturn(true);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        filter = new SecurityRestFilter(authcService, restController, Settings.EMPTY, threadPool, licenseState);
+        filter = new SecurityRestFilter(authcService, restController, Settings.EMPTY, threadPool, licenseState, mock(SSLService.class));
         verify(restController).registerFilter(filter);
     }
 

@@ -11,7 +11,7 @@ import com.unboundid.ldap.sdk.LDAPInterface;
 import com.unboundid.ldap.sdk.SearchRequest;
 import com.unboundid.ldap.sdk.SearchResultEntry;
 import com.unboundid.ldap.sdk.SearchScope;
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
@@ -41,7 +41,7 @@ class UserAttributeGroupsResolver implements GroupsResolver {
     }
 
     @Override
-    public List<String> resolve(LDAPInterface connection, String userDn, TimeValue timeout, ESLogger logger,
+    public List<String> resolve(LDAPInterface connection, String userDn, TimeValue timeout, Logger logger,
                                 Collection<Attribute> attributes) throws LDAPException {
         if (attributes != null) {
             for (Attribute attribute : attributes) {

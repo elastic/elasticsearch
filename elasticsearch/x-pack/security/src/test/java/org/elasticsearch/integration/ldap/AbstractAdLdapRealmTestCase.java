@@ -12,12 +12,11 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.security.authc.activedirectory.ActiveDirectoryRealm;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
-import org.elasticsearch.test.SecurityIntegTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -31,8 +30,6 @@ import static org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScop
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-
 
 /**
  * This test assumes all subclass tests will be of type SUITE.  It picks a random realm configuration for the tests, and
@@ -166,11 +163,11 @@ public abstract  class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase
 
     private Settings sslSettingsForStore(Path store, String password) {
         return Settings.builder()
-                .put("xpack.security.ssl.keystore.path", store)
-                .put("xpack.security.ssl.keystore.password", password)
-                .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_SETTING.getKey(), false)
-                .put("xpack.security.ssl.truststore.path", store)
-                .put("xpack.security.ssl.truststore.password", password).build();
+                .put("xpack.ssl.keystore.path", store)
+                .put("xpack.ssl.keystore.password", password)
+                .put("xpack.ssl.verification_mode", "certificate")
+                .put("xpack.ssl.truststore.path", store)
+                .put("xpack.ssl.truststore.password", password).build();
     }
 
     /**

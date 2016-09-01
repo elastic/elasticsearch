@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.watcher.watch;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -149,7 +149,7 @@ public class WatchTests extends ESTestCase {
     private HtmlSanitizer htmlSanitizer;
     private HttpAuthRegistry authRegistry;
     private XPackLicenseState licenseState;
-    private ESLogger logger;
+    private Logger logger;
     private Settings settings = Settings.EMPTY;
     private WatcherSearchTemplateService searchTemplateService;
 

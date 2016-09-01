@@ -17,8 +17,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.monitoring.agent.exporter.Exporters;
-import org.elasticsearch.xpack.monitoring.agent.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.monitoring.exporter.Exporters;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 
 import java.util.Collection;
 import java.util.concurrent.TimeUnit;

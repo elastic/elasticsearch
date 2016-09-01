@@ -10,13 +10,13 @@ import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
-import org.elasticsearch.xpack.security.ssl.SSLService;
+import org.elasticsearch.xpack.ssl.SSLService;
 
 import javax.net.SocketFactory;
 import java.util.regex.Pattern;
@@ -47,7 +47,7 @@ public abstract class SessionFactory {
     private static final Pattern STARTS_WITH_LDAPS = Pattern.compile("^ldaps:.*", Pattern.CASE_INSENSITIVE);
     private static final Pattern STARTS_WITH_LDAP = Pattern.compile("^ldap:.*", Pattern.CASE_INSENSITIVE);
 
-    protected final ESLogger logger;
+    protected final Logger logger;
     protected final RealmConfig config;
     protected final TimeValue timeout;
     protected final SSLService sslService;

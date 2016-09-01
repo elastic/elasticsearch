@@ -9,7 +9,7 @@ import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPInterface;
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.Closeable;
@@ -21,7 +21,7 @@ import java.util.List;
  */
 public class LdapSession implements Closeable {
 
-    protected final ESLogger logger;
+    protected final Logger logger;
     protected final LDAPInterface ldap;
     protected final String userDn;
     protected final GroupsResolver groupsResolver;
@@ -36,7 +36,7 @@ public class LdapSession implements Closeable {
      * outside of and be reused across all connections. We can't keep a static logger in this class
      * since we want the logger to be contextual (i.e. aware of the settings and its environment).
      */
-    public LdapSession(ESLogger logger, LDAPInterface connection, String userDn, GroupsResolver groupsResolver, TimeValue timeout,
+    public LdapSession(Logger logger, LDAPInterface connection, String userDn, GroupsResolver groupsResolver, TimeValue timeout,
                        Collection<Attribute> attributes) {
         this.logger = logger;
         this.ldap = connection;
@@ -73,7 +73,7 @@ public class LdapSession implements Closeable {
 
     public interface GroupsResolver {
 
-        List<String> resolve(LDAPInterface ldapConnection, String userDn, TimeValue timeout, ESLogger logger,
+        List<String> resolve(LDAPInterface ldapConnection, String userDn, TimeValue timeout, Logger logger,
                              Collection<Attribute> attributes) throws LDAPException;
 
         String[] attributes();

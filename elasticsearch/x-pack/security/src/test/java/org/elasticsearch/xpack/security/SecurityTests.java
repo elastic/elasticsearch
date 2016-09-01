@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
+import org.elasticsearch.xpack.ssl.SSLService;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
@@ -61,7 +62,7 @@ public class SecurityTests extends ESTestCase {
         Settings settings = Settings.builder().put(testSettings)
             .put("path.home", createTempDir()).build();
         Environment env = new Environment(settings);
-        Security security = new Security(settings, env, new XPackLicenseState());
+        Security security = new Security(settings, env, new XPackLicenseState(), new SSLService(settings, env));
         ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
         settings = Security.additionalSettings(settings, false);

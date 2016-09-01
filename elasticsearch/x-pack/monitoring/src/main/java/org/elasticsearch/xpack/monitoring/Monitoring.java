@@ -20,24 +20,24 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.monitoring.action.TransportMonitoringBulkAction;
-import org.elasticsearch.xpack.monitoring.agent.AgentService;
-import org.elasticsearch.xpack.monitoring.agent.collector.Collector;
-import org.elasticsearch.xpack.monitoring.agent.collector.cluster.ClusterStateCollector;
-import org.elasticsearch.xpack.monitoring.agent.collector.cluster.ClusterStatsCollector;
-import org.elasticsearch.xpack.monitoring.agent.collector.indices.IndexRecoveryCollector;
-import org.elasticsearch.xpack.monitoring.agent.collector.indices.IndexStatsCollector;
-import org.elasticsearch.xpack.monitoring.agent.collector.indices.IndicesStatsCollector;
-import org.elasticsearch.xpack.monitoring.agent.collector.node.NodeStatsCollector;
-import org.elasticsearch.xpack.monitoring.agent.collector.shards.ShardsCollector;
-import org.elasticsearch.xpack.monitoring.agent.exporter.Exporter;
-import org.elasticsearch.xpack.monitoring.agent.exporter.Exporters;
-import org.elasticsearch.xpack.monitoring.agent.exporter.http.HttpExporter;
-import org.elasticsearch.xpack.monitoring.agent.exporter.local.LocalExporter;
+import org.elasticsearch.xpack.monitoring.collector.Collector;
+import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStateCollector;
+import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStatsCollector;
+import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryCollector;
+import org.elasticsearch.xpack.monitoring.collector.indices.IndexStatsCollector;
+import org.elasticsearch.xpack.monitoring.collector.indices.IndicesStatsCollector;
+import org.elasticsearch.xpack.monitoring.collector.node.NodeStatsCollector;
+import org.elasticsearch.xpack.monitoring.collector.shards.ShardsCollector;
+import org.elasticsearch.xpack.monitoring.exporter.Exporter;
+import org.elasticsearch.xpack.monitoring.exporter.Exporters;
+import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
+import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.rest.action.RestMonitoringBulkAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.ssl.SSLService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -98,7 +98,7 @@ public class Monitoring implements ActionPlugin {
     }
 
     public Collection<Object> createComponents(InternalClient client, ThreadPool threadPool, ClusterService clusterService,
-                                               LicenseService licenseService) {
+                                               LicenseService licenseService, SSLService sslService) {
         if (enabled == false || tribeNode) {
             return Collections.emptyList();
         }
@@ -107,8 +107,10 @@ public class Monitoring implements ActionPlugin {
         final MonitoringSettings monitoringSettings = new MonitoringSettings(settings, clusterSettings);
         final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool, licenseState);
 
+        // TODO do exporters and their ssl config really need to be dynamic? https://github.com/elastic/x-plugins/issues/3117
+        final SSLService dynamicSSLService = sslService.createDynamicSSLService();
         Map<String, Exporter.Factory> exporterFactories = new HashMap<>();
-        exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, env));
+        exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, env, dynamicSSLService));
         exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, clusterService, cleanerService));
         final Exporters exporters = new Exporters(settings, exporterFactories, clusterService);
 

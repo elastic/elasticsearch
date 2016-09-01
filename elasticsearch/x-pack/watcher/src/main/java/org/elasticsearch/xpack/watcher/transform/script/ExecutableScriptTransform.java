@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.watcher.transform.script;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
@@ -22,13 +24,14 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.invalidScript;
 import static org.elasticsearch.xpack.watcher.support.Variables.createCtxModel;
+import static org.elasticsearch.xpack.watcher.transform.script.ScriptTransform.TYPE;
 
 public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransform, ScriptTransform.Result> {
 
     private final ScriptService scriptService;
     private final CompiledScript compiledScript;
 
-    public ExecutableScriptTransform(ScriptTransform transform, ESLogger logger, ScriptService scriptService) {
+    public ExecutableScriptTransform(ScriptTransform transform, Logger logger, ScriptService scriptService) {
         super(transform, logger);
         this.scriptService = scriptService;
         Script script = transform.getScript();
@@ -44,7 +47,7 @@ public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransfo
         try {
             return doExecute(ctx, payload);
         } catch (Exception e) {
-            logger.error("failed to execute [{}] transform for [{}]", e, ScriptTransform.TYPE, ctx.id());
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute [{}] transform for [{}]", TYPE, ctx.id()), e);
             return new ScriptTransform.Result(e);
         }
     }

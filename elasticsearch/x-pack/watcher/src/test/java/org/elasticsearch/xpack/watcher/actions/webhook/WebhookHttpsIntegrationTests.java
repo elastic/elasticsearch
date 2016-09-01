@@ -50,8 +50,8 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
         Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks");
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(HttpClient.SETTINGS_SSL_KEYSTORE, resource.toString())
-                .put(HttpClient.SETTINGS_SSL_KEYSTORE_PASSWORD, "testnode")
+                .put("xpack.http.ssl.keystore.path", resource.toString())
+                .put("xpack.http.ssl.keystore.password", "testnode")
                 .build();
     }
 

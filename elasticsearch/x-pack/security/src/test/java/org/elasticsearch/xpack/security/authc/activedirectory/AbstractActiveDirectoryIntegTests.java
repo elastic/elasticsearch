@@ -10,7 +10,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.xpack.security.ssl.SSLService;
+import org.elasticsearch.xpack.ssl.SSLService;
 import org.junit.Before;
 
 import java.nio.file.Path;
@@ -37,8 +37,8 @@ public class AbstractActiveDirectoryIntegTests extends ESTestCase {
          */
         Settings.Builder builder = Settings.builder().put("path.home", createTempDir());
         if (useGlobalSSL) {
-            builder.put("xpack.security.ssl.keystore.path", keystore)
-                    .put("xpack.security.ssl.keystore.password", "changeit");
+            builder.put("xpack.ssl.keystore.path", keystore)
+                    .put("xpack.ssl.keystore.password", "changeit");
         } else {
             // fake a realm so ssl will get loaded
             builder.put("xpack.security.authc.realms.foo.ssl.truststore.path", keystore);

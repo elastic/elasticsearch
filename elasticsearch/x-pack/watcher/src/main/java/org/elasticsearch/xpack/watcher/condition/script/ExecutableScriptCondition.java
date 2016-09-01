@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition.script;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
@@ -28,7 +28,7 @@ public class ExecutableScriptCondition extends ExecutableCondition<ScriptConditi
     private final ScriptService scriptService;
     private final CompiledScript compiledScript;
 
-    public ExecutableScriptCondition(ScriptCondition condition, ESLogger logger, ScriptService scriptService) {
+    public ExecutableScriptCondition(ScriptCondition condition, Logger logger, ScriptService scriptService) {
         super(condition, logger);
         this.scriptService = scriptService;
         try {

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition.compare.array;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.condition.compare.AbstractExecutableCompareCondition;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
@@ -18,7 +18,7 @@ import java.util.Map;
 public class ExecutableArrayCompareCondition extends AbstractExecutableCompareCondition<ArrayCompareCondition,
         ArrayCompareCondition.Result> {
 
-    public ExecutableArrayCompareCondition(ArrayCompareCondition condition, ESLogger logger, Clock clock) {
+    public ExecutableArrayCompareCondition(ArrayCompareCondition condition, Logger logger, Clock clock) {
         super(condition, logger, clock);
     }
 

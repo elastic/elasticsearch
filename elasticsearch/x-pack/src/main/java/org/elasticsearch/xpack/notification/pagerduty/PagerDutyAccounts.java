@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.notification.pagerduty;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.xpack.common.http.HttpClient;
@@ -21,7 +21,7 @@ public class PagerDutyAccounts {
     private final Map<String, PagerDutyAccount> accounts;
     private final String defaultAccountName;
 
-    public PagerDutyAccounts(Settings serviceSettings, HttpClient httpClient, ESLogger logger) {
+    public PagerDutyAccounts(Settings serviceSettings, HttpClient httpClient, Logger logger) {
         Settings accountsSettings = serviceSettings.getAsSettings("account");
         accounts = new HashMap<>();
         for (String name : accountsSettings.names()) {

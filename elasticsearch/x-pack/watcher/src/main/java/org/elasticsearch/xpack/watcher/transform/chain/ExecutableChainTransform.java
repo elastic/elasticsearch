@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.watcher.transform.chain;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.transform.Transform;
@@ -18,6 +20,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.watcher.transform.chain.ChainTransform.TYPE;
 
 /**
  *
@@ -26,11 +29,11 @@ public class ExecutableChainTransform extends ExecutableTransform<ChainTransform
 
     private final List<ExecutableTransform> transforms;
 
-    public ExecutableChainTransform(ChainTransform transform, ESLogger logger, ExecutableTransform... transforms) {
+    public ExecutableChainTransform(ChainTransform transform, Logger logger, ExecutableTransform... transforms) {
         this(transform, logger, Arrays.asList(transforms));
     }
 
-    public ExecutableChainTransform(ChainTransform transform, ESLogger logger, List<ExecutableTransform> transforms) {
+    public ExecutableChainTransform(ChainTransform transform, Logger logger, List<ExecutableTransform> transforms) {
         super(transform, logger);
         this.transforms = Collections.unmodifiableList(transforms);
     }
@@ -45,7 +48,7 @@ public class ExecutableChainTransform extends ExecutableTransform<ChainTransform
         try {
             return doExecute(ctx, payload, results);
         } catch (Exception e) {
-            logger.error("failed to execute [{}] transform for [{}]", e, ChainTransform.TYPE, ctx.id());
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute [{}] transform for [{}]", TYPE, ctx.id()), e);
             return new ChainTransform.Result(e, results);
         }
     }

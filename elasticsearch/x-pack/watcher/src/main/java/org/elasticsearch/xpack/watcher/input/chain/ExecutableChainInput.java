@@ -5,8 +5,10 @@
  */
 package org.elasticsearch.xpack.watcher.input.chain;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.input.Input;
@@ -17,11 +19,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.watcher.input.chain.ChainInput.TYPE;
+
 public class ExecutableChainInput extends ExecutableInput<ChainInput,ChainInput.Result> {
 
     private List<Tuple<String, ExecutableInput>> inputs;
 
-    public ExecutableChainInput(ChainInput input, List<Tuple<String, ExecutableInput>> inputs, ESLogger logger) {
+    public ExecutableChainInput(ChainInput input, List<Tuple<String, ExecutableInput>> inputs, Logger logger) {
         super(input, logger);
         this.inputs = inputs;
     }
@@ -40,7 +44,7 @@ public class ExecutableChainInput extends ExecutableInput<ChainInput,ChainInput.
 
             return new ChainInput.Result(results, new Payload.Simple(payloads));
         } catch (Exception e) {
-            logger.error("failed to execute [{}] input for [{}]", e, ChainInput.TYPE, ctx.watch().id());
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute [{}] input for [{}]", TYPE, ctx.watch().id()), e);
             return new ChainInput.Result(e);
         }
     }

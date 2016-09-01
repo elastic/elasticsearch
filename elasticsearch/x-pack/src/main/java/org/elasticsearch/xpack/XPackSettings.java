@@ -6,13 +6,22 @@
 package org.elasticsearch.xpack;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.ssl.SSLClientAuth;
+import org.elasticsearch.xpack.ssl.VerificationMode;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
+
+import static java.util.Collections.emptyList;
 
 /**
  * A container for xpack setting constants.
@@ -40,6 +49,192 @@ public class XPackSettings {
 
     /** Setting for enabling or disabling document/field level security. Defaults to true. */
     public static final Setting<Boolean> DLS_FLS_ENABLED = enabledSetting(XPackPlugin.SECURITY + ".dls_fls", true);
+
+    /** Setting for enabling or disabling transport ssl. Defaults to false. */
+    public static final Setting<Boolean> TRANSPORT_SSL_ENABLED = enabledSetting(XPackPlugin.SECURITY + ".transport.ssl", false);
+
+    /** Setting for enabling or disabling http ssl. Defaults to false. */
+    public static final Setting<Boolean> HTTP_SSL_ENABLED = enabledSetting(XPackPlugin.SECURITY + ".http.ssl", false);
+
+    /*
+     * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them
+     * but instead parse based on a prefix (eg *.ssl.*)
+     */
+    public static final List<String> DEFAULT_CIPHERS =
+            Arrays.asList("TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256", "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256",
+                    "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA", "TLS_RSA_WITH_AES_128_CBC_SHA256",
+                    "TLS_RSA_WITH_AES_128_CBC_SHA");
+    public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS = Arrays.asList("TLSv1.2", "TLSv1.1", "TLSv1");
+    public static final SSLClientAuth CLIENT_AUTH_DEFAULT = SSLClientAuth.REQUIRED;
+    public static final SSLClientAuth HTTP_CLIENT_AUTH_DEFAULT = SSLClientAuth.NONE;
+    public static final VerificationMode VERIFICATION_MODE_DEFAULT = VerificationMode.FULL;
+
+    // global settings that apply to everything!
+    private static final Setting<List<String>> CIPHERS_SETTING = Setting.listSetting("xpack.ssl.cipher_suites", DEFAULT_CIPHERS,
+            Function.identity(), Property.NodeScope, Property.Filtered);
+    private static final Setting<List<String>> SUPPORTED_PROTOCOLS_SETTING = Setting.listSetting("xpack.ssl.supported_protocols",
+            DEFAULT_SUPPORTED_PROTOCOLS, Function.identity(), Property.NodeScope, Property.Filtered);
+    private static final Setting<SSLClientAuth> CLIENT_AUTH_SETTING = new Setting<>("xpack.ssl.client_authentication",
+            CLIENT_AUTH_DEFAULT.name(), SSLClientAuth::parse, Property.NodeScope, Property.Filtered);
+    private static final Setting<VerificationMode> VERIFICATION_MODE_SETTING = new Setting<>("xpack.ssl.verification_mode",
+            VERIFICATION_MODE_DEFAULT.name(), VerificationMode::parse, Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> KEYSTORE_PATH_SETTING = new Setting<>("xpack.ssl.keystore.path",
+            s -> System.getProperty("javax.net.ssl.keyStore"), Optional::ofNullable, Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> KEYSTORE_PASSWORD_SETTING = new Setting<>("xpack.ssl.keystore.password",
+            s -> System.getProperty("javax.net.ssl.keyStorePassword"), Optional::ofNullable, Property.NodeScope, Property.Filtered);
+    private static final Setting<String> KEYSTORE_ALGORITHM_SETTING = new Setting<>("xpack.ssl.keystore.algorithm",
+            s -> System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm()),
+            Function.identity(), Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> KEYSTORE_KEY_PASSWORD_SETTING =
+            new Setting<>("xpack.ssl.keystore.key_password", KEYSTORE_PASSWORD_SETTING, Optional::ofNullable,
+                    Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> TRUSTSTORE_PATH_SETTING = new Setting<>("xpack.ssl.truststore.path",
+            s -> System.getProperty("javax.net.ssl.trustStore"), Optional::ofNullable, Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> TRUSTSTORE_PASSWORD_SETTING = new Setting<>("xpack.ssl.truststore.password",
+            s -> System.getProperty("javax.net.ssl.trustStorePassword"), Optional::ofNullable, Property.NodeScope, Property.Filtered);
+    private static final Setting<String> TRUSTSTORE_ALGORITHM_SETTING = new Setting<>("xpack.ssl.truststore.algorithm",
+            s -> System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()),
+            Function.identity(), Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> KEY_PATH_SETTING =
+            new Setting<>("xpack.ssl.key", (String) null, Optional::ofNullable, Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> KEY_PASSWORD_SETTING =
+            new Setting<>("xpack.ssl.key_passphrase", (String) null, Optional::ofNullable, Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> CERT_SETTING =
+            new Setting<>("xpack.ssl.certificate", (String) null, Optional::ofNullable, Property.NodeScope, Property.Filtered);
+    private static final Setting<List<String>> CA_PATHS_SETTING = Setting.listSetting("xpack.ssl.certificate_authorities",
+            Collections.emptyList(), s -> s, Property.NodeScope, Property.Filtered);
+
+    // http specific settings
+    private static final Setting<List<String>> HTTP_CIPHERS_SETTING = Setting.listSetting("xpack.security.http.ssl.cipher_suites",
+            DEFAULT_CIPHERS, Function.identity(), Property.NodeScope, Property.Filtered);
+    private static final Setting<List<String>> HTTP_SUPPORTED_PROTOCOLS_SETTING =
+            Setting.listSetting("xpack.security.http.ssl.supported_protocols", emptyList(), Function.identity(),
+                    Property.NodeScope, Property.Filtered);
+    private static final Setting<SSLClientAuth> HTTP_CLIENT_AUTH_SETTING = new Setting<>("xpack.security.http.ssl.client_authentication",
+            CLIENT_AUTH_DEFAULT.name(), SSLClientAuth::parse, Property.NodeScope, Property.Filtered);
+    private static final Setting<VerificationMode> HTTP_VERIFICATION_MODE_SETTING =
+            new Setting<>("xpack.security.http.ssl.verification_mode", VERIFICATION_MODE_DEFAULT.name(), VerificationMode::parse,
+                    Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> HTTP_KEYSTORE_PATH_SETTING = new Setting<>("xpack.security.http.ssl.keystore.path",
+            (String) null, Optional::ofNullable, Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> HTTP_KEYSTORE_PASSWORD_SETTING =
+            new Setting<>("xpack.security.http.ssl.keystore.password", (String) null, Optional::ofNullable,
+                    Property.NodeScope, Property.Filtered);
+    private static final Setting<String> HTTP_KEYSTORE_ALGORITHM_SETTING = new Setting<>("xpack.security.http.ssl.keystore.algorithm",
+            "", Function.identity(), Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> HTTP_KEYSTORE_KEY_PASSWORD_SETTING =
+            new Setting<>("xpack.security.http.ssl.keystore.key_password", HTTP_KEYSTORE_PASSWORD_SETTING, Optional::ofNullable,
+                    Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> HTTP_TRUSTSTORE_PATH_SETTING = new Setting<>("xpack.security.http.ssl.truststore.path",
+            (String) null, Optional::ofNullable, Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> HTTP_TRUSTSTORE_PASSWORD_SETTING =
+            new Setting<>("xpack.security.http.ssl.truststore.password", (String) null, Optional::ofNullable,
+                    Property.NodeScope, Property.Filtered);
+    private static final Setting<String> HTTP_TRUSTSTORE_ALGORITHM_SETTING = new Setting<>("xpack.security.http.ssl.truststore.algorithm",
+            "", Function.identity(), Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> HTTP_KEY_PATH_SETTING =
+            new Setting<>("xpack.security.http.ssl.key", (String) null, Optional::ofNullable, Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> HTTP_KEY_PASSWORD_SETTING = new Setting<>("xpack.security.http.ssl.key_passphrase",
+            (String) null, Optional::ofNullable, Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> HTTP_CERT_SETTING = new Setting<>("xpack.security.http.ssl.certificate",
+            (String) null, Optional::ofNullable, Property.NodeScope, Property.Filtered);
+    private static final Setting<List<String>> HTTP_CA_PATHS_SETTING =
+            Setting.listSetting("xpack.security.http.ssl.certificate_authorities", emptyList(), s -> s,
+                    Property.NodeScope, Property.Filtered);
+
+    // transport specific settings
+    private static final Setting<List<String>> TRANSPORT_CIPHERS_SETTING =
+            Setting.listSetting("xpack.security.transport.ssl.cipher_suites", DEFAULT_CIPHERS, Function.identity(),
+                    Property.NodeScope, Property.Filtered);
+    private static final Setting<List<String>> TRANSPORT_SUPPORTED_PROTOCOLS_SETTING =
+            Setting.listSetting("xpack.security.transport.ssl.supported_protocols", emptyList(), Function.identity(),
+                    Property.NodeScope, Property.Filtered);
+    private static final Setting<SSLClientAuth> TRANSPORT_CLIENT_AUTH_SETTING =
+            new Setting<>("xpack.security.transport.ssl.client_authentication", CLIENT_AUTH_DEFAULT.name(), SSLClientAuth::parse,
+                    Property.NodeScope, Property.Filtered);
+    private static final Setting<VerificationMode> TRANSPORT_VERIFICATION_MODE_SETTING =
+            new Setting<>("xpack.security.transport.ssl.verification_mode", VERIFICATION_MODE_DEFAULT.name(), VerificationMode::parse,
+                    Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> TRANSPORT_KEYSTORE_PATH_SETTING =
+            new Setting<>("xpack.security.transport.ssl.keystore.path", (String) null, Optional::ofNullable,
+                    Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> TRANSPORT_KEYSTORE_PASSWORD_SETTING =
+            new Setting<>("xpack.security.transport.ssl.keystore.password", (String) null, Optional::ofNullable,
+                    Property.NodeScope, Property.Filtered);
+    private static final Setting<String> TRANSPORT_KEYSTORE_ALGORITHM_SETTING =
+            new Setting<>("xpack.security.transport.ssl.keystore.algorithm", "", Function.identity(), Property.NodeScope,
+                    Property.Filtered);
+    private static final Setting<Optional<String>> TRANSPORT_KEYSTORE_KEY_PASSWORD_SETTING =
+            new Setting<>("xpack.security.transport.ssl.keystore.key_password", TRANSPORT_KEYSTORE_PASSWORD_SETTING, Optional::ofNullable,
+                    Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> TRANSPORT_TRUSTSTORE_PATH_SETTING =
+            new Setting<>("xpack.security.transport.ssl.truststore.path", (String) null, Optional::ofNullable,
+                    Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> TRANSPORT_TRUSTSTORE_PASSWORD_SETTING =
+            new Setting<>("xpack.security.transport.ssl.truststore.password", (String) null, Optional::ofNullable,
+                    Property.NodeScope, Property.Filtered);
+    private static final Setting<String> TRANSPORT_TRUSTSTORE_ALGORITHM_SETTING =
+            new Setting<>("xpack.security.transport.ssl.truststore.algorithm", "", Function.identity(),
+                    Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> TRANSPORT_KEY_PATH_SETTING =
+            new Setting<>("xpack.security.transport.ssl.key", (String) null, Optional::ofNullable, Property.NodeScope, Property.Filtered);
+    private static final Setting<Optional<String>> TRANSPORT_KEY_PASSWORD_SETTING =
+            new Setting<>("xpack.security.transport.ssl.key_passphrase", (String) null, Optional::ofNullable, Property.NodeScope,
+                    Property.Filtered);
+    private static final Setting<Optional<String>> TRANSPORT_CERT_SETTING = new Setting<>("xpack.security.transport.ssl.certificate",
+            (String) null, Optional::ofNullable, Property.NodeScope, Property.Filtered);
+    private static final Setting<List<String>> TRANSPORT_CA_PATHS_SETTING =
+            Setting.listSetting("xpack.security.transport.ssl.certificate_authorities", emptyList(), s -> s,
+                    Property.NodeScope, Property.Filtered);
+    /* End SSL settings */
+
+    static {
+        ALL_SETTINGS.add(CIPHERS_SETTING);
+        ALL_SETTINGS.add(SUPPORTED_PROTOCOLS_SETTING);
+        ALL_SETTINGS.add(KEYSTORE_PATH_SETTING);
+        ALL_SETTINGS.add(KEYSTORE_PASSWORD_SETTING);
+        ALL_SETTINGS.add(KEYSTORE_ALGORITHM_SETTING);
+        ALL_SETTINGS.add(KEYSTORE_KEY_PASSWORD_SETTING);
+        ALL_SETTINGS.add(KEY_PATH_SETTING);
+        ALL_SETTINGS.add(KEY_PASSWORD_SETTING);
+        ALL_SETTINGS.add(CERT_SETTING);
+        ALL_SETTINGS.add(TRUSTSTORE_PATH_SETTING);
+        ALL_SETTINGS.add(TRUSTSTORE_PASSWORD_SETTING);
+        ALL_SETTINGS.add(TRUSTSTORE_ALGORITHM_SETTING);
+        ALL_SETTINGS.add(CA_PATHS_SETTING);
+        ALL_SETTINGS.add(VERIFICATION_MODE_SETTING);
+        ALL_SETTINGS.add(CLIENT_AUTH_SETTING);
+        ALL_SETTINGS.add(HTTP_CIPHERS_SETTING);
+        ALL_SETTINGS.add(HTTP_SUPPORTED_PROTOCOLS_SETTING);
+        ALL_SETTINGS.add(HTTP_KEYSTORE_PATH_SETTING);
+        ALL_SETTINGS.add(HTTP_KEYSTORE_PASSWORD_SETTING);
+        ALL_SETTINGS.add(HTTP_KEYSTORE_ALGORITHM_SETTING);
+        ALL_SETTINGS.add(HTTP_KEYSTORE_KEY_PASSWORD_SETTING);
+        ALL_SETTINGS.add(HTTP_KEY_PATH_SETTING);
+        ALL_SETTINGS.add(HTTP_KEY_PASSWORD_SETTING);
+        ALL_SETTINGS.add(HTTP_CERT_SETTING);
+        ALL_SETTINGS.add(HTTP_TRUSTSTORE_PATH_SETTING);
+        ALL_SETTINGS.add(HTTP_TRUSTSTORE_PASSWORD_SETTING);
+        ALL_SETTINGS.add(HTTP_TRUSTSTORE_ALGORITHM_SETTING);
+        ALL_SETTINGS.add(HTTP_CA_PATHS_SETTING);
+        ALL_SETTINGS.add(HTTP_VERIFICATION_MODE_SETTING);
+        ALL_SETTINGS.add(HTTP_CLIENT_AUTH_SETTING);
+        ALL_SETTINGS.add(TRANSPORT_CIPHERS_SETTING);
+        ALL_SETTINGS.add(TRANSPORT_SUPPORTED_PROTOCOLS_SETTING);
+        ALL_SETTINGS.add(TRANSPORT_KEYSTORE_PATH_SETTING);
+        ALL_SETTINGS.add(TRANSPORT_KEYSTORE_PASSWORD_SETTING);
+        ALL_SETTINGS.add(TRANSPORT_KEYSTORE_ALGORITHM_SETTING);
+        ALL_SETTINGS.add(TRANSPORT_KEYSTORE_KEY_PASSWORD_SETTING);
+        ALL_SETTINGS.add(TRANSPORT_KEY_PATH_SETTING);
+        ALL_SETTINGS.add(TRANSPORT_KEY_PASSWORD_SETTING);
+        ALL_SETTINGS.add(TRANSPORT_CERT_SETTING);
+        ALL_SETTINGS.add(TRANSPORT_TRUSTSTORE_PATH_SETTING);
+        ALL_SETTINGS.add(TRANSPORT_TRUSTSTORE_PASSWORD_SETTING);
+        ALL_SETTINGS.add(TRANSPORT_TRUSTSTORE_ALGORITHM_SETTING);
+        ALL_SETTINGS.add(TRANSPORT_CA_PATHS_SETTING);
+        ALL_SETTINGS.add(TRANSPORT_VERIFICATION_MODE_SETTING);
+        ALL_SETTINGS.add(TRANSPORT_CLIENT_AUTH_SETTING);
+    }
 
     /**
      * Create a Setting for the enabled state of features in xpack.

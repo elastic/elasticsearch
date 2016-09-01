@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions.logging;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
@@ -22,23 +22,23 @@ import java.util.Map;
  */
 public class ExecutableLoggingAction extends ExecutableAction<LoggingAction> {
 
-    private final ESLogger textLogger;
+    private final Logger textLogger;
     private final TextTemplateEngine templateEngine;
 
-    ExecutableLoggingAction(LoggingAction action, ESLogger logger, Settings settings, TextTemplateEngine templateEngine) {
+    ExecutableLoggingAction(LoggingAction action, Logger logger, Settings settings, TextTemplateEngine templateEngine) {
         super(action, logger);
         this.textLogger = action.category != null ? Loggers.getLogger(action.category, settings) : logger;
         this.templateEngine = templateEngine;
     }
 
     // for tests
-    ExecutableLoggingAction(LoggingAction action, ESLogger logger, ESLogger textLogger, TextTemplateEngine templateEngine) {
+    ExecutableLoggingAction(LoggingAction action, Logger logger, Logger textLogger, TextTemplateEngine templateEngine) {
         super(action, logger);
         this.textLogger = textLogger;
         this.templateEngine = templateEngine;
     }
 
-    ESLogger textLogger() {
+    Logger textLogger() {
         return textLogger;
     }
 

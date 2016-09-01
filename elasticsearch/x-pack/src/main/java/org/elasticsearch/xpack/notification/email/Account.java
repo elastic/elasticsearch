@@ -5,6 +5,13 @@
  */
 package org.elasticsearch.xpack.notification.email;
 
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
+
 import javax.activation.CommandMap;
 import javax.activation.MailcapCommandMap;
 import javax.mail.MessagingException;
@@ -16,13 +23,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Map;
 import java.util.Properties;
-
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 
 /**
  *
@@ -63,10 +63,10 @@ public class Account {
 
     private final Config config;
     private final CryptoService cryptoService;
-    private final ESLogger logger;
+    private final Logger logger;
     private final Session session;
 
-    Account(Config config, CryptoService cryptoService, ESLogger logger) {
+    Account(Config config, CryptoService cryptoService, Logger logger) {
         this.config = config;
         this.cryptoService = cryptoService;
         this.logger = logger;

@@ -37,7 +37,7 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
         Settings settings = super.nodeSettings(nodeOrdinal);
         Settings.Builder settingsBuilder = Settings.builder();
         for (Entry<String, String> entry : settings.getAsMap().entrySet()) {
-            if (entry.getKey().startsWith("xpack.security.ssl.") == false) {
+            if (entry.getKey().startsWith("xpack.ssl.") == false) {
                 settingsBuilder.put(entry.getKey(), entry.getValue());
             }
         }
@@ -54,12 +54,12 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
             throw new RuntimeException(e);
         }
 
-        return settingsBuilder.put("xpack.security.ssl.keystore.path", keystore.toAbsolutePath())
-                .put("xpack.security.ssl.keystore.password", "testnode-no-subjaltname")
-                .put("xpack.security.ssl.truststore.path", keystore.toAbsolutePath())
-                .put("xpack.security.ssl.truststore.password", "testnode-no-subjaltname")
-                // disable hostname verification as this test uses non-localhost addresses
-                .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_SETTING.getKey(), false)
+        return settingsBuilder.put("xpack.ssl.keystore.path", keystore.toAbsolutePath())
+                .put("xpack.ssl.keystore.password", "testnode-no-subjaltname")
+                .put("xpack.ssl.truststore.path", keystore.toAbsolutePath())
+                .put("xpack.ssl.truststore.password", "testnode-no-subjaltname")
+                // disable hostname verification as this test uses certs without a valid SAN or DNS in the CN
+                .put("xpack.ssl.verification_mode", "certificate")
                 .build();
     }
 
@@ -72,19 +72,19 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
         Settings.Builder builder = Settings.builder();
         for (Entry<String, String> entry : settings.getAsMap().entrySet()) {
             String key = entry.getKey();
-            if (key.startsWith(Security.setting("ssl.")) == false) {
+            if (key.startsWith("xpack.ssl.") == false) {
                 builder.put(key, entry.getValue());
             }
         }
 
-        builder.put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_SETTING.getKey(), false)
-                .put("xpack.security.ssl.keystore.path", keystore.toAbsolutePath()) // settings for client keystore
-                .put("xpack.security.ssl.keystore.password", "testnode-no-subjaltname");
+        builder.put("xpack.ssl.verification_mode", "certificate")
+                .put("xpack.ssl.keystore.path", keystore.toAbsolutePath()) // settings for client keystore
+                .put("xpack.ssl.keystore.password", "testnode-no-subjaltname");
 
         if (randomBoolean()) {
             // randomly set the truststore, if not set the keystore should be used
-            builder.put("xpack.security.ssl.truststore.path", keystore.toAbsolutePath())
-                    .put("xpack.security.ssl.truststore.password", "testnode-no-subjaltname");
+            builder.put("xpack.ssl.truststore.path", keystore.toAbsolutePath())
+                    .put("xpack.ssl.truststore.password", "testnode-no-subjaltname");
         }
         return builder.build();
     }
@@ -96,7 +96,7 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
         InetSocketAddress inetSocketAddress = ((InetSocketTransportAddress) transportAddress).address();
 
         Settings settings = Settings.builder().put(transportClientSettings())
-                .put(SecurityNetty3Transport.HOSTNAME_VERIFICATION_SETTING.getKey(), true)
+                .put("xpack.ssl.verification_mode", "full")
                 .build();
 
         try (TransportClient client = new XPackTransportClient(settings)) {

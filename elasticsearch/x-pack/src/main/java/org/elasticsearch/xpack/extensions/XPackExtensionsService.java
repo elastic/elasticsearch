@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.extensions;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 
@@ -19,11 +19,11 @@ import java.net.URLClassLoader;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
@@ -84,7 +84,7 @@ public class XPackExtensionsService {
     }
 
     static List<Bundle> getExtensionBundles(Path extsDirectory) throws IOException {
-        ESLogger logger = Loggers.getLogger(XPackExtensionsService.class);
+        Logger logger = Loggers.getLogger(XPackExtensionsService.class);
 
         // TODO: remove this leniency, but tests bogusly rely on it
         if (!isAccessibleDirectory(extsDirectory, logger)) {

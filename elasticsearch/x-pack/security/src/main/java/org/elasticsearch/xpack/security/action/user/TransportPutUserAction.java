@@ -5,18 +5,20 @@
  */
 package org.elasticsearch.xpack.security.action.user;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
 
 public class TransportPutUserAction extends HandledTransportAction<PutUserRequest, PutUserResponse> {
 
@@ -60,7 +62,7 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("failed to put user [{}]", e, request.username());
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to put user [{}]", request.username()), e);
                 listener.onFailure(e);
             }
         });

@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
-import org.elasticsearch.xpack.security.ssl.SSLService;
+import org.elasticsearch.xpack.ssl.SSLService;
 
 import java.io.BufferedReader;
 import java.io.IOException;

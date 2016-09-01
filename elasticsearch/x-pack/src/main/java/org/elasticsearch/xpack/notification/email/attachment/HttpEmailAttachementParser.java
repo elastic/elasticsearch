@@ -5,16 +5,15 @@
  */
 package org.elasticsearch.xpack.notification.email.attachment;
 
-import java.io.IOException;
-import java.util.Map;
-
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.http.HttpClient;
@@ -26,6 +25,9 @@ import org.elasticsearch.xpack.notification.email.Attachment;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
 import org.elasticsearch.xpack.watcher.watch.Payload;
+
+import java.io.IOException;
+import java.util.Map;
 
 public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpRequestAttachment> {
 
@@ -39,7 +41,7 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
     private final HttpClient httpClient;
     private HttpRequestTemplate.Parser requestTemplateParser;
     private final TextTemplateEngine templateEngine;
-    private final ESLogger logger;
+    private final Logger logger;
 
     public HttpEmailAttachementParser(HttpClient httpClient, HttpRequestTemplate.Parser requestTemplateParser,
                                       TextTemplateEngine templateEngine) {
@@ -108,8 +110,14 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
                         httpRequest.host(), httpRequest.port(), httpRequest.method(), httpRequest.path(), response.status());
             }
         } catch (IOException e) {
-            logger.error("Error executing HTTP request: [host[{}], port[{}], method[{}], path[{}]: [{}]", e, httpRequest.host(),
-                    httpRequest.port(), httpRequest.method(), httpRequest.path(), e.getMessage());
+            logger.error(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                            "Error executing HTTP request: [host[{}], port[{}], method[{}], path[{}]",
+                            httpRequest.host(),
+                            httpRequest.port(),
+                            httpRequest.method(),
+                            httpRequest.path()),
+                    e);
         }
 
         throw new ElasticsearchException("Unable to get attachment of type [{}] with id [{}] in watch [{}] aborting watch execution",

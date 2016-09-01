@@ -22,8 +22,6 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3Transport;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.junit.After;
@@ -111,9 +109,9 @@ public class SecurityFeatureSetTests extends ESTestCase {
         settings.put("xpack.security.enabled", enabled);
 
         final boolean httpSSLEnabled = randomBoolean();
-        settings.put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), httpSSLEnabled);
+        settings.put("xpack.security.http.ssl.enabled", httpSSLEnabled);
         final boolean transportSSLEnabled = randomBoolean();
-        settings.put(SecurityNetty3Transport.SSL_SETTING.getKey(), transportSSLEnabled);
+        settings.put("xpack.security.transport.ssl.enabled", transportSSLEnabled);
         final boolean auditingEnabled = randomBoolean();
         final String[] auditOutputs = randomFrom(new String[] {"logfile"}, new String[] {"index"}, new String[] {"logfile", "index"});
         when(auditTrail.usageStats())

@@ -5,14 +5,16 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
@@ -201,7 +203,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
             @Override
             public void onFailure(String source, Exception throwable) {
                 latch.countDown();
-                logger.warn("couldn't update watcher metadata [{}]", throwable, source);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("couldn't update watcher metadata [{}]", source), throwable);
             }
         });
         try {

@@ -1,0 +1,52 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License;
+ * you may not use this file except in compliance with the Elastic License.
+ */
+package org.elasticsearch.xpack.ssl;
+
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.env.Environment;
+
+import javax.net.ssl.X509ExtendedKeyManager;
+import javax.net.ssl.X509ExtendedTrustManager;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.List;
+
+abstract class KeyConfig extends TrustConfig {
+
+    static final KeyConfig NONE = new KeyConfig() {
+        @Override
+        X509ExtendedKeyManager createKeyManager(@Nullable Environment environment) {
+            return null;
+        }
+
+        @Override
+        X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
+            return null;
+        }
+
+        @Override
+        List<Path> filesToMonitor(@Nullable Environment environment) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public String toString() {
+            return "NONE";
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return o == this;
+        }
+
+        @Override
+        public int hashCode() {
+            return System.identityHashCode(this);
+        }
+    };
+
+    abstract X509ExtendedKeyManager createKeyManager(@Nullable Environment environment);
+}

@@ -33,6 +33,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.security.user.SystemUser;
+import org.elasticsearch.xpack.ssl.SSLService;
 import org.mockito.InOrder;
 
 import java.io.IOException;
@@ -287,7 +288,8 @@ public class TransportFilterTests extends ESIntegTestCase {
         public InternalPluginServerTransportService(Settings settings, Transport transport, ThreadPool threadPool,
                                                     AuthenticationService authcService, AuthorizationService authzService,
                                                     SecurityActionMapper actionMapper) {
-            super(settings, transport, threadPool, authcService, authzService, actionMapper, mock(XPackLicenseState.class));
+            super(settings, transport, threadPool, authcService, authzService, actionMapper, mock(XPackLicenseState.class),
+                    mock(SSLService.class));
             when(licenseState.isAuthAllowed()).thenReturn(true);
         }
 

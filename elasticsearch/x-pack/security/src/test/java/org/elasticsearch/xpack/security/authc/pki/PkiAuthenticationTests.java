@@ -21,8 +21,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
-import org.elasticsearch.xpack.security.transport.SSLClientAuth;
-import org.elasticsearch.xpack.security.transport.netty3.SecurityNetty3HttpServerTransport;
+import org.elasticsearch.xpack.ssl.SSLClientAuth;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
@@ -57,8 +56,8 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
 
-                .put(SecurityNetty3HttpServerTransport.SSL_SETTING.getKey(), true)
-                .put(SecurityNetty3HttpServerTransport.CLIENT_AUTH_SETTING.getKey(), sslClientAuth)
+                .put("xpack.security.http.ssl.enabled", true)
+                .put("xpack.security.http.ssl.client_authentication", sslClientAuth)
                 .put("xpack.security.authc.realms.file.type", FileRealm.TYPE)
                 .put("xpack.security.authc.realms.file.order", "0")
                 .put("xpack.security.authc.realms.pki1.type", PkiRealm.TYPE)
@@ -141,10 +140,10 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
 
     private TransportClient createTransportClient(Settings additionalSettings) {
         Settings clientSettings = transportClientSettings();
-        if (additionalSettings.getByPrefix("xpack.security.ssl.").isEmpty() == false) {
+        if (additionalSettings.getByPrefix("xpack.ssl.").isEmpty() == false) {
             Settings.Builder builder = Settings.builder();
             for (Entry<String, String> entry : clientSettings.getAsMap().entrySet()) {
-                if (entry.getKey().startsWith("xpack.security.ssl.") == false) {
+                if (entry.getKey().startsWith("xpack.ssl.") == false) {
                     builder.put(entry.getKey(), entry.getValue());
                 }
             }

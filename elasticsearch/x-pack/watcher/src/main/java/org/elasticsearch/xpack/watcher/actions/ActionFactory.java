@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.actions;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -15,9 +15,9 @@ import java.io.IOException;
  */
 public abstract class ActionFactory<A extends Action, E extends ExecutableAction<A>> {
 
-    protected final ESLogger actionLogger;
+    protected final Logger actionLogger;
 
-    protected ActionFactory(ESLogger actionLogger) {
+    protected ActionFactory(Logger actionLogger) {
         this.actionLogger = actionLogger;
     }
 

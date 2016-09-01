@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.watcher.trigger;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -32,7 +32,7 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
 
-    private final ESLogger logger;
+    private final Logger logger;
     private final ConcurrentMap<String, Job> jobs = new ConcurrentHashMap<>();
 
     @Inject

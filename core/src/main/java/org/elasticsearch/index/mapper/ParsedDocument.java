@@ -50,7 +50,8 @@ public class ParsedDocument {
 
     private String parent;
 
-    public ParsedDocument(Field version, String id, String type, String routing, long timestamp, long ttl, List<Document> documents, BytesReference source, Mapping dynamicMappingsUpdate) {
+    public ParsedDocument(Field version, String id, String type, String routing, long timestamp, long ttl, List<Document> documents,
+                          BytesReference source, Mapping dynamicMappingsUpdate) {
         this.version = version;
         this.id = id;
         this.type = type;

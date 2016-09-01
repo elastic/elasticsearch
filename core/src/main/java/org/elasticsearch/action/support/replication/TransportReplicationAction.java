@@ -722,6 +722,7 @@ public abstract class TransportReplicationAction<
                 return;
             }
             setPhase(task, "waiting_for_retry");
+            request.onRetry();
             final ThreadContext.StoredContext context = threadPool.getThreadContext().newStoredContext();
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override

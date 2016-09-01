@@ -89,17 +89,19 @@ public class RestClient implements Closeable {
     //we don't rely on default headers supported by HttpAsyncClient as those cannot be replaced
     private final Header[] defaultHeaders;
     private final long maxRetryTimeoutMillis;
+    private final String pathPrefix;
     private final AtomicInteger lastHostIndex = new AtomicInteger(0);
     private volatile Set<HttpHost> hosts;
     private final ConcurrentMap<HttpHost, DeadHostState> blacklist = new ConcurrentHashMap<>();
     private final FailureListener failureListener;
 
     RestClient(CloseableHttpAsyncClient client, long maxRetryTimeoutMillis, Header[] defaultHeaders,
-                       HttpHost[] hosts, FailureListener failureListener) {
+               HttpHost[] hosts, String pathPrefix, FailureListener failureListener) {
         this.client = client;
         this.maxRetryTimeoutMillis = maxRetryTimeoutMillis;
         this.defaultHeaders = defaultHeaders;
         this.failureListener = failureListener;
+        this.pathPrefix = pathPrefix;
         setHosts(hosts);
     }
 
@@ -280,7 +282,7 @@ public class RestClient implements Closeable {
     public void performRequestAsync(String method, String endpoint, Map<String, String> params,
                                     HttpEntity entity, HttpAsyncResponseConsumer<HttpResponse> responseConsumer,
                                     ResponseListener responseListener, Header... headers) {
-        URI uri = buildUri(endpoint, params);
+        URI uri = buildUri(pathPrefix, endpoint, params);
         HttpRequestBase request = createHttpRequest(method, uri, entity);
         setHeaders(request, headers);
         FailureTrackingResponseListener failureTrackingResponseListener = new FailureTrackingResponseListener(responseListener);
@@ -360,12 +362,17 @@ public class RestClient implements Closeable {
 
     private void setHeaders(HttpRequest httpRequest, Header[] requestHeaders) {
         Objects.requireNonNull(requestHeaders, "request headers must not be null");
-        for (Header defaultHeader : defaultHeaders) {
-            httpRequest.setHeader(defaultHeader);
-        }
+        // request headers override default headers, so we don't add default headers if they exist as request headers
+        final Set<String> requestNames = new HashSet<>(requestHeaders.length);
         for (Header requestHeader : requestHeaders) {
             Objects.requireNonNull(requestHeader, "request header must not be null");
-            httpRequest.setHeader(requestHeader);
+            httpRequest.addHeader(requestHeader);
+            requestNames.add(requestHeader.getName());
+        }
+        for (Header defaultHeader : defaultHeaders) {
+            if (requestNames.contains(defaultHeader.getName()) == false) {
+                httpRequest.addHeader(defaultHeader);
+            }
         }
     }
 
@@ -501,10 +508,21 @@ public class RestClient implements Closeable {
         return httpRequest;
     }
 
-    private static URI buildUri(String path, Map<String, String> params) {
+    private static URI buildUri(String pathPrefix, String path, Map<String, String> params) {
         Objects.requireNonNull(params, "params must not be null");
         try {
-            URIBuilder uriBuilder = new URIBuilder(path);
+            String fullPath;
+            if (pathPrefix != null) {
+                if (path.startsWith("/")) {
+                    fullPath = pathPrefix + path;
+                } else {
+                    fullPath = pathPrefix + "/" + path;
+                }
+            } else {
+                fullPath = path;
+            }
+
+            URIBuilder uriBuilder = new URIBuilder(fullPath);
             for (Map.Entry<String, String> param : params.entrySet()) {
                 uriBuilder.addParameter(param.getKey(), param.getValue());
             }

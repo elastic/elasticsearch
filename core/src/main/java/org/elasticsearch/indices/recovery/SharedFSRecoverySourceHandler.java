@@ -19,8 +19,8 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 
@@ -39,7 +39,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
 
     public SharedFSRecoverySourceHandler(IndexShard shard, RecoveryTargetHandler recoveryTarget, StartRecoveryRequest request,
                                          Supplier<Long> currentClusterStateVersionSupplier,
-                                         Function<String, Releasable> delayNewRecoveries, ESLogger logger) {
+                                         Function<String, Releasable> delayNewRecoveries, Logger logger) {
         super(shard, recoveryTarget, request, currentClusterStateVersionSupplier, delayNewRecoveries, -1, logger);
         this.shard = shard;
         this.request = request;

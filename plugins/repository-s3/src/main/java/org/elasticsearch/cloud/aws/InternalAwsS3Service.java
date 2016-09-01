@@ -29,11 +29,11 @@ import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.S3ClientOptions;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.s3.S3Repository;
 
@@ -85,7 +85,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
         return client;
     }
 
-    public static ClientConfiguration buildConfiguration(ESLogger logger, Settings settings, Protocol protocol, Integer maxRetries,
+    public static ClientConfiguration buildConfiguration(Logger logger, Settings settings, Protocol protocol, Integer maxRetries,
                                                          String endpoint, boolean useThrottleRetries) {
         ClientConfiguration clientConfiguration = new ClientConfiguration();
         // the response metadata cache is only there for diagnostics purposes,
@@ -122,7 +122,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
         return clientConfiguration;
     }
 
-    public static AWSCredentialsProvider buildCredentials(ESLogger logger, Settings settings, Settings repositorySettings) {
+    public static AWSCredentialsProvider buildCredentials(Logger logger, Settings settings, Settings repositorySettings) {
         AWSCredentialsProvider credentials;
         String key = getValue(repositorySettings, settings,
             S3Repository.Repository.KEY_SETTING, S3Repository.Repositories.KEY_SETTING);
@@ -140,7 +140,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
         return credentials;
     }
 
-    protected static String findEndpoint(ESLogger logger, Settings settings, String endpoint, String region) {
+    protected static String findEndpoint(Logger logger, Settings settings, String endpoint, String region) {
         if (Strings.isNullOrEmpty(endpoint)) {
             logger.debug("no repository level endpoint has been defined. Trying to guess from repository region [{}]", region);
             if (!region.isEmpty()) {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
@@ -28,7 +29,6 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -81,7 +81,7 @@ final class Bootstrap {
 
     /** initialize native resources */
     public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean seccomp, boolean ctrlHandler) {
-        final ESLogger logger = Loggers.getLogger(Bootstrap.class);
+        final Logger logger = Loggers.getLogger(Bootstrap.class);
 
         // check if the user is running as root, and bail
         if (Natives.definitelyRunningAsRoot()) {
@@ -227,7 +227,7 @@ final class Bootstrap {
         INSTANCE = new Bootstrap();
 
         Environment environment = initialEnvironment(foreground, pidFile, esSettings);
-        LogConfigurator.configure(environment.settings(), true);
+        LogConfigurator.configure(environment, true);
         checkForCustomConfFile();
 
         if (environment.pidFile() != null) {
@@ -264,7 +264,7 @@ final class Bootstrap {
             if (foreground) {
                 Loggers.disableConsoleLogging();
             }
-            ESLogger logger = Loggers.getLogger(Bootstrap.class);
+            Logger logger = Loggers.getLogger(Bootstrap.class);
             if (INSTANCE.node != null) {
                 logger = Loggers.getLogger(Bootstrap.class, Node.NODE_NAME_SETTING.get(INSTANCE.node.settings()));
             }
@@ -310,7 +310,7 @@ final class Bootstrap {
 
     private static void checkUnsetAndMaybeExit(String confFileSetting, String settingName) {
         if (confFileSetting != null && confFileSetting.isEmpty() == false) {
-            ESLogger logger = Loggers.getLogger(Bootstrap.class);
+            Logger logger = Loggers.getLogger(Bootstrap.class);
             logger.info("{} is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed.", settingName);
             exit(1);
         }

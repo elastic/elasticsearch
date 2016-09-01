@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -41,8 +42,8 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     private String[] indices;
     private TimeValue timeout = new TimeValue(30, TimeUnit.SECONDS);
     private ClusterHealthStatus waitForStatus;
-    private int waitForRelocatingShards = -1;
-    private int waitForActiveShards = -1;
+    private boolean waitForNoRelocatingShards = false;
+    private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
     private String waitForNodes = "";
     private Priority waitForEvents = null;
 
@@ -102,22 +103,50 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         return waitForStatus(ClusterHealthStatus.YELLOW);
     }
 
-    public int waitForRelocatingShards() {
-        return waitForRelocatingShards;
+    public boolean waitForNoRelocatingShards() {
+        return waitForNoRelocatingShards;
     }
 
-    public ClusterHealthRequest waitForRelocatingShards(int waitForRelocatingShards) {
-        this.waitForRelocatingShards = waitForRelocatingShards;
+    /**
+     * Sets whether the request should wait for there to be no relocating shards before
+     * retrieving the cluster health status.  Defaults to {@code false}, meaning the
+     * operation does not wait on there being no more relocating shards.  Set to <code>true</code>
+     * to wait until the number of relocating shards in the cluster is 0.
+     */
+    public ClusterHealthRequest waitForNoRelocatingShards(boolean waitForNoRelocatingShards) {
+        this.waitForNoRelocatingShards = waitForNoRelocatingShards;
         return this;
     }
 
-    public int waitForActiveShards() {
+    public ActiveShardCount waitForActiveShards() {
         return waitForActiveShards;
     }
 
-    public ClusterHealthRequest waitForActiveShards(int waitForActiveShards) {
-        this.waitForActiveShards = waitForActiveShards;
+    /**
+     * Sets the number of shard copies that must be active across all indices before getting the
+     * health status. Defaults to {@link ActiveShardCount#NONE}, meaning we don't wait on any active shards.
+     * Set this value to {@link ActiveShardCount#ALL} to wait for all shards (primary and
+     * all replicas) to be active across all indices in the cluster. Otherwise, use
+     * {@link ActiveShardCount#from(int)} to set this value to any non-negative integer, up to the
+     * total number of shard copies to wait for.
+     */
+    public ClusterHealthRequest waitForActiveShards(ActiveShardCount waitForActiveShards) {
+        if (waitForActiveShards.equals(ActiveShardCount.DEFAULT)) {
+            // the default for cluster health request is 0, not 1
+            this.waitForActiveShards = ActiveShardCount.NONE;
+        } else {
+            this.waitForActiveShards = waitForActiveShards;
+        }
         return this;
+    }
+
+    /**
+     * A shortcut for {@link #waitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
+     */
+    public ClusterHealthRequest waitForActiveShards(final int waitForActiveShards) {
+        return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 
     public String waitForNodes() {
@@ -162,8 +191,8 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         if (in.readBoolean()) {
             waitForStatus = ClusterHealthStatus.fromValue(in.readByte());
         }
-        waitForRelocatingShards = in.readInt();
-        waitForActiveShards = in.readInt();
+        waitForNoRelocatingShards = in.readBoolean();
+        waitForActiveShards = ActiveShardCount.readFrom(in);
         waitForNodes = in.readString();
         if (in.readBoolean()) {
             waitForEvents = Priority.readFrom(in);
@@ -188,8 +217,8 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
             out.writeBoolean(true);
             out.writeByte(waitForStatus.value());
         }
-        out.writeInt(waitForRelocatingShards);
-        out.writeInt(waitForActiveShards);
+        out.writeBoolean(waitForNoRelocatingShards);
+        waitForActiveShards.writeTo(out);
         out.writeString(waitForNodes);
         if (waitForEvents == null) {
             out.writeBoolean(false);

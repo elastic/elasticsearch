@@ -19,6 +19,9 @@
 
 package org.elasticsearch.common.logging;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
@@ -30,6 +33,8 @@ import java.util.concurrent.CopyOnWriteArraySet;
  * A logger that logs deprecation notices.
  */
 public class DeprecationLogger {
+
+    private final Logger logger;
 
     /**
      * The "Warning" Header comes from RFC-7234. As the RFC describes, it's generally used for caching purposes, but it can be
@@ -84,22 +89,20 @@ public class DeprecationLogger {
         }
     }
 
-    private final ESLogger logger;
-
     /**
      * Creates a new deprecation logger based on the parent logger. Automatically
      * prefixes the logger name with "deprecation", if it starts with "org.elasticsearch.",
      * it replaces "org.elasticsearch" with "org.elasticsearch.deprecation" to maintain
      * the "org.elasticsearch" namespace.
      */
-    public DeprecationLogger(ESLogger parentLogger) {
+    public DeprecationLogger(Logger parentLogger) {
         String name = parentLogger.getName();
         if (name.startsWith("org.elasticsearch")) {
             name = name.replace("org.elasticsearch.", "org.elasticsearch.deprecation.");
         } else {
             name = "deprecation." + name;
         }
-        this.logger = ESLoggerFactory.getLogger(parentLogger.getPrefix(), name);
+        this.logger = LogManager.getLogger(name, parentLogger.getMessageFactory());
     }
 
     /**
@@ -113,29 +116,27 @@ public class DeprecationLogger {
      * Logs a deprecated message to the deprecation log, as well as to the local {@link ThreadContext}.
      *
      * @param threadContexts The node's {@link ThreadContext} (outside of concurrent tests, this should only ever have one context).
-     * @param msg The deprecation message.
+     * @param message The deprecation message.
      * @param params The parameters used to fill in the message, if any exist.
      */
     @SuppressLoggerChecks(reason = "safely delegates to logger")
-    void deprecated(Set<ThreadContext> threadContexts, String msg, Object... params) {
+    void deprecated(Set<ThreadContext> threadContexts, String message, Object... params) {
         Iterator<ThreadContext> iterator = threadContexts.iterator();
 
         if (iterator.hasNext()) {
-            final String formattedMsg = LoggerMessageFormat.format(msg, params);
+            final String formattedMessage = LoggerMessageFormat.format(message, params);
 
             while (iterator.hasNext()) {
                 try {
-                    iterator.next().addResponseHeader(DEPRECATION_HEADER, formattedMsg);
+                    iterator.next().addResponseHeader(DEPRECATION_HEADER, formattedMessage);
                 } catch (IllegalStateException e) {
                     // ignored; it should be removed shortly
                 }
             }
-
-            logger.debug(formattedMsg);
+            logger.warn(formattedMessage);
         } else {
-            logger.debug(msg, params);
+            logger.warn(message, params);
         }
-
     }
 
 }

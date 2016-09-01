@@ -19,8 +19,8 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -67,13 +67,13 @@ public class BootstrapCheckTests extends ESTestCase {
     }
 
     public void testNoLogMessageInNonProductionMode() {
-        final ESLogger logger = mock(ESLogger.class);
+        final Logger logger = mock(Logger.class);
         BootstrapCheck.check(false, randomBoolean(), Collections.emptyList(), logger);
         verifyNoMoreInteractions(logger);
     }
 
     public void testLogMessageInProductionMode() {
-        final ESLogger logger = mock(ESLogger.class);
+        final Logger logger = mock(Logger.class);
         final boolean ignoreSystemChecks = randomBoolean();
         BootstrapCheck.check(true, ignoreSystemChecks, Collections.emptyList(), logger);
         verify(logger).info("bound or publishing to a non-loopback or non-link-local address, enforcing bootstrap checks");
@@ -550,7 +550,7 @@ public class BootstrapCheckTests extends ESTestCase {
                 () -> BootstrapCheck.check(true, false, Collections.singletonList(check), "testIgnoringSystemChecks"));
         assertThat(notIgnored, hasToString(containsString("error")));
 
-        final ESLogger logger = mock(ESLogger.class);
+        final Logger logger = mock(Logger.class);
 
         // nothing should happen if we ignore system checks
         BootstrapCheck.check(true, true, Collections.singletonList(check), logger);

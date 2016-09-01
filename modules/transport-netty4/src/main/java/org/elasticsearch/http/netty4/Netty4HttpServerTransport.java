@@ -43,6 +43,8 @@ import io.netty.handler.codec.http.HttpObjectAggregator;
 import io.netty.handler.codec.http.HttpRequestDecoder;
 import io.netty.handler.codec.http.HttpResponseEncoder;
 import io.netty.handler.timeout.ReadTimeoutException;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -512,10 +514,16 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
                 return;
             }
             if (!NetworkExceptionHelper.isCloseConnectionException(cause)) {
-                logger.warn("caught exception while handling client http traffic, closing connection {}", cause, ctx.channel());
+                logger.warn(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "caught exception while handling client http traffic, closing connection {}", ctx.channel()),
+                    cause);
                 ctx.channel().close();
             } else {
-                logger.debug("caught exception while handling client http traffic, closing connection {}", cause, ctx.channel());
+                logger.debug(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "caught exception while handling client http traffic, closing connection {}", ctx.channel()),
+                    cause);
                 ctx.channel().close();
             }
         }

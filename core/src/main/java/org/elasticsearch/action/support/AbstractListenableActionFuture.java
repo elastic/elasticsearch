@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.support;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ListenableActionFuture;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -33,7 +33,7 @@ import java.util.List;
  */
 public abstract class AbstractListenableActionFuture<T, L> extends AdapterActionFuture<T, L> implements ListenableActionFuture<T> {
 
-    private static final ESLogger logger = Loggers.getLogger(AbstractListenableActionFuture.class);
+    private static final Logger logger = Loggers.getLogger(AbstractListenableActionFuture.class);
 
     final ThreadPool threadPool;
     volatile Object listeners;

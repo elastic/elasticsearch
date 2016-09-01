@@ -19,8 +19,8 @@
 
 package org.elasticsearch.common.io;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.logging.ESLogger;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -101,7 +101,7 @@ public final class FileSystemUtils {
      * Check that a directory exists, is a directory and is readable
      * by the current user
      */
-    public static boolean isAccessibleDirectory(Path directory, ESLogger logger) {
+    public static boolean isAccessibleDirectory(Path directory, Logger logger) {
         assert directory != null && logger != null;
 
         if (!Files.exists(directory)) {

@@ -136,8 +136,6 @@ GET _analyze
 // CONSOLE
 <1> Set "keyword" to output "keyword" attribute only
 
-coming[2.0.0, body based parameters were added in 2.0.0]
-
 The request returns the following result:
 
 [source,js]

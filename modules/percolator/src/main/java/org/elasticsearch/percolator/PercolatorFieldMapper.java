@@ -53,6 +53,8 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.HasChildQueryBuilder;
+import org.elasticsearch.index.query.HasParentQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -269,7 +271,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         XContentParser parser = context.parser();
         QueryBuilder queryBuilder = parseQueryBuilder(queryShardContext.newParseContext(parser), parser.getTokenLocation());
-        verifyRangeQueries(queryBuilder);
+        verifyQuery(queryBuilder);
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:
         queryBuilder = queryBuilder.rewrite(queryShardContext);
 
@@ -356,19 +358,26 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     /**
-     * Fails if a range query with a date range is found based on current time
+     * Fails if a percolator contains an unsupported query. The following queries are not supported:
+     * 1) a range query with a date range based on current time
+     * 2) a has_child query
+     * 3) a has_parent query
      */
-    static void verifyRangeQueries(QueryBuilder queryBuilder) {
+    static void verifyQuery(QueryBuilder queryBuilder) {
         if (queryBuilder instanceof RangeQueryBuilder) {
             RangeQueryBuilder rangeQueryBuilder = (RangeQueryBuilder) queryBuilder;
             if (rangeQueryBuilder.from() instanceof String) {
                 String from = (String) rangeQueryBuilder.from();
                 String to = (String) rangeQueryBuilder.to();
                 if (from.contains("now") || to.contains("now")) {
-                    throw new IllegalArgumentException("Percolator queries containing time range queries based on the " +
-                            "current time are forbidden");
+                    throw new IllegalArgumentException("percolator queries containing time range queries based on the " +
+                            "current time is unsupported");
                 }
             }
+        } else if (queryBuilder instanceof HasChildQueryBuilder) {
+            throw new IllegalArgumentException("the [has_child] query is unsupported inside a percolator query");
+        } else if (queryBuilder instanceof HasParentQueryBuilder) {
+            throw new IllegalArgumentException("the [has_parent] query is unsupported inside a percolator query");
         } else if (queryBuilder instanceof BoolQueryBuilder) {
             BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) queryBuilder;
             List<QueryBuilder> clauses = new ArrayList<>();
@@ -377,15 +386,15 @@ public class PercolatorFieldMapper extends FieldMapper {
             clauses.addAll(boolQueryBuilder.mustNot());
             clauses.addAll(boolQueryBuilder.should());
             for (QueryBuilder clause : clauses) {
-                verifyRangeQueries(clause);
+                verifyQuery(clause);
             }
         } else if (queryBuilder instanceof ConstantScoreQueryBuilder) {
-            verifyRangeQueries(((ConstantScoreQueryBuilder) queryBuilder).innerQuery());
+            verifyQuery(((ConstantScoreQueryBuilder) queryBuilder).innerQuery());
         } else if (queryBuilder instanceof FunctionScoreQueryBuilder) {
-            verifyRangeQueries(((FunctionScoreQueryBuilder) queryBuilder).query());
+            verifyQuery(((FunctionScoreQueryBuilder) queryBuilder).query());
         } else if (queryBuilder instanceof BoostingQueryBuilder) {
-            verifyRangeQueries(((BoostingQueryBuilder) queryBuilder).negativeQuery());
-            verifyRangeQueries(((BoostingQueryBuilder) queryBuilder).positiveQuery());
+            verifyQuery(((BoostingQueryBuilder) queryBuilder).negativeQuery());
+            verifyQuery(((BoostingQueryBuilder) queryBuilder).positiveQuery());
         }
     }
 

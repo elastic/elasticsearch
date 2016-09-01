@@ -19,13 +19,13 @@
 
 package org.elasticsearch.cloud.azure.classic;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeServiceImpl;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -43,7 +43,7 @@ import org.elasticsearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
  * @see AzureComputeServiceImpl
  */
 public class AzureDiscoveryModule extends AbstractModule {
-    protected final ESLogger logger;
+    protected final Logger logger;
     private Settings settings;
 
     // pkg private so it is settable by tests
@@ -69,7 +69,7 @@ public class AzureDiscoveryModule extends AbstractModule {
      * Check if discovery is meant to start
      * @return true if we can start discovery features
      */
-    public static boolean isDiscoveryReady(Settings settings, ESLogger logger) {
+    public static boolean isDiscoveryReady(Settings settings, Logger logger) {
         // User set discovery.type: azure
         if (!AzureDiscoveryPlugin.AZURE.equalsIgnoreCase(DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings))) {
             logger.trace("discovery.type not set to {}", AzureDiscoveryPlugin.AZURE);

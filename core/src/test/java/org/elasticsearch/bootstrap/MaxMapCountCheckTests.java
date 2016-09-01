@@ -19,11 +19,15 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matcher;
+import org.mockito.ArgumentMatcher;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -32,6 +36,7 @@ import java.nio.file.Path;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
@@ -67,17 +72,28 @@ public class MaxMapCountCheckTests extends ESTestCase {
         reset(reader);
         final IOException ioException = new IOException("fatal");
         when(reader.readLine()).thenThrow(ioException);
-        final ESLogger logger = mock(ESLogger.class);
+        final Logger logger = mock(Logger.class);
         assertThat(check.getMaxMapCount(logger), equalTo(-1L));
-        verify(logger).warn("I/O exception while trying to read [{}]", ioException, procSysVmMaxMapCountPath);
+        verify(logger).warn(argThat(argumentMatcher("I/O exception while trying to read [/proc/sys/vm/max_map_count]")), eq(ioException));
         verify(reader).close();
 
         reset(reader);
         reset(logger);
         when(reader.readLine()).thenReturn("eof");
         assertThat(check.getMaxMapCount(logger), equalTo(-1L));
-        verify(logger).warn(eq("unable to parse vm.max_map_count [{}]"), any(NumberFormatException.class), eq("eof"));
+        verify(logger).warn(argThat(argumentMatcher("unable to parse vm.max_map_count [eof]")), any(NumberFormatException.class));
         verify(reader).close();
+    }
+
+    private ArgumentMatcher<Supplier<?>> argumentMatcher(final String message) {
+        return new ArgumentMatcher<Supplier<?>>() {
+            @Override
+            public boolean matches(Object o) {
+                final Supplier<?> supplier = (Supplier<?>)o;
+                final ParameterizedMessage parameterizedMessage = (ParameterizedMessage) supplier.get();
+                return parameterizedMessage.getFormattedMessage().equals(message);
+            }
+        };
     }
 
     public void testMaxMapCountCheckRead() throws IOException {

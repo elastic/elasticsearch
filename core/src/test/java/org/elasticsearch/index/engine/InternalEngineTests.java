@@ -127,7 +127,6 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.IntFunction;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
@@ -205,7 +204,7 @@ public class InternalEngineTests extends ESTestCase {
             config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(), config.getRefreshListeners());
     }
 
-    private static final IndexSettings buildDefaultSettings(String codecName, Settings others) {
+    private static IndexSettings buildDefaultSettings(String codecName, Settings others) {
         return IndexSettingsModule.newIndexSettings("test", Settings.builder()
             .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), "1h") // make sure this doesn't kick in on us
             .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codecName)
@@ -215,7 +214,6 @@ public class InternalEngineTests extends ESTestCase {
             .put(others)
             .build()); // TODO randomize more settings
     }
-
 
     @Override
     @After

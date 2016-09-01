@@ -208,7 +208,7 @@ public class NodeInfo extends BaseNodeResponse {
             process = ProcessInfo.readProcessInfo(in);
         }
         if (in.readBoolean()) {
-            jvm = JvmInfo.readJvmInfo(in);
+            jvm = new JvmInfo(in);
         }
         if (in.readBoolean()) {
             threadPool = ThreadPoolInfo.readThreadPoolInfo(in);

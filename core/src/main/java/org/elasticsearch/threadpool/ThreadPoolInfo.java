@@ -43,9 +43,7 @@ public class ThreadPoolInfo implements Writeable, Iterable<ThreadPool.Info>, ToX
         int size = in.readVInt();
         List<ThreadPool.Info> infos = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            ThreadPool.Info info = new ThreadPool.Info();
-            info.readFrom(in);
-            infos.add(info);
+            infos.add(new ThreadPool.Info(in));
         }
         this.infos = Collections.unmodifiableList(infos);
     }

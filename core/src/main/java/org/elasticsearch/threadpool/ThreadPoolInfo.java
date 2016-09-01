@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -40,20 +39,12 @@ public class ThreadPoolInfo implements Writeable, Iterable<ThreadPool.Info>, ToX
     }
 
     public ThreadPoolInfo(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        List<ThreadPool.Info> infos = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            infos.add(new ThreadPool.Info(in));
-        }
-        this.infos = Collections.unmodifiableList(infos);
+        this.infos = Collections.unmodifiableList(in.readList(ThreadPool.Info::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(infos.size());
-        for (ThreadPool.Info info : infos) {
-            info.writeTo(out);
-        }
+        out.writeList(infos);
     }
 
     @Override

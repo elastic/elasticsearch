@@ -36,7 +36,6 @@ import java.lang.management.PlatformManagedObject;
 import java.lang.management.RuntimeMXBean;
 import java.lang.reflect.Method;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -226,11 +225,7 @@ public class JvmInfo implements Writeable, ToXContent {
         }
         bootClassPath = in.readString();
         classPath = in.readString();
-        systemProperties = new HashMap<>();
-        int size = in.readInt();
-        for (int i = 0; i < size; i++) {
-            systemProperties.put(in.readString(), in.readString());
-        }
+        systemProperties = in.readMap(StreamInput::readString, StreamInput::readString);
         mem = new Mem(in);
         gcCollectors = in.readStringArray();
         memoryPools = in.readStringArray();
@@ -257,7 +252,7 @@ public class JvmInfo implements Writeable, ToXContent {
         }
         out.writeString(bootClassPath);
         out.writeString(classPath);
-        out.writeInt(systemProperties.size());
+        out.writeVInt(this.systemProperties.size());
         for (Map.Entry<String, String> entry : systemProperties.entrySet()) {
             out.writeString(entry.getKey());
             out.writeString(entry.getValue());

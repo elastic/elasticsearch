@@ -44,30 +44,14 @@ public class PluginsAndModules implements Writeable, ToXContent {
     }
 
     public PluginsAndModules(StreamInput in) throws IOException {
-        int pluginsSize = in.readInt();
-        List<PluginInfo> plugins = new ArrayList<>(pluginsSize);
-        for (int i = 0; i < pluginsSize; i++) {
-            plugins.add(new PluginInfo(in));
-        }
-        this.plugins = Collections.unmodifiableList(plugins);
-        int modulesSize = in.readInt();
-        List<PluginInfo> modules = new ArrayList<>(modulesSize);
-        for (int i = 0; i < modulesSize; i++) {
-            modules.add(new PluginInfo(in));
-        }
-        this.modules = Collections.unmodifiableList(modules);
+        this.plugins = Collections.unmodifiableList(in.readList(PluginInfo::new));
+        this.modules = Collections.unmodifiableList(in.readList(PluginInfo::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(plugins.size());
-        for (PluginInfo plugin : getPluginInfos()) {
-            plugin.writeTo(out);
-        }
-        out.writeInt(modules.size());
-        for (PluginInfo module : getModuleInfos()) {
-            module.writeTo(out);
-        }
+        out.writeList(plugins);
+        out.writeList(modules);
     }
 
     /**

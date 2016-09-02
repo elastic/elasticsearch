@@ -33,7 +33,7 @@
           "description" : "Clear filter caches"
         },
         "filter_keys": {
-          "type" : "boolean",
+          "type" : "list",
           "description" : "A comma-separated list of keys to clear when using the `filter_cache` parameter (default: all)"
         },
         "id": {

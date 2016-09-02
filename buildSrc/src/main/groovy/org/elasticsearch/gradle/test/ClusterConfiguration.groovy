@@ -20,8 +20,6 @@ package org.elasticsearch.gradle.test
 
 import org.gradle.api.GradleException
 import org.gradle.api.Project
-import org.gradle.api.artifacts.Configuration
-import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 
 /** Configuration for an elasticsearch cluster, used for integration tests. */
@@ -75,7 +73,8 @@ class ClusterConfiguration {
      *
      * {@code "$&#123;-> node.transportUri()&#125;"}
      */
-    Object unicastTransportUri = null
+    @Input
+    Closure unicastTransportUri = null
 
     /**
      * A closure to call before the cluster is considered ready. The closure is passed the node info,

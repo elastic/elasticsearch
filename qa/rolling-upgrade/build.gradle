@@ -1,7 +1,27 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 
+
+import org.elasticsearch.gradle.test.NodeInfo
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
-task oldClusterTest(type: RestIntegTestTask) {
+RestIntegTestTask oldClusterTask = task oldClusterTest(type: RestIntegTestTask) {
   mustRunAfter(precommit)
   cluster {
     distribution = 'zip'
@@ -14,18 +34,28 @@ task oldClusterTest(type: RestIntegTestTask) {
 }
 
 task mixedClusterTest(type: RestIntegTestTask) {
-  dependsOn(oldClusterTest, 'oldClusterTest.node1
+  dependsOn(oldClusterTest, 'oldClusterTest.node1') // TODO: what does this `oldClusterTest.node1` do?  is it a task?
+  NodeInfo aliveNode = oldClusterTask.getNodes().get(0)
+  NodeInfo stoppedNode = oldClusterTask.getNodes().get(1)
   cluster {
     distribution = 'zip'
     clusterName = 'rolling-upgrade'
+    unicastTransportUri = { -> aliveNode.transportUri() }
+    dataDir = stoppedNode.dataDir
   }
   systemProperty 'tests.rest.suite', 'mixed_cluster'
+
 }
 
 task upgradedClusterTest(type: RestIntegTestTask) {
+  // stop alive node from oldClusterTest and get its dataDir, and get alive node for unicast host
+  NodeInfo stoppedNode = null
+  NodeInfo aliveNode = null
   cluster {
     distribution = 'zip'
     clusterName = 'rolling-upgrade'
+    unicastTransportUri = { -> aliveNode.transportUri() }
+    dataDir = stoppedNode.dataDir
   }
   systemProperty 'tests.rest.suite', 'upgraded_cluster'
 }

@@ -111,7 +111,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 shards.flush();
             }
             IndexShard replica = shards.addReplica();
-            shards.recoverReplica(replica,  (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener, version -> {}));
+            shards.recoverReplica(replica);
 
             SegmentsStats segmentsStats = replica.segmentStats(false);
             SegmentsStats primarySegmentStats = shards.getPrimary().segmentStats(false);

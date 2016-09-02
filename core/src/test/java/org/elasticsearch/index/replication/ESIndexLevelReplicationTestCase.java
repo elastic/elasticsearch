@@ -294,6 +294,11 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
             replicas.add(replica);
             return replica;
         }
+
+        public void recoverReplica(IndexShard replica) throws IOException {
+            recoverReplica(replica, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener, version -> {}));
+        }
+
         public void recoverReplica(IndexShard replica, BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier)
             throws IOException {
             recoverReplica(replica, targetSupplier, true);

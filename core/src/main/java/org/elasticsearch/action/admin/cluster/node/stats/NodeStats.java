@@ -217,9 +217,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         threadPool = in.readOptionalWriteable(ThreadPoolStats::new);
         fs = in.readOptionalWriteable(FsInfo::new);
         transport = in.readOptionalWriteable(TransportStats::new);
-        if (in.readBoolean()) {
-            http = HttpStats.readHttpStats(in);
-        }
+        http = in.readOptionalWriteable(HttpStats::new);
         breaker = AllCircuitBreakerStats.readOptionalAllCircuitBreakerStats(in);
         scriptStats = in.readOptionalStreamable(ScriptStats::new);
         discoveryStats = in.readOptionalStreamable(() -> new DiscoveryStats(null));
@@ -242,12 +240,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         out.writeOptionalWriteable(threadPool);
         out.writeOptionalWriteable(fs);
         out.writeOptionalWriteable(transport);
-        if (http == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            http.writeTo(out);
-        }
+        out.writeOptionalWriteable(http);
         out.writeOptionalStreamable(breaker);
         out.writeOptionalStreamable(scriptStats);
         out.writeOptionalStreamable(discoveryStats);

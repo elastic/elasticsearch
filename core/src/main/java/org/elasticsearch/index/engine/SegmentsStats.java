@@ -279,7 +279,7 @@ public class SegmentsStats implements Streamable, ToXContent {
     }
 
     /**
-     * Returns the max timestamp that is used to de-optimize documetns with auto-generated IDs in the engine.
+     * Returns the max timestamp that is used to de-optimize documents with auto-generated IDs in the engine.
      * This is used to ensure we don't add duplicate documents when we assume an append only case based on auto-generated IDs
      */
     public long getMaxUnsafeAutoIdTimestamp() {

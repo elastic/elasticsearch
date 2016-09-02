@@ -82,24 +82,15 @@ public class NodeInfoStreamingTests extends ESTestCase {
         compareJsonOutput(nodeInfo.getTransport(), readNodeInfo.getTransport());
         compareJsonOutput(nodeInfo.getNode(), readNodeInfo.getNode());
         compareJsonOutput(nodeInfo.getOs(), readNodeInfo.getOs());
-        comparePluginsAndModules(nodeInfo, readNodeInfo);
+        compareJsonOutput(nodeInfo.getPlugins(), readNodeInfo.getPlugins());
         compareJsonOutput(nodeInfo.getIngest(), readNodeInfo.getIngest());
     }
 
-    private void comparePluginsAndModules(NodeInfo nodeInfo, NodeInfo readNodeInfo) throws IOException {
-        ToXContent.Params params = ToXContent.EMPTY_PARAMS;
-        XContentBuilder pluginsAndModules = jsonBuilder();
-        pluginsAndModules.startObject();
-        nodeInfo.getPlugins().toXContent(pluginsAndModules, params);
-        pluginsAndModules.endObject();
-        XContentBuilder readPluginsAndModules = jsonBuilder();
-        readPluginsAndModules.startObject();
-        readNodeInfo.getPlugins().toXContent(readPluginsAndModules, params);
-        readPluginsAndModules.endObject();
-        assertThat(pluginsAndModules.string(), equalTo(readPluginsAndModules.string()));
-    }
-
     private void compareJsonOutput(ToXContent param1, ToXContent param2) throws IOException {
+        if (param1 == null) {
+            assertNull(param2);
+            return;
+        }
         ToXContent.Params params = ToXContent.EMPTY_PARAMS;
         XContentBuilder param1Builder = jsonBuilder();
         param1Builder.startObject();
@@ -117,53 +108,65 @@ public class NodeInfoStreamingTests extends ESTestCase {
         Build build = Build.CURRENT;
         DiscoveryNode node = new DiscoveryNode("test_node", LocalTransportAddress.buildUnique(),
                 emptyMap(), emptySet(), VersionUtils.randomVersion(random()));
-        Settings settings = Settings.builder().put("test", "setting").build();
-        int availableProcessors = randomIntBetween(1, 64);
-        int allocatedProcessors = randomIntBetween(1, availableProcessors);
-        long refreshInterval = randomBoolean() ? -1 : randomPositiveLong();
-        String name = randomAsciiOfLengthBetween(3, 10);
-        String arch = randomAsciiOfLengthBetween(3, 10);
-        String version = randomAsciiOfLengthBetween(3, 10);
-        OsInfo osInfo = new OsInfo(refreshInterval, availableProcessors, allocatedProcessors, name, arch, version);
-        ProcessInfo process = new ProcessInfo(randomInt(), randomBoolean(), randomPositiveLong());
-        JvmInfo jvm = JvmInfo.jvmInfo();
-        int numThreadPools = randomIntBetween(1, 10);
-        List<ThreadPool.Info> threadPoolInfos = new ArrayList<>(numThreadPools);
-        for (int i = 0; i < numThreadPools; i++) {
-            threadPoolInfos.add(new ThreadPool.Info(randomAsciiOfLengthBetween(3, 10),
-                    randomFrom(ThreadPool.ThreadPoolType.values()), randomInt()));
+        Settings settings = randomBoolean() ? null : Settings.builder().put("test", "setting").build();
+        OsInfo osInfo = null;
+        if (randomBoolean()) {
+            int availableProcessors = randomIntBetween(1, 64);
+            int allocatedProcessors = randomIntBetween(1, availableProcessors);
+            long refreshInterval = randomBoolean() ? -1 : randomPositiveLong();
+            String name = randomAsciiOfLengthBetween(3, 10);
+            String arch = randomAsciiOfLengthBetween(3, 10);
+            String version = randomAsciiOfLengthBetween(3, 10);
+            osInfo = new OsInfo(refreshInterval, availableProcessors, allocatedProcessors, name, arch, version);
         }
-        ThreadPoolInfo threadPoolInfo = new ThreadPoolInfo(threadPoolInfos);
+        ProcessInfo process = randomBoolean() ? null : new ProcessInfo(randomInt(), randomBoolean(), randomPositiveLong());
+        JvmInfo jvm = randomBoolean() ? null : JvmInfo.jvmInfo();
+        ThreadPoolInfo threadPoolInfo = null;
+        if (randomBoolean()) {
+            int numThreadPools = randomIntBetween(1, 10);
+            List<ThreadPool.Info> threadPoolInfos = new ArrayList<>(numThreadPools);
+            for (int i = 0; i < numThreadPools; i++) {
+                threadPoolInfos.add(new ThreadPool.Info(randomAsciiOfLengthBetween(3, 10),
+                        randomFrom(ThreadPool.ThreadPoolType.values()), randomInt()));
+            }
+            threadPoolInfo = new ThreadPoolInfo(threadPoolInfos);
+        }
         Map<String, BoundTransportAddress> profileAddresses = new HashMap<>();
         BoundTransportAddress dummyBoundTransportAddress = new BoundTransportAddress(
                 new TransportAddress[]{LocalTransportAddress.buildUnique()}, LocalTransportAddress.buildUnique());
         profileAddresses.put("test_address", dummyBoundTransportAddress);
-        TransportInfo transport = new TransportInfo(dummyBoundTransportAddress, profileAddresses);
-        HttpInfo httpInfo = new HttpInfo(dummyBoundTransportAddress, randomLong());
+        TransportInfo transport = randomBoolean() ? null : new TransportInfo(dummyBoundTransportAddress, profileAddresses);
+        HttpInfo httpInfo = randomBoolean() ? null : new HttpInfo(dummyBoundTransportAddress, randomLong());
 
-        int numPlugins = randomIntBetween(0, 5);
-        List<PluginInfo> plugins = new ArrayList<>();
-        for (int i = 0; i < numPlugins; i++) {
-            plugins.add(new PluginInfo(randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10),
-                    randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10)));
+        PluginsAndModules pluginsAndModules = null;
+        if (randomBoolean()) {
+            int numPlugins = randomIntBetween(0, 5);
+            List<PluginInfo> plugins = new ArrayList<>();
+            for (int i = 0; i < numPlugins; i++) {
+                plugins.add(new PluginInfo(randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10),
+                        randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10)));
+            }
+            int numModules = randomIntBetween(0, 5);
+            List<PluginInfo> modules = new ArrayList<>();
+            for (int i = 0; i < numModules; i++) {
+                modules.add(new PluginInfo(randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10),
+                        randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10)));
+            }
+            pluginsAndModules = new PluginsAndModules(plugins, modules);
         }
-        int numModules = randomIntBetween(0, 5);
-        List<PluginInfo> modules = new ArrayList<>();
-        for (int i = 0; i < numModules; i++) {
-            modules.add(new PluginInfo(randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10),
-                    randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10)));
+
+        IngestInfo ingestInfo = null;
+        if (randomBoolean()) {
+            int numProcessors = randomIntBetween(0, 5);
+            List<ProcessorInfo> processors = new ArrayList<>(numProcessors);
+            for (int i = 0; i < numProcessors; i++) {
+                processors.add(new ProcessorInfo(randomAsciiOfLengthBetween(3, 10)));
+            }
+            ingestInfo = new IngestInfo(processors);
         }
-        PluginsAndModules pluginsAndModules = new PluginsAndModules(plugins, modules);
-        int numProcessors = randomIntBetween(0, 5);
-        List<ProcessorInfo> processors = new ArrayList<>(numProcessors);
-        for (int i = 0; i < numProcessors; i++) {
-            processors.add(new ProcessorInfo(randomAsciiOfLengthBetween(3, 10)));
-        }
-        IngestInfo ingestInfo = new IngestInfo(processors);
-        ByteSizeValue indexingBuffer;
-        if (random().nextBoolean()) {
-            indexingBuffer = null;
-        } else {
+
+        ByteSizeValue indexingBuffer = null;
+        if (randomBoolean()) {
             // pick a random long that sometimes exceeds an int:
             indexingBuffer = new ByteSizeValue(random().nextLong() & ((1L<<40)-1));
         }

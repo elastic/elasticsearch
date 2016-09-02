@@ -264,10 +264,10 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(false));
 
         client().prepareIndex("test", "type1", "1")
-                .setSource(jsonBuilder().startObject().field("field", "1", "2").endObject()).get();
+                .setSource(jsonBuilder().startObject().array("field", "1", "2").endObject()).get();
 
         client().prepareIndex("test", "type2", "1")
-                .setSource(jsonBuilder().startObject().field("field", "1", "2").endObject()).get();
+                .setSource(jsonBuilder().startObject().array("field", "1", "2").endObject()).get();
 
         response = client().prepareGet("test", "type1", "1").setFields("field").get();
         assertThat(response.isExists(), equalTo(true));

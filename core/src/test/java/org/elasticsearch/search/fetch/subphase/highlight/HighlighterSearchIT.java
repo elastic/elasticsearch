@@ -1537,7 +1537,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .addMapping("type1", "tags", "type=text"));
         ensureGreen();
         client().prepareIndex("test", "type1", "1")
-                .setSource(jsonBuilder().startObject().field("tags",
+                .setSource(jsonBuilder().startObject().array("tags",
                         "this is a really long tag i would like to highlight",
                         "here is another one that is very long tag and has the tag token near the end").endObject()).get();
         refresh();

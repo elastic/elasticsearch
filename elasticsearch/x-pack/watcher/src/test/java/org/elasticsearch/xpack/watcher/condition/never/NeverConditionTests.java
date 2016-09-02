@@ -34,7 +34,7 @@ public class NeverConditionTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
 
-        NeverCondition condition = factory.parseCondition("_id", parser);
+        NeverCondition condition = factory.parseCondition("_id", parser, false);
         ExecutableNeverCondition executable = factory.createExecutable(condition);
         assertFalse(executable.execute(null).met());
     }
@@ -48,7 +48,7 @@ public class NeverConditionTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         try {
-            factory.parseCondition("_id", parser);
+            factory.parseCondition("_id", parser, false);
             fail("expected a condition exception trying to parse an invalid condition XContent, ["
                     + AlwaysCondition.TYPE + "] condition should not parse with a body");
         } catch (ElasticsearchParseException e) {

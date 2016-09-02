@@ -32,7 +32,7 @@ public class AlwaysConditionFactory extends ConditionFactory<AlwaysCondition, Al
     }
 
     @Override
-    public AlwaysCondition parseCondition(String watchId, XContentParser parser) throws IOException {
+    public AlwaysCondition parseCondition(String watchId, XContentParser parser, boolean upgradeConditionSource) throws IOException {
         return AlwaysCondition.parse(watchId, parser);
     }
 

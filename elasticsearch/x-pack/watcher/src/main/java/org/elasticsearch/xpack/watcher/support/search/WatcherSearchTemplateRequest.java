@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.support.search;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -15,9 +16,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchRequestParsers;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.common.text.TextTemplate;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,8 +37,6 @@ import java.util.Objects;
  * be rendered as a script by {@link WatcherSearchTemplateService} before being executed.
  */
 public class WatcherSearchTemplateRequest implements ToXContent {
-
-    private static final String DEFAULT_LANG = "mustache";
 
     private final String[] indices;
     private final String[] types;
@@ -50,12 +54,13 @@ public class WatcherSearchTemplateRequest implements ToXContent {
         this.indicesOptions = indicesOptions;
         // Here we convert a watch search request body into an inline search template,
         // this way if any Watcher related context variables are used, they will get resolved.
-        this.template = new Script(searchSource.utf8ToString(), ScriptService.ScriptType.INLINE, DEFAULT_LANG, null);
+        this.template = new Script(searchSource.utf8ToString(), ScriptService.ScriptType.INLINE, TextTemplate.DEFAULT_TEMPLATE_LANG, null);
         this.searchSource = null;
     }
 
     public WatcherSearchTemplateRequest(String[] indices, String[] types, SearchType searchType, IndicesOptions indicesOptions,
                                         Script template) {
+        assert template == null || TextTemplate.DEFAULT_TEMPLATE_LANG.equals(template.getLang());
         this.indices = indices;
         this.types = types;
         this.searchType = searchType;
@@ -113,7 +118,7 @@ public class WatcherSearchTemplateRequest implements ToXContent {
         if (template != null) {
             return template;
         } else {
-            return new Script(searchSource.utf8ToString(), ScriptService.ScriptType.INLINE, DEFAULT_LANG, null);
+            return new Script(searchSource.utf8ToString(), ScriptService.ScriptType.INLINE, TextTemplate.DEFAULT_TEMPLATE_LANG, null);
         }
     }
 
@@ -159,8 +164,12 @@ public class WatcherSearchTemplateRequest implements ToXContent {
     /**
      * Reads a new watcher search request instance for the specified parser.
      */
-    public static WatcherSearchTemplateRequest fromXContent(XContentParser parser, SearchType searchType)
-            throws IOException {
+    public static WatcherSearchTemplateRequest fromXContent(Logger logger, XContentParser parser,
+                                                            SearchType searchType,
+                                                            boolean upgradeSearchSource,
+                                                            String defaultLegacyScriptLanguage,
+                                                            ParseFieldMatcher parseFieldMatcher,
+                                                            SearchRequestParsers searchRequestParsers) throws IOException {
         List<String> indices = new ArrayList<>();
         List<String> types = new ArrayList<>();
         IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
@@ -200,6 +209,19 @@ public class WatcherSearchTemplateRequest implements ToXContent {
                     try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
                         builder.copyCurrentStructure(parser);
                         searchSource = builder.bytes();
+                        if (upgradeSearchSource) {
+                            XContentParser searchSourceParser = XContentHelper.createParser(searchSource);
+                            QueryParseContext context =  new QueryParseContext(defaultLegacyScriptLanguage,
+                                    searchRequestParsers.queryParsers, searchSourceParser, parseFieldMatcher);
+                            try (XContentBuilder upgradeBuilder = XContentBuilder.builder(parser.contentType().xContent())) {
+                                SearchSourceBuilder sourceBuilder = SearchSourceBuilder.fromXContent(context,
+                                        searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
+                                upgradeBuilder.value(sourceBuilder);
+                                searchSource = upgradeBuilder.bytes();
+                            } catch (Exception e) {
+                                logger.warn("Unable to upgrade search source: [" + searchSource.utf8ToString() + "]", e);
+                            }
+                        }
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, INDICES_OPTIONS_FIELD)) {
                     boolean expandOpen = DEFAULT_INDICES_OPTIONS.expandWildcardsOpen();
@@ -248,7 +270,7 @@ public class WatcherSearchTemplateRequest implements ToXContent {
                     indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed,
                             DEFAULT_INDICES_OPTIONS);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, TEMPLATE_FIELD)) {
-                    template = Script.parse(parser, ParseFieldMatcher.STRICT, DEFAULT_LANG);
+                    template = Script.parse(parser, ParseFieldMatcher.STRICT, TextTemplate.DEFAULT_TEMPLATE_LANG);
                 } else {
                     throw new ElasticsearchParseException("could not read search request. unexpected object field [" +
                             currentFieldName + "]");

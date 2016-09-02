@@ -22,7 +22,6 @@ import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.watcher.actions.ExecutableActions;
 import org.elasticsearch.xpack.watcher.condition.always.ExecutableAlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
@@ -152,7 +151,7 @@ public class SearchInputTests extends ESIntegTestCase {
         SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, WatcherClientProxy.of(client()),
                                                             searchParsers, scriptService());
 
-        SearchInput searchInput = factory.parseInput("_id", parser);
+        SearchInput searchInput = factory.parseInput("_id", parser, false);
         assertEquals(SearchInput.TYPE, searchInput.type());
         assertThat(searchInput.getTimeout(), equalTo(timeout));
     }

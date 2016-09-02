@@ -56,7 +56,8 @@ public class WatcherSearchTemplateService extends AbstractComponent {
         if (source.getParams() != null) {
             watcherContextParams.putAll(source.getParams());
         }
-        Script template = new Script(source.getScript(), source.getType(), source.getLang(), watcherContextParams,
+        // Templates are always of lang mustache:
+        Script template = new Script(source.getScript(), source.getType(), "mustache", watcherContextParams,
                 source.getContentType());
         CompiledScript compiledScript = scriptService.compile(template, Watcher.SCRIPT_CONTEXT, Collections.emptyMap());
         return (BytesReference) scriptService.executable(compiledScript, template.getParams()).run();

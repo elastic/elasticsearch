@@ -28,7 +28,6 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.watch.Payload;
@@ -120,7 +119,7 @@ public class ScriptConditionTests extends ESTestCase {
 
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
-        ScriptCondition condition = factory.parseCondition("_watch", parser);
+        ScriptCondition condition = factory.parseCondition("_watch", parser, false);
         ExecutableScriptCondition executable = factory.createExecutable(condition);
 
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500L, new ShardSearchFailure[0]);
@@ -132,7 +131,7 @@ public class ScriptConditionTests extends ESTestCase {
         builder = createConditionContent("return true", null, ScriptType.INLINE);
         parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
-        condition = factory.parseCondition("_watch", parser);
+        condition = factory.parseCondition("_watch", parser, false);
         executable = factory.createExecutable(condition);
 
         ctx = mockExecutionContext("_name", new Payload.XContent(response));
@@ -147,7 +146,7 @@ public class ScriptConditionTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         try {
-            factory.parseCondition("_id", parser);
+            factory.parseCondition("_id", parser, false);
             fail("expected a condition exception trying to parse an invalid condition XContent");
         } catch (ElasticsearchParseException e) {
             // TODO add these when the test if fixed
@@ -171,7 +170,7 @@ public class ScriptConditionTests extends ESTestCase {
         XContentBuilder builder = createConditionContent(script, "groovy", scriptType);
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
-        ScriptCondition scriptCondition = conditionParser.parseCondition("_watch", parser);
+        ScriptCondition scriptCondition = conditionParser.parseCondition("_watch", parser, false);
         expectThrows(GeneralScriptException.class,
                 () -> conditionParser.createExecutable(scriptCondition));
     }
@@ -182,7 +181,7 @@ public class ScriptConditionTests extends ESTestCase {
         XContentBuilder builder = createConditionContent(script, "not_a_valid_lang", ScriptType.INLINE);
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
-        ScriptCondition scriptCondition = conditionParser.parseCondition("_watch", parser);
+        ScriptCondition scriptCondition = conditionParser.parseCondition("_watch", parser, false);
         GeneralScriptException exception = expectThrows(GeneralScriptException.class,
                 () -> conditionParser.createExecutable(scriptCondition));
         assertThat(exception.getMessage(), containsString("script_lang not supported [not_a_valid_lang]]"));

@@ -177,7 +177,7 @@ public class CompareConditionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        CompareCondition condition = factory.parseCondition("_id", parser);
+        CompareCondition condition = factory.parseCondition("_id", parser, false);
 
         assertThat(condition, notNullValue());
         assertThat(condition.getPath(), is("key1.key2"));
@@ -195,7 +195,7 @@ public class CompareConditionTests extends ESTestCase {
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         try {
-            factory.parseCondition("_id", parser);
+            factory.parseCondition("_id", parser, false);
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("expected an object but found [null] instead"));
@@ -215,7 +215,7 @@ public class CompareConditionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
         try {
-            factory.parseCondition("_id", parser);
+            factory.parseCondition("_id", parser, false);
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("unknown comparison operator [foobar]"));
@@ -236,7 +236,7 @@ public class CompareConditionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
         try {
-            factory.parseCondition("_id", parser);
+            factory.parseCondition("_id", parser, false);
             fail("Expected ElasticsearchParseException");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("must either be a numeric, string, boolean or null value, but found ["));

@@ -71,7 +71,8 @@ public class ChainTransform implements Transform {
         return builder.endArray();
     }
 
-    public static ChainTransform parse(String watchId, XContentParser parser, TransformRegistry transformRegistry) throws IOException {
+    public static ChainTransform parse(String watchId, XContentParser parser, TransformRegistry transformRegistry,
+                                       boolean upgradeSource) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token != XContentParser.Token.START_ARRAY) {
             throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. expected an array of transform objects," +
@@ -90,7 +91,7 @@ public class ChainTransform implements Transform {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else {
-                    transforms.add(transformRegistry.parseTransform(watchId, currentFieldName, parser));
+                    transforms.add(transformRegistry.parseTransform(watchId, currentFieldName, parser, upgradeSource));
                 }
             }
         }

@@ -12,6 +12,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -21,7 +23,10 @@ import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -42,6 +47,13 @@ public class WatcherBackwardsCompatibilityTests extends AbstractWatcherIntegrati
     @Override
     protected boolean timeWarped() {
         return false;
+    }
+
+    @Override
+    protected List<Class<? extends Plugin>> pluginTypes() {
+        List<Class<? extends Plugin>> plugins = super.pluginTypes();
+        plugins.add(FoolMeScriptLang.class);
+        return plugins;
     }
 
     public void testWatchLoadedSuccessfullyAfterUpgrade() throws Exception {
@@ -86,10 +98,32 @@ public class WatcherBackwardsCompatibilityTests extends AbstractWatcherIntegrati
         assertThat(getWatchResponse.isFound(), is(true));
         Map<String, Object> watchSourceAsMap = getWatchResponse.getSource().getAsMap();
         assertThat(ObjectPath.eval("trigger.schedule.interval", watchSourceAsMap), equalTo("99w"));
-        assertThat(ObjectPath.eval("input.search.request.body.query.bool.filter.1.range.date.lte", watchSourceAsMap),
+        assertThat(ObjectPath.eval("input.search.request.body.query.bool.filter.1.range.date.to", watchSourceAsMap),
                 equalTo("{{ctx.trigger.scheduled_time}}"));
         assertThat(ObjectPath.eval("actions.log_error.logging.text", watchSourceAsMap),
                 equalTo("Found {{ctx.payload.hits.total}} errors in the logs"));
+
+        // Check that all scripts have been upgraded, so that the language has been set to groovy (legacy language default):
+        assertThat(ObjectPath.eval("input.search.request.body.query.bool.filter.2.script.script.lang", watchSourceAsMap),
+                equalTo("groovy"));
+        assertThat(ObjectPath.eval("input.search.request.body.aggregations.avg_grade.avg.script.lang", watchSourceAsMap),
+                equalTo("groovy"));
+        assertThat(ObjectPath.eval("condition.script.lang", watchSourceAsMap), equalTo("groovy"));
+    }
+
+    // Fool the script service that this is the groovy script language, so that we can just load the watch upon startup
+    // and verify that the lang options on scripts have been set.
+    public static class FoolMeScriptLang extends MockScriptPlugin{
+
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Collections.singletonMap("ctx.payload.hits.total > 0", (vars) -> true);
+        }
+
+        @Override
+        public String pluginScriptLang() {
+            return "groovy";
+        }
     }
 
 }

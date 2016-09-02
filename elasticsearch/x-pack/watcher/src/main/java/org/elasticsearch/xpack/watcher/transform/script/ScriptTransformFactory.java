@@ -10,20 +10,20 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.xpack.watcher.transform.TransformFactory;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class ScriptTransformFactory extends TransformFactory<ScriptTransform, ScriptTransform.Result, ExecutableScriptTransform> {
 
+    private final Settings settings;
     private final ScriptService scriptService;
 
     @Inject
     public ScriptTransformFactory(Settings settings, ScriptService scriptService) {
         super(Loggers.getLogger(ExecutableScriptTransform.class, settings));
+        this.settings = settings;
         this.scriptService = scriptService;
     }
 
@@ -33,8 +33,9 @@ public class ScriptTransformFactory extends TransformFactory<ScriptTransform, Sc
     }
 
     @Override
-    public ScriptTransform parseTransform(String watchId, XContentParser parser) throws IOException {
-        return ScriptTransform.parse(watchId, parser);
+    public ScriptTransform parseTransform(String watchId, XContentParser parser, boolean upgradeTransformSource) throws IOException {
+        String defaultLegacyScriptLanguage = ScriptSettings.getLegacyDefaultLang(settings);
+        return ScriptTransform.parse(watchId, parser, upgradeTransformSource, defaultLegacyScriptLanguage);
     }
 
     @Override

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.watch;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -15,10 +16,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
+import org.elasticsearch.index.query.ScriptQueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpClient;
@@ -81,6 +84,7 @@ import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
@@ -181,7 +185,7 @@ public class WatchTests extends ESTestCase {
         TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
 
         ExecutableInput input = randomInput();
-        InputRegistry inputRegistry = registry(input);
+        InputRegistry inputRegistry = registry(input.type());
 
         ExecutableCondition condition = randomCondition();
         ConditionRegistry conditionRegistry = conditionRegistry();
@@ -230,7 +234,7 @@ public class WatchTests extends ESTestCase {
         TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
         ConditionRegistry conditionRegistry = conditionRegistry();
         ExecutableInput input = randomInput();
-        InputRegistry inputRegistry = registry(input);
+        InputRegistry inputRegistry = registry(input.type());
 
         TransformRegistry transformRegistry = transformRegistry();
 
@@ -259,7 +263,7 @@ public class WatchTests extends ESTestCase {
         TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
 
         ConditionRegistry conditionRegistry = conditionRegistry();
-        InputRegistry inputRegistry = registry(new ExecutableNoneInput(logger));
+        InputRegistry inputRegistry = registry(new ExecutableNoneInput(logger).type());
         TransformRegistry transformRegistry = transformRegistry();
         ExecutableActions actions =  new ExecutableActions(Collections.emptyList());
         ActionRegistry actionRegistry = registry(actions, conditionRegistry, transformRegistry);
@@ -280,6 +284,84 @@ public class WatchTests extends ESTestCase {
         assertThat(watch.transform(), nullValue());
         assertThat(watch.actions(), notNullValue());
         assertThat(watch.actions().count(), is(0));
+    }
+
+    public void testParseWatch_verifyScriptLangDefault() throws Exception {
+        ScheduleRegistry scheduleRegistry = registry(new IntervalSchedule(new IntervalSchedule.Interval(1,
+                IntervalSchedule.Interval.Unit.SECONDS)));
+        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, SystemClock.INSTANCE);
+        TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
+
+        ConditionRegistry conditionRegistry = conditionRegistry();
+        InputRegistry inputRegistry = registry(SearchInput.TYPE);
+        TransformRegistry transformRegistry = transformRegistry();
+        ExecutableActions actions =  new ExecutableActions(Collections.emptyList());
+        ActionRegistry actionRegistry = registry(actions, conditionRegistry, transformRegistry);
+        Watch.Parser watchParser = new Watch.Parser(settings, conditionRegistry, triggerService, transformRegistry, actionRegistry,
+                inputRegistry, null, SystemClock.INSTANCE);
+
+        IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry();
+        QueryParser<MatchAllQueryBuilder> queryParser1 = MatchAllQueryBuilder::fromXContent;
+        queryRegistry.register(queryParser1, MatchAllQueryBuilder.NAME);
+        QueryParser<ScriptQueryBuilder> queryParser2 = ScriptQueryBuilder::fromXContent;
+        queryRegistry.register(queryParser2, ScriptQueryBuilder.NAME);
+        SearchRequestParsers searchParsers = new SearchRequestParsers(queryRegistry, null,  null);
+        WatcherSearchTemplateService searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, searchParsers);
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+
+        builder.startObject("trigger");
+        builder.startObject("schedule");
+        builder.field("interval", "99w");
+        builder.endObject();
+        builder.endObject();
+
+        builder.startObject("input");
+        builder.startObject("search");
+        builder.startObject("request");
+        builder.startObject("body");
+        builder.startObject("query");
+        builder.startObject("script");
+        if (randomBoolean()) {
+            builder.field("script", "return true");
+        } else {
+            builder.startObject("script");
+            builder.field("inline", "return true");
+            builder.endObject();
+        }
+        builder.endObject();
+        builder.endObject();
+        builder.endObject();
+        builder.endObject();
+        builder.endObject();
+        builder.endObject();
+
+        builder.startObject("condition");
+        if (randomBoolean()) {
+            builder.field("script", "return true");
+        } else {
+            builder.startObject("script");
+            builder.field("inline", "return true");
+            builder.endObject();
+        }
+        builder.endObject();
+
+        builder.endObject();
+
+        // parse in default mode:
+        Watch watch = watchParser.parse("_id", false, builder.bytes());
+        assertThat(((ScriptCondition) watch.condition().condition()).getScript().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
+        WatcherSearchTemplateRequest request = ((SearchInput) watch.input().input()).getRequest();
+        SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
+        assertThat(((ScriptQueryBuilder) searchRequest.source().query()).script().getLang(), equalTo(Script.DEFAULT_SCRIPT_LANG));
+
+        // parse in legacy mode:
+        watch = watchParser.parse("_id", false, builder.bytes(), true);
+        assertThat(((ScriptCondition) watch.condition().condition()).getScript().getLang(), equalTo("groovy"));
+        request = ((SearchInput) watch.input().input()).getRequest();
+        searchRequest = searchTemplateService.toSearchRequest(request);
+        assertThat(((ScriptQueryBuilder) searchRequest.source().query()).script().getLang(), equalTo("groovy"));
     }
 
     private static Schedule randomSchedule() {
@@ -346,13 +428,15 @@ public class WatchTests extends ESTestCase {
         }
     }
 
-    private InputRegistry registry(ExecutableInput input) {
+    private InputRegistry registry(String inputType) {
         Map<String, InputFactory> parsers = new HashMap<>();
-        switch (input.type()) {
+        switch (inputType) {
             case SearchInput.TYPE:
                 IndicesQueriesRegistry queryRegistry = new IndicesQueriesRegistry();
-                QueryParser<MatchAllQueryBuilder> queryParser = MatchAllQueryBuilder::fromXContent;
-                queryRegistry.register(queryParser, MatchAllQueryBuilder.NAME);
+                QueryParser<MatchAllQueryBuilder> queryParser1 = MatchAllQueryBuilder::fromXContent;
+                queryRegistry.register(queryParser1, MatchAllQueryBuilder.NAME);
+                QueryParser<ScriptQueryBuilder> queryParser2 = ScriptQueryBuilder::fromXContent;
+                queryRegistry.register(queryParser2, ScriptQueryBuilder.NAME);
                 SearchRequestParsers searchParsers = new SearchRequestParsers(queryRegistry, null,  null);
                 parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, searchParsers, scriptService));
                 return new InputRegistry(Settings.EMPTY, parsers);

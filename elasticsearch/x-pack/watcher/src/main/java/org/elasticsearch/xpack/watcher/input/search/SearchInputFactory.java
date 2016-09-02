@@ -11,12 +11,9 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchRequestParsers;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.input.InputFactory;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
@@ -25,11 +22,9 @@ import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateServi
 
 import java.io.IOException;
 
-/**
- *
- */
 public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Result, ExecutableSearchInput> {
 
+    private final Settings settings;
     private final WatcherClientProxy client;
     private final TimeValue defaultTimeout;
     private final SearchRequestParsers searchRequestParsers;
@@ -45,6 +40,7 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
     public SearchInputFactory(Settings settings, WatcherClientProxy client,
                               SearchRequestParsers searchRequestParsers, ScriptService scriptService) {
         super(Loggers.getLogger(ExecutableSimpleInput.class, settings));
+        this.settings = settings;
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.client = client;
         this.searchRequestParsers = searchRequestParsers;
@@ -58,9 +54,10 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
     }
 
     @Override
-    public SearchInput parseInput(String watchId, XContentParser parser) throws IOException {
-        QueryParseContext context = new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
-        return SearchInput.parse(watchId, parser, context, searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
+    public SearchInput parseInput(String watchId, XContentParser parser, boolean upgradeInputSource) throws IOException {
+        String defaultLegacyScriptLanguage = ScriptSettings.getLegacyDefaultLang(settings);
+        return SearchInput.parse(inputLogger, watchId, parser, upgradeInputSource, defaultLegacyScriptLanguage,
+                parseFieldMatcher, searchRequestParsers);
     }
 
     @Override

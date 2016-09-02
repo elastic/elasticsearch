@@ -67,8 +67,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
-/**
- */
 public class WatchStoreTests extends ESTestCase {
     private WatchStore watchStore;
     private WatcherClientProxy clientProxy;
@@ -221,10 +219,10 @@ public class WatchStoreTests extends ESTestCase {
         when(watch3.status()).thenReturn(status);
         Watch watch4 = mock(Watch.class);
         when(watch4.status()).thenReturn(status);
-        when(parser.parse("_id1", true, source)).thenReturn(watch1);
-        when(parser.parse("_id2", true, source)).thenReturn(watch2);
-        when(parser.parse("_id3", true, source)).thenReturn(watch3);
-        when(parser.parse("_id4", true, source)).thenReturn(watch4);
+        when(parser.parse("_id1", true, source, true)).thenReturn(watch1);
+        when(parser.parse("_id2", true, source, true)).thenReturn(watch2);
+        when(parser.parse("_id3", true, source, true)).thenReturn(watch3);
+        when(parser.parse("_id4", true, source, true)).thenReturn(watch4);
 
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 0));
 
@@ -303,7 +301,7 @@ public class WatchStoreTests extends ESTestCase {
             };
             when(watch.transform()).thenReturn(randomFrom(testTransform, null));
 
-            when(parser.parse("_id" + i, true, source)).thenReturn(watch);
+            when(parser.parse("_id" + i, true, source, true)).thenReturn(watch);
         }
 
         SearchResponse searchResponse = mockSearchResponse(1, 1, hitCount, hits.toArray(new InternalSearchHit[] {}));
@@ -365,7 +363,7 @@ public class WatchStoreTests extends ESTestCase {
         Watch watch = mock(Watch.class);
         WatchStatus status = mock(WatchStatus.class);
         when(watch.status()).thenReturn(status);
-        when(parser.parse("_id1", true, source)).thenReturn(watch);
+        when(parser.parse("_id1", true, source, true)).thenReturn(watch);
 
         when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 0));
 

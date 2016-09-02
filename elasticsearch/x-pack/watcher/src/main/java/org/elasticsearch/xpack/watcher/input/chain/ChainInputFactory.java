@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.input.chain;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -36,7 +35,7 @@ public class ChainInputFactory extends InputFactory<ChainInput, ChainInput.Resul
     }
 
     @Override
-    public ChainInput parseInput(String watchId, XContentParser parser) throws IOException {
+    public ChainInput parseInput(String watchId, XContentParser parser, boolean upgradeInputSource) throws IOException {
         return ChainInput.parse(watchId, parser, inputRegistry);
     }
 

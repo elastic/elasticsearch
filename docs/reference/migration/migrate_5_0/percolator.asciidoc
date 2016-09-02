@@ -24,6 +24,10 @@ Instead a <<percolator,percolator field type>> must be configured prior to index
 Indices with a `.percolator` type created on a version before 5.0.0 can still be used,
 but new indices no longer accept the `.percolator` type.
 
+However it is strongly recommended to reindex any indices containing percolator queries created prior
+upgrading to Elasticsearch 5. By doing this the `percolate` query utilize the extracted terms the `percolator`
+field type extracted from the percolator queries and potentially execute many times faster.
+
 ==== Percolate document mapping
 
 The `percolate` query no longer modifies the mappings. Before the percolate API
@@ -52,6 +56,22 @@ The percolate stats have been removed. This is because the percolator no longer 
 
 The percolator no longer accepts percolator queries containing `range` queries with ranges that are based on current
 time (using `now`).
+
+==== Percolator queries containing scripts.
+
+Percolator queries that contain scripts (For example: `script` query or a `function_score` query script function) that
+have no explicit language specified will use the Painless scripting language from version 5.0 and up.
+
+Scripts with no explicit language set in percolator queries stored in indices created prior to version 5.0
+will use the language that has been configured in the `script.legacy.default_lang` setting. This setting defaults to
+the Groovy scripting language, which was the default for versions prior to 5.0. If your default scripting language was
+different then set the `script.legacy.default_lang` setting to the language you used before.
+
+In order to make use of the new `percolator` field type all percolator queries should be reindexed into a new index.
+When reindexing percolator queries with scripts that have no explicit language defined into a new index, one of the
+following two things should be done in order to make the scripts work:
+* (Recommended approach) While reindexing the percolator documents, migrate the scripts to the Painless scripting language.
+* or add `lang` parameter on the script and set it the language these scripts were written in.
 
 ==== Java client
 

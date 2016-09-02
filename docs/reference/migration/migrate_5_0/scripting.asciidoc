@@ -9,8 +9,6 @@ to help make the transition between languages as simple as possible.
 
 Documentation for Painless can be found at <<modules-scripting-painless,Painless Scripting Language>>
 
-It is also possible to set the default language back to Groovy using the following setting: `script.default_lang: groovy`
-
 One common difference to note between Groovy and Painless is the use of parameters -- all parameters in Painless
 must be prefixed with `params.` now.  The following example shows the difference:
 
@@ -47,6 +45,12 @@ Painless (`my_modifer` is prefixed with `params`):
   }
 }
 -----------------------------------
+
+The `script.default_lang` setting has been removed. It is no longer possible set the default scripting language. If a
+different language than `painless` is used then this should be explicitly specified on the script itself.
+
+For scripts with no explicit language defined, that are part of already stored percolator queries, the default language
+can be controlled with the `script.legacy.default_lang` setting.
 
 ==== Removed 1.x script and template syntax
 

@@ -270,7 +270,9 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         XContentParser parser = context.parser();
-        QueryBuilder queryBuilder = parseQueryBuilder(queryShardContext.newParseContext(parser), parser.getTokenLocation());
+        QueryBuilder queryBuilder = parseQueryBuilder(
+                queryShardContext.newParseContext(parser), parser.getTokenLocation()
+        );
         verifyQuery(queryBuilder);
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:
         queryBuilder = queryBuilder.rewrite(queryShardContext);
@@ -312,7 +314,12 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     public static Query parseQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, XContentParser parser) throws IOException {
-        return toQuery(context, mapUnmappedFieldsAsString, parseQueryBuilder(context.newParseContext(parser), parser.getTokenLocation()));
+        return parseQuery(context, mapUnmappedFieldsAsString, context.newParseContext(parser), parser);
+    }
+
+    public static Query parseQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, QueryParseContext queryParseContext,
+                                   XContentParser parser) throws IOException {
+        return toQuery(context, mapUnmappedFieldsAsString, parseQueryBuilder(queryParseContext, parser.getTokenLocation()));
     }
 
     static Query toQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, QueryBuilder queryBuilder) throws IOException {

@@ -182,7 +182,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(context, null);
         assertEquals("doc['field_name'].value * factor", builder.script().getScript());
-        assertNull(builder.script().getLang());
+        assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().getLang());
         assertEquals(1.1, builder.script().getParams().get("factor"));
         assertEquals(ScriptType.INLINE, builder.script().getType());
         assertEquals(ScriptSortType.NUMBER, builder.type());
@@ -208,7 +208,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(context, null);
         assertEquals("doc['field_name'].value", builder.script().getScript());
-        assertNull(builder.script().getLang());
+        assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().getLang());
         assertNull(builder.script().getParams());
         assertEquals(ScriptType.INLINE, builder.script().getType());
         assertEquals(ScriptSortType.NUMBER, builder.type());

@@ -28,6 +28,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptSettings;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
@@ -101,9 +102,18 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
 
     /**
      * Returns a new {@link QueryParseContext} that wraps the provided parser, using the ParseFieldMatcher settings that
-     * are configured in the index settings
+     * are configured in the index settings. The default script language will always default to Painless.
      */
     public QueryParseContext newParseContext(XContentParser parser) {
         return new QueryParseContext(indicesQueriesRegistry, parser, indexSettings.getParseFieldMatcher());
+    }
+
+    /**
+     * Returns a new {@link QueryParseContext} like {@link #newParseContext(XContentParser)} with the only diffence, that
+     * the default script language will default to what has been set in the 'script.legacy.default_lang' setting.
+     */
+    public QueryParseContext newParseContextWithLegacyScriptLanguage(XContentParser parser) {
+        String defaultScriptLanguage = ScriptSettings.getLegacyDefaultLang(indexSettings.getNodeSettings());
+        return new QueryParseContext(defaultScriptLanguage, indicesQueriesRegistry, parser, indexSettings.getParseFieldMatcher());
     }
 }

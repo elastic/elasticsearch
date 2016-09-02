@@ -65,18 +65,18 @@ buildRestTests.docs = fileTree(projectDir) {
 Closure setupTwitter = { String name, int count ->
   buildRestTests.setups[name] = '''
   - do:
-      indices.create:
-        index: twitter
-        body:
-          settings:
-            number_of_shards: 1
-            number_of_replicas: 1
+    indices.create:
+      index: twitter
+      body:
+        settings:
+          number_of_shards: 1
+          number_of_replicas: 1
   - do:
-      bulk:
-        index: twitter
-        type: tweet
-        refresh: true
-        body: |'''
+    bulk:
+      index: twitter
+      type: tweet
+      refresh: true
+      body: |'''
     for (int i = 0; i < count; i++) {
       String user, text
       if (i == 0) {
@@ -87,12 +87,13 @@ Closure setupTwitter = { String name, int count ->
         text = "some message with the number $i"
       }
       buildRestTests.setups[name] += """
-          {"index":{"_id": "$i"}}
-          {"user": "$user", "message": "$text", "date": "2009-11-15T14:12:12", "likes": $i}"""
+        {"index":{"_id": "$i"}}
+        {"user": "$user", "message": "$text", "date": "2009-11-15T14:12:12", "likes": $i}"""
     }
   }
 setupTwitter('twitter', 5)
 setupTwitter('big_twitter', 120)
+setupTwitter('huge_twitter', 1200)
 
 buildRestTests.setups['host'] = '''
   # Fetch the http host. We use the host of the master because we know there will always be a master.

@@ -19,13 +19,19 @@
 
 package org.elasticsearch.common.xcontent;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.Map;
 
 public abstract class BaseXContentTestCase extends ESTestCase {
 
@@ -155,5 +161,25 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertEquals(Token.END_OBJECT, parser.nextToken());
         assertNull(parser.nextToken());
 
+    }
+
+    protected void doTestBigInteger(JsonGenerator generator, ByteArrayOutputStream os) throws Exception {
+        // Big integers cannot be handled explicitly, but if some values happen to be big ints,
+        // we can still call parser.map() and get the bigint value so that eg. source filtering
+        // keeps working
+        BigInteger bigInteger = BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE);
+        generator.writeStartObject();
+        generator.writeFieldName("foo");
+        generator.writeString("bar");
+        generator.writeFieldName("bigint");
+        generator.writeNumber(bigInteger);
+        generator.writeEndObject();
+        generator.flush();
+        byte[] serialized = os.toByteArray();
+
+        XContentParser parser = xcontentType().xContent().createParser(serialized);
+        Map<String, Object> map = parser.map();
+        assertEquals("bar", map.get("foo"));
+        assertEquals(bigInteger, map.get("bigint"));
     }
 }

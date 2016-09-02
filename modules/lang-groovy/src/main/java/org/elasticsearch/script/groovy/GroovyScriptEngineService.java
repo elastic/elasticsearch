@@ -96,6 +96,9 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     public GroovyScriptEngineService(Settings settings) {
         super(settings);
+
+        deprecationLogger.deprecated("[groovy] scripts are deprecated, use [painless] scripts instead");
+
         // Creates the classloader here in order to isolate Groovy-land code
         final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -182,6 +185,8 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     @Override
     public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
+        deprecationLogger.deprecated("[groovy] scripts are deprecated, use [painless] scripts instead");
+
         try {
             Map<String, Object> allVars = new HashMap<>();
             if (vars != null) {
@@ -195,6 +200,8 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     @Override
     public SearchScript search(final CompiledScript compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
+        deprecationLogger.deprecated("[groovy] scripts are deprecated, use [painless] scripts instead");
+
         return new SearchScript() {
 
             @Override

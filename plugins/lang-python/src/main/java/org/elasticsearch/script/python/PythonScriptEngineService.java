@@ -62,6 +62,8 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     public PythonScriptEngineService(Settings settings) {
         super(settings);
 
+        deprecationLogger.deprecated("[python] scripts are deprecated, use [painless] scripts instead.");
+
         // classloader created here
         final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
@@ -118,11 +120,15 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
 
     @Override
     public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> vars) {
+        deprecationLogger.deprecated("[python] scripts are deprecated, use [painless] scripts instead");
+
         return new PythonExecutableScript((PyCode) compiledScript.compiled(), vars);
     }
 
     @Override
     public SearchScript search(final CompiledScript compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
+        deprecationLogger.deprecated("[python] scripts are deprecated, use [painless] scripts instead");
+
         return new SearchScript() {
             @Override
             public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {

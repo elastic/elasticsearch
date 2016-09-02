@@ -75,8 +75,10 @@ public class ClientYamlTestExecutionContext {
             response = e.getRestTestResponse();
             throw e;
         } finally {
+            // if we hit a bad exception the response is null
+            Object repsponseBody = response != null ? response.getBody() : null;
             //we always stash the last response body
-            stash.stashValue("body", response.getBody());
+            stash.stashValue("body", repsponseBody);
         }
     }
 

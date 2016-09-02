@@ -19,7 +19,9 @@ PUT /logs-000001 <1>
   }
 }
 
-POST logs_write/_rollover <2>
+# Add > 1000 documents to logs-000001
+
+POST /logs_write/_rollover <2>
 {
   "conditions": {
     "max_age":   "7d",
@@ -28,6 +30,8 @@ POST logs_write/_rollover <2>
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:huge_twitter]
+// TEST[s/# Add > 1000 documents to logs-000001/POST _reindex?refresh\n{"source":{"index":"twitter"},"dest":{"index":"logs-000001"}}/]
 <1> Creates an index called `logs-0000001` with the alias `logs_write`.
 <2> If the index pointed to by `logs_write` was created 7 or more days ago, or
     contains 1,000 or more documents, then the `logs-0002` index is created
@@ -38,6 +42,8 @@ The above request might return the following response:
 [source,js]
 --------------------------------------------------
 {
+  "acknowledged": true,
+  "shards_acknowledged": true,
   "old_index": "logs-000001",
   "new_index": "logs-000002",
   "rolled_over": true, <1>
@@ -48,6 +54,7 @@ The above request might return the following response:
   }
 }
 --------------------------------------------------
+// TESTRESPONSE
  <1> Whether the index was rolled over.
  <2> Whether the rollover was dry run.
  <3> The result of each condition.
@@ -65,9 +72,16 @@ the new index as follows:
 
 [source,js]
 --------------------------------------------------
-POST my_alias/_rollover/my_new_index_name
-{...}
+POST /my_alias/_rollover/my_new_index_name
+{
+  "conditions": {
+    "max_age":   "7d",
+    "max_docs":  1000
+  }
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT my_old_index_name\nPUT my_old_index_name\/_alias\/my_alias\n/]
 
 [float]
 === Defining the new index
@@ -75,7 +89,7 @@ POST my_alias/_rollover/my_new_index_name
 The settings, mappings, and aliases for the new index are taken from any
 matching <<indices-templates,index templates>>. Additionally, you can specify
 `settings`, `mappings`, and `aliases` in the body of the request, just like the
-<<indices-create-index,create index>> API. Values specified in the request 
+<<indices-create-index,create index>> API. Values specified in the request
 override any values set in matching index templates. For example, the following
 `rollover` request overrides the `index.number_of_shards` setting:
 
@@ -88,14 +102,14 @@ PUT /logs-000001
   }
 }
 
-POST logs_write/_rollover
+POST /logs_write/_rollover
 {
   "conditions" : {
     "max_age": "7d",
     "max_docs": 1000
   },
-  "settings": { 
-    "index.number_of_shards": 2 
+  "settings": {
+    "index.number_of_shards": 2
   }
 }
 --------------------------------------------------
@@ -116,7 +130,7 @@ PUT /logs-000001
   }
 }
 
-POST logs_write/_rollover?dry_run
+POST /logs_write/_rollover?dry_run
 {
   "conditions" : {
     "max_age": "7d",
@@ -129,6 +143,6 @@ POST logs_write/_rollover?dry_run
 [float]
 === Wait For Active Shards
 
-Because the rollover operation creates a new index to rollover to, the 
-<<create-index-wait-for-active-shards,wait for active shards>> setting on 
+Because the rollover operation creates a new index to rollover to, the
+<<create-index-wait-for-active-shards,wait for active shards>> setting on
 index creation applies to the rollover action as well.

@@ -198,11 +198,11 @@ public class MergeStats implements Streamable, ToXContent {
         builder.field(Fields.CURRENT_DOCS, currentNumDocs);
         builder.byteSizeField(Fields.CURRENT_SIZE_IN_BYTES, Fields.CURRENT_SIZE, currentSizeInBytes);
         builder.field(Fields.TOTAL, total);
-        builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, totalTimeInMillis);
+        builder.field(Fields.TOTAL_TIME, TimeValue.timeValueMillis(totalTimeInMillis));
         builder.field(Fields.TOTAL_DOCS, totalNumDocs);
         builder.byteSizeField(Fields.TOTAL_SIZE_IN_BYTES, Fields.TOTAL_SIZE, totalSizeInBytes);
-        builder.timeValueField(Fields.TOTAL_STOPPED_TIME_IN_MILLIS, Fields.TOTAL_STOPPED_TIME, totalStoppedTimeInMillis);
-        builder.timeValueField(Fields.TOTAL_THROTTLED_TIME_IN_MILLIS, Fields.TOTAL_THROTTLED_TIME, totalThrottledTimeInMillis);
+        builder.field(Fields.TOTAL_STOPPED_TIME, TimeValue.timeValueMillis(totalStoppedTimeInMillis));
+        builder.field(Fields.TOTAL_THROTTLED_TIME, TimeValue.timeValueMillis(totalThrottledTimeInMillis));
         builder.byteSizeField(Fields.TOTAL_THROTTLE_BYTES_PER_SEC_IN_BYTES, Fields.TOTAL_THROTTLE_BYTES_PER_SEC, totalBytesPerSecAutoThrottle);
         builder.endObject();
         return builder;
@@ -216,11 +216,8 @@ public class MergeStats implements Streamable, ToXContent {
         static final String CURRENT_SIZE_IN_BYTES = "current_size_in_bytes";
         static final String TOTAL = "total";
         static final String TOTAL_TIME = "total_time";
-        static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
         static final String TOTAL_STOPPED_TIME = "total_stopped_time";
-        static final String TOTAL_STOPPED_TIME_IN_MILLIS = "total_stopped_time_in_millis";
         static final String TOTAL_THROTTLED_TIME = "total_throttled_time";
-        static final String TOTAL_THROTTLED_TIME_IN_MILLIS = "total_throttled_time_in_millis";
         static final String TOTAL_DOCS = "total_docs";
         static final String TOTAL_SIZE = "total_size";
         static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";

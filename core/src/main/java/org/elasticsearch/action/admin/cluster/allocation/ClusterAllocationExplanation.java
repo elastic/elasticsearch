@@ -181,8 +181,8 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
             // If we have unassigned info, show that
             if (unassignedInfo != null) {
                 unassignedInfo.toXContent(builder, params);
-                builder.timeValueField("allocation_delay_in_millis", "allocation_delay", TimeValue.timeValueMillis(allocationDelayMillis));
-                builder.timeValueField("remaining_delay_in_millis", "remaining_delay", TimeValue.timeValueMillis(remainingDelayMillis));
+                builder.field("allocation_delay", TimeValue.timeValueMillis(allocationDelayMillis));
+                builder.field("remaining_delay", TimeValue.timeValueMillis(remainingDelayMillis));
             }
             builder.startObject("nodes"); {
                 for (NodeExplanation explanation : nodeExplanations.values()) {

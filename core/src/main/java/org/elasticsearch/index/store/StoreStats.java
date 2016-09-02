@@ -101,7 +101,7 @@ public class StoreStats implements Streamable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.STORE);
         builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, sizeInBytes);
-        builder.timeValueField(Fields.THROTTLE_TIME_IN_MILLIS, Fields.THROTTLE_TIME, throttleTime());
+        builder.field(Fields.THROTTLE_TIME, throttleTime());
         builder.endObject();
         return builder;
     }
@@ -111,6 +111,5 @@ public class StoreStats implements Streamable, ToXContent {
         static final String SIZE = "size";
         static final String SIZE_IN_BYTES = "size_in_bytes";
         static final String THROTTLE_TIME = "throttle_time";
-        static final String THROTTLE_TIME_IN_MILLIS = "throttle_time_in_millis";
     }
 }

@@ -102,7 +102,7 @@ public class RecoveryStats implements ToXContent, Streamable {
         builder.startObject(Fields.RECOVERY);
         builder.field(Fields.CURRENT_AS_SOURCE, currentAsSource());
         builder.field(Fields.CURRENT_AS_TARGET, currentAsTarget());
-        builder.timeValueField(Fields.THROTTLE_TIME_IN_MILLIS, Fields.THROTTLE_TIME, throttleTime());
+        builder.field(Fields.THROTTLE_TIME, throttleTime());
         builder.endObject();
         return builder;
     }
@@ -118,7 +118,6 @@ public class RecoveryStats implements ToXContent, Streamable {
         static final String CURRENT_AS_SOURCE = "current_as_source";
         static final String CURRENT_AS_TARGET = "current_as_target";
         static final String THROTTLE_TIME = "throttle_time";
-        static final String THROTTLE_TIME_IN_MILLIS = "throttle_time_in_millis";
     }
 
     @Override

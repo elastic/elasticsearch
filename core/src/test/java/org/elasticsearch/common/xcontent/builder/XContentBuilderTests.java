@@ -24,12 +24,16 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matcher;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -45,7 +49,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class XContentBuilderTests extends ESTestCase {
@@ -386,5 +393,97 @@ public class XContentBuilderTests extends ESTestCase {
         });
         assertThat(e.getMessage(), equalTo("failed to close the XContentBuilder"));
         assertThat(e.getCause().getMessage(), equalTo("unclosed object or array found"));
+    }
+
+    public void testTimeValues() throws IOException {
+        final BiFunction<XContentBuilder, TimeValue, String> build = (builder, value) -> {
+            try {
+                builder.startObject();
+                builder.field("total", value);
+                builder.endObject();
+                return builder.string();
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to build the TimeValue field", e);
+            }
+        };
+
+        TimeValue timeValue = TimeValue.timeValueMillis(1317600000L);
+
+        // Build with default time unit
+        assertThat(build.apply(jsonBuilder(), timeValue),
+                equalTo("{\"total_in_millis\":1317600000}"));
+        assertThat(build.apply(jsonBuilder().humanReadable(true), timeValue),
+                equalTo("{\"total\":\"15.2d\",\"total_in_millis\":1317600000}"));
+
+        // Build with different time units
+        assertThat(build.apply(jsonBuilder().timeUnit(TimeUnit.DAYS), timeValue),
+                equalTo("{\"total_in_days\":15}"));
+        assertThat(build.apply(jsonBuilder().timeUnit(TimeUnit.DAYS).humanReadable(true), timeValue),
+                equalTo("{\"total\":\"15.2d\",\"total_in_days\":15}"));
+
+        assertThat(build.apply(jsonBuilder().timeUnit(TimeUnit.HOURS), timeValue),
+                equalTo("{\"total_in_hours\":366}"));
+        assertThat(build.apply(jsonBuilder().timeUnit(TimeUnit.HOURS).humanReadable(true), timeValue),
+                equalTo("{\"total\":\"15.2d\",\"total_in_hours\":366}"));
+
+        assertThat(build.apply(jsonBuilder().timeUnit(TimeUnit.MINUTES), timeValue),
+                equalTo("{\"total_in_minutes\":21960}"));
+        assertThat(build.apply(jsonBuilder().timeUnit(TimeUnit.MINUTES).humanReadable(true), timeValue),
+                equalTo("{\"total\":\"15.2d\",\"total_in_minutes\":21960}"));
+
+        assertThat(build.apply(jsonBuilder().timeUnit(TimeUnit.SECONDS), timeValue),
+                equalTo("{\"total_in_seconds\":1317600}"));
+        assertThat(build.apply(jsonBuilder().timeUnit(TimeUnit.SECONDS).humanReadable(true), timeValue),
+                equalTo("{\"total\":\"15.2d\",\"total_in_seconds\":1317600}"));
+
+        assertThat(build.apply(jsonBuilder().timeUnit(TimeUnit.MILLISECONDS), timeValue),
+                equalTo("{\"total_in_millis\":1317600000}"));
+        assertThat(build.apply(jsonBuilder().timeUnit(TimeUnit.MILLISECONDS).humanReadable(true), timeValue),
+                equalTo("{\"total\":\"15.2d\",\"total_in_millis\":1317600000}"));
+
+        assertThat(build.apply(jsonBuilder().timeUnit(TimeUnit.MICROSECONDS), timeValue),
+                equalTo("{\"total_in_micros\":1317600000000}"));
+        assertThat(build.apply(jsonBuilder().timeUnit(TimeUnit.MICROSECONDS).humanReadable(true), timeValue),
+                equalTo("{\"total\":\"15.2d\",\"total_in_micros\":1317600000000}"));
+
+        assertThat(build.apply(jsonBuilder().timeUnit(TimeUnit.NANOSECONDS), timeValue),
+                equalTo("{\"total_in_nanos\":1317600000000000}"));
+        assertThat(build.apply(jsonBuilder().timeUnit(TimeUnit.NANOSECONDS).humanReadable(true), timeValue),
+                equalTo("{\"total\":\"15.2d\",\"total_in_nanos\":1317600000000000}"));
+    }
+
+    public void testTimeValuesWithForcedTimeUnit() throws IOException {
+        final TimeValue timeValue = TimeValue.parseTimeValue(randomTimeValue(), null, "test");
+        final boolean human = randomBoolean();
+
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values())).humanReadable(human);
+        builder.startObject();
+        for (TimeUnit timeUnit : TimeUnit.values()) {
+            builder.field(timeUnit.name().toLowerCase(Locale.ROOT), timeValue, timeUnit);
+        }
+        builder.endObject();
+
+        final Map<String, Object> result = XContentHelper.convertToMap(builder.bytes(), false).v2();
+        assertThat(result.size(), equalTo(TimeUnit.values().length * (human ? 2 : 1)));
+
+        assertExtractedValue(result, "days_in_days", equalTo(timeValue.days()));
+        assertExtractedValue(result, "hours_in_hours", equalTo(timeValue.hours()));
+        assertExtractedValue(result, "minutes_in_minutes", equalTo(timeValue.minutes()));
+        assertExtractedValue(result, "seconds_in_seconds", equalTo(timeValue.seconds()));
+        assertExtractedValue(result, "milliseconds_in_millis", equalTo(timeValue.millis()));
+        assertExtractedValue(result, "microseconds_in_micros", equalTo(timeValue.micros()));
+        assertExtractedValue(result, "nanoseconds_in_nanos", equalTo(timeValue.nanos()));
+    }
+
+    private static void assertExtractedValue(Map<String, Object> map, String path, Matcher<Long> matcher) {
+        Object extracted = XContentMapValues.extractValue(path, map);
+
+        Long actual = null;
+        if (extracted instanceof Long) {
+            actual = (Long) extracted;
+        } else if (extracted instanceof Integer) {
+            actual = ((Integer) extracted).longValue();
+        }
+        assertThat("Value for field [" + path + "] does not match expected value", actual, matcher);
     }
 }

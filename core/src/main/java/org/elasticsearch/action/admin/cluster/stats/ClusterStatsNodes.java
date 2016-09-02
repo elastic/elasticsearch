@@ -474,7 +474,6 @@ public class ClusterStatsNodes implements ToXContent {
             static final String COUNT = "count";
             static final String THREADS = "threads";
             static final String MAX_UPTIME = "max_uptime";
-            static final String MAX_UPTIME_IN_MILLIS = "max_uptime_in_millis";
             static final String MEM = "mem";
             static final String HEAP_USED = "heap_used";
             static final String HEAP_USED_IN_BYTES = "heap_used_in_bytes";
@@ -484,7 +483,7 @@ public class ClusterStatsNodes implements ToXContent {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.timeValueField(Fields.MAX_UPTIME_IN_MILLIS, Fields.MAX_UPTIME, maxUptime);
+            builder.field(Fields.MAX_UPTIME, TimeValue.timeValueMillis(maxUptime));
             builder.startArray(Fields.VERSIONS);
             for (ObjectIntCursor<JvmVersion> v : versions) {
                 builder.startObject();

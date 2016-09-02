@@ -177,7 +177,7 @@ public class JvmStats implements Streamable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.JVM);
         builder.field(Fields.TIMESTAMP, timestamp);
-        builder.timeValueField(Fields.UPTIME_IN_MILLIS, Fields.UPTIME, uptime);
+        builder.field(Fields.UPTIME, TimeValue.timeValueMillis(uptime));
         if (mem != null) {
             builder.startObject(Fields.MEM);
 
@@ -218,7 +218,7 @@ public class JvmStats implements Streamable, ToXContent {
             for (GarbageCollector collector : gc) {
                 builder.startObject(collector.getName());
                 builder.field(Fields.COLLECTION_COUNT, collector.getCollectionCount());
-                builder.timeValueField(Fields.COLLECTION_TIME_IN_MILLIS, Fields.COLLECTION_TIME, collector.collectionTime);
+                builder.field(Fields.COLLECTION_TIME, TimeValue.timeValueMillis(collector.collectionTime));
                 builder.endObject();
             }
             builder.endObject();
@@ -254,7 +254,6 @@ public class JvmStats implements Streamable, ToXContent {
         static final String JVM = "jvm";
         static final String TIMESTAMP = "timestamp";
         static final String UPTIME = "uptime";
-        static final String UPTIME_IN_MILLIS = "uptime_in_millis";
 
         static final String MEM = "mem";
         static final String HEAP_USED = "heap_used";
@@ -288,7 +287,6 @@ public class JvmStats implements Streamable, ToXContent {
         static final String COLLECTORS = "collectors";
         static final String COLLECTION_COUNT = "collection_count";
         static final String COLLECTION_TIME = "collection_time";
-        static final String COLLECTION_TIME_IN_MILLIS = "collection_time_in_millis";
 
         static final String BUFFER_POOLS = "buffer_pools";
         static final String NAME = "name";

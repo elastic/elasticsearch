@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -137,7 +138,6 @@ public class SnapshotStats implements Streamable, ToXContent {
         static final String PROCESSED_SIZE_IN_BYTES = "processed_size_in_bytes";
         static final String PROCESSED_SIZE = "processed_size";
         static final String START_TIME_IN_MILLIS = "start_time_in_millis";
-        static final String TIME_IN_MILLIS = "time_in_millis";
         static final String TIME = "time";
     }
 
@@ -149,7 +149,7 @@ public class SnapshotStats implements Streamable, ToXContent {
         builder.byteSizeField(Fields.TOTAL_SIZE_IN_BYTES, Fields.TOTAL_SIZE, getTotalSize());
         builder.byteSizeField(Fields.PROCESSED_SIZE_IN_BYTES, Fields.PROCESSED_SIZE, getProcessedSize());
         builder.field(Fields.START_TIME_IN_MILLIS, getStartTime());
-        builder.timeValueField(Fields.TIME_IN_MILLIS, Fields.TIME, getTime());
+        builder.field(Fields.TIME, TimeValue.timeValueMillis(getTime()));
         builder.endObject();
         return builder;
     }

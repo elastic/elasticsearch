@@ -264,7 +264,7 @@ public class RecoveryState implements ToXContent, Streamable {
         if (timer.stopTime > 0) {
             builder.dateValueField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime);
         }
-        builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, timer.time());
+        builder.field(Fields.TOTAL_TIME, TimeValue.timeValueMillis(timer.time()));
 
         if (recoverySource.getType() == RecoverySource.Type.PEER) {
             builder.startObject(Fields.SOURCE);
@@ -313,7 +313,6 @@ public class RecoveryState implements ToXContent, Streamable {
         static final String STOP_TIME = "stop_time";
         static final String STOP_TIME_IN_MILLIS = "stop_time_in_millis";
         static final String TOTAL_TIME = "total_time";
-        static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
         static final String SOURCE = "source";
         static final String HOST = "host";
         static final String TRANSPORT_ADDRESS = "transport_address";
@@ -327,7 +326,6 @@ public class RecoveryState implements ToXContent, Streamable {
         static final String RECOVERED = "recovered";
         static final String RECOVERED_IN_BYTES = "recovered_in_bytes";
         static final String CHECK_INDEX_TIME = "check_index_time";
-        static final String CHECK_INDEX_TIME_IN_MILLIS = "check_index_time_in_millis";
         static final String LENGTH = "length";
         static final String LENGTH_IN_BYTES = "length_in_bytes";
         static final String FILES = "files";
@@ -339,9 +337,7 @@ public class RecoveryState implements ToXContent, Streamable {
         static final String DETAILS = "details";
         static final String SIZE = "size";
         static final String SOURCE_THROTTLE_TIME = "source_throttle_time";
-        static final String SOURCE_THROTTLE_TIME_IN_MILLIS = "source_throttle_time_in_millis";
         static final String TARGET_THROTTLE_TIME = "target_throttle_time";
-        static final String TARGET_THROTTLE_TIME_IN_MILLIS = "target_throttle_time_in_millis";
     }
 
     public static class Timer implements Streamable {
@@ -442,8 +438,8 @@ public class RecoveryState implements ToXContent, Streamable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.timeValueField(Fields.CHECK_INDEX_TIME_IN_MILLIS, Fields.CHECK_INDEX_TIME, checkIndexTime);
-            builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time());
+            builder.field(Fields.CHECK_INDEX_TIME, TimeValue.timeValueMillis(checkIndexTime));
+            builder.field(Fields.TOTAL_TIME, TimeValue.timeValueMillis(time()));
             return builder;
         }
     }
@@ -542,7 +538,7 @@ public class RecoveryState implements ToXContent, Streamable {
             builder.field(Fields.TOTAL, total);
             builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredPercent()));
             builder.field(Fields.TOTAL_ON_START, totalOnStart);
-            builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time());
+            builder.field(Fields.TOTAL_TIME, TimeValue.timeValueMillis(time()));
             return builder;
         }
     }
@@ -917,9 +913,9 @@ public class RecoveryState implements ToXContent, Streamable {
                 builder.endArray();
             }
             builder.endObject();
-            builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time());
-            builder.timeValueField(Fields.SOURCE_THROTTLE_TIME_IN_MILLIS, Fields.SOURCE_THROTTLE_TIME, sourceThrottling());
-            builder.timeValueField(Fields.TARGET_THROTTLE_TIME_IN_MILLIS, Fields.TARGET_THROTTLE_TIME, targetThrottling());
+            builder.field(Fields.TOTAL_TIME, TimeValue.timeValueMillis(time()));
+            builder.field(Fields.SOURCE_THROTTLE_TIME, sourceThrottling());
+            builder.field(Fields.TARGET_THROTTLE_TIME, targetThrottling());
             return builder;
         }
 

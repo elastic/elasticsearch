@@ -180,18 +180,18 @@ public class IndexingStats implements Streamable, ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.INDEX_TOTAL, indexCount);
-            builder.timeValueField(Fields.INDEX_TIME_IN_MILLIS, Fields.INDEX_TIME, indexTimeInMillis);
+            builder.field(Fields.INDEX_TIME, TimeValue.timeValueMillis(indexTimeInMillis));
             builder.field(Fields.INDEX_CURRENT, indexCurrent);
             builder.field(Fields.INDEX_FAILED, indexFailedCount);
 
             builder.field(Fields.DELETE_TOTAL, deleteCount);
-            builder.timeValueField(Fields.DELETE_TIME_IN_MILLIS, Fields.DELETE_TIME, deleteTimeInMillis);
+            builder.field(Fields.DELETE_TIME, TimeValue.timeValueMillis(deleteTimeInMillis));
             builder.field(Fields.DELETE_CURRENT, deleteCurrent);
 
             builder.field(Fields.NOOP_UPDATE_TOTAL, noopUpdateCount);
 
             builder.field(Fields.IS_THROTTLED, isThrottled);
-            builder.timeValueField(Fields.THROTTLED_TIME_IN_MILLIS, Fields.THROTTLED_TIME, throttleTimeInMillis);
+            builder.field(Fields.THROTTLED_TIME, TimeValue.timeValueMillis(throttleTimeInMillis));
             return builder;
         }
     }
@@ -272,16 +272,13 @@ public class IndexingStats implements Streamable, ToXContent {
         static final String TYPES = "types";
         static final String INDEX_TOTAL = "index_total";
         static final String INDEX_TIME = "index_time";
-        static final String INDEX_TIME_IN_MILLIS = "index_time_in_millis";
         static final String INDEX_CURRENT = "index_current";
         static final String INDEX_FAILED = "index_failed";
         static final String DELETE_TOTAL = "delete_total";
         static final String DELETE_TIME = "delete_time";
-        static final String DELETE_TIME_IN_MILLIS = "delete_time_in_millis";
         static final String DELETE_CURRENT = "delete_current";
         static final String NOOP_UPDATE_TOTAL = "noop_update_total";
         static final String IS_THROTTLED = "is_throttled";
-        static final String THROTTLED_TIME_IN_MILLIS = "throttle_time_in_millis";
         static final String THROTTLED_TIME = "throttle_time";
     }
 

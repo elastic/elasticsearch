@@ -22,6 +22,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -157,7 +158,7 @@ public class IngestStats implements Writeable, ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("count", ingestCount);
-            builder.timeValueField("time_in_millis", "time", ingestTimeInMillis, TimeUnit.MILLISECONDS);
+            builder.field("time", TimeValue.timeValueMillis(ingestTimeInMillis));
             builder.field("current", ingestCurrent);
             builder.field("failed", ingestFailedCount);
             return builder;

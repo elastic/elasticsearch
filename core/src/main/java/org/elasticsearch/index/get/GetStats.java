@@ -112,11 +112,11 @@ public class GetStats implements Streamable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.GET);
         builder.field(Fields.TOTAL, getCount());
-        builder.timeValueField(Fields.TIME_IN_MILLIS, Fields.TIME, getTimeInMillis());
+        builder.field(Fields.TIME, TimeValue.timeValueMillis(getTimeInMillis()));
         builder.field(Fields.EXISTS_TOTAL, existsCount);
-        builder.timeValueField(Fields.EXISTS_TIME_IN_MILLIS, Fields.EXISTS_TIME, existsTimeInMillis);
+        builder.field(Fields.EXISTS_TIME, TimeValue.timeValueMillis(existsTimeInMillis));
         builder.field(Fields.MISSING_TOTAL, missingCount);
-        builder.timeValueField(Fields.MISSING_TIME_IN_MILLIS, Fields.MISSING_TIME, missingTimeInMillis);
+        builder.field(Fields.MISSING_TIME, TimeValue.timeValueMillis(missingTimeInMillis));
         builder.field(Fields.CURRENT, current);
         builder.endObject();
         return builder;
@@ -124,15 +124,12 @@ public class GetStats implements Streamable, ToXContent {
 
     static final class Fields {
         static final String GET = "get";
-        static final String TOTAL = "total";
-        static final String TIME = "getTime";
-        static final String TIME_IN_MILLIS = "time_in_millis";
+        static final String TOTAL = "get_total";
+        static final String TIME = "get_time";
         static final String EXISTS_TOTAL = "exists_total";
         static final String EXISTS_TIME = "exists_time";
-        static final String EXISTS_TIME_IN_MILLIS = "exists_time_in_millis";
         static final String MISSING_TOTAL = "missing_total";
         static final String MISSING_TIME = "missing_time";
-        static final String MISSING_TIME_IN_MILLIS = "missing_time_in_millis";
         static final String CURRENT = "current";
     }
 

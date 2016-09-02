@@ -172,12 +172,59 @@ def generate_watcher_index(client, version):
         "interval": "1s"
       }
     },
+    "input" : {
+      "search" : {
+        "timeout": "100s",
+        "request" : {
+          "indices" : [ ".watches" ],
+          "body" : {
+            "query" : { "match_all" : {}},
+            "size": 1
+          },
+        }
+      }
+    },
     "condition" : {
       "always" : {}
     },
     "throttle_period": "1s",
     "actions" : {
       "index_payload" : {
+        "transform" : {
+          "search" : {
+            "request" : {
+              "body" : { "size": 1, "query" : { "match_all" : {} }}
+            },
+            "timeout": "100s"
+          }
+        },
+        "index" : {
+          "index" : "bwc_watch_index",
+          "doc_type" : "bwc_watch_type",
+          "timeout": "100s"
+        }
+      }
+    }
+  }
+  response = requests.put('http://localhost:9200/_watcher/watch/bwc_watch', auth=('es_admin', '0123456789'), data=json.dumps(body))
+  logging.info('PUT watch response: ' + response.text)
+  if (response.status_code != 201) :
+      raise Exception('PUT http://localhost:9200/_watcher/watch/bwc_watch did not succeed!')
+
+  logging.info('Adding a watch with "fun" throttle periods')
+  body = {
+    "trigger" : {
+      "schedule": {
+        "interval": "1s"
+      }
+    },
+    "condition" : {
+      "never" : {}
+    },
+    "throttle_period": "100s",
+    "actions" : {
+      "index_payload" : {
+        "throttle_period": "100s",
         "transform" : {
           "search" : {
             "request" : {
@@ -192,10 +239,10 @@ def generate_watcher_index(client, version):
       }
     }
   }
-  response = requests.put('http://localhost:9200/_watcher/watch/bwc_watch', auth=('es_admin', '0123456789'), data=json.dumps(body))
+  response = requests.put('http://localhost:9200/_watcher/watch/bwc_throttle_period', auth=('es_admin', '0123456789'), data=json.dumps(body))
   logging.info('PUT watch response: ' + response.text)
   if (response.status_code != 201) :
-      raise Exception('PUT http://localhost:9200/_watcher/watch/bwc_watch did not succeed!')
+      raise Exception('PUT http://localhost:9200/_watcher/watch/bwc_throttle_period did not succeed!')
 
   if parse_version(version) < parse_version('2.3.0'):
     logging.info('Skipping watch with a funny read timeout because email attachement is not supported by this version')

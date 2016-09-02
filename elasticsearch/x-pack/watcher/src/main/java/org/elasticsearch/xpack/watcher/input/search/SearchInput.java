@@ -28,6 +28,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 public class SearchInput implements Input {
 
@@ -99,7 +100,7 @@ public class SearchInput implements Input {
             builder.field(Field.EXTRACT.getPreferredName(), extractKeys);
         }
         if (timeout != null) {
-            builder.field(Field.TIMEOUT.getPreferredName(), timeout);
+            builder.timeValueField(Field.TIMEOUT.getPreferredName(), Field.TIMEOUT_HUMAN.getPreferredName(), timeout);
         }
         if (dynamicNameTimeZone != null) {
             builder.field(Field.DYNAMIC_NAME_TIMEZONE.getPreferredName(), dynamicNameTimeZone);
@@ -144,7 +145,10 @@ public class SearchInput implements Input {
                             watchId, currentFieldName);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TIMEOUT)) {
-                timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT.toString());
+                timeout = timeValueMillis(parser.longValue());
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TIMEOUT_HUMAN)) {
+                // Parser for human specified timeouts and 2.x compatibility
+                timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT_HUMAN.toString());
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.DYNAMIC_NAME_TIMEZONE)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dynamicNameTimeZone = DateTimeZone.forID(parser.text());
@@ -238,7 +242,8 @@ public class SearchInput implements Input {
     public interface Field extends Input.Field {
         ParseField REQUEST = new ParseField("request");
         ParseField EXTRACT = new ParseField("extract");
-        ParseField TIMEOUT = new ParseField("timeout");
+        ParseField TIMEOUT = new ParseField("timeout_in_millis");
+        ParseField TIMEOUT_HUMAN = new ParseField("timeout");
         ParseField DYNAMIC_NAME_TIMEZONE = new ParseField("dynamic_name_timezone");
     }
 }

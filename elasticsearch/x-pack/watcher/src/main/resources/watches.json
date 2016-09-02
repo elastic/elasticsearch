@@ -37,6 +37,11 @@
           "index" : false,
           "doc_values" : false
         },
+        "throttle_period_in_millis": {
+          "type" : "long",
+          "index" : false,
+          "doc_values" : false
+        },
         "transform": {
           "type" : "object",
           "enabled" : false,

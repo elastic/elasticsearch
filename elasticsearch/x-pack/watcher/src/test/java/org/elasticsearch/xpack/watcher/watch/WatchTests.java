@@ -128,6 +128,7 @@ import java.util.Map;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
@@ -198,7 +199,7 @@ public class WatchTests extends ESTestCase {
         }
         WatchStatus watchStatus = new WatchStatus(clock.nowUTC(), unmodifiableMap(actionsStatuses));
 
-        TimeValue throttlePeriod = randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(5, 10));
+        TimeValue throttlePeriod = randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(5, 10000));
 
         Watch watch = new Watch("_name", trigger, input, condition, transform, throttlePeriod, actions, metadata, watchStatus);
 
@@ -335,7 +336,9 @@ public class WatchTests extends ESTestCase {
         String type = randomFrom(SearchInput.TYPE, SimpleInput.TYPE);
         switch (type) {
             case SearchInput.TYPE:
-                SearchInput searchInput = searchInput(WatcherTestUtils.templateRequest(searchSource(), "idx")).build();
+                SearchInput searchInput = searchInput(WatcherTestUtils.templateRequest(searchSource(), "idx"))
+                        .timeout(randomBoolean() ? null : timeValueSeconds(between(1, 10000)))
+                        .build();
                 return new ExecutableSearchInput(searchInput, logger, client, searchTemplateService, null);
             default:
                 SimpleInput simpleInput = InputBuilders.simpleInput(singletonMap("_key", "_val")).build();
@@ -387,7 +390,7 @@ public class WatchTests extends ESTestCase {
 
     private ExecutableTransform randomTransform() {
         String type = randomFrom(ScriptTransform.TYPE, SearchTransform.TYPE, ChainTransform.TYPE);
-        TimeValue timeout = randomBoolean() ? TimeValue.timeValueSeconds(5) : null;
+        TimeValue timeout = randomBoolean() ? timeValueSeconds(between(1, 10000)) : null;
         DateTimeZone timeZone = randomBoolean() ? DateTimeZone.UTC : null;
         switch (type) {
             case ScriptTransform.TYPE:
@@ -432,7 +435,7 @@ public class WatchTests extends ESTestCase {
         }
         if (randomBoolean()) {
             DateTimeZone timeZone = randomBoolean() ? DateTimeZone.UTC : null;
-            TimeValue timeout = randomBoolean() ? TimeValue.timeValueSeconds(30) : null;
+            TimeValue timeout = randomBoolean() ? timeValueSeconds(between(1, 10000)) : null;
             IndexAction action = new IndexAction("_index", "_type", null, timeout, timeZone);
             list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomThrottler(), randomCondition(),  randomTransform(),
                     new ExecutableIndexAction(action, logger, client, null)));
@@ -470,7 +473,7 @@ public class WatchTests extends ESTestCase {
     }
 
     private ActionThrottler randomThrottler() {
-        return new ActionThrottler(SystemClock.INSTANCE, randomBoolean() ? null : TimeValue.timeValueMinutes(randomIntBetween(3, 5)),
+        return new ActionThrottler(SystemClock.INSTANCE, randomBoolean() ? null : timeValueSeconds(randomIntBetween(1, 10000)),
                 licenseState);
     }
 

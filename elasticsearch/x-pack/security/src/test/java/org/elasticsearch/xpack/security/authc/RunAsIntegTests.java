@@ -39,8 +39,6 @@ public class RunAsIntegTests extends SecurityIntegTestCase {
     static final String RUN_AS_USER = "run_as_user";
     static final String TRANSPORT_CLIENT_USER = "transport_user";
     static final String ROLES =
-            "transport_client:\n" +
-            "  cluster: [ 'cluster:monitor/nodes/liveness' ]\n" +
             "run_as_role:\n" +
             "  run_as: [ '" + SecuritySettingsSource.DEFAULT_USER_NAME + "', 'idontexist' ]\n";
 

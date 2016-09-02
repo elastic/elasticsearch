@@ -27,6 +27,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
@@ -61,14 +62,14 @@ public class ClusterInfoTests extends MonitoringIntegTestCase {
         final String clusterUUID = client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID();
         assertTrue(Strings.hasText(clusterUUID));
 
-        logger.debug("--> waiting for the monitoring data index to be created (it should have been created by the ClusterInfoCollector)");
+        // waiting for the monitoring data index to be created (it should have been created by the ClusterInfoCollector
         String dataIndex = ".monitoring-data-" + MonitoringTemplateUtils.TEMPLATE_VERSION;
         awaitIndexExists(dataIndex);
 
-        logger.debug("--> waiting for cluster info collector to collect data");
+        // waiting for cluster info collector to collect data
         awaitMonitoringDocsCount(equalTo(1L), ClusterInfoResolver.TYPE);
 
-        logger.debug("--> retrieving cluster info document");
+        // retrieving cluster info document
         GetResponse response = client().prepareGet(dataIndex, ClusterInfoResolver.TYPE, clusterUUID).get();
         assertTrue("cluster_info document does not exist in data index", response.isExists());
 
@@ -80,20 +81,19 @@ public class ClusterInfoTests extends MonitoringIntegTestCase {
         assertThat(source.get(MonitoringIndexNameResolver.Fields.CLUSTER_UUID), notNullValue());
         assertThat(source.get(MonitoringIndexNameResolver.Fields.TIMESTAMP), notNullValue());
         assertThat(source.get(MonitoringIndexNameResolver.Fields.SOURCE_NODE), notNullValue());
-        assertThat(source.get(ClusterInfoResolver.Fields.CLUSTER_NAME), equalTo(cluster().getClusterName()));
-        assertThat(source.get(ClusterInfoResolver.Fields.VERSION), equalTo(Version.CURRENT.toString()));
+        assertThat(source.get("cluster_name"), equalTo(cluster().getClusterName()));
+        assertThat(source.get("version"), equalTo(Version.CURRENT.toString()));
 
-        logger.debug("--> checking that the document contains license information");
-        Object licenseObj = source.get(ClusterInfoResolver.Fields.LICENSE);
+        Object licenseObj = source.get("license");
         assertThat(licenseObj, instanceOf(Map.class));
         Map license = (Map) licenseObj;
 
         assertThat(license, instanceOf(Map.class));
 
-        String uid = (String) license.get(ClusterInfoResolver.Fields.UID);
+        String uid = (String) license.get("uid");
         assertThat(uid, not(isEmptyOrNullString()));
 
-        String type = (String) license.get(ClusterInfoResolver.Fields.TYPE);
+        String type = (String) license.get("type");
         assertThat(type, not(isEmptyOrNullString()));
 
         String status = (String) license.get(License.Fields.STATUS);
@@ -103,7 +103,7 @@ public class ClusterInfoTests extends MonitoringIntegTestCase {
         assertThat(expiryDate, greaterThan(0L));
 
         // We basically recompute the hash here
-        String hkey = (String) license.get(ClusterInfoResolver.Fields.HKEY);
+        String hkey = (String) license.get("hkey");
         String recalculated = ClusterInfoResolver.hash(status, uid, type, String.valueOf(expiryDate), clusterUUID);
         assertThat(hkey, equalTo(recalculated));
 
@@ -112,14 +112,30 @@ public class ClusterInfoTests extends MonitoringIntegTestCase {
         assertThat((Long) license.get(License.Fields.ISSUE_DATE_IN_MILLIS), greaterThan(0L));
         assertThat((Integer) license.get(License.Fields.MAX_NODES), greaterThan(0));
 
-        Object clusterStats = source.get(ClusterInfoResolver.Fields.CLUSTER_STATS);
+        Object clusterStats = source.get("cluster_stats");
         assertNotNull(clusterStats);
         assertThat(clusterStats, instanceOf(Map.class));
         assertThat(((Map) clusterStats).size(), greaterThan(0));
 
+        Object stackStats = source.get("stack_stats");
+        assertNotNull(stackStats);
+        assertThat(stackStats, instanceOf(Map.class));
+        assertThat(((Map) stackStats).size(), equalTo(1));
+
+        Object xpack = ((Map)stackStats).get("xpack");
+        assertNotNull(xpack);
+        assertThat(xpack, instanceOf(Map.class));
+        // it must have at least monitoring, but others may be hidden
+        assertThat(((Map) xpack).size(), greaterThanOrEqualTo(1));
+
+        Object monitoring = ((Map)xpack).get("monitoring");
+        assertNotNull(monitoring);
+        // we don't make any assumptions about what's in it, only that it's there
+        assertThat(monitoring, instanceOf(Map.class));
+
         waitForMonitoringTemplates();
 
-        logger.debug("--> check that the cluster_info is not indexed");
+        // check that the cluster_info is not indexed
         securedFlush();
         securedRefresh();
 
@@ -131,8 +147,7 @@ public class ClusterInfoTests extends MonitoringIntegTestCase {
                         .should(QueryBuilders.matchQuery(License.Fields.STATUS, License.Status.ACTIVE.label()))
                         .should(QueryBuilders.matchQuery(License.Fields.STATUS, License.Status.INVALID.label()))
                         .should(QueryBuilders.matchQuery(License.Fields.STATUS, License.Status.EXPIRED.label()))
-                        .should(QueryBuilders.matchQuery(ClusterInfoResolver.Fields.CLUSTER_NAME,
-                                cluster().getClusterName()))
+                        .should(QueryBuilders.matchQuery("cluster_name", cluster().getClusterName()))
                         .minimumNumberShouldMatch(1)
                 ).get(), 0L);
     }

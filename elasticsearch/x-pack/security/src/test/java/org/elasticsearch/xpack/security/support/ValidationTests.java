@@ -5,11 +5,16 @@
  */
 package org.elasticsearch.xpack.security.support;
 
+import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.security.support.Validation.Error;
 import org.elasticsearch.xpack.security.support.Validation.Users;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.security.user.ElasticUser;
+import org.elasticsearch.xpack.security.user.KibanaUser;
 
 import java.util.Arrays;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -53,6 +58,13 @@ public class ValidationTests extends ESTestCase {
         assertThat(Users.validateUsername(name), nullValue());
     }
 
+    public void testReservedUsernames() {
+        final String username = randomFrom(ElasticUser.NAME, KibanaUser.NAME);
+        final Error error = Users.validateUsername(username);
+        assertNotNull(error);
+        assertThat(error.toString(), containsString("is reserved"));
+    }
+
     public void testUsersValidateUsernameInvalidLength() throws Exception {
         int length = frequently() ? randomIntBetween(31, 200) : 0; // invalid length
         char[] name = new char[length];
@@ -82,6 +94,16 @@ public class ValidationTests extends ESTestCase {
         int length = randomIntBetween(1, 30);
         String name = new String(generateValidName(length));
         assertThat(Validation.Roles.validateRoleName(name), nullValue());
+    }
+
+    public void testReservedRoleName() {
+        final String rolename = randomFrom(ReservedRolesStore.names());
+        final Error error = Validation.Roles.validateRoleName(rolename);
+        assertNotNull(error);
+        assertThat(error.toString(), containsString("is reserved"));
+
+        final Error allowed = Validation.Roles.validateRoleName(rolename, true);
+        assertNull(allowed);
     }
 
     public void testRolesValidateRoleNameInvalidLength() throws Exception {

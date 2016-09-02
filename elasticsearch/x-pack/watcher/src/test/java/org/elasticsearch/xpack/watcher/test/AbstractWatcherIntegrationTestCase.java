@@ -676,9 +676,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 "\n" +
                 "admin:\n" +
                 "  cluster: [ 'manage' ]\n" +
-                "transport_client:\n" +
-                "  cluster: [ 'transport_client' ]\n" +
-                "\n" +
                 "monitor:\n" +
                 "  cluster: [ 'monitor' ]\n"
                 ;

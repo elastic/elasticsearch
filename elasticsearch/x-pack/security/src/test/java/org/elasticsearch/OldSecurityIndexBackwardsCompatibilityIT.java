@@ -5,19 +5,9 @@
  */
 package org.elasticsearch;
 
-import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.action.user.GetUsersResponse;
@@ -28,26 +18,13 @@ import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.user.User;
-import org.junit.AfterClass;
-import org.junit.Before;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Collections;
-import java.util.List;
-import java.util.SortedSet;
-import java.util.TreeSet;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.test.OldIndexUtils.copyIndex;
-import static org.elasticsearch.test.OldIndexUtils.loadIndexesList;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTokenTests.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Backwards compatibility test that loads some data from a pre-5.0 cluster and attempts to do some basic security stuff with it. It
@@ -73,126 +50,13 @@ import static org.hamcrest.Matchers.equalTo;
  *  <li>This document in {@code index3}: {@code {"title": "bwc_test_user should not see this index"}}</li>
  * </ul>
  **/
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0) // We'll start the nodes manually
-public class OldSecurityIndexBackwardsCompatibilityIT extends SecurityIntegTestCase {
-
-    List<String> indexes;
-    static String importingNodeName;
-    static Path dataPath;
-
+public class OldSecurityIndexBackwardsCompatibilityIT extends AbstractOldXPackIndicesBackwardsCompatibilityTestCase {
     @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
+    protected boolean shouldTestVersion(Version version) {
+        return version.onOrAfter(Version.V_2_3_0); // native realm only supported from 2.3.0 on
     }
 
-    @Before
-    public void initIndexesList() throws Exception {
-        indexes = loadIndexesList("x-pack", getBwcIndicesPath());
-    }
-
-    @AfterClass
-    public static void tearDownStatics() {
-        importingNodeName = null;
-        dataPath = null;
-    }
-
-    @Override
-    public Settings nodeSettings(int ord) {
-        Settings settings = super.nodeSettings(ord);
-        // speed up recoveries
-        return Settings.builder()
-                .put(ThrottlingAllocationDecider
-                        .CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 30)
-                .put(ThrottlingAllocationDecider
-                        .CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 30)
-                .put(settings).build();
-    }
-
-    @Override
-    protected int maxNumberOfNodes() {
-        try {
-            return SecurityIntegTestCase.defaultMaxNumberOfNodes() + loadIndexesList("x-pack", getBwcIndicesPath()).size();
-        } catch (IOException e) {
-            throw new RuntimeException("couldn't enumerate bwc indices", e);
-        }
-    }
-
-    void setupCluster(String pathToZipFile) throws Exception {
-        // shutdown any nodes from previous zip files
-        while (internalCluster().size() > 0) {
-            internalCluster().stopRandomNode(s -> true);
-        }
-        // first create the data directory and unzip the data there
-        // we put the whole cluster state and indexes because if we only copy indexes and import them as dangling then
-        // the native realm services will start because there is no security index and nothing is recovering
-        // but we want them to not start!
-        dataPath = createTempDir();
-        Settings.Builder nodeSettings = Settings.builder()
-                .put("path.data", dataPath.toAbsolutePath());
-        // unzip data
-        Path backwardsIndex = getBwcIndicesPath().resolve(pathToZipFile);
-        // decompress the index
-        try (InputStream stream = Files.newInputStream(backwardsIndex)) {
-            logger.info("unzipping {}", backwardsIndex.toString());
-            TestUtil.unzip(stream, dataPath);
-            // now we need to copy the whole thing so that it looks like an actual data path
-            try (Stream<Path> unzippedFiles = Files.list(dataPath.resolve("data"))) {
-                Path dataDir = unzippedFiles.findFirst().get();
-                // this is not actually an index but the copy does the job anyway
-                copyIndex(logger, dataDir.resolve("nodes"), "nodes", dataPath);
-                // remove the original unzipped directory
-            }
-            IOUtils.rm(dataPath.resolve("data"));
-        }
-
-        // check it is unique
-        assertTrue(Files.exists(dataPath));
-        Path[] list = FileSystemUtils.files(dataPath);
-        if (list.length != 1) {
-            throw new IllegalStateException("Backwards index must contain exactly one node");
-        }
-
-        // start the node
-        logger.info("--> Data path for importing node: {}", dataPath);
-        importingNodeName = internalCluster().startNode(nodeSettings.build());
-        Path[] nodePaths = internalCluster().getInstance(NodeEnvironment.class, importingNodeName).nodeDataPaths();
-        assertEquals(1, nodePaths.length);
-    }
-
-    public void testAllVersionsTested() throws Exception {
-        SortedSet<String> expectedVersions = new TreeSet<>();
-        for (Version v : VersionUtils.allVersions()) {
-            if (v.before(Version.V_2_3_0)) continue; // native realm only supported from 2.3.0 on
-            if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
-            if (v.isBeta() == true || v.isAlpha() == true || v.isRC() == true) continue; // don't check alphas etc
-            expectedVersions.add("x-pack-" + v.toString() + ".zip");
-        }
-        for (String index : indexes) {
-            if (expectedVersions.remove(index) == false) {
-                logger.warn("Old indexes tests contain extra index: {}", index);
-            }
-        }
-        if (expectedVersions.isEmpty() == false) {
-            StringBuilder msg = new StringBuilder("Old index tests are missing indexes:");
-            for (String expected : expectedVersions) {
-                msg.append("\n" + expected);
-            }
-            fail(msg.toString());
-        }
-    }
-
-    public void testOldIndexes() throws Exception {
-        Collections.shuffle(indexes, random());
-        for (String index : indexes) {
-            setupCluster(index);
-            ensureYellow();
-            long startTime = System.nanoTime();
-            assertBasicSecurityWorks();
-            logger.info("--> Done testing {}, took {} millis", index, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
-        }
-    }
-
-    void assertBasicSecurityWorks() throws Exception {
+    protected void checkVersion(Version version) throws Exception {
         // test that user and roles are there
         logger.info("Getting roles...");
         SecurityClient securityClient = new SecurityClient(client());
@@ -225,7 +89,7 @@ public class OldSecurityIndexBackwardsCompatibilityIT extends SecurityIntegTestC
         assertEquals("bwc_test_user", user.principal());
 
         // check that documents are there
-        assertThat(client().prepareSearch().get().getHits().getTotalHits(), equalTo(5L));
+        assertHitCount(client().prepareSearch("index1", "index2", "index3").get(), 5);
 
         Client bwcTestUserClient = client().filterWithHeader(
                 singletonMap(UsernamePasswordToken.BASIC_AUTH_HEADER, basicAuthHeaderValue("bwc_test_user", "9876543210")));

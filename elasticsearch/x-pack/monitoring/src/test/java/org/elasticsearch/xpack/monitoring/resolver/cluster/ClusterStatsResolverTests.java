@@ -112,11 +112,12 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
         BoundTransportAddress transportAddress = new BoundTransportAddress(new TransportAddress[]{LocalTransportAddress.buildUnique()},
                 LocalTransportAddress.buildUnique());
         return new NodeInfo(Version.CURRENT, org.elasticsearch.Build.CURRENT,
-                new DiscoveryNode("node_0", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
-                Settings.EMPTY, DummyOsInfo.INSTANCE, new ProcessInfo(randomInt(), randomBoolean()), JvmInfo.jvmInfo(),
+                new DiscoveryNode("node_0", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT), Settings.EMPTY,
+                DummyOsInfo.INSTANCE, new ProcessInfo(randomInt(), randomBoolean(), randomPositiveLong()), JvmInfo.jvmInfo(),
                 new ThreadPoolInfo(Collections.singletonList(new ThreadPool.Info("test_threadpool", ThreadPool.ThreadPoolType.FIXED, 5))),
                 new TransportInfo(transportAddress, Collections.emptyMap()), new HttpInfo(transportAddress, randomLong()),
-                new PluginsAndModules(), new IngestInfo(Collections.emptyList()), new ByteSizeValue(randomIntBetween(1, 1024)));
+                new PluginsAndModules(Collections.emptyList(), Collections.emptyList()),
+                new IngestInfo(Collections.emptyList()), new ByteSizeValue(randomIntBetween(1, 1024)));
 
     }
 

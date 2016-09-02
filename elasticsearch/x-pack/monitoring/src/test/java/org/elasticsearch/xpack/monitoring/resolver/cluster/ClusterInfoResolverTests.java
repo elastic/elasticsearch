@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.License;
+import org.elasticsearch.xpack.monitoring.MonitoringFeatureSet;
 import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterInfoMonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolverTestCase;
@@ -49,6 +50,7 @@ public class ClusterInfoResolverTests extends MonitoringIndexNameResolverTestCas
             doc.setClusterName(randomAsciiOfLength(5));
             doc.setClusterStats(new ClusterStatsResponse(Math.abs(randomLong()), ClusterName.CLUSTER_NAME_SETTING
                     .getDefault(Settings.EMPTY), randomAsciiOfLength(5), Collections.emptyList(), Collections.emptyList()));
+            doc.setUsage(Collections.singletonList(new MonitoringFeatureSet.Usage(randomBoolean(), randomBoolean(), emptyMap())));
             return doc;
         } catch (Exception e) {
             throw new IllegalStateException("Failed to generated random ClusterInfoMonitoringDoc", e);
@@ -72,13 +74,14 @@ public class ClusterInfoResolverTests extends MonitoringIndexNameResolverTestCas
         assertThat(resolver.id(doc), equalTo(clusterUUID));
 
         assertSource(resolver.source(doc, XContentType.JSON),
-                Sets.newHashSet(
-                        "cluster_uuid",
-                        "timestamp",
-                        "source_node",
-                        "cluster_name",
-                        "version",
-                        "license",
-                        "cluster_stats"));
+                     Sets.newHashSet(
+                         "cluster_uuid",
+                         "timestamp",
+                         "source_node",
+                         "cluster_name",
+                         "version",
+                         "license",
+                         "cluster_stats",
+                         "stack_stats.xpack"));
     }
 }

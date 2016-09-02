@@ -31,9 +31,6 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-/**
- *
- */
 public class HttpRequestTemplateTests extends ESTestCase {
 
     public void testBodyWithXContent() throws Exception {
@@ -122,11 +119,11 @@ public class HttpRequestTemplateTests extends ESTestCase {
         if (randomBoolean()) {
             builder.putHeader("_key", TextTemplate.inline("_value"));
         }
-        long connectionTimeout = randomBoolean() ? 0 : randomIntBetween(5, 10);
+        long connectionTimeout = randomBoolean() ? 0 : randomIntBetween(5, 100000);
         if (connectionTimeout > 0) {
             builder.connectionTimeout(TimeValue.timeValueSeconds(connectionTimeout));
         }
-        long readTimeout = randomBoolean() ? 0 : randomIntBetween(5, 10);
+        long readTimeout = randomBoolean() ? 0 : randomIntBetween(5, 100000);
         if (readTimeout > 0) {
             builder.readTimeout(TimeValue.timeValueSeconds(readTimeout));
         }
@@ -146,7 +143,7 @@ public class HttpRequestTemplateTests extends ESTestCase {
         xContentParser.nextToken();
         HttpRequestTemplate parsed = parser.parse(xContentParser);
 
-        assertThat(parsed, equalTo(template));
+        assertEquals(template, parsed);
     }
 
     public void testParsingFromUrl() throws Exception {

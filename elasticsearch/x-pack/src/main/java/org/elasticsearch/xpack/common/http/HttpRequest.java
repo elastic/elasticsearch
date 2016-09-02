@@ -10,7 +10,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -18,10 +17,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.xpack.common.http.auth.HttpAuth;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.watcher.support.WatcherUtils;
-import org.elasticsearch.xpack.common.http.auth.HttpAuth;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -159,10 +158,12 @@ public class HttpRequest implements ToXContent {
             builder.field(Field.BODY.getPreferredName(), body);
         }
         if (connectionTimeout != null) {
-            builder.field(Field.CONNECTION_TIMEOUT.getPreferredName(), connectionTimeout);
+            builder.timeValueField(HttpRequest.Field.CONNECTION_TIMEOUT.getPreferredName(),
+                    HttpRequest.Field.CONNECTION_TIMEOUT_HUMAN.getPreferredName(), connectionTimeout);
         }
         if (readTimeout != null) {
-            builder.field(Field.READ_TIMEOUT.getPreferredName(), readTimeout);
+            builder.timeValueField(HttpRequest.Field.READ_TIMEOUT.getPreferredName(),
+                    HttpRequest.Field.READ_TIMEOUT_HUMAN.getPreferredName(), readTimeout);
         }
         if (proxy != null) {
             builder.field(Field.PROXY.getPreferredName(), proxy);
@@ -269,19 +270,26 @@ public class HttpRequest implements ToXContent {
                     }
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.AUTH)) {
                     builder.auth(httpAuthRegistry.parse(parser));
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.CONNECTION_TIMEOUT)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.CONNECTION_TIMEOUT)) {
+                    builder.connectionTimeout(TimeValue.timeValueMillis(parser.longValue()));
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.CONNECTION_TIMEOUT_HUMAN)) {
+                    // Users and 2.x specify the timeout this way
                     try {
-                        builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser, Field.CONNECTION_TIMEOUT.toString()));
+                        builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser,
+                                HttpRequest.Field.CONNECTION_TIMEOUT.toString()));
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse http request. invalid time value for [{}] field", pe,
-                                currentFieldName);
+                        throw new ElasticsearchParseException("could not parse http request template. invalid time value for [{}] field",
+                                pe, currentFieldName);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.READ_TIMEOUT)) {
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.READ_TIMEOUT)) {
+                    builder.readTimeout(TimeValue.timeValueMillis(parser.longValue()));
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.READ_TIMEOUT_HUMAN)) {
+                    // Users and 2.x specify the timeout this way
                     try {
-                        builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, Field.READ_TIMEOUT.toString()));
+                        builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, HttpRequest.Field.READ_TIMEOUT.toString()));
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse http request. invalid time value for [{}] field", pe,
-                                currentFieldName);
+                        throw new ElasticsearchParseException("could not parse http request template. invalid time value for [{}] field",
+                                pe, currentFieldName);
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.HEADERS)) {
@@ -482,8 +490,10 @@ public class HttpRequest implements ToXContent {
         ParseField HEADERS = new ParseField("headers");
         ParseField AUTH = new ParseField("auth");
         ParseField BODY = new ParseField("body");
-        ParseField CONNECTION_TIMEOUT = new ParseField("connection_timeout");
-        ParseField READ_TIMEOUT = new ParseField("read_timeout");
+        ParseField CONNECTION_TIMEOUT = new ParseField("connection_timeout_in_millis");
+        ParseField CONNECTION_TIMEOUT_HUMAN = new ParseField("connection_timeout");
+        ParseField READ_TIMEOUT = new ParseField("read_timeout_millis");
+        ParseField READ_TIMEOUT_HUMAN = new ParseField("read_timeout");
         ParseField PROXY = new ParseField("proxy");
         ParseField URL = new ParseField("url");
     }

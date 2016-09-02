@@ -556,7 +556,38 @@
               }
             },
             "fs": {
-              "type": "object"
+              "properties": {
+                "data": {
+                  "properties": {
+                    "spins": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "io_stats": {
+                  "properties": {
+                    "total": {
+                      "properties": {
+                        "operations": {
+                          "type": "long"
+                        },
+                        "read_operations": {
+                          "type": "long"
+                        },
+                        "write_operations": {
+                          "type": "long"
+                        },
+                        "read_kilobytes": {
+                          "type": "long"
+                        },
+                        "write_kilobytes": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             },
             "os": {
               "type": "object"

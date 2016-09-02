@@ -30,10 +30,7 @@ public class AuthenticateRequest extends ActionRequest<AuthenticateRequest> impl
 
     @Override
     public ActionRequestValidationException validate() {
-        Validation.Error error = Validation.Users.validateUsername(username);
-        if (error != null) {
-            return addValidationError(error.toString(), null);
-        }
+        // we cannot apply our validation rules here as an authenticate request could be for an LDAP user that doesn't fit our restrictions
         return null;
     }
 

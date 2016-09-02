@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -180,10 +181,19 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
                         .build();
                 request.settings(updatedSettings);
             }
-            PutIndexTemplateResponse response = client.putTemplate(request);
-            if (response.isAcknowledged() == false) {
-                logger.error("Error adding watcher template [{}], request was not acknowledged", config.getTemplateName());
-            }
+            client.putTemplate(request, new ActionListener<PutIndexTemplateResponse>() {
+                @Override
+                public void onResponse(PutIndexTemplateResponse response) {
+                    if (response.isAcknowledged() == false) {
+                        logger.error("Error adding watcher template [{}], request was not acknowledged", config.getTemplateName());
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error("Error adding watcher template [{}]", e, config.getTemplateName());
+                }
+            });
         });
     }
 

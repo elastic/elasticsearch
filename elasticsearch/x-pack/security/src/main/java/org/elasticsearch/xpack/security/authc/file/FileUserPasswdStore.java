@@ -80,9 +80,6 @@ public class FileUserPasswdStore {
     }
 
     public boolean verifyPassword(String username, SecuredString password) {
-        if (users == null) {
-            return false;
-        }
         char[] hash = users.get(username);
         return hash != null && hasher.verify(password, hash);
     }

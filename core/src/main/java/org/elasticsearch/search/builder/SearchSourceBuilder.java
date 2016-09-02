@@ -1177,7 +1177,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         }
 
         if (searchAfterBuilder != null) {
-            builder.field(SEARCH_AFTER.getPreferredName(), searchAfterBuilder.getSortValues());
+            builder.array(SEARCH_AFTER.getPreferredName(), searchAfterBuilder.getSortValues());
         }
 
         if (sliceBuilder != null) {

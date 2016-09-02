@@ -113,7 +113,7 @@ public class PercentilesBucketPipelineAggregationBuilder
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (percents != null) {
-            builder.field(PERCENTS_FIELD.getPreferredName(), percents);
+            builder.array(PERCENTS_FIELD.getPreferredName(), percents);
         }
         return builder;
     }

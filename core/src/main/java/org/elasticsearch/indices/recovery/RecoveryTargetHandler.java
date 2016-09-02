@@ -33,8 +33,10 @@ public interface RecoveryTargetHandler {
      * Prepares the tranget to receive translog operations, after all file have been copied
      *
      * @param totalTranslogOps total translog operations expected to be sent
+     * @param maxUnsafeAutoIdTimestamp the max timestamp that is used to de-optimize documents with auto-generated IDs in the engine.
+     * This is used to ensure we don't add duplicate documents when we assume an append only case based on auto-generated IDs
      */
-    void prepareForTranslogOperations(int totalTranslogOps) throws IOException;
+    void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException;
 
     /**
      * The finalize request clears unreferenced translog files, refreshes the engine now that

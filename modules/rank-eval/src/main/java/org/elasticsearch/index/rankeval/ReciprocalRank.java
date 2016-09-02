@@ -26,8 +26,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.rankeval.PrecisionAtN.Rating;
-import org.elasticsearch.index.rankeval.PrecisionAtN.RatingMapping;
 import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
@@ -41,12 +39,17 @@ import javax.naming.directory.SearchResult;
 
 /**
  * Evaluate reciprocal rank.
+ * By default documents with a rating equal or bigger than 1 are considered to be "relevant" for the reciprocal rank
+ * calculation. This value can be changes using the "relevant_rating_threshold" parameter.
  * */
 public class ReciprocalRank extends RankedListQualityMetric {
 
     public static final String NAME = "reciprocal_rank";
     public static final int DEFAULT_MAX_ACCEPTABLE_RANK = 10;
     private int maxAcceptableRank = DEFAULT_MAX_ACCEPTABLE_RANK;
+
+    /** ratings equal or above this value will be considered relevant. */
+    private int relevantRatingThreshhold = 1;
 
     /**
      * Initializes maxAcceptableRank with 10
@@ -91,6 +94,21 @@ public class ReciprocalRank extends RankedListQualityMetric {
     }
 
     /**
+     * Sets the rating threshold above which ratings are considered to be "relevant" for this metric.
+     * */
+    public void setRelevantRatingThreshhold(int threshold) {
+        this.relevantRatingThreshhold = threshold;
+    }
+
+    /**
+     * Return the rating threshold above which ratings are considered to be "relevant" for this metric.
+     * Defaults to 1.
+     * */
+    public int getRelevantRatingThreshold() {
+        return relevantRatingThreshhold ;
+    }
+
+    /**
      * Compute ReciprocalRank based on provided relevant document IDs.
      * @return reciprocal Rank for above {@link SearchResult} list.
      **/
@@ -99,9 +117,9 @@ public class ReciprocalRank extends RankedListQualityMetric {
         Set<RatedDocumentKey> relevantDocIds = new HashSet<>();
         Set<RatedDocumentKey> irrelevantDocIds = new HashSet<>();
         for (RatedDocument doc : ratedDocs) {
-            if (Rating.RELEVANT.equals(RatingMapping.mapTo(doc.getRating()))) {
+            if (doc.getRating() >= this.relevantRatingThreshhold) {
                 relevantDocIds.add(doc.getKey());
-            } else if (Rating.IRRELEVANT.equals(RatingMapping.mapTo(doc.getRating()))) {
+            } else {
                 irrelevantDocIds.add(doc.getKey());
             }
         }
@@ -110,16 +128,14 @@ public class ReciprocalRank extends RankedListQualityMetric {
         int firstRelevant = -1;
         boolean found = false;
         for (int i = 0; i < hits.length; i++) {
-            // TODO here we use index/type/id triple not for a rated document but an unrated document in the search hits. Maybe rename?
-            RatedDocumentKey id = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].getId());
-            if (relevantDocIds.contains(id)) {
+            RatedDocumentKey key = new RatedDocumentKey(hits[i].getIndex(), hits[i].getType(), hits[i].getId());
+            if (relevantDocIds.contains(key)) {
                 if (found == false && i < maxAcceptableRank) {
-                    firstRelevant = i + 1; // add one because rank is not
-                                           // 0-based
+                    firstRelevant = i + 1; // add one because rank is not 0-based
                     found = true;
                 }
             } else {
-                unknownDocIds.add(id);
+                unknownDocIds.add(key);
             }
         }
 
@@ -133,11 +149,13 @@ public class ReciprocalRank extends RankedListQualityMetric {
     }
 
     private static final ParseField MAX_RANK_FIELD = new ParseField("max_acceptable_rank");
+    private static final ParseField RELEVANT_RATING_FIELD = new ParseField("relevant_rating_threshold");
     private static final ObjectParser<ReciprocalRank, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(
             "reciprocal_rank", () -> new ReciprocalRank());
 
     static {
         PARSER.declareInt(ReciprocalRank::setMaxAcceptableRank, MAX_RANK_FIELD);
+        PARSER.declareInt(ReciprocalRank::setRelevantRatingThreshhold, RELEVANT_RATING_FIELD);
     }
 
     public static ReciprocalRank fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {

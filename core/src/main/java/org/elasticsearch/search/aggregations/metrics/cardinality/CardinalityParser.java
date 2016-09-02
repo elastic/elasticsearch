@@ -20,10 +20,9 @@
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -51,13 +50,13 @@ public class CardinalityParser extends AnyValuesSourceParser {
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
-            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+    protected boolean token(String aggregationName, String currentFieldName, Token token,
+                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
         if (token.isValue()) {
-            if (parseFieldMatcher.match(currentFieldName, CardinalityAggregationBuilder.PRECISION_THRESHOLD_FIELD)) {
-                otherOptions.put(CardinalityAggregationBuilder.PRECISION_THRESHOLD_FIELD, parser.longValue());
+            if (context.matchField(currentFieldName, CardinalityAggregationBuilder.PRECISION_THRESHOLD_FIELD)) {
+                otherOptions.put(CardinalityAggregationBuilder.PRECISION_THRESHOLD_FIELD, context.getParser().longValue());
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, REHASH)) {
+            } else if (context.matchField(currentFieldName, REHASH)) {
                 // ignore
                 return true;
             }

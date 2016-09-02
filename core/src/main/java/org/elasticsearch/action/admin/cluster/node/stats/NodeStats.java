@@ -211,18 +211,10 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         if (in.readBoolean()) {
             indices = NodeIndicesStats.readIndicesStats(in);
         }
-        if (in.readBoolean()) {
-            os = new OsStats(in);
-        }
-        if (in.readBoolean()) {
-            process = new ProcessStats(in);
-        }
-        if (in.readBoolean()) {
-            jvm = new JvmStats(in);
-        }
-        if (in.readBoolean()) {
-            threadPool = ThreadPoolStats.readThreadPoolStats(in);
-        }
+        os = in.readOptionalWriteable(OsStats::new);
+        process = in.readOptionalWriteable(ProcessStats::new);
+        jvm = in.readOptionalWriteable(JvmStats::new);
+        threadPool = in.readOptionalWriteable(ThreadPoolStats::new);
         if (in.readBoolean()) {
             fs = new FsInfo(in);
         }
@@ -248,30 +240,10 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
             out.writeBoolean(true);
             indices.writeTo(out);
         }
-        if (os == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            os.writeTo(out);
-        }
-        if (process == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            process.writeTo(out);
-        }
-        if (jvm == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            jvm.writeTo(out);
-        }
-        if (threadPool == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            threadPool.writeTo(out);
-        }
+        out.writeOptionalWriteable(os);
+        out.writeOptionalWriteable(process);
+        out.writeOptionalWriteable(jvm);
+        out.writeOptionalWriteable(threadPool);
         if (fs == null) {
             out.writeBoolean(false);
         } else {

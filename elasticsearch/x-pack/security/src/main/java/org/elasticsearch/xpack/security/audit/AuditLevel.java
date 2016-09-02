@@ -3,17 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.security.audit.index;
+package org.elasticsearch.xpack.security.audit;
 
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 
-public enum IndexAuditLevel {
+public enum AuditLevel {
 
     ANONYMOUS_ACCESS_DENIED,
     AUTHENTICATION_FAILED,
+    REALM_AUTHENTICATION_FAILED,
     ACCESS_GRANTED,
     ACCESS_DENIED,
     TAMPERED_REQUEST,
@@ -23,19 +24,22 @@ public enum IndexAuditLevel {
     RUN_AS_GRANTED,
     RUN_AS_DENIED;
 
-    static EnumSet<IndexAuditLevel> parse(List<String> levels) {
-        EnumSet<IndexAuditLevel> enumSet = EnumSet.noneOf(IndexAuditLevel.class);
+    static EnumSet<AuditLevel> parse(List<String> levels) {
+        EnumSet<AuditLevel> enumSet = EnumSet.noneOf(AuditLevel.class);
         for (String level : levels) {
             String lowerCaseLevel = level.trim().toLowerCase(Locale.ROOT);
             switch (lowerCaseLevel) {
                 case "_all":
-                    enumSet.addAll(Arrays.asList(IndexAuditLevel.values()));
+                    enumSet.addAll(Arrays.asList(AuditLevel.values()));
                     break;
                 case "anonymous_access_denied":
                     enumSet.add(ANONYMOUS_ACCESS_DENIED);
                     break;
                 case "authentication_failed":
                     enumSet.add(AUTHENTICATION_FAILED);
+                    break;
+                case "realm_authentication_failed":
+                    enumSet.add(REALM_AUTHENTICATION_FAILED);
                     break;
                 case "access_granted":
                     enumSet.add(ACCESS_GRANTED);
@@ -68,9 +72,9 @@ public enum IndexAuditLevel {
         return enumSet;
     }
 
-    public static EnumSet<IndexAuditLevel> parse(List<String> includeLevels, List<String> excludeLevels) {
-        EnumSet<IndexAuditLevel> included = parse(includeLevels);
-        EnumSet<IndexAuditLevel> excluded = parse(excludeLevels);
+    public static EnumSet<AuditLevel> parse(List<String> includeLevels, List<String> excludeLevels) {
+        EnumSet<AuditLevel> included = parse(includeLevels);
+        EnumSet<AuditLevel> excluded = parse(excludeLevels);
         included.removeAll(excluded);
         return included;
     }

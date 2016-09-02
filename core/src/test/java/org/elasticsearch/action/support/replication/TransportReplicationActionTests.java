@@ -62,6 +62,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseOptions;
 import org.elasticsearch.transport.TransportService;
@@ -98,6 +99,19 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportReplicationActionTests extends ESTestCase {
+
+    /**
+     * takes a request that was sent by a {@link TransportReplicationAction} and captured
+     * and returns the underlying request if it's wrapped or the original (cast to the expected type).
+     *
+     * This will throw a {@link ClassCastException} if the request is of the wrong type.
+     */
+    public static <R extends ReplicationRequest> R resolveRequest(TransportRequest requestOrWrappedRequest) {
+        if (requestOrWrappedRequest instanceof TransportReplicationAction.RequestWithAllocationID) {
+            requestOrWrappedRequest = ((TransportReplicationAction.RequestWithAllocationID)requestOrWrappedRequest).getRequest();
+        }
+        return (R) requestOrWrappedRequest;
+    }
 
     private static ThreadPool threadPool;
 

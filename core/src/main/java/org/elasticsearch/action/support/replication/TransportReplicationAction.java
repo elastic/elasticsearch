@@ -964,9 +964,9 @@ public abstract class TransportReplicationAction<
     final class RequestWithAllocationID<R extends TransportRequest> extends TransportRequest {
 
         /** {@link AllocationId#getId()} of the shard this request is sent to **/
-        String allocationId;
+        private String allocationId;
 
-        R request;
+        private R request;
 
         RequestWithAllocationID(Supplier<R> requestSupplier) {
             request = requestSupplier.get();
@@ -1012,6 +1012,10 @@ public abstract class TransportReplicationAction<
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(allocationId);
             request.writeTo(out);
+        }
+
+        public R getRequest() {
+            return request;
         }
     }
 

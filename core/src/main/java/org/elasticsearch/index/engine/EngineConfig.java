@@ -25,6 +25,7 @@ import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -111,7 +112,8 @@ public final class EngineConfig {
                         MergePolicy mergePolicy, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                        TranslogConfig translogConfig, TimeValue flushMergesAfter, RefreshListeners refreshListeners, long maxUnsafeAutoIdTimestamp) {
+                        TranslogConfig translogConfig, TimeValue flushMergesAfter, RefreshListeners refreshListeners,
+                        long maxUnsafeAutoIdTimestamp) {
         if (openMode == null) {
             throw new IllegalArgumentException("openMode must not be null");
         }
@@ -138,6 +140,8 @@ public final class EngineConfig {
         this.flushMergesAfter = flushMergesAfter;
         this.openMode = openMode;
         this.refreshListeners = refreshListeners;
+        assert maxUnsafeAutoIdTimestamp >= IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP :
+            "maxUnsafeAutoIdTimestamp must be >= -1 but was " + maxUnsafeAutoIdTimestamp;
         this.maxUnsafeAutoIdTimestamp = maxUnsafeAutoIdTimestamp;
     }
 

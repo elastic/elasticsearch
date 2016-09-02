@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -55,7 +56,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -411,7 +411,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             isRelocated.set(true);
             executeOnPrimary = false;
         }
-        action.new AsyncPrimaryAction(request, createTransportChannel(listener), task) {
+        action.new AsyncPrimaryAction(request, primaryShard.allocationId().getId(), createTransportChannel(listener), task) {
             @Override
             protected ReplicationOperation<Request, Request, Action.PrimaryResult> createReplicatedOperation(Request request,
                     ActionListener<Action.PrimaryResult> actionListener, Action.PrimaryShardReference primaryShardReference,
@@ -452,7 +452,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
         ClusterState state = state(index, true, ShardRoutingState.RELOCATING);
-        String primaryTargetNodeId = state.getRoutingTable().shardRoutingTable(shardId).primaryShard().relocatingNodeId();
+        final ShardRouting primaryShard = state.getRoutingTable().shardRoutingTable(shardId).primaryShard();
+        String primaryTargetNodeId = primaryShard.relocatingNodeId();
         // simulate execution of the primary phase on the relocation target node
         state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(primaryTargetNodeId)).build();
         setState(clusterService, state);
@@ -460,7 +461,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
         AtomicBoolean executed = new AtomicBoolean();
-        action.new AsyncPrimaryAction(request, createTransportChannel(listener), task) {
+        action.new AsyncPrimaryAction(request, primaryShard.allocationId().getId(), createTransportChannel(listener), task) {
             @Override
             protected ReplicationOperation<Request, Request, Action.PrimaryResult> createReplicatedOperation(Request request,
                     ActionListener<Action.PrimaryResult> actionListener, Action.PrimaryShardReference primaryShardReference,
@@ -596,7 +597,9 @@ public class TransportReplicationActionTests extends ESTestCase {
         state = ClusterState.builder(state).metaData(metaData).build();
         setState(clusterService, state);
         AtomicBoolean executed = new AtomicBoolean();
-        action.new AsyncPrimaryAction(new Request(shardId), createTransportChannel(new PlainActionFuture<>()), null) {
+        ShardRouting primaryShard = state.routingTable().shardRoutingTable(shardId).primaryShard();
+        action.new AsyncPrimaryAction(new Request(shardId), primaryShard.allocationId().getId(),
+            createTransportChannel(new PlainActionFuture<>()), null) {
             @Override
             protected ReplicationOperation<Request, Request, Action.PrimaryResult> createReplicatedOperation(Request request,
                     ActionListener<Action.PrimaryResult> actionListener, Action.PrimaryShardReference primaryShardReference,
@@ -613,8 +616,10 @@ public class TransportReplicationActionTests extends ESTestCase {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
         // no replica, we only want to test on primary
-        setState(clusterService, state(index, true, ShardRoutingState.STARTED));
+        final ClusterState state = state(index, true, ShardRoutingState.STARTED);
+        setState(clusterService, state);
         logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
+        final ShardRouting primaryShard = state.routingTable().shardRoutingTable(shardId).primaryShard();
         Request request = new Request(shardId);
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
@@ -622,7 +627,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         final boolean throwExceptionOnCreation = i == 1;
         final boolean throwExceptionOnRun = i == 2;
         final boolean respondWithError = i == 3;
-        action.new AsyncPrimaryAction(request, createTransportChannel(listener), task) {
+        action.new AsyncPrimaryAction(request, primaryShard.allocationId().getId(), createTransportChannel(listener), task) {
             @Override
             protected ReplicationOperation<Request, Request, Action.PrimaryResult> createReplicatedOperation(Request request,
                     ActionListener<Action.PrimaryResult> actionListener, Action.PrimaryShardReference primaryShardReference,
@@ -666,8 +671,9 @@ public class TransportReplicationActionTests extends ESTestCase {
 
     public void testReplicasCounter() throws Exception {
         final ShardId shardId = new ShardId("test", "_na_", 0);
-        setState(clusterService, state(shardId.getIndexName(), true,
-            ShardRoutingState.STARTED, ShardRoutingState.STARTED));
+        final ClusterState state = state(shardId.getIndexName(), true, ShardRoutingState.STARTED, ShardRoutingState.STARTED);
+        setState(clusterService, state);
+        final ShardRouting replicaRouting = state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0);
         boolean throwException = randomBoolean();
         final ReplicationTask task = maybeTask();
         Action action = new Action(Settings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool) {
@@ -683,7 +689,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         };
         final Action.ReplicaOperationTransportHandler replicaOperationTransportHandler = action.new ReplicaOperationTransportHandler();
         try {
-            replicaOperationTransportHandler.messageReceived(new Request().setShardId(shardId),
+            replicaOperationTransportHandler.messageReceived(
+                action.new RequestWithAllocationID<Request>(new Request().setShardId(shardId), replicaRouting.allocationId().getId()),
                 createTransportChannel(new PlainActionFuture<>()), task);
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("simulated"));
@@ -827,7 +834,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected void acquirePrimaryShardReference(ShardId shardId, ActionListener<PrimaryShardReference> onReferenceAcquired) {
+        protected void acquirePrimaryShardReference(ShardId shardId, String allocationId, ActionListener<PrimaryShardReference> onReferenceAcquired) {
             count.incrementAndGet();
             PrimaryShardReference primaryShardReference = new PrimaryShardReference(null, null) {
                 @Override
@@ -858,7 +865,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected void acquireReplicaOperationLock(ShardId shardId, long primaryTerm, ActionListener<Releasable> onLockAcquired) {
+        protected void acquireReplicaOperationLock(ShardId shardId, long primaryTerm, String allocationId,
+                                                   ActionListener<Releasable> onLockAcquired) {
             count.incrementAndGet();
             onLockAcquired.onResponse(count::decrementAndGet);
         }

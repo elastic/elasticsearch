@@ -278,7 +278,12 @@ public class JarHell {
                     return; // apparently this is intentional... clean this up
                 }
                 if (clazz.startsWith("org.apache.logging.log4j.core.impl.ThrowableProxy")) {
-                    return; // deliberate to hack around a bug in Log4j
+                    /*
+                     * deliberate to hack around a bug in Log4j
+                     * cf. https://github.com/elastic/elasticsearch/issues/20304
+                     * cf. https://issues.apache.org/jira/browse/LOG4J2-1560
+                     */
+                    return;
                 }
                 throw new IllegalStateException("jar hell!" + System.lineSeparator() +
                         "class: " + clazz + System.lineSeparator() +

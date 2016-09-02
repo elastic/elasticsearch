@@ -27,7 +27,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
@@ -529,18 +529,14 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         }
     }
 
-    public static class Info implements Streamable, ToXContent {
+    public static class Info implements Writeable, ToXContent {
 
-        private String name;
-        private ThreadPoolType type;
-        private int min;
-        private int max;
-        private TimeValue keepAlive;
-        private SizeValue queueSize;
-
-        Info() {
-
-        }
+        private final String name;
+        private final ThreadPoolType type;
+        private final int min;
+        private final int max;
+        private final TimeValue keepAlive;
+        private final SizeValue queueSize;
 
         public Info(String name, ThreadPoolType type) {
             this(name, type, -1);
@@ -557,6 +553,25 @@ public class ThreadPool extends AbstractComponent implements Closeable {
             this.max = max;
             this.keepAlive = keepAlive;
             this.queueSize = queueSize;
+        }
+
+        public Info(StreamInput in) throws IOException {
+            name = in.readString();
+            type = ThreadPoolType.fromType(in.readString());
+            min = in.readInt();
+            max = in.readInt();
+            keepAlive = in.readOptionalWriteable(TimeValue::new);
+            queueSize = in.readOptionalWriteable(SizeValue::new);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeString(type.getType());
+            out.writeInt(min);
+            out.writeInt(max);
+            out.writeOptionalWriteable(keepAlive);
+            out.writeOptionalWriteable(queueSize);
         }
 
         public String getName() {
@@ -583,46 +598,6 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         @Nullable
         public SizeValue getQueueSize() {
             return this.queueSize;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            name = in.readString();
-            type = ThreadPoolType.fromType(in.readString());
-            min = in.readInt();
-            max = in.readInt();
-            if (in.readBoolean()) {
-                keepAlive = new TimeValue(in);
-            }
-            if (in.readBoolean()) {
-                queueSize = SizeValue.readSizeValue(in);
-            }
-            in.readBoolean(); // here to conform with removed waitTime
-            in.readBoolean(); // here to conform with removed rejected setting
-            in.readBoolean(); // here to conform with queue type
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(name);
-            out.writeString(type.getType());
-            out.writeInt(min);
-            out.writeInt(max);
-            if (keepAlive == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                keepAlive.writeTo(out);
-            }
-            if (queueSize == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                queueSize.writeTo(out);
-            }
-            out.writeBoolean(false); // here to conform with removed waitTime
-            out.writeBoolean(false); // here to conform with removed rejected setting
-            out.writeBoolean(false); // here to conform with queue type
         }
 
         @Override
@@ -654,7 +629,6 @@ public class ThreadPool extends AbstractComponent implements Closeable {
             static final String KEEP_ALIVE = "keep_alive";
             static final String QUEUE_SIZE = "queue_size";
         }
-
     }
 
     /**

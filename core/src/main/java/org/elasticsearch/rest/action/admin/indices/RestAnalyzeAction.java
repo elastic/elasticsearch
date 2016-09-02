@@ -50,7 +50,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
         public static final ParseField TEXT = new ParseField("text");
         public static final ParseField FIELD = new ParseField("field");
         public static final ParseField TOKENIZER = new ParseField("tokenizer");
-        public static final ParseField TOKEN_FILTERS = new ParseField("filter", "token_filter");
+        public static final ParseField TOKEN_FILTERS = new ParseField("filter");
         public static final ParseField CHAR_FILTERS = new ParseField("char_filter");
         public static final ParseField EXPLAIN = new ParseField("explain");
         public static final ParseField ATTRIBUTES = new ParseField("attributes");
@@ -77,7 +77,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
         if (request.hasParam("tokenizer")) {
             analyzeRequest.tokenizer(request.param("tokenizer"));
         }
-        for (String filter : request.paramAsStringArray("filter", request.paramAsStringArray("token_filter", Strings.EMPTY_ARRAY))) {
+        for (String filter : request.paramAsStringArray("filter", Strings.EMPTY_ARRAY)) {
             analyzeRequest.addTokenFilter(filter);
         }
         for (String charFilter : request.paramAsStringArray("char_filter", Strings.EMPTY_ARRAY)) {
@@ -144,7 +144,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
                                 analyzeRequest.addTokenFilter(parser.map());
                             } else {
                                 throw new IllegalArgumentException(currentFieldName
-                                        + " array element should contain token_filter's name or setting");
+                                        + " array element should contain filter's name or setting");
                             }
                         }
                     } else if (parseFieldMatcher.match(currentFieldName, Fields.CHAR_FILTERS)

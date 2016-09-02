@@ -18,9 +18,13 @@
  */
 package org.elasticsearch.index.replication;
 
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineTests;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTests;
 import org.elasticsearch.index.store.Store;
@@ -93,6 +97,27 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                 assertEquals(0, InternalEngineTests.getNumIndexVersionsLookups((InternalEngine) engine));
                 assertEquals(0, InternalEngineTests.getNumVersionLookups((InternalEngine) engine));
             }
+        }
+    }
+
+    public void testInheritMaxValidAutoIDTimestampOnRecovery() throws Exception {
+        try (ReplicationGroup shards = createGroup(0)) {
+            shards.startAll();
+            final IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}");
+            indexRequest.onRetry(); // force an update of the timestamp
+            final IndexResponse response = shards.index(indexRequest);
+            assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
+            if (randomBoolean()) { // lets check if that also happens if no translog record is replicated
+                shards.flush();
+            }
+            IndexShard replica = shards.addReplica();
+            shards.recoverReplica(replica);
+
+            SegmentsStats segmentsStats = replica.segmentStats(false);
+            SegmentsStats primarySegmentStats = shards.getPrimary().segmentStats(false);
+            assertNotEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, primarySegmentStats.getMaxUnsafeAutoIdTimestamp());
+            assertEquals(primarySegmentStats.getMaxUnsafeAutoIdTimestamp(), segmentsStats.getMaxUnsafeAutoIdTimestamp());
+            assertNotEquals(Long.MAX_VALUE, segmentsStats.getMaxUnsafeAutoIdTimestamp());
         }
     }
 

@@ -131,21 +131,9 @@ public class ProcessProbe {
     }
 
     public ProcessStats processStats() {
-        ProcessStats stats = new ProcessStats();
-        stats.timestamp = System.currentTimeMillis();
-        stats.openFileDescriptors = getOpenFileDescriptorCount();
-        stats.maxFileDescriptors = getMaxFileDescriptorCount();
-
-        ProcessStats.Cpu cpu = new ProcessStats.Cpu();
-        cpu.percent = getProcessCpuPercent();
-        cpu.total = getProcessCpuTotalTime();
-        stats.cpu = cpu;
-
-        ProcessStats.Mem mem = new ProcessStats.Mem();
-        mem.totalVirtual = getTotalVirtualMemorySize();
-        stats.mem = mem;
-
-        return stats;
+        ProcessStats.Cpu cpu = new ProcessStats.Cpu(getProcessCpuPercent(), getProcessCpuTotalTime());
+        ProcessStats.Mem mem = new ProcessStats.Mem(getTotalVirtualMemorySize());
+        return new ProcessStats(System.currentTimeMillis(), getOpenFileDescriptorCount(), getMaxFileDescriptorCount(), cpu, mem);
     }
 
     /**

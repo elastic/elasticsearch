@@ -3,7 +3,8 @@
 
 The completion suggester has undergone a complete rewrite. This means that the
 syntax and data structure for fields of type `completion` have changed, as
-have the syntax and response of completion suggester requests.
+have the syntax and response of completion suggester requests. See
+<<search-suggesters-completion,completion suggester>> for details.
 
 For indices created before Elasticsearch 5.0.0, `completion` fields and the
 completion suggester will continue to work as they did in Elasticsearch 2.x.
@@ -28,7 +29,7 @@ to suggestion entries for both context and completion suggesters.
 Suggestions are aware of the document they belong to. Now, associated
 documents (`_source`) are returned as part of `completion` suggestions.
 
-WARNING: `_source` meta-field must be enabled, which is the default behavior,
+IMPORTANT: `_source` meta-field must be enabled, which is the default behavior,
 to enable returning `_source` with suggestions.
 
 Previously, `context` and `completion` suggesters supported an index-time
@@ -36,35 +37,6 @@ Previously, `context` and `completion` suggesters supported an index-time
 Now metadata can be stored as part of the the same document as the
 suggestion for retrieval at query-time. The support for index-time `payloads`
 has been removed to avoid bloating the in-memory index with suggestion metadata.
-
-In case of completion queries spanning more than one shard, the suggest is executed
-in two phases, where the last phase fetches the relevant documents from shards,
-implying executing completion requests against a single shard is more performant
-due to the document fetch overhead when the suggest spans multiple shards.
-To get best performance for completions, it is recommended to index completions
-into a single shard index. In case of high heap usage due to shard size, it is still
-recommended to break index into multiple shards instead of optimizing for completion
-performance.
-
-Completion results return the full document `_source` by default. The size of
-the `_source` can impact performance due to disk fetch and network transport overhead.
-For best performance, filter out unnecessary fields from the `_source` using
-<<search-request-source-filtering, source filtering>> to minimize `_source` size.
-The following demonstrates an example completion query with source filtering:
-
-[source,js]
---------------------------------------------------
-POST music/_suggest
-{
-    "_source": "completion.*",
-    "song-suggest" : {
-        "prefix" : "nir",
-        "completion" : {
-            "field" : "suggest"
-        }
-    }
-}
---------------------------------------------------
 
 ==== Simpler completion indexing
 

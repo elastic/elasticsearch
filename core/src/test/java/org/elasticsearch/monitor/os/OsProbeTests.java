@@ -53,7 +53,7 @@ public class OsProbeTests extends ESTestCase {
         assertThat(stats.getTimestamp(), greaterThan(0L));
         assertThat(stats.getCpu().getPercent(), anyOf(equalTo((short) -1),
                 is(both(greaterThanOrEqualTo((short) 0)).and(lessThanOrEqualTo((short) 100)))));
-        double[] loadAverage = stats.getCpu().loadAverage;
+        double[] loadAverage = stats.getCpu().getLoadAverage();
         if (loadAverage != null) {
             assertThat(loadAverage.length, equalTo(3));
         }

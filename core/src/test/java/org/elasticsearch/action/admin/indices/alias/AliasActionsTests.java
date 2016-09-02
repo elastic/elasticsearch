@@ -115,12 +115,12 @@ public class AliasActionsTests extends ESTestCase {
         b.startObject(); {
             b.startObject("add"); {
                 if (indices.length > 1 || randomBoolean()) {
-                    b.field("indices", indices);
+                    b.array("indices", indices);
                 } else {
                     b.field("index", indices[0]);
                 }
                 if (aliases.length > 1 || randomBoolean()) {
-                    b.field("aliases", aliases);
+                    b.array("aliases", aliases);
                 } else {
                     b.field("alias", aliases[0]);
                 }
@@ -196,12 +196,12 @@ public class AliasActionsTests extends ESTestCase {
         b.startObject(); {
             b.startObject("remove"); {
                 if (indices.length > 1 || randomBoolean()) {
-                    b.field("indices", indices);
+                    b.array("indices", indices);
                 } else {
                     b.field("index", indices[0]);
                 }
                 if (aliases.length > 1 || randomBoolean()) {
-                    b.field("aliases", aliases);
+                    b.array("aliases", aliases);
                 } else {
                     b.field("alias", aliases[0]);
                 }
@@ -224,7 +224,7 @@ public class AliasActionsTests extends ESTestCase {
         b.startObject(); {
             b.startObject("remove_index"); {
                 if (indices.length > 1 || randomBoolean()) {
-                    b.field("indices", indices);
+                    b.array("indices", indices);
                 } else {
                     b.field("index", indices[0]);
                 }
@@ -246,7 +246,7 @@ public class AliasActionsTests extends ESTestCase {
         b.startObject(); {
             b.startObject(randomFrom("add", "remove")); {
                 b.field("index", randomAsciiOfLength(5));
-                b.field("indices", generateRandomStringArray(10, 5, false, false));
+                b.array("indices", generateRandomStringArray(10, 5, false, false));
                 b.field("alias", randomAsciiOfLength(5));
             }
             b.endObject();
@@ -265,7 +265,7 @@ public class AliasActionsTests extends ESTestCase {
             b.startObject(randomFrom("add", "remove")); {
                 b.field("index", randomAsciiOfLength(5));
                 b.field("alias", randomAsciiOfLength(5));
-                b.field("aliases", generateRandomStringArray(10, 5, false, false));
+                b.array("aliases", generateRandomStringArray(10, 5, false, false));
             }
             b.endObject();
         }

@@ -431,7 +431,7 @@ public class JvmInfo implements Writeable, ToXContent {
         builder.field(Fields.VM_NAME, vmName);
         builder.field(Fields.VM_VERSION, vmVersion);
         builder.field(Fields.VM_VENDOR, vmVendor);
-        builder.dateValueField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, startTime);
+        builder.dateField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, startTime);
 
         builder.startObject(Fields.MEM);
         builder.byteSizeField(Fields.HEAP_INIT_IN_BYTES, Fields.HEAP_INIT, mem.heapInit);
@@ -441,8 +441,8 @@ public class JvmInfo implements Writeable, ToXContent {
         builder.byteSizeField(Fields.DIRECT_MAX_IN_BYTES, Fields.DIRECT_MAX, mem.directMemoryMax);
         builder.endObject();
 
-        builder.field(Fields.GC_COLLECTORS, gcCollectors);
-        builder.field(Fields.MEMORY_POOLS, memoryPools);
+        builder.array(Fields.GC_COLLECTORS, gcCollectors);
+        builder.array(Fields.MEMORY_POOLS, memoryPools);
 
         builder.field(Fields.USING_COMPRESSED_OOPS, useCompressedOops);
 

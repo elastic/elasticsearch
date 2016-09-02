@@ -269,11 +269,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
                 builder.endObject();
             }
         }
-
         if (getIndices() != null) {
             getIndices().toXContent(builder, params);
         }
-
         if (getOs() != null) {
             getOs().toXContent(builder, params);
         }
@@ -301,15 +299,12 @@ public class NodeStats extends BaseNodeResponse implements ToXContent {
         if (getScriptStats() != null) {
             getScriptStats().toXContent(builder, params);
         }
-
         if (getDiscoveryStats() != null) {
             getDiscoveryStats().toXContent(builder, params);
         }
-
         if (getIngestStats() != null) {
             getIngestStats().toXContent(builder, params);
         }
-
         return builder;
     }
 }

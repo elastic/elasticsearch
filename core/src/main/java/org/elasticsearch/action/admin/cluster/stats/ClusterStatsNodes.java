@@ -87,7 +87,7 @@ public class ClusterStatsNodes implements ToXContent {
             }
         }
         this.counts = new Counts(nodeInfos);
-        this.os = new OsStats(nodeInfos);
+        this.os = new OsStats(nodeInfos, nodeStats);
         this.process = new ProcessStats(nodeStats);
         this.jvm = new JvmStats(nodeInfos, nodeStats);
         this.networkTypes = new NetworkTypes(nodeInfos);
@@ -226,11 +226,12 @@ public class ClusterStatsNodes implements ToXContent {
         final int availableProcessors;
         final int allocatedProcessors;
         final ObjectIntHashMap<String> names;
+        final org.elasticsearch.monitor.os.OsStats.Mem mem;
 
         /**
          * Build the stats from information about each node.
          */
-        private OsStats(List<NodeInfo> nodeInfos) {
+        private OsStats(List<NodeInfo> nodeInfos, List<NodeStats> nodeStatsList) {
             this.names = new ObjectIntHashMap<>();
             int availableProcessors = 0;
             int allocatedProcessors = 0;
@@ -244,6 +245,22 @@ public class ClusterStatsNodes implements ToXContent {
             }
             this.availableProcessors = availableProcessors;
             this.allocatedProcessors = allocatedProcessors;
+
+            long totalMemory = 0;
+            long freeMemory = 0;
+            for (NodeStats nodeStats : nodeStatsList) {
+                if (nodeStats.getOs() != null) {
+                    long total = nodeStats.getOs().getMem().getTotal().bytes();
+                    if (total > 0) {
+                        totalMemory += total;
+                    }
+                    long free = nodeStats.getOs().getMem().getFree().bytes();
+                    if (free > 0) {
+                        freeMemory += free;
+                    }
+                }
+            }
+            this.mem = new org.elasticsearch.monitor.os.OsStats.Mem(totalMemory, freeMemory);
         }
 
         public int getAvailableProcessors() {
@@ -252,6 +269,10 @@ public class ClusterStatsNodes implements ToXContent {
 
         public int getAllocatedProcessors() {
             return allocatedProcessors;
+        }
+
+        public org.elasticsearch.monitor.os.OsStats.Mem getMem() {
+            return mem;
         }
 
         static final class Fields {
@@ -274,6 +295,7 @@ public class ClusterStatsNodes implements ToXContent {
                 builder.endObject();
             }
             builder.endArray();
+            mem.toXContent(builder, params);
             return builder;
         }
     }

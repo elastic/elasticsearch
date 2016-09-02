@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.AbstractOldXPackIndicesBackwardsCompatibilityTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests for watcher indexes created before 5.0.
  */
-@TestLogging("_root:INFO")
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/pull/3342")
 public class OldWatcherIndicesBackwardsCompatibilityIT extends AbstractOldXPackIndicesBackwardsCompatibilityTestCase {
     @Override
     public Settings nodeSettings(int ord) {

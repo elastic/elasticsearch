@@ -594,6 +594,12 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
      * Tests that shadow replicas can be "naturally" rebalanced and relocated
      * around the cluster. By "naturally" I mean without using the reroute API
      */
+    // This test failed on CI when trying to assert that all the shard data has been deleted
+    // from the index path. It has not been reproduced locally. Despite the IndicesService
+    // deleting the index and hence, deleting all the shard data for the index, the test
+    // failure still showed some Lucene files in the data directory for that index. Not sure
+    // why that is, so turning on more logging here.
+    @TestLogging("indices:TRACE,env:TRACE")
     public void testShadowReplicaNaturalRelocation() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);

@@ -284,8 +284,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
             primary.recoverFromStore();
             primary.updateRoutingEntry(ShardRoutingHelper.moveToStarted(primary.routingEntry()));
             for (IndexShard replicaShard : replicas) {
-                recoverReplica(replicaShard,
-                    (replica, sourceNode) -> new RecoveryTarget(replica, sourceNode, recoveryListener, version -> {}));
+                recoverReplica(replicaShard);
             }
         }
 

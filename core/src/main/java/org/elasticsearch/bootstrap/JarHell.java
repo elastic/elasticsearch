@@ -86,7 +86,7 @@ public class JarHell {
         }
         checkJarHell(parseClassPath());
     }
-    
+
     /**
      * Parses the classpath into an array of URLs
      * @return array of URLs
@@ -276,6 +276,14 @@ public class JarHell {
                 }
                 if (clazz.equals("org.joda.time.base.BaseDateTime")) {
                     return; // apparently this is intentional... clean this up
+                }
+                if (clazz.startsWith("org.apache.logging.log4j.core.impl.ThrowableProxy")) {
+                    /*
+                     * deliberate to hack around a bug in Log4j
+                     * cf. https://github.com/elastic/elasticsearch/issues/20304
+                     * cf. https://issues.apache.org/jira/browse/LOG4J2-1560
+                     */
+                    return;
                 }
                 throw new IllegalStateException("jar hell!" + System.lineSeparator() +
                         "class: " + clazz + System.lineSeparator() +

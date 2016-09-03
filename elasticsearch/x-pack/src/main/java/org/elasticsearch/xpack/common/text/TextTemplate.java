@@ -18,25 +18,32 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * Holds a template to be used in many places in a watch as configuration.
+ *
+ * One liner templates are kept around as just strings and {@link Script} is used for
+ * parsing/serialization logic for any non inlined templates and/or when templates
+ * have custom params, lang or content type.
+ */
 public class TextTemplate implements ToXContent {
 
     private final Script script;
-    private final String value;
+    private final String inlineTemplate;
 
     public TextTemplate(String template) {
         this.script = null;
-        this.value = template;
+        this.inlineTemplate = template;
     }
 
     public TextTemplate(String template, @Nullable XContentType contentType, ScriptType type,
                         @Nullable Map<String, Object> params) {
         this.script = new Script(template, type, null, params, contentType);
-        this.value = null;
+        this.inlineTemplate = null;
     }
 
     public TextTemplate(Script script) {
         this.script = script;
-        this.value = null;
+        this.inlineTemplate = null;
     }
 
     public Script getScript() {
@@ -44,7 +51,7 @@ public class TextTemplate implements ToXContent {
     }
 
     public String getTemplate() {
-        return script != null ? script.getScript() : value;
+        return script != null ? script.getScript() : inlineTemplate;
     }
 
     public XContentType getContentType() {
@@ -66,12 +73,12 @@ public class TextTemplate implements ToXContent {
 
         TextTemplate template1 = (TextTemplate) o;
         return Objects.equals(script, template1.script) &&
-                Objects.equals(value, template1.value);
+                Objects.equals(inlineTemplate, template1.inlineTemplate);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(script, value);
+        return Objects.hash(script, inlineTemplate);
     }
 
     @Override
@@ -79,7 +86,7 @@ public class TextTemplate implements ToXContent {
         if (script != null) {
             script.toXContent(builder, params);
         } else {
-            builder.value(value);
+            builder.value(inlineTemplate);
         }
         return builder;
     }

@@ -48,12 +48,16 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -94,6 +98,11 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -475,7 +484,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
         AtomicBoolean executed = new AtomicBoolean();
-        action.new AsyncPrimaryAction(request, primaryShard.allocationId().getId(), createTransportChannel(listener), task) {
+        action.new AsyncPrimaryAction(request, primaryShard.allocationId().getRelocationId(), createTransportChannel(listener), task) {
             @Override
             protected ReplicationOperation<Request, Request, Action.PrimaryResult> createReplicatedOperation(Request request,
                     ActionListener<Action.PrimaryResult> actionListener, Action.PrimaryShardReference primaryShardReference,
@@ -487,6 +496,11 @@ public class TransportReplicationActionTests extends ESTestCase {
                         super.execute();
                     }
                 };
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new RuntimeException(e);
             }
         }.run();
         assertThat(executed.get(), equalTo(true));
@@ -818,7 +832,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         Action(Settings settings, String actionName, TransportService transportService,
                ClusterService clusterService,
                ThreadPool threadPool) {
-            super(settings, actionName, transportService, clusterService, null, threadPool,
+            super(settings, actionName, transportService, clusterService, mockIndicesService(clusterService), threadPool,
                 new ShardStateAction(settings, clusterService, transportService, null, null, threadPool),
                 new ActionFilters(new HashSet<>()), new IndexNameExpressionResolver(Settings.EMPTY),
                 Request::new, Request::new, ThreadPool.Names.SAME);
@@ -846,44 +860,59 @@ public class TransportReplicationActionTests extends ESTestCase {
         protected boolean resolveIndex() {
             return false;
         }
+    }
 
-        @Override
-        protected void acquirePrimaryShardReference(ShardId shardId, String allocationId, ActionListener<PrimaryShardReference> onReferenceAcquired) {
+    final IndicesService mockIndicesService(ClusterService clusterService) {
+        final IndicesService indicesService = mock(IndicesService.class);
+        when(indicesService.indexServiceSafe(any(Index.class))).then(invocation -> {
+            Index index = (Index)invocation.getArguments()[0];
+            final ClusterState state = clusterService.state();
+            final IndexMetaData indexSafe = state.metaData().getIndexSafe(index);
+            return mockIndexService(indexSafe, clusterService);
+        });
+        when(indicesService.indexService(any(Index.class))).then(invocation -> {
+            Index index = (Index) invocation.getArguments()[0];
+            final ClusterState state = clusterService.state();
+            if (state.metaData().hasIndex(index.getName())) {
+                final IndexMetaData indexSafe = state.metaData().getIndexSafe(index);
+                return mockIndexService(clusterService.state().metaData().getIndexSafe(index), clusterService);
+            } else {
+                return null;
+            }
+        });
+        return indicesService;
+    }
+
+    final IndexService mockIndexService(final IndexMetaData indexMetaData, ClusterService clusterService) {
+        final IndexService indexService = mock(IndexService.class);
+        when(indexService.getShard(anyInt())).then(invocation -> {
+            int shard = (Integer) invocation.getArguments()[0];
+            final ShardId shardId = new ShardId(indexMetaData.getIndex(), shard);
+            if (shard > indexMetaData.getNumberOfShards()) {
+                throw new ShardNotFoundException(shardId);
+            }
+            return mockIndexShard(shardId, clusterService);
+        });
+        return indexService;
+    }
+
+    private IndexShard mockIndexShard(ShardId shardId, ClusterService clusterService) {
+        final IndexShard indexShard = mock(IndexShard.class);
+        doAnswer(invocation -> {
+            ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[0];
             count.incrementAndGet();
-            PrimaryShardReference primaryShardReference = new PrimaryShardReference(null, null) {
-                @Override
-                public boolean isRelocated() {
-                    return isRelocated.get();
-                }
-
-                @Override
-                public void failShard(String reason, @Nullable Exception e) {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public ShardRouting routingEntry() {
-                    ShardRouting shardRouting = clusterService.state().getRoutingTable()
-                        .shardRoutingTable(shardId).primaryShard();
-                    assert shardRouting != null;
-                    return shardRouting;
-                }
-
-                @Override
-                public void close() {
-                    count.decrementAndGet();
-                }
-            };
-
-            onReferenceAcquired.onResponse(primaryShardReference);
-        }
-
-        @Override
-        protected void acquireReplicaOperationLock(ShardId shardId, long primaryTerm, String allocationId,
-                                                   ActionListener<Releasable> onLockAcquired) {
-            count.incrementAndGet();
-            onLockAcquired.onResponse(count::decrementAndGet);
-        }
+            callback.onResponse(count::decrementAndGet);
+            return null;
+        }).when(indexShard).acquirePrimaryOperationLock(any(ActionListener.class), anyString());
+        when(indexShard.routingEntry()).thenAnswer(invocationOnMock -> {
+            final ClusterState state = clusterService.state();
+            return state.getRoutingNodes().node(state.nodes().getLocalNodeId()).getByShardId(shardId);
+        });
+        when(indexShard.state()).thenAnswer(invocationOnMock -> isRelocated.get() ? IndexShardState.RELOCATED : IndexShardState.STARTED);
+        doThrow(new AssertionError("failed shard is not supported")).when(indexShard).failShard(anyString(), any(Exception.class));
+        when(indexShard.getPrimaryTerm()).thenAnswer(i ->
+            clusterService.state().metaData().getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id()));
+        return indexShard;
     }
 
     class NoopReplicationOperation extends ReplicationOperation<Request, Request, Action.PrimaryResult> {

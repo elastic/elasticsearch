@@ -78,6 +78,7 @@ public class LogConfigurator {
                 }
             });
             context.start(new CompositeConfiguration(configurations));
+            warnIfOldConfigurationFilePresent(environment);
         }
 
         if (ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.exists(settings)) {
@@ -89,8 +90,6 @@ public class LogConfigurator {
             final Level level = ESLoggerFactory.LOG_LEVEL_SETTING.getConcreteSetting(key).get(settings);
             Loggers.setLevel(Loggers.getLogger(key.substring("logger.".length())), level);
         }
-
-        warnIfOldConfigurationFilePresent(environment);
     }
 
     private static void warnIfOldConfigurationFilePresent(final Environment environment) throws IOException {

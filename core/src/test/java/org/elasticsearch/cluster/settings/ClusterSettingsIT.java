@@ -330,6 +330,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/20318")
     public void testLoggerLevelUpdate() {
         assertAcked(prepareCreate("test"));
         final IllegalArgumentException e =

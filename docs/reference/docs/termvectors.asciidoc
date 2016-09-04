@@ -184,7 +184,7 @@ The following request returns all information and statistics for field
 [source,js]
 --------------------------------------------------
 
-curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvectors?pretty=true' -d '{
+curl -XPOST 'http://localhost:9200/twitter/tweet/1/_termvectors?pretty=true' -d '{
   "fields" : ["text"],
   "offsets" : true,
   "payloads" : true,
@@ -268,7 +268,7 @@ Note that for the field `text`, the terms are not re-generated.
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvectors?pretty=true' -d '{
+curl -XPOST 'http://localhost:9200/twitter/tweet/1/_termvectors?pretty=true' -d '{
   "fields" : ["text", "some_field_without_term_vectors"],
   "offsets" : true,
   "positions" : true,
@@ -293,7 +293,7 @@ mapping will be dynamically created.*
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/_termvectors' -d '{
+curl -XPOST 'http://localhost:9200/twitter/tweet/_termvectors' -d '{
   "doc" : {
     "fullname" : "John Doe",
     "text" : "twitter test test test"
@@ -314,7 +314,7 @@ vectors, the term vectors will be re-generated.
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/twitter/tweet/_termvectors' -d '{
+curl -XPOST 'http://localhost:9200/twitter/tweet/_termvectors' -d '{
   "doc" : {
     "fullname" : "John Doe",
     "text" : "twitter test test test"
@@ -372,7 +372,7 @@ their tf-idf must be too low.
 
 [source,js]
 --------------------------------------------------
-GET /imdb/movies/_termvectors
+POST /imdb/movies/_termvectors
 {
     "doc": {
       "plot": "When wealthy industrialist Tony Stark is forced to build an armored suit after a life-threatening incident, he ultimately decides to use its technology to fight against evil."

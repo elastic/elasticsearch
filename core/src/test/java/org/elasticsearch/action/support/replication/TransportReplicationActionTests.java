@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.action.support.replication;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -47,6 +49,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -85,7 +88,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
@@ -100,6 +102,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -760,6 +763,48 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertEquals(ActiveShardCount.from(requestWaitForActiveShards), request.waitForActiveShards());
     }
 
+    /** test that a primary request is reject if it arrives at a shard with a wrong allocation id */
+    public void testPrimaryActionRejectsWrongAid() throws Exception {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+        setState(clusterService, state(index, true, ShardRoutingState.STARTED));
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        Request request = new Request(shardId).timeout("1ms");
+            action.new PrimaryOperationTransportHandler().messageReceived(
+                action.new RequestWithAllocationID<Request>(request, "_not_a_valid_aid_"),
+                createTransportChannel(listener), maybeTask()
+            );
+        try {
+            listener.get();
+            fail("using a wrong aid didn't fail the operation");
+        } catch (ExecutionException execException) {
+            Throwable throwable = execException.getCause();
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("got exception e"), throwable);
+            assertTrue(throwable.getClass() + " is not a retry exception", action.retryPrimaryException(throwable));
+        }
+    }
+
+    /** test that a replica request is reject if it arrives at a shard with a wrong allocation id */
+    public void testReplicaActionRejectsWrongAid() throws Exception {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+        setState(clusterService, state(index, false, ShardRoutingState.STARTED, ShardRoutingState.STARTED));
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        Request request = new Request(shardId).timeout("1ms");
+        action.new ReplicaOperationTransportHandler().messageReceived(
+            action.new RequestWithAllocationID<Request>(request, "_not_a_valid_aid_"),
+            createTransportChannel(listener), maybeTask()
+        );
+        try {
+            listener.get();
+            fail("using a wrong aid didn't fail the operation");
+        } catch (ExecutionException execException) {
+            Throwable throwable = execException.getCause();
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("got exception e"), throwable);
+            assertTrue(throwable.getClass() + " is not a retry exception", action.retryPrimaryException(throwable));
+        }
+    }
+
     private void assertIndexShardCounter(int expected) {
         assertThat(count.get(), equalTo(expected));
     }
@@ -904,6 +949,18 @@ public class TransportReplicationActionTests extends ESTestCase {
             callback.onResponse(count::decrementAndGet);
             return null;
         }).when(indexShard).acquirePrimaryOperationLock(any(ActionListener.class), anyString());
+        doAnswer(invocation -> {
+            long term = (Long)invocation.getArguments()[0];
+            ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[1];
+            final long primaryTerm = indexShard.getPrimaryTerm();
+            if (term < primaryTerm) {
+                throw new IllegalArgumentException(LoggerMessageFormat.format("{} operation term [{}] is too old (current [{}])",
+                    shardId, term, primaryTerm));
+            }
+            count.incrementAndGet();
+            callback.onResponse(count::decrementAndGet);
+            return null;
+        }).when(indexShard).acquireReplicaOperationLock(anyLong(), any(ActionListener.class), anyString());
         when(indexShard.routingEntry()).thenAnswer(invocationOnMock -> {
             final ClusterState state = clusterService.state();
             return state.getRoutingNodes().node(state.nodes().getLocalNodeId()).getByShardId(shardId);
@@ -930,11 +987,6 @@ public class TransportReplicationActionTests extends ESTestCase {
      * Transport channel that is needed for replica operation testing.
      */
     public TransportChannel createTransportChannel(final PlainActionFuture<Response> listener) {
-        return createTransportChannel(listener, error -> {
-        });
-    }
-
-    public TransportChannel createTransportChannel(final PlainActionFuture<Response> listener, Consumer<Throwable> consumer) {
         return new TransportChannel() {
 
             @Override
@@ -959,7 +1011,6 @@ public class TransportReplicationActionTests extends ESTestCase {
 
             @Override
             public void sendResponse(Exception exception) throws IOException {
-                consumer.accept(exception);
                 listener.onFailure(exception);
             }
 

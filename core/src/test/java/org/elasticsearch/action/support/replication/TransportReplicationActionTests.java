@@ -789,7 +789,12 @@ public class TransportReplicationActionTests extends ESTestCase {
     public void testReplicaActionRejectsWrongAid() throws Exception {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
-        setState(clusterService, state(index, false, ShardRoutingState.STARTED, ShardRoutingState.STARTED));
+        ClusterState state = state(index, false, ShardRoutingState.STARTED, ShardRoutingState.STARTED);
+        final ShardRouting replica = state.routingTable().shardRoutingTable(shardId).replicaShards().get(0);
+        // simulate execution of the node holding the replica
+        state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(replica.currentNodeId())).build();
+        setState(clusterService, state);
+
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         Request request = new Request(shardId).timeout("1ms");
         action.new ReplicaOperationTransportHandler().messageReceived(
@@ -804,6 +809,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             if (action.retryPrimaryException(throwable) == false) {
                 throw new AssertionError("thrown exception is not retriable", throwable);
             }
+            assertThat(throwable.getMessage(), containsString("_not_a_valid_aid_"));
         }
     }
 
@@ -966,10 +972,11 @@ public class TransportReplicationActionTests extends ESTestCase {
         when(indexShard.routingEntry()).thenAnswer(invocationOnMock -> {
             final ClusterState state = clusterService.state();
             final RoutingNode node = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
-            if (node == null) {
+            final ShardRouting routing = node.getByShardId(shardId);
+            if (routing == null) {
                 throw new ShardNotFoundException(shardId, "shard is no longer assigned to current node");
             }
-            return node.getByShardId(shardId);
+            return routing;
         });
         when(indexShard.state()).thenAnswer(invocationOnMock -> isRelocated.get() ? IndexShardState.RELOCATED : IndexShardState.STARTED);
         doThrow(new AssertionError("failed shard is not supported")).when(indexShard).failShard(anyString(), any(Exception.class));

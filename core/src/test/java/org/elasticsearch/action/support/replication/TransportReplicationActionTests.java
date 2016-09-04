@@ -800,8 +800,9 @@ public class TransportReplicationActionTests extends ESTestCase {
             fail("using a wrong aid didn't fail the operation");
         } catch (ExecutionException execException) {
             Throwable throwable = execException.getCause();
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("got exception e"), throwable);
-            assertTrue(throwable.getClass() + " is not a retry exception", action.retryPrimaryException(throwable));
+            if (action.retryPrimaryException(throwable) == false) {
+                throw new AssertionError("thrown exception is not retriable", throwable);
+            }
         }
     }
 

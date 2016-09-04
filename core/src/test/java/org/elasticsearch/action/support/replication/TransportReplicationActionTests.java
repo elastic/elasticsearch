@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -964,7 +965,11 @@ public class TransportReplicationActionTests extends ESTestCase {
         }).when(indexShard).acquireReplicaOperationLock(anyLong(), any(ActionListener.class), anyString());
         when(indexShard.routingEntry()).thenAnswer(invocationOnMock -> {
             final ClusterState state = clusterService.state();
-            return state.getRoutingNodes().node(state.nodes().getLocalNodeId()).getByShardId(shardId);
+            final RoutingNode node = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
+            if (node == null) {
+                throw new ShardNotFoundException(shardId, "shard is no longer assigned to current node");
+            }
+            return node.getByShardId(shardId);
         });
         when(indexShard.state()).thenAnswer(invocationOnMock -> isRelocated.get() ? IndexShardState.RELOCATED : IndexShardState.STARTED);
         doThrow(new AssertionError("failed shard is not supported")).when(indexShard).failShard(anyString(), any(Exception.class));

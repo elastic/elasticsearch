@@ -658,7 +658,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
         }
     }
 
-    final static IndicesRequest convertRequest(TransportRequest request) {
+    static IndicesRequest convertRequest(TransportRequest request) {
         final IndicesRequest indicesRequest;
         if (request instanceof IndicesRequest) {
             indicesRequest = (IndicesRequest) request;

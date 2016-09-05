@@ -102,7 +102,6 @@ public class MapperQueryParser extends QueryParser {
         setLowercaseExpandedTerms(settings.lowercaseExpandedTerms());
         setPhraseSlop(settings.phraseSlop());
         setDefaultOperator(settings.defaultOperator());
-        setFuzzyMinSim(settings.fuzziness().asFloat());
         setFuzzyPrefixLength(settings.fuzzyPrefixLength());
         setLocale(settings.locale());
     }
@@ -114,7 +113,7 @@ public class MapperQueryParser extends QueryParser {
     @Override
     Query handleBareFuzzy(String qfield, Token fuzzySlop, String termImage) throws ParseException {
         if (fuzzySlop.image.length() == 1) {
-            return getFuzzyQuery(qfield, termImage, Float.toString(fuzzyMinSim));
+            return getFuzzyQuery(qfield, termImage, Float.toString(settings.fuzziness().asDistance(termImage)));
         }
         return getFuzzyQuery(qfield, termImage, fuzzySlop.image.substring(1));
     }

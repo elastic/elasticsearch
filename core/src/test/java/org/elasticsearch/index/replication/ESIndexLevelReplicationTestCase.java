@@ -110,7 +110,7 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
 
     protected ThreadPool threadPool;
-    private final Index index = new Index("test", "uuid");
+    protected final Index index = new Index("test", "uuid");
     private final ShardId shardId = new ShardId(index, 0);
     private final Map<String, String> indexMapping = Collections.singletonMap("type", "{ \"type\": {} }");
     protected static final PeerRecoveryTargetService.RecoveryListener recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
@@ -284,8 +284,7 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
             primary.recoverFromStore();
             primary.updateRoutingEntry(ShardRoutingHelper.moveToStarted(primary.routingEntry()));
             for (IndexShard replicaShard : replicas) {
-                recoverReplica(replicaShard,
-                    (replica, sourceNode) -> new RecoveryTarget(replica, sourceNode, recoveryListener, version -> {}));
+                recoverReplica(replicaShard);
             }
         }
 
@@ -294,6 +293,11 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
             replicas.add(replica);
             return replica;
         }
+
+        public void recoverReplica(IndexShard replica) throws IOException {
+            recoverReplica(replica, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener, version -> {}));
+        }
+
         public void recoverReplica(IndexShard replica, BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier)
             throws IOException {
             recoverReplica(replica, targetSupplier, true);

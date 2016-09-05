@@ -302,6 +302,14 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextInt();
     }
 
+    public static long randomPositiveLong() {
+        long randomLong;
+        do {
+            randomLong = randomLong();
+        } while (randomLong == Long.MIN_VALUE);
+        return Math.abs(randomLong);
+    }
+
     public static float randomFloat() {
         return random().nextFloat();
     }

@@ -163,13 +163,9 @@ public class OsProbe {
     private OsProbe() {
     }
 
-    public OsInfo osInfo() {
-        OsInfo info = new OsInfo();
-        info.availableProcessors = Runtime.getRuntime().availableProcessors();
-        info.name = Constants.OS_NAME;
-        info.arch = Constants.OS_ARCH;
-        info.version = Constants.OS_VERSION;
-        return info;
+    public OsInfo osInfo(long refreshInterval, int allocatedProcessors) {
+        return new OsInfo(refreshInterval, Runtime.getRuntime().availableProcessors(),
+                allocatedProcessors, Constants.OS_NAME, Constants.OS_ARCH, Constants.OS_VERSION);
     }
 
     public OsStats osStats() {

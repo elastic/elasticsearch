@@ -19,6 +19,10 @@
 
 package org.elasticsearch.node;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Build;
@@ -51,7 +55,6 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
@@ -119,6 +122,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import javax.management.MBeanServerPermission;
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
@@ -129,11 +133,13 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -216,7 +222,7 @@ public class Node implements Closeable {
         boolean success = false;
         {
             // use temp logger just to say we are starting. we can't use it later on because the node name might not be set
-            ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(environment.settings()));
+            Logger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(environment.settings()));
             logger.info("initializing ...");
 
         }
@@ -236,7 +242,7 @@ public class Node implements Closeable {
 
             final boolean hadPredefinedNodeName = NODE_NAME_SETTING.exists(tmpSettings);
                 tmpSettings = addNodeNameIfNeeded(tmpSettings, nodeEnvironment.nodeId());
-            ESLogger logger = Loggers.getLogger(Node.class, tmpSettings);
+            Logger logger = Loggers.getLogger(Node.class, tmpSettings);
             if (hadPredefinedNodeName == false) {
                 logger.info("node name [{}] derived from node ID; set [{}] to override",
                     NODE_NAME_SETTING.get(tmpSettings), NODE_NAME_SETTING.getKey());
@@ -311,7 +317,7 @@ public class Node implements Closeable {
             final TribeService tribeService = new TribeService(settings, clusterService, nodeEnvironment.nodeId());
             resourcesToClose.add(tribeService);
             final IngestService ingestService = new IngestService(settings, threadPool, this.environment,
-                scriptModule.getScriptService(), pluginsService.filterPlugins(IngestPlugin.class));
+                scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(), pluginsService.filterPlugins(IngestPlugin.class));
 
             ModulesBuilder modules = new ModulesBuilder();
             // plugin modules must be added here, before others or we can get crazy injection errors...
@@ -454,7 +460,7 @@ public class Node implements Closeable {
             return this;
         }
 
-        ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(settings));
+        Logger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(settings));
         logger.info("starting ...");
         // hack around dependency injection problem (for now...)
         injector.getInstance(Discovery.class).setAllocationService(injector.getInstance(AllocationService.class));
@@ -569,7 +575,7 @@ public class Node implements Closeable {
         if (!lifecycle.moveToStopped()) {
             return this;
         }
-        ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(settings));
+        Logger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(settings));
         logger.info("stopping ...");
 
         injector.getInstance(TribeService.class).stop();
@@ -600,6 +606,24 @@ public class Node implements Closeable {
         injector.getInstance(IndicesService.class).stop();
         logger.info("stopped");
 
+        final String log4jShutdownEnabled = System.getProperty("es.log4j.shutdownEnabled", "true");
+        final boolean shutdownEnabled;
+        switch (log4jShutdownEnabled) {
+            case "true":
+                shutdownEnabled = true;
+                break;
+            case "false":
+                shutdownEnabled = false;
+                break;
+            default:
+                throw new IllegalArgumentException(
+                    "invalid value for [es.log4j.shutdownEnabled], was [" + log4jShutdownEnabled + "] but must be [true] or [false]");
+        }
+        if (shutdownEnabled) {
+            LoggerContext context = (LoggerContext) LogManager.getContext(false);
+            Configurator.shutdown(context);
+        }
+
         return this;
     }
 
@@ -615,7 +639,7 @@ public class Node implements Closeable {
             return;
         }
 
-        ESLogger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(settings));
+        Logger logger = Loggers.getLogger(Node.class, NODE_NAME_SETTING.get(settings));
         logger.info("closing ...");
         List<Closeable> toClose = new ArrayList<>();
         StopWatch stopWatch = new StopWatch("node_close");

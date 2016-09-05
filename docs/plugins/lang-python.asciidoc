@@ -1,6 +1,8 @@
 [[lang-python]]
 === Python Language Plugin
 
+deprecated[5.0.0,Python will be replaced by the new scripting language {ref}/modules-scripting-painless.html[`Painless`]]
+
 The Python language plugin enables the use of Python in Elasticsearch
 scripts, via the http://www.jython.org/[Jython] Java implementation of Python.
 

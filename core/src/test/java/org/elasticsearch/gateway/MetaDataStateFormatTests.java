@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gateway;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
@@ -34,7 +35,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -193,7 +193,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
         }
     }
 
-    public static void corruptFile(Path file, ESLogger logger) throws IOException {
+    public static void corruptFile(Path file, Logger logger) throws IOException {
         Path fileToCorrupt = file;
         try (final SimpleFSDirectory dir = new SimpleFSDirectory(fileToCorrupt.getParent())) {
             long checksumBeforeCorruption;

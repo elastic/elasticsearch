@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -39,7 +40,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -379,7 +379,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         return clusterInfo;
     }
 
-    static void buildShardLevelInfo(ESLogger logger, ShardStats[] stats, ImmutableOpenMap.Builder<String, Long> newShardSizes,
+    static void buildShardLevelInfo(Logger logger, ShardStats[] stats, ImmutableOpenMap.Builder<String, Long> newShardSizes,
                                     ImmutableOpenMap.Builder<ShardRouting, String> newShardRoutingToDataPath, ClusterState state) {
         MetaData meta = state.getMetaData();
         for (ShardStats s : stats) {
@@ -402,7 +402,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         }
     }
 
-    static void fillDiskUsagePerNode(ESLogger logger, List<NodeStats> nodeStatsArray,
+    static void fillDiskUsagePerNode(Logger logger, List<NodeStats> nodeStatsArray,
             ImmutableOpenMap.Builder<String, DiskUsage> newLeastAvaiableUsages,
             ImmutableOpenMap.Builder<String, DiskUsage> newMostAvaiableUsages) {
         for (NodeStats nodeStats : nodeStatsArray) {

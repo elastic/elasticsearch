@@ -26,9 +26,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardPath;
-/**
- *
- */
+
 public class IndexStore extends AbstractIndexComponent {
     public static final Setting<IndexRateLimitingType> INDEX_STORE_THROTTLE_TYPE_SETTING =
         new Setting<>("index.store.throttle.type", "none", IndexRateLimitingType::fromString,

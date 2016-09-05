@@ -40,17 +40,25 @@ of the actual execution on the specific machine, compared with request
 level.
 
 The logging file is configured by default using the following
-configuration (found in `logging.yml`):
+configuration (found in `log4j2.properties`):
 
 [source,yaml]
 --------------------------------------------------
-index_search_slow_log_file:
-  type: dailyRollingFile
-  file: ${path.logs}/${cluster.name}_index_search_slowlog.log
-  datePattern: "'.'yyyy-MM-dd"
-  layout:
-    type: pattern
-    conversionPattern: "[%d{ISO8601}][%-5p][%-25c] %m%n"
+appender.index_search_slowlog_rolling.type = RollingFile
+appender.index_search_slowlog_rolling.name = index_search_slowlog_rolling
+appender.index_search_slowlog_rolling.fileName = ${sys:es.logs}_index_search_slowlog.log
+appender.index_search_slowlog_rolling.layout.type = PatternLayout
+appender.index_search_slowlog_rolling.layout.pattern = [%d{ISO8601}][%-5p][%-25c] %.10000m%n
+appender.index_search_slowlog_rolling.filePattern = ${sys:es.logs}_index_search_slowlog-%d{yyyy-MM-dd}.log
+appender.index_search_slowlog_rolling.policies.type = Policies
+appender.index_search_slowlog_rolling.policies.time.type = TimeBasedTriggeringPolicy
+appender.index_search_slowlog_rolling.policies.time.interval = 1
+appender.index_search_slowlog_rolling.policies.time.modulate = true
+
+logger.index_search_slowlog_rolling.name = index.search.slowlog
+logger.index_search_slowlog_rolling.level = trace
+logger.index_search_slowlog_rolling.appenderRef.index_search_slowlog_rolling.ref = index_search_slowlog_rolling
+logger.index_search_slowlog_rolling.additivity = false
 --------------------------------------------------
 
 [float]

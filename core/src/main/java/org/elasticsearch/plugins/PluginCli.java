@@ -31,7 +31,7 @@ import org.elasticsearch.node.internal.InternalSettingsPreparer;
  */
 public class PluginCli extends MultiCommand {
 
-    public PluginCli() {
+    private PluginCli() {
         super("A tool for managing installed elasticsearch plugins");
         subcommands.put("list", new ListPluginsCommand());
         subcommands.put("install", new InstallPluginCommand());
@@ -39,7 +39,7 @@ public class PluginCli extends MultiCommand {
     }
 
     public static void main(String[] args) throws Exception {
-        // initialize default for es.logger.level because we will not read the logging.yml
+        // initialize default for es.logger.level because we will not read the log4j2.properties
         String loggerLevel = System.getProperty("es.logger.level", "INFO");
         String pathHome = System.getProperty("es.path.home");
         // Set the appender for all potential log files to terminal so that other components that use the logger print out the
@@ -50,11 +50,9 @@ public class PluginCli extends MultiCommand {
         // Therefore we print to Terminal.
         Environment loggingEnvironment = InternalSettingsPreparer.prepareEnvironment(Settings.builder()
                 .put("path.home", pathHome)
-                .put("appender.terminal.type", "terminal")
-                .put("rootLogger", "${logger.level}, terminal")
                 .put("logger.level", loggerLevel)
                 .build(), Terminal.DEFAULT);
-        LogConfigurator.configure(loggingEnvironment.settings(), false);
+        LogConfigurator.configure(loggingEnvironment, false);
 
         exit(new PluginCli().main(args, Terminal.DEFAULT));
     }

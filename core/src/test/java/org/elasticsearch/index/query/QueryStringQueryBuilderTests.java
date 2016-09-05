@@ -26,15 +26,16 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.SynonymQuery;
-import org.apache.lucene.search.PrefixQuery;
-import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -388,6 +389,32 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 () -> queryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
         assertThat(e.getMessage(), containsString("would result in more than 10000 states"));
+    }
+
+    public void testToQueryFuzzyQueryAutoFuziness() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+
+        int length = randomIntBetween(1, 10);
+        StringBuilder queryString = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            queryString.append("a");
+        }
+        queryString.append("~");
+
+        int expectedEdits;
+        if (length <= 2) {
+            expectedEdits = 0;
+        } else if (3 <= length && length <= 5) {
+            expectedEdits = 1;
+        } else {
+            expectedEdits = 2;
+        }
+
+        Query query = queryStringQuery(queryString.toString()).defaultField(STRING_FIELD_NAME).fuzziness(Fuzziness.AUTO)
+            .toQuery(createShardContext());
+        assertThat(query, instanceOf(FuzzyQuery.class));
+        FuzzyQuery fuzzyQuery = (FuzzyQuery) query;
+        assertEquals(expectedEdits, fuzzyQuery.getMaxEdits());
     }
 
     public void testFuzzyNumeric() throws Exception {

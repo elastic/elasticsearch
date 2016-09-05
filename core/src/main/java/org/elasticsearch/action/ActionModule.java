@@ -20,7 +20,6 @@
 package org.elasticsearch.action;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -335,7 +334,7 @@ public class ActionModule extends AbstractModule {
         this.actionPlugins = actionPlugins;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins, ingestEnabled);
-        autoCreateIndex = transportClient ? null : new AutoCreateIndex(settings, resolver);
+        autoCreateIndex = transportClient ? null : new AutoCreateIndex(settings, clusterSettings, resolver);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<String> headers = actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()).collect(Collectors.toSet());
         restController = new RestController(settings, headers);

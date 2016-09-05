@@ -19,6 +19,8 @@
 
 package org.elasticsearch.discovery.zen.fd;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -28,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -36,6 +37,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -166,7 +168,12 @@ public class NodesFaultDetection extends FaultDetection {
                 }
             });
         } catch (EsRejectedExecutionException ex) {
-            logger.trace("[node  ] [{}] ignoring node failure (reason [{}]). Local node is shutting down", ex, node, reason);
+            logger.trace(
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "[node  ] [{}] ignoring node failure (reason [{}]). Local node is shutting down",
+                    node,
+                    reason),
+                ex);
         }
     }
 
@@ -231,7 +238,13 @@ public class NodesFaultDetection extends FaultDetection {
                             }
 
                             retryCount++;
-                            logger.trace("[node  ] failed to ping [{}], retry [{}] out of [{}]", exp, node, retryCount, pingRetryCount);
+                            logger.trace(
+                                (Supplier<?>) () -> new ParameterizedMessage(
+                                    "[node  ] failed to ping [{}], retry [{}] out of [{}]",
+                                    node,
+                                    retryCount,
+                                    pingRetryCount),
+                                exp);
                             if (retryCount >= pingRetryCount) {
                                 logger.debug("[node  ] failed to ping [{}], tried [{}] times, each with  maximum [{}] timeout", node,
                                     pingRetryCount, pingRetryTimeout);

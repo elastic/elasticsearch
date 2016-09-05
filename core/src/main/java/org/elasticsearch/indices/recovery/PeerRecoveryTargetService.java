@@ -19,6 +19,8 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
@@ -141,7 +143,9 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
     protected void retryRecovery(final RecoveryTarget recoveryTarget, final Throwable reason, TimeValue retryAfter, final
     StartRecoveryRequest currentRequest) {
-        logger.trace("will retry recovery with id [{}] in [{}]", reason, recoveryTarget.recoveryId(), retryAfter);
+        logger.trace(
+            (Supplier<?>) () -> new ParameterizedMessage(
+                "will retry recovery with id [{}] in [{}]", recoveryTarget.recoveryId(), retryAfter), reason);
         retryRecovery(recoveryTarget, retryAfter, currentRequest);
     }
 
@@ -233,7 +237,12 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             logger.trace("recovery cancelled", e);
         } catch (Exception e) {
             if (logger.isTraceEnabled()) {
-                logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().getIndex().getName(), request.shardId().id());
+                logger.trace(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "[{}][{}] Got exception on recovery",
+                        request.shardId().getIndex().getName(),
+                        request.shardId().id()),
+                    e);
             }
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof CancellableThreads.ExecutionCancelledException) {
@@ -295,7 +304,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                recoveryRef.status().prepareForTranslogOperations(request.totalTranslogOps());
+                recoveryRef.status().prepareForTranslogOperations(request.totalTranslogOps(), request.getMaxUnsafeAutoIdTimestamp());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -345,8 +354,11 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                     // which causes local mapping changes since the mapping (clusterstate) might not have arrived on this node.
                     // we want to wait until these mappings are processed but also need to do some maintenance and roll back the
                     // number of processed (completed) operations in this batch to ensure accounting is correct.
-                    logger.trace("delaying recovery due to missing mapping changes (rolling back stats for [{}] ops)", exception, exception
-                            .completedOperations());
+                    logger.trace(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                            "delaying recovery due to missing mapping changes (rolling back stats for [{}] ops)",
+                            exception.completedOperations()),
+                        exception);
                     final RecoveryState.Translog translog = recoveryTarget.state().getTranslog();
                     translog.decrementRecoveredOperations(exception.completedOperations()); // do the maintainance and rollback competed ops
                     // we do not need to use a timeout here since the entire recovery mechanism has an inactivity protection (it will be
@@ -425,8 +437,12 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 logger.trace("successfully waited for cluster state with version {} (current: {})", clusterStateVersion,
                     observer.observedState().getVersion());
             } catch (Exception e) {
-                logger.debug("failed waiting for cluster state with version {} (current: {})", e, clusterStateVersion,
-                    observer.observedState());
+                logger.debug(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "failed waiting for cluster state with version {} (current: {})",
+                        clusterStateVersion,
+                        observer.observedState()),
+                    e);
                 throw ExceptionsHelper.convertToRuntime(e);
             }
         }
@@ -504,13 +520,17 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         public void onFailure(Exception e) {
             try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
                 if (recoveryRef != null) {
-                    logger.error("unexpected error during recovery [{}], failing shard", e, recoveryId);
+                    logger.error(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                            "unexpected error during recovery [{}], failing shard", recoveryId), e);
                     onGoingRecoveries.failRecovery(recoveryId,
                             new RecoveryFailedException(recoveryRef.status().state(), "unexpected error", e),
                             true // be safe
                     );
                 } else {
-                    logger.debug("unexpected error during recovery, but recovery id [{}] is finished", e, recoveryId);
+                    logger.debug(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                            "unexpected error during recovery, but recovery id [{}] is finished", recoveryId), e);
                 }
             }
         }

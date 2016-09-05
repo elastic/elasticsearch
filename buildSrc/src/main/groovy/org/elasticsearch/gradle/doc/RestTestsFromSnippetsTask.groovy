@@ -117,7 +117,7 @@ public class RestTestsFromSnippetsTask extends SnippetsTask {
 
             if (false == test.continued) {
                 current.println('---')
-                current.println("\"$test.start\":")
+                current.println("\"line_$test.start\":")
             }
             if (test.skipTest) {
                 current.println("  - skip:")

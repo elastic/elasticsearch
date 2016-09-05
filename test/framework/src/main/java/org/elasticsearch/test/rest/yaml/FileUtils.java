@@ -155,7 +155,7 @@ public final class FileUtils {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 if (file.toString().endsWith(fileSuffix)) {
-                    String groupName = file.toAbsolutePath().getParent().getFileName().toString();
+                    String groupName = dir.relativize(file.getParent()).toString();
                     Set<Path> filesSet = files.get(groupName);
                     if (filesSet == null) {
                         filesSet = new HashSet<>();

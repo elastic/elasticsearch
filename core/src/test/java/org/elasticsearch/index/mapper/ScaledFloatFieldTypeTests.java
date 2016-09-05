@@ -117,8 +117,8 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         IndexSearcher searcher = newSearcher(reader);
         final int numQueries = 1000;
         for (int i = 0; i < numQueries; ++i) {
-            double l = (randomDouble() * 2 - 1) * 10000;
-            double u = (randomDouble() * 2 - 1) * 10000;
+            Double l = randomBoolean() ? null : (randomDouble() * 2 - 1) * 10000;
+            Double u = randomBoolean() ? null : (randomDouble() * 2 - 1) * 10000;
             boolean includeLower = randomBoolean();
             boolean includeUpper = randomBoolean();
             Query doubleQ = NumberFieldMapper.NumberType.DOUBLE.rangeQuery("double", l, u, includeLower, includeUpper);

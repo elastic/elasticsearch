@@ -19,6 +19,7 @@
 
 package org.elasticsearch.mapper.attachments;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
@@ -26,7 +27,6 @@ import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -75,7 +75,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseMultiField;
  */
 public class AttachmentMapper extends FieldMapper {
 
-    private static ESLogger logger = ESLoggerFactory.getLogger("mapper.attachment");
+    private static Logger logger = ESLoggerFactory.getLogger("mapper.attachment");
     public static final Setting<Boolean> INDEX_ATTACHMENT_IGNORE_ERRORS_SETTING =
         Setting.boolSetting("index.mapping.attachment.ignore_errors", true, Property.IndexScope);
     public static final Setting<Boolean> INDEX_ATTACHMENT_DETECT_LANGUAGE_SETTING =
@@ -653,4 +653,5 @@ public class AttachmentMapper extends FieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
+
 }

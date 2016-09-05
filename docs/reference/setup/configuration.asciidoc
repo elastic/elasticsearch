@@ -15,7 +15,7 @@ able to join a cluster, such as `cluster.name` and `network.host`.
 Elasticsearch has two configuration files:
 
 * `elasticsearch.yml` for configuring Elasticsearch, and
-* `logging.yml` for configuring Elasticsearch logging.
+* `log4j2.properties` for configuring Elasticsearch logging.
 
 These files are located in the config directory, whose location defaults to
 `$ES_HOME/config/`.  The Debian and RPM packages set the config directory
@@ -110,24 +110,50 @@ command line with `es.node.name` or in the config file with `node.name`.
 [[logging]]
 == Logging configuration
 
-Elasticsearch uses an internal logging abstraction and comes, out of the
-box, with http://logging.apache.org/log4j/1.2/[log4j]. It tries to simplify
-log4j configuration by using http://www.yaml.org/[YAML] to configure it,
-and the logging configuration file is `config/logging.yml`. The
-http://en.wikipedia.org/wiki/JSON[JSON] and
-http://en.wikipedia.org/wiki/.properties[properties] formats are also
-supported. Multiple configuration files can be loaded, in which case they will
-get merged, as long as they start with the `logging.` prefix and end with one
-of the supported suffixes (either `.yml`, `.yaml`, `.json` or `.properties`).
-The logger section contains the java packages and their corresponding log
-level, where it is possible to omit the `org.elasticsearch` prefix. The
-appender section contains the destinations for the logs. Extensive information
-on how to customize logging and all the supported appenders can be found on
-the http://logging.apache.org/log4j/1.2/manual.html[log4j documentation].
+Elasticsearch uses http://logging.apache.org/log4j/2.x/[Log4j 2] for
+logging. Log4j 2 can be configured using the log4j2.properties
+file. Elasticsearch exposes a single property `${sys:es.logs}` that can be
+referenced in the configuration file to determine the location of the log files;
+this will resolve to a prefix for the Elasticsearch log file at runtime.
 
-Additional Appenders and other logging classes provided by
-http://logging.apache.org/log4j/extras/[log4j-extras] are also available,
-out of the box.
+For example, if your log directory (`path.logs`) is `/var/log/elasticsearch` and
+your cluster is named `production` then `${sys:es.logs}` will resolve to
+`/var/log/elasticsearch/production`.
+
+[source,properties]
+--------------------------------------------------
+appender.rolling.type = RollingFile <1>
+appender.rolling.name = rolling
+appender.rolling.fileName = ${sys:es.logs}.log <2>
+appender.rolling.layout.type = PatternLayout
+appender.rolling.layout.pattern = [%d{ISO8601}][%-5p][%-25c] %.10000m%n
+appender.rolling.filePattern = ${sys:es.logs}-%d{yyyy-MM-dd}.log <3>
+appender.rolling.policies.type = Policies
+appender.rolling.policies.time.type = TimeBasedTriggeringPolicy <4>
+appender.rolling.policies.time.interval = 1 <5>
+appender.rolling.policies.time.modulate = true <6>
+--------------------------------------------------
+
+<1> Configure the `RollingFile` appender
+<2> Log to `/var/log/elasticsearch/production.log`
+<3> Roll logs to `/var/log/elasticsearch/production-yyyy-MM-dd.log`
+<4> Using a time-based roll policy
+<5> Roll logs on a daily basis
+<6> Align rolls on the day boundary (as opposed to rolling every twenty-four
+    hours)
+
+If you append `.gz` or `.zip` to `appender.rolling.filePattern`, then the logs
+will be compressed as they are rolled.
+
+Multiple configuration files can be loaded (in which case they will get merged)
+as long as they are named `log4j2.properties` and have the Elasticsearch config
+directory as an ancestor; this is useful for plugins that expose additional
+loggers.  The logger section contains the java packages and their corresponding
+log level, where it is possible to omit the `org.elasticsearch` prefix. The
+appender section contains the destinations for the logs. Extensive information
+on how to customize logging and all the supported appenders can be found on the
+http://logging.apache.org/log4j/2.x/manual/configuration.html[Log4j
+documentation].
 
 [float]
 [[deprecation-logging]]
@@ -136,14 +162,21 @@ out of the box.
 In addition to regular logging, Elasticsearch allows you to enable logging
 of deprecated actions. For example this allows you to determine early, if
 you need to migrate certain functionality in the future. By default,
-deprecation logging is disabled. You can enable it in the `config/logging.yml`
-file by setting the deprecation log level to `DEBUG`.
+deprecation logging is enabled at the WARN level, the level at which all
+deprecation log messages will be emitted.
 
-[source,yaml]
+[source,properties]
 --------------------------------------------------
-deprecation: DEBUG, deprecation_log_file
+logger.deprecation.level = warn
 --------------------------------------------------
 
 This will create a daily rolling deprecation log file in your log directory.
 Check this file regularly, especially when you intend to upgrade to a new
 major version.
+
+The default logging configuration has set the roll policy for the deprecation
+logs to roll and compress after 1 GB, and to preserve a maximum of five log
+files (four rolled logs, and the active log).
+
+You can disable it in the `config/log4j2.properties` file by setting the deprecation
+log level to `info`.

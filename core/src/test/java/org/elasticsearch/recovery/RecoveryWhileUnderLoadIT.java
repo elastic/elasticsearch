@@ -19,16 +19,16 @@
 
 package org.elasticsearch.recovery;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -54,7 +54,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTi
 
 @TestLogging("_root:DEBUG,index.shard:TRACE")
 public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
-    private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadIT.class);
+    private final Logger logger = Loggers.getLogger(RecoveryWhileUnderLoadIT.class);
 
     public void testRecoverWhileUnderLoadAllocateReplicasTest() throws Exception {
         logger.info("--> creating test index ...");
@@ -193,7 +193,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             allowNodes("test", 4);
 
             logger.info("--> waiting for GREEN health status ...");
-            assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForGreenStatus().setWaitForRelocatingShards(0));
+            assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForGreenStatus().setWaitForNoRelocatingShards(true));
 
             logger.info("--> waiting for {} docs to be indexed ...", totalNumDocs);
             waitForDocs(totalNumDocs, indexer);
@@ -204,23 +204,23 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             logger.info("--> allow 3 nodes for index [test] ...");
             allowNodes("test", 3);
             logger.info("--> waiting for relocations ...");
-            assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForRelocatingShards(0));
+            assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForNoRelocatingShards(true));
 
             logger.info("--> allow 2 nodes for index [test] ...");
             allowNodes("test", 2);
             logger.info("--> waiting for relocations ...");
-            assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForRelocatingShards(0));
+            assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForNoRelocatingShards(true));
 
             logger.info("--> allow 1 nodes for index [test] ...");
             allowNodes("test", 1);
             logger.info("--> waiting for relocations ...");
-            assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForRelocatingShards(0));
+            assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForNoRelocatingShards(true));
 
             logger.info("--> marking and waiting for indexing threads to stop ...");
             indexer.stop();
             logger.info("--> indexing threads stopped");
 
-            assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForRelocatingShards(0));
+            assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForNoRelocatingShards(true));
 
             logger.info("--> refreshing the index");
             refreshAndAssert();

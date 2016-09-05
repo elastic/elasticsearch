@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.client.benchmark.ops.bulk;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.benchmark.BenchmarkTask;
 import org.elasticsearch.client.benchmark.metrics.Sample;
 import org.elasticsearch.client.benchmark.metrics.SampleRecorder;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.io.BufferedReader;
@@ -135,7 +135,7 @@ public class BulkBenchmarkTask implements BenchmarkTask {
 
 
     private static final class BulkIndexer implements Runnable {
-        private static final ESLogger logger = ESLoggerFactory.getLogger(BulkIndexer.class.getName());
+        private static final Logger logger = ESLoggerFactory.getLogger(BulkIndexer.class.getName());
 
         private final BlockingQueue<List<String>> bulkData;
         private final int warmupIterations;

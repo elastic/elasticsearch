@@ -24,6 +24,7 @@ import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -51,7 +52,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -147,7 +147,7 @@ import static org.junit.Assert.fail;
  */
 public final class InternalTestCluster extends TestCluster {
 
-    private final ESLogger logger = Loggers.getLogger(getClass());
+    private final Logger logger = Loggers.getLogger(getClass());
 
     /**
      * The number of ports in the range used for this JVM

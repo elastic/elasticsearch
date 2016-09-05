@@ -33,14 +33,15 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ProcessProbeTests extends ESTestCase {
-    ProcessProbe probe = ProcessProbe.getInstance();
+    private final ProcessProbe probe = ProcessProbe.getInstance();
 
     public void testProcessInfo() {
-        ProcessInfo info = probe.processInfo();
+        long refreshInterval = randomPositiveLong();
+        ProcessInfo info = probe.processInfo(refreshInterval);
         assertNotNull(info);
-        assertThat(info.getRefreshInterval(), greaterThanOrEqualTo(0L));
-        assertThat(info.getId(), equalTo(jvmInfo().pid()));
-        assertThat(info.isMlockall(), equalTo(BootstrapInfo.isMemoryLocked()));
+        assertEquals(refreshInterval, info.getRefreshInterval());
+        assertEquals(jvmInfo().pid(), info.getId());
+        assertEquals(BootstrapInfo.isMemoryLocked(), info.isMlockall());
     }
 
     public void testProcessStats() {

@@ -38,6 +38,7 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -88,9 +89,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- * TODO: document me!
- */
 public class ShadowEngineTests extends ESTestCase {
 
     protected final ShardId shardId = new ShardId("index", "_na_", 1);
@@ -250,7 +248,7 @@ public class ShadowEngineTests extends ESTestCase {
         EngineConfig config = new EngineConfig(openMode, shardId, threadPool, indexSettings, null, store, createSnapshotDeletionPolicy(),
                 mergePolicy, iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), eventListener, null,
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
-                TimeValue.timeValueMinutes(5), refreshListeners);
+                TimeValue.timeValueMinutes(5), refreshListeners, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
 
         return config;
     }
@@ -989,7 +987,7 @@ public class ShadowEngineTests extends ESTestCase {
         final int numDocs = randomIntBetween(2, 10); // at least 2 documents otherwise we don't see any deletes below
         for (int i = 0; i < numDocs; i++) {
             ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), new BytesArray("{}"), null);
-            Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime());
+            Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(i)), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), -1, false);
             primaryEngine.index(firstIndexRequest);
             assertThat(firstIndexRequest.version(), equalTo(1L));
         }

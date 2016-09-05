@@ -128,7 +128,7 @@ public class FlushIT extends ESIntegTestCase {
         internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, currentNodeName, newNodeName)).get();
 
         client().admin().cluster().prepareHealth()
-                .setWaitForRelocatingShards(0)
+                .setWaitForNoRelocatingShards(true)
                 .get();
         indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         for (ShardStats shardStats : indexStats.getShards()) {

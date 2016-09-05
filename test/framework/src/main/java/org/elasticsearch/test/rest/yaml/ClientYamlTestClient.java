@@ -19,19 +19,18 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
@@ -55,7 +54,7 @@ import java.util.Set;
  * REST calls.
  */
 public class ClientYamlTestClient {
-    private static final ESLogger logger = Loggers.getLogger(ClientYamlTestClient.class);
+    private static final Logger logger = Loggers.getLogger(ClientYamlTestClient.class);
     //query_string params that don't need to be declared in the spec, they are supported by default
     private static final Set<String> ALWAYS_ACCEPTED_QUERY_STRING_PARAMS = Sets.newHashSet("pretty", "source", "filter_path");
 

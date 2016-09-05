@@ -19,6 +19,7 @@
 
 package org.elasticsearch;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.io.stream.StreamInput;

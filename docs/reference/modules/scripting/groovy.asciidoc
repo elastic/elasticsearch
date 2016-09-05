@@ -1,6 +1,8 @@
 [[modules-scripting-groovy]]
 === Groovy Scripting Language
 
+deprecated[5.0.0,Groovy will be replaced by the new scripting language <<modules-scripting-painless, `Painless`>>]
+
 Groovy is the default scripting language available in Elasticsearch.  Although
 limited by the <<java-security-manager,Java Security Manager>>, it is not a
 sandboxed language and only `file` scripts may be used by default.

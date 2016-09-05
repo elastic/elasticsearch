@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.CorruptIndexException;
@@ -73,7 +74,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -473,7 +473,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
     }
 
-    public static ShardStateMetaData load(ESLogger logger, Path... shardPaths) throws IOException {
+    public static ShardStateMetaData load(Logger logger, Path... shardPaths) throws IOException {
         return ShardStateMetaData.FORMAT.loadLatestState(logger, shardPaths);
     }
 
@@ -1611,7 +1611,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         operations.add(new Translog.Index("testtype", "1", BytesReference.toBytes(jsonBuilder().startObject().field("foo", "bar").endObject().bytes())));
         newShard.prepareForIndexRecovery();
         newShard.recoveryState().getTranslog().totalOperations(operations.size());
-        newShard.skipTranslogRecovery();
+        newShard.skipTranslogRecovery(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
         newShard.performBatchRecovery(operations);
         assertFalse(newShard.getTranslog().syncNeeded());
     }
@@ -1668,7 +1668,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         List<Translog.Operation> operations = new ArrayList<>();
         operations.add(new Translog.Index("testtype", "1", BytesReference.toBytes(jsonBuilder().startObject().field("foo", "bar").endObject().bytes())));
         newShard.prepareForIndexRecovery();
-        newShard.skipTranslogRecovery();
+        newShard.skipTranslogRecovery(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(newShard.isActive());
         newShard.performBatchRecovery(operations);
@@ -1819,5 +1819,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         }
         @Override
         public void verify(String verificationToken, DiscoveryNode localNode) {}
+    }
+
+    public static Engine getEngineFromShard(IndexShard shard) {
+        return shard.getEngineOrNull();
     }
 }

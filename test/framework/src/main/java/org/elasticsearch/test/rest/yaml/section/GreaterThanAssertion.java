@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentLocation;
 
@@ -34,7 +34,7 @@ import static org.junit.Assert.fail;
  */
 public class GreaterThanAssertion extends Assertion {
 
-    private static final ESLogger logger = Loggers.getLogger(GreaterThanAssertion.class);
+    private static final Logger logger = Loggers.getLogger(GreaterThanAssertion.class);
 
     public GreaterThanAssertion(XContentLocation location, String field, Object expectedValue) {
         super(location, field, expectedValue);

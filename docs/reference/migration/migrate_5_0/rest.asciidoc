@@ -29,9 +29,9 @@ document exists in an index. The old endpoint will keep working until 6.0.
 
 ==== Removed `mem` section from `/_cluster/stats` response
 
-The `mem` section contained only one value, the total memory available
-throughout all nodes in the cluster. The section was removed as it didn't
-prove useful.
+The `mem` section contained only the `total` value, which was actually the
+memory available throughout all nodes in the cluster. The section contains now
+`total`, `free`, `used`, `used_percent` and `free_percent`.
 
 ==== Revised node roles aggregate returned by `/_cluster/stats`
 
@@ -67,8 +67,8 @@ removed in Elasticsearch 6.0.0.
 
 ==== Analyze API changes
 
-The deprecated `filters`/`token_filters`/`char_filters` parameter has been
-renamed `filter`/`token_filter`/`char_filter`.
+The `filters` and `char_filters` parameters have been renamed `filter` and `char_filter`.
+The `token_filters` parameter has been removed. Use `filter` instead.
 
 ==== `DELETE /_query` endpoint removed
 
@@ -91,3 +91,10 @@ The `PUT /_search/template/{id}/_create` endpoint that previously allowed to cre
 
 Some REST endpoints (e.g., cluster update index settings) supported detecting content in the Java
 properties format (line-delimited key=value pairs). This support has been removed.
+
+==== `wait_for_relocating_shards` is now `wait_for_no_relocating_shards` in `/_cluster/health`
+
+The `wait_for_relocating_shards` parameter that used to take a number is now simply a boolean
+flag `wait_for_no_relocating_shards`, which if set to true, means the request will wait (up
+until the configured timeout) for the cluster to have no shard relocations before returning.
+Defaults to false, which means the operation will not wait.

@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.discovery.zen;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -76,6 +78,7 @@ import java.util.stream.StreamSupport;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.shuffle;
+import static org.elasticsearch.cluster.ESAllocationTestCase.createAllocationService;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -83,7 +86,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_C
 import static org.elasticsearch.cluster.routing.RoutingTableTests.updateActiveAllocations;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
-import static org.elasticsearch.cluster.ESAllocationTestCase.createAllocationService;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -722,7 +724,7 @@ public class NodeJoinControllerTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("unexpected error for {}", e, future);
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected error for {}", future), e);
                 future.markAsFailed(e);
             }
         });

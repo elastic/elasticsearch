@@ -219,7 +219,7 @@ public class TopHitsIT extends ESIntegTestCase {
             builder.endArray().endObject();
 
             builders.add(
-                    client().prepareIndex("articles", "article").setCreate(true).setSource(builder)
+                    client().prepareIndex("articles", "article").setSource(builder)
             );
         }
 

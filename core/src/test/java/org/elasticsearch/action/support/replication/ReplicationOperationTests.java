@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.support.replication;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -34,7 +35,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
@@ -491,7 +491,7 @@ public class ReplicationOperationTests extends ESTestCase {
 
         public TestReplicationOperation(Request request, Primary<Request, Request, TestPrimary.Result> primary,
                 ActionListener<TestPrimary.Result> listener, boolean executeOnReplicas,
-                Replicas<Request> replicas, Supplier<ClusterState> clusterStateSupplier, ESLogger logger, String opType) {
+                Replicas<Request> replicas, Supplier<ClusterState> clusterStateSupplier, Logger logger, String opType) {
             super(request, primary, listener, executeOnReplicas, replicas, clusterStateSupplier, logger, opType);
         }
     }

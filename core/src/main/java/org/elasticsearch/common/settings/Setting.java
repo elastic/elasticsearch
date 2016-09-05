@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.settings;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
@@ -26,7 +27,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -374,7 +374,7 @@ public class Setting<T> extends ToXContentToBytes {
     /**
      * Build a new updater with a noop validator.
      */
-    final AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, ESLogger logger) {
+    final AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger) {
         return newUpdater(consumer, logger, (s) -> {});
     }
 
@@ -382,7 +382,7 @@ public class Setting<T> extends ToXContentToBytes {
      * Build the updater responsible for validating new values, logging the new
      * value, and eventually setting the value where it belongs.
      */
-    AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, ESLogger logger, Consumer<T> validator) {
+    AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger, Consumer<T> validator) {
         if (isDynamic()) {
             return new Updater(consumer, logger, validator);
         } else {
@@ -395,7 +395,7 @@ public class Setting<T> extends ToXContentToBytes {
      * and its usage for details.
      */
     static <A, B> AbstractScopedSettings.SettingUpdater<Tuple<A, B>> compoundUpdater(final BiConsumer<A, B> consumer,
-            final Setting<A> aSetting, final Setting<B> bSetting, ESLogger logger) {
+            final Setting<A> aSetting, final Setting<B> bSetting, Logger logger) {
         final AbstractScopedSettings.SettingUpdater<A> aSettingUpdater = aSetting.newUpdater(null, logger);
         final AbstractScopedSettings.SettingUpdater<B> bSettingUpdater = bSetting.newUpdater(null, logger);
         return new AbstractScopedSettings.SettingUpdater<Tuple<A, B>>() {
@@ -424,10 +424,10 @@ public class Setting<T> extends ToXContentToBytes {
 
     private final class Updater implements AbstractScopedSettings.SettingUpdater<T> {
         private final Consumer<T> consumer;
-        private final ESLogger logger;
+        private final Logger logger;
         private final Consumer<T> accept;
 
-        public Updater(Consumer<T> consumer, ESLogger logger, Consumer<T> accept) {
+        public Updater(Consumer<T> consumer, Logger logger, Consumer<T> accept) {
             this.consumer = consumer;
             this.logger = logger;
             this.accept = accept;
@@ -707,7 +707,7 @@ public class Setting<T> extends ToXContentToBytes {
             }
 
             @Override
-            public AbstractScopedSettings.SettingUpdater<Settings> newUpdater(Consumer<Settings> consumer, ESLogger logger,
+            public AbstractScopedSettings.SettingUpdater<Settings> newUpdater(Consumer<Settings> consumer, Logger logger,
                     Consumer<Settings> validator) {
                 if (isDynamic() == false) {
                     throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
@@ -831,7 +831,7 @@ public class Setting<T> extends ToXContentToBytes {
             }
 
             @Override
-            AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, ESLogger logger, Consumer<T> validator) {
+            AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger, Consumer<T> validator) {
                 throw new UnsupportedOperationException("Affix settings can't be updated. Use #getConcreteSetting for updating.");
             }
 

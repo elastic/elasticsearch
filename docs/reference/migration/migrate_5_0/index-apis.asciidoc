@@ -57,3 +57,15 @@ that the multi-index matching and expansion is not confused. It was previously
 possible (but a really bad idea) to create indices starting with a hyphen or
 plus sign. Any index already existing with these preceding characters will
 continue to work normally.
+
+==== Aliases API
+
+The `/_aliases` API no longer supports `indexRouting` and `index-routing`, only
+`index_routing`. It also no longer support `searchRouting` and `search-routing`,
+only `search_routing`. These were removed because they were untested and we
+prefer there to be only one (obvious) way to do things like this.
+
+==== OpType Create without an ID
+
+As of 5.0 indexing a document with `op_type=create` without specifying an ID is not
+supported anymore.

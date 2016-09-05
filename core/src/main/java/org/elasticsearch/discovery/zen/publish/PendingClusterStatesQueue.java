@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.discovery.zen.publish;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.logging.ESLogger;
 
 import java.util.ArrayList;
 import java.util.Locale;
@@ -55,10 +55,10 @@ public class PendingClusterStatesQueue {
     }
 
     final ArrayList<ClusterStateContext> pendingStates = new ArrayList<>();
-    final ESLogger logger;
+    final Logger logger;
     final int maxQueueSize;
 
-    public PendingClusterStatesQueue(ESLogger logger, int maxQueueSize) {
+    public PendingClusterStatesQueue(Logger logger, int maxQueueSize) {
         this.logger = logger;
         this.maxQueueSize = maxQueueSize;
     }

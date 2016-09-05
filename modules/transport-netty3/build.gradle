@@ -123,5 +123,5 @@ thirdPartyAudit.excludes = [
 
         // from org.jboss.netty.util.internal.logging.InternalLoggerFactory (netty) - it's optional
         'org.slf4j.Logger',
-        'org.slf4j.LoggerFactory',
+        'org.slf4j.LoggerFactory'
 ]

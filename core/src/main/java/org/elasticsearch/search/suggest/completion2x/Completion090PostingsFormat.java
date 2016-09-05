@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.suggest.completion2x;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FieldsProducer;
@@ -42,7 +43,6 @@ import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.mapper.CompletionFieldMapper2x;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -75,7 +75,7 @@ public class Completion090PostingsFormat extends PostingsFormat {
     public static final int SUGGEST_VERSION_CURRENT = SUGGEST_CODEC_VERSION;
     public static final String EXTENSION = "cmp";
 
-    private static final ESLogger logger = Loggers.getLogger(Completion090PostingsFormat.class);
+    private static final Logger logger = Loggers.getLogger(Completion090PostingsFormat.class);
     private PostingsFormat delegatePostingsFormat;
     private static final Map<String, CompletionLookupProvider> providers;
     private CompletionLookupProvider writeProvider;

@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.action.support.replication;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -50,7 +48,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -765,7 +762,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertEquals(ActiveShardCount.from(requestWaitForActiveShards), request.waitForActiveShards());
     }
 
-    /** test that a primary request is reject if it arrives at a shard with a wrong allocation id */
+    /** test that a primary request is rejected if it arrives at a shard with a wrong allocation id */
     public void testPrimaryActionRejectsWrongAid() throws Exception {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
@@ -781,12 +778,12 @@ public class TransportReplicationActionTests extends ESTestCase {
             fail("using a wrong aid didn't fail the operation");
         } catch (ExecutionException execException) {
             Throwable throwable = execException.getCause();
-            logger.debug((Supplier<?>) () -> new ParameterizedMessage("got exception e"), throwable);
+            logger.debug("got exception:" , throwable);
             assertTrue(throwable.getClass() + " is not a retry exception", action.retryPrimaryException(throwable));
         }
     }
 
-    /** test that a replica request is reject if it arrives at a shard with a wrong allocation id */
+    /** test that a replica request is rejected if it arrives at a shard with a wrong allocation id */
     public void testReplicaActionRejectsWrongAid() throws Exception {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
@@ -865,7 +862,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(capturedRequest.action, equalTo("testActionWithExceptions[r]"));
         assertThat(capturedRequest.request, instanceOf(Action.RequestWithAllocationID.class));
         assertThat(((Action.RequestWithAllocationID) capturedRequest.request).getRequest(), equalTo(request));
-        assertThat(((Action.RequestWithAllocationID) capturedRequest.request).getAllocationId(), equalTo(replica.allocationId().getId()));
+        assertThat(((Action.RequestWithAllocationID) capturedRequest.request).getTargetAllocationID(), equalTo(replica.allocationId().getId()));
     }
 
 
@@ -1018,7 +1015,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[1];
             final long primaryTerm = indexShard.getPrimaryTerm();
             if (term < primaryTerm) {
-                throw new IllegalArgumentException(LoggerMessageFormat.format("{} operation term [{}] is too old (current [{}])",
+                throw new IllegalArgumentException(String.format("%s operation term [%d] is too old (current [%d])",
                     shardId, term, primaryTerm));
             }
             count.incrementAndGet();

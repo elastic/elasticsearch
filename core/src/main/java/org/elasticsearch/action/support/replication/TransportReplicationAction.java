@@ -74,6 +74,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -246,14 +247,14 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void messageReceived(RequestWithAllocationID<Request> request, TransportChannel channel, Task task) {
-            new AsyncPrimaryAction(request.request, request.allocationId, channel, (ReplicationTask) task).run();
+            new AsyncPrimaryAction(request.request, request.targetAllocationID, channel, (ReplicationTask) task).run();
         }
     }
 
     class AsyncPrimaryAction extends AbstractRunnable implements ActionListener<PrimaryShardReference> {
 
         private final Request request;
-        /** allocationId of the shard this request is meant for */
+        /** targetAllocationID of the shard this request is meant for */
         private final String allocationId;
         private final TransportChannel channel;
         private final ReplicationTask replicationTask;
@@ -412,9 +413,9 @@ public abstract class TransportReplicationAction<
         }
 
         @Override
-        public void messageReceived(RequestWithAllocationID<ReplicaRequest> request, TransportChannel channel, Task task)
+        public void messageReceived(RequestWithAllocationID<ReplicaRequest> requestWithAID, TransportChannel channel, Task task)
             throws Exception {
-            new AsyncReplicaAction(request.request, request.allocationId, channel, (ReplicationTask) task).run();
+            new AsyncReplicaAction(requestWithAID.request, requestWithAID.targetAllocationID, channel, (ReplicationTask) task).run();
         }
     }
 
@@ -433,7 +434,7 @@ public abstract class TransportReplicationAction<
     private final class AsyncReplicaAction extends AbstractRunnable implements ActionListener<Releasable> {
         private final ReplicaRequest request;
         // allocation id of the replica this request is meant for
-        private final String allocationId;
+        private final String targetAllocationID;
         private final TransportChannel channel;
         /**
          * The task on the node with the replica shard.
@@ -443,11 +444,11 @@ public abstract class TransportReplicationAction<
         // something we want to avoid at all costs
         private final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
 
-        AsyncReplicaAction(ReplicaRequest request, String allocationId, TransportChannel channel, ReplicationTask task) {
+        AsyncReplicaAction(ReplicaRequest request, String targetAllocationID, TransportChannel channel, ReplicationTask task) {
             this.request = request;
             this.channel = channel;
             this.task = task;
-            this.allocationId = allocationId;
+            this.targetAllocationID = targetAllocationID;
         }
 
         @Override
@@ -483,7 +484,7 @@ public abstract class TransportReplicationAction<
                         TransportChannelResponseHandler<TransportResponse.Empty> handler =
                             new TransportChannelResponseHandler<>(logger, channel, extraMessage, () -> TransportResponse.Empty.INSTANCE);
                         transportService.sendRequest(clusterService.localNode(), transportReplicaAction,
-                            new RequestWithAllocationID<>(request, allocationId),
+                            new RequestWithAllocationID<>(request, targetAllocationID),
                             handler);
                     }
 
@@ -521,7 +522,7 @@ public abstract class TransportReplicationAction<
         protected void doRun() throws Exception {
             setPhase(task, "replica");
             assert request.shardId() != null : "request shardId must be set";
-            acquireReplicaOperationLock(request.shardId(), request.primaryTerm(), allocationId, this);
+            acquireReplicaOperationLock(request.shardId(), request.primaryTerm(), targetAllocationID, this);
         }
 
         /**
@@ -966,18 +967,21 @@ public abstract class TransportReplicationAction<
     final class RequestWithAllocationID<R extends TransportRequest> extends TransportRequest {
 
         /** {@link AllocationId#getId()} of the shard this request is sent to **/
-        private String allocationId;
+        private String targetAllocationID;
 
         private R request;
 
         RequestWithAllocationID(Supplier<R> requestSupplier) {
             request = requestSupplier.get();
-            allocationId = null;
+            // null now, but will be populated by reading from the streams
+            targetAllocationID = null;
         }
 
-        RequestWithAllocationID(R request, String allocationId) {
+        RequestWithAllocationID(R request, String targetAllocationID) {
+            Objects.requireNonNull(request);
+            Objects.requireNonNull(targetAllocationID);
             this.request = request;
-            this.allocationId = allocationId;
+            this.targetAllocationID = targetAllocationID;
         }
 
         @Override
@@ -1001,18 +1005,18 @@ public abstract class TransportReplicationAction<
 
         @Override
         public String getDescription() {
-            return "[" + request.getDescription() + "] for aID [" + allocationId + "]";
+            return "[" + request.getDescription() + "] for aID [" + targetAllocationID + "]";
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            allocationId = in.readString();
+            targetAllocationID = in.readString();
             request.readFrom(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(allocationId);
+            out.writeString(targetAllocationID);
             request.writeTo(out);
         }
 
@@ -1020,8 +1024,8 @@ public abstract class TransportReplicationAction<
             return request;
         }
 
-        public String getAllocationId() {
-            return allocationId;
+        public String getTargetAllocationID() {
+            return targetAllocationID;
         }
     }
 

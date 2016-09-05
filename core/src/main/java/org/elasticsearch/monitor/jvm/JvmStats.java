@@ -40,7 +40,6 @@ import java.lang.management.RuntimeMXBean;
 import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -148,7 +147,7 @@ public class JvmStats implements Writeable, ToXContent {
         if (in.readBoolean()) {
             bufferPools = in.readList(BufferPool::new);
         } else {
-            bufferPools = Collections.emptyList();
+            bufferPools = null;
         }
         classes = new Classes(in);
     }

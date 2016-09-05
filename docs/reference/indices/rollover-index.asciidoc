@@ -55,9 +55,9 @@ The above request might return the following response:
 }
 --------------------------------------------------
 // TESTRESPONSE
- <1> Whether the index was rolled over.
- <2> Whether the rollover was dry run.
- <3> The result of each condition.
+<1> Whether the index was rolled over.
+<2> Whether the rollover was dry run.
+<3> The result of each condition.
 
 [float]
 === Naming the new index

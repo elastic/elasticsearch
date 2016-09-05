@@ -108,10 +108,9 @@ public class PluginsService extends AbstractComponent {
      */
     public PluginsService(Settings settings, Path modulesDirectory, Path pluginsDirectory, Collection<Class<? extends Plugin>> classpathPlugins) {
         super(settings);
-        info = new PluginsAndModules();
 
         List<Tuple<PluginInfo, Plugin>> pluginsLoaded = new ArrayList<>();
-
+        List<PluginInfo> pluginsList = new ArrayList<>();
         // first we load plugins that are on the classpath. this is for tests and transport clients
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings);
@@ -120,9 +119,10 @@ public class PluginsService extends AbstractComponent {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
             pluginsLoaded.add(new Tuple<>(pluginInfo, plugin));
-            info.addPlugin(pluginInfo);
+            pluginsList.add(pluginInfo);
         }
 
+        List<PluginInfo> modulesList = new ArrayList<>();
         // load modules
         if (modulesDirectory != null) {
             try {
@@ -130,7 +130,7 @@ public class PluginsService extends AbstractComponent {
                 List<Tuple<PluginInfo, Plugin>> loaded = loadBundles(bundles);
                 pluginsLoaded.addAll(loaded);
                 for (Tuple<PluginInfo, Plugin> module : loaded) {
-                    info.addModule(module.v1());
+                    modulesList.add(module.v1());
                 }
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize modules", ex);
@@ -144,18 +144,19 @@ public class PluginsService extends AbstractComponent {
                 List<Tuple<PluginInfo, Plugin>> loaded = loadBundles(bundles);
                 pluginsLoaded.addAll(loaded);
                 for (Tuple<PluginInfo, Plugin> plugin : loaded) {
-                    info.addPlugin(plugin.v1());
+                    pluginsList.add(plugin.v1());
                 }
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize plugins", ex);
             }
         }
 
-        plugins = Collections.unmodifiableList(pluginsLoaded);
+        this.info = new PluginsAndModules(pluginsList, modulesList);
+        this.plugins = Collections.unmodifiableList(pluginsLoaded);
 
         // We need to build a List of plugins for checking mandatory plugins
         Set<String> pluginsNames = new HashSet<>();
-        for (Tuple<PluginInfo, Plugin> tuple : plugins) {
+        for (Tuple<PluginInfo, Plugin> tuple : this.plugins) {
             pluginsNames.add(tuple.v1().getName());
         }
 
@@ -179,7 +180,7 @@ public class PluginsService extends AbstractComponent {
         logPluginInfo(info.getPluginInfos(), "plugin", logger);
 
         Map<Plugin, List<OnModuleReference>> onModuleReferences = new HashMap<>();
-        for (Tuple<PluginInfo, Plugin> pluginEntry : plugins) {
+        for (Tuple<PluginInfo, Plugin> pluginEntry : this.plugins) {
             Plugin plugin = pluginEntry.v2();
             List<OnModuleReference> list = new ArrayList<>();
             for (Method method : plugin.getClass().getMethods()) {

@@ -103,8 +103,8 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     @Before
     public void initIndexesList() throws Exception {
-        indexes = OldIndexUtils.loadIndexesList("index", getBwcIndicesPath());
-        unsupportedIndexes = OldIndexUtils.loadIndexesList("unsupported", getBwcIndicesPath());
+        indexes = OldIndexUtils.loadDataFilesList("index", getBwcIndicesPath());
+        unsupportedIndexes = OldIndexUtils.loadDataFilesList("unsupported", getBwcIndicesPath());
     }
 
     @AfterClass

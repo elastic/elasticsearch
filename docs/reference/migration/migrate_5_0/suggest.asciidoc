@@ -3,7 +3,8 @@
 
 The completion suggester has undergone a complete rewrite. This means that the
 syntax and data structure for fields of type `completion` have changed, as
-have the syntax and response of completion suggester requests.
+have the syntax and response of completion suggester requests. See
+<<search-suggesters-completion,completion suggester>> for details.
 
 For indices created before Elasticsearch 5.0.0, `completion` fields and the
 completion suggester will continue to work as they did in Elasticsearch 2.x.
@@ -25,35 +26,17 @@ to suggestion entries for both context and completion suggesters.
 
 ==== Completion suggester is document-oriented
 
-Suggestions are aware of the document they belong to. This enables
-retrieving any field value from the document. This is exposed
-through the query-time `payload` option in `completion` and `context`
-suggesters:
+Suggestions are aware of the document they belong to. Now, associated
+documents (`_source`) are returned as part of `completion` suggestions.
 
-[source,sh]
----------------
-GET /my_index/_search
-{
-  "suggest": {
-    "fooSuggestion": {
-       "text": "f"
-       "completion": {
-         "field": "fooSuggest",
-         "payload": ["field1", "field2"]
-       }
-     }
-  }
-}
----------------
+IMPORTANT: `_source` meta-field must be enabled, which is the default behavior,
+to enable returning `_source` with suggestions.
 
 Previously, `context` and `completion` suggesters supported an index-time
 `payloads` option, which was used to store and return metadata with suggestions.
-Now metadata can be stored as a field in the same document as the
-suggestion for enabling retrieval at query-time. The support for
-index-time `payloads` has been removed to avoid bloating the in-memory
-index with suggestion metadata. The time that it takes to retrieve payloads
-depends heavily on the size of the `_source` field.  The smaller the `_source`,
-the faster the retrieval.
+Now metadata can be stored as part of the the same document as the
+suggestion for retrieval at query-time. The support for index-time `payloads`
+has been removed to avoid bloating the in-memory index with suggestion metadata.
 
 ==== Simpler completion indexing
 

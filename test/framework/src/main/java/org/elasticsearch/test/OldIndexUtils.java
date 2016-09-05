@@ -61,7 +61,7 @@ import static org.junit.Assert.assertEquals;
 
 public class OldIndexUtils {
 
-    public static List<String> loadIndexesList(String prefix, Path bwcIndicesPath) throws IOException {
+    public static List<String> loadDataFilesList(String prefix, Path bwcIndicesPath) throws IOException {
         List<String> indexes = new ArrayList<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(bwcIndicesPath, prefix + "-*.zip")) {
             for (Path path : stream) {

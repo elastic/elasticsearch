@@ -68,6 +68,15 @@ make sure to give at least half the memory of the machine running elasticsearch
 to the filesystem cache.
 
 [float]
+=== Use auto-generated ids
+
+When indexing a document that has an explicit id, elasticsearch needs to check
+whether a document with the same id already exists within the same shard, which
+is a costly operation and gets even more costly as the index grows. By using
+auto-generated ids, Elasticsearch can skip this check, which makes indexing
+faster.
+
+[float]
 === Use faster hardware
 
 If indexing is I/O bound, you should investigate giving more memory to the

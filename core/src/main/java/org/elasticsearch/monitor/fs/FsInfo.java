@@ -410,16 +410,16 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
 
     }
 
-    final long timestamp;
-    final Path[] paths;
-    final IoStats ioStats;
-    Path total;
+    private final long timestamp;
+    private final Path[] paths;
+    private final IoStats ioStats;
+    private final Path total;
 
     public FsInfo(long timestamp, IoStats ioStats, Path[] paths) {
         this.timestamp = timestamp;
         this.ioStats = ioStats;
         this.paths = paths;
-        this.total = null;
+        this.total = total();
     }
 
     /**
@@ -432,6 +432,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         for (int i = 0; i < paths.length; i++) {
             paths[i] = new Path(in);
         }
+        this.total = total();
     }
 
     @Override
@@ -445,13 +446,10 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
     }
 
     public Path getTotal() {
-        return total();
+        return total;
     }
 
-    public Path total() {
-        if (total != null) {
-            return total;
-        }
+    private Path total() {
         Path res = new Path();
         Set<String> seenDevices = new HashSet<>(paths.length);
         for (Path subPath : paths) {
@@ -462,7 +460,6 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
             }
             res.add(subPath);
         }
-        total = res;
         return res;
     }
 
@@ -506,5 +503,4 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
         static final String TOTAL = "total";
         static final String IO_STATS = "io_stats";
     }
-
 }

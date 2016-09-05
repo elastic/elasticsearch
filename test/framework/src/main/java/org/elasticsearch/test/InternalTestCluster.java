@@ -1655,10 +1655,18 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public void clearDisruptionScheme() {
+        clearDisruptionScheme(true);
+    }
+
+    public void clearDisruptionScheme(boolean ensureHealthyCluster) {
         if (activeDisruptionScheme != null) {
             TimeValue expectedHealingTime = activeDisruptionScheme.expectedTimeToHeal();
             logger.info("Clearing active scheme {}, expected healing time {}", activeDisruptionScheme, expectedHealingTime);
-            activeDisruptionScheme.removeAndEnsureHealthy(this);
+            if (ensureHealthyCluster) {
+                activeDisruptionScheme.removeAndEnsureHealthy(this);
+            } else {
+                activeDisruptionScheme.removeFromCluster(this);
+            }
         }
         activeDisruptionScheme = null;
     }

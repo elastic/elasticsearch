@@ -237,7 +237,6 @@ public class RelocationIT extends ESIntegTestCase {
                         });
                     }
                     assertThat(hits.totalHits(), equalTo(indexer.totalIndexedDocs()));
-                    assertEquals(indexer.getIds().size(), indexer.totalIndexedDocs());
                     logger.info("--> DONE search test round {}", i + 1);
                 } catch (SearchPhaseExecutionException ex) {
                     // TODO: the first run fails with this failure, waiting for relocating nodes set to 0 is not enough?

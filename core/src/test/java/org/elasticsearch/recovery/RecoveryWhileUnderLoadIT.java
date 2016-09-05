@@ -42,6 +42,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -105,7 +106,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             logger.info("--> refreshing the index");
             refreshAndAssert();
             logger.info("--> verifying indexed content");
-            iterateAssertCount(numberOfShards, indexer.totalIndexedDocs(), 10);
+            iterateAssertCount(numberOfShards, 10, indexer.getIds());
         }
     }
 
@@ -156,7 +157,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             logger.info("--> refreshing the index");
             refreshAndAssert();
             logger.info("--> verifying indexed content");
-            iterateAssertCount(numberOfShards, indexer.totalIndexedDocs(), 10);
+            iterateAssertCount(numberOfShards, 10, indexer.getIds());
         }
     }
 
@@ -225,7 +226,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             logger.info("--> refreshing the index");
             refreshAndAssert();
             logger.info("--> verifying indexed content");
-            iterateAssertCount(numberOfShards, indexer.totalIndexedDocs(), 10);
+            iterateAssertCount(numberOfShards, 10, indexer.getIds());
         }
     }
 
@@ -263,11 +264,12 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             logger.info("--> refreshing the index");
             refreshAndAssert();
             logger.info("--> verifying indexed content");
-            iterateAssertCount(numShards, indexer.totalIndexedDocs(), 10);
+            iterateAssertCount(numShards, 10, indexer.getIds());
         }
     }
 
-    private void iterateAssertCount(final int numberOfShards, final long numberOfDocs, final int iterations) throws Exception {
+    private void iterateAssertCount(final int numberOfShards, final int iterations, final Set<String> ids) throws Exception {
+        final long numberOfDocs = ids.size();
         SearchResponse[] iterationResults = new SearchResponse[iterations];
         boolean error = false;
         for (int i = 0; i < iterations; i++) {
@@ -290,12 +292,11 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             ClusterService clusterService = clusterService();
             final ClusterState state = clusterService.state();
             for (int shard = 0; shard < numberOfShards; shard++) {
-                // background indexer starts using ids on 1
-                for (int id = 1; id <= numberOfDocs; id++) {
-                    ShardId docShard = clusterService.operationRouting().shardId(state, "test", Long.toString(id), null);
+                for (String id : ids) {
+                    ShardId docShard = clusterService.operationRouting().shardId(state, "test", id, null);
                     if (docShard.id() == shard) {
                         for (ShardRouting shardRouting : state.routingTable().shardRoutingTable("test", shard)) {
-                            GetResponse response = client().prepareGet("test", "type", Long.toString(id))
+                            GetResponse response = client().prepareGet("test", "type", id)
                                     .setPreference("_only_nodes:" + shardRouting.currentNodeId()).get();
                             if (response.isExists()) {
                                 logger.info("missing id [{}] on shard {}", id, shardRouting);
@@ -321,6 +322,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
                             TimeUnit.MINUTES
                     )
             );
+            assertEquals(numberOfDocs, ids.size());
         }
 
         //lets now make the test fail if it was supposed to fail

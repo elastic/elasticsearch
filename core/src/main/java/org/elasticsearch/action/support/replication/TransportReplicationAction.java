@@ -255,20 +255,20 @@ public abstract class TransportReplicationAction<
 
         private final Request request;
         /** targetAllocationID of the shard this request is meant for */
-        private final String allocationId;
+        private final String targetAllocationID;
         private final TransportChannel channel;
         private final ReplicationTask replicationTask;
 
-        AsyncPrimaryAction(Request request, String allocationId, TransportChannel channel, ReplicationTask replicationTask) {
+        AsyncPrimaryAction(Request request, String targetAllocationID, TransportChannel channel, ReplicationTask replicationTask) {
             this.request = request;
-            this.allocationId = allocationId;
+            this.targetAllocationID = targetAllocationID;
             this.channel = channel;
             this.replicationTask = replicationTask;
         }
 
         @Override
         protected void doRun() throws Exception {
-            acquirePrimaryShardReference(request.shardId(), allocationId, this);
+            acquirePrimaryShardReference(request.shardId(), targetAllocationID, this);
         }
 
         @Override

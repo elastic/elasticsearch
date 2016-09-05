@@ -101,6 +101,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyLong;
@@ -812,6 +813,61 @@ public class TransportReplicationActionTests extends ESTestCase {
             assertThat(throwable.getMessage(), containsString("_not_a_valid_aid_"));
         }
     }
+
+    /**
+     * test throwing a {@link org.elasticsearch.action.support.replication.TransportReplicationAction.RetryOnReplicaException}
+     * causes a retry
+     */
+    public void testRetryOnReplica() throws Exception {
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        ClusterState state = state(shardId.getIndexName(), true, ShardRoutingState.STARTED, ShardRoutingState.STARTED);
+        final ShardRouting replica = state.getRoutingTable().shardRoutingTable(shardId).replicaShards().get(0);
+        // simulate execution of the node holding the replica
+        state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(replica.currentNodeId())).build();
+        setState(clusterService, state);
+        AtomicBoolean throwException = new AtomicBoolean(true);
+        final ReplicationTask task = maybeTask();
+        Action action = new Action(Settings.EMPTY, "testActionWithExceptions", transportService, clusterService, threadPool) {
+            @Override
+            protected ReplicaResult shardOperationOnReplica(Request request) {
+                assertPhase(task, "replica");
+                if (throwException.get()) {
+                    throw new RetryOnReplicaException(shardId, "simulation");
+                }
+                return new ReplicaResult();
+            }
+        };
+        final Action.ReplicaOperationTransportHandler replicaOperationTransportHandler = action.new ReplicaOperationTransportHandler();
+        final PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        final Request request = new Request().setShardId(shardId);
+        request.primaryTerm(state.metaData().getIndexSafe(shardId.getIndex()).primaryTerm(shardId.id()));
+        replicaOperationTransportHandler.messageReceived(
+                action.new RequestWithAllocationID<Request>(request, replica.allocationId().getId()),
+                createTransportChannel(listener), task);
+        if (listener.isDone()) {
+            listener.get(); // fail with the exception if there
+            fail("listener shouldn't be done");
+        }
+
+        // no retry yet
+        List<CapturingTransport.CapturedRequest> capturedRequests =
+            transport.getCapturedRequestsByTargetNodeAndClear().get(replica.currentNodeId());
+        assertThat(capturedRequests, nullValue());
+
+        // release the waiting
+        throwException.set(false);
+        setState(clusterService, state);
+
+        capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear().get(replica.currentNodeId());
+        assertThat(capturedRequests, notNullValue());
+        assertThat(capturedRequests.size(), equalTo(1));
+        final CapturingTransport.CapturedRequest capturedRequest = capturedRequests.get(0);
+        assertThat(capturedRequest.action, equalTo("testActionWithExceptions[r]"));
+        assertThat(capturedRequest.request, instanceOf(Action.RequestWithAllocationID.class));
+        assertThat(((Action.RequestWithAllocationID) capturedRequest.request).getRequest(), equalTo(request));
+        assertThat(((Action.RequestWithAllocationID) capturedRequest.request).getAllocationId(), equalTo(replica.allocationId().getId()));
+    }
+
 
     private void assertIndexShardCounter(int expected) {
         assertThat(count.get(), equalTo(expected));

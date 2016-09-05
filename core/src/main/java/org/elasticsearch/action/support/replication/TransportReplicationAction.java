@@ -482,7 +482,9 @@ public abstract class TransportReplicationAction<
                         String extraMessage = "action [" + transportReplicaAction + "], request[" + request + "]";
                         TransportChannelResponseHandler<TransportResponse.Empty> handler =
                             new TransportChannelResponseHandler<>(logger, channel, extraMessage, () -> TransportResponse.Empty.INSTANCE);
-                        transportService.sendRequest(clusterService.localNode(), transportReplicaAction, request, handler);
+                        transportService.sendRequest(clusterService.localNode(), transportReplicaAction,
+                            new RequestWithAllocationID<>(request, allocationId),
+                            handler);
                     }
 
                     @Override
@@ -1016,6 +1018,10 @@ public abstract class TransportReplicationAction<
 
         public R getRequest() {
             return request;
+        }
+
+        public String getAllocationId() {
+            return allocationId;
         }
     }
 

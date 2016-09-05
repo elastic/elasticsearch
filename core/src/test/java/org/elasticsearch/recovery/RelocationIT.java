@@ -232,16 +232,12 @@ public class RelocationIT extends ESIntegTestCase {
                                 logger.error("Extra id [{}]", id);
                             }
                         }
-                        set.forEach(new IntProcedure() {
-
-                            @Override
-                            public void apply(int value) {
-                                logger.error("Missing id [{}]", value);
-                            }
-
+                        set.forEach((IntProcedure) value -> {
+                            logger.error("Missing id [{}]", value);
                         });
                     }
                     assertThat(hits.totalHits(), equalTo(indexer.totalIndexedDocs()));
+                    assertEquals(indexer.getIds().size(), indexer.totalIndexedDocs());
                     logger.info("--> DONE search test round {}", i + 1);
                 } catch (SearchPhaseExecutionException ex) {
                     // TODO: the first run fails with this failure, waiting for relocating nodes set to 0 is not enough?

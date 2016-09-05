@@ -129,7 +129,7 @@ public class XPackInfoResponse extends ActionResponse {
                     .field("type", type)
                     .field("mode", mode)
                     .field("status", status.label())
-                    .dateValueField("expiry_date_in_millis", "expiry_date", expiryDate)
+                    .dateField("expiry_date_in_millis", "expiry_date", expiryDate)
                     .endObject();
         }
 

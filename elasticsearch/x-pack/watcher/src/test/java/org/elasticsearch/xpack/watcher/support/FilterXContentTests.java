@@ -40,7 +40,7 @@ public class FilterXContentTests extends ESTestCase {
         data.put("key6", 7.1);
         data.put("key7", false);
 
-        XContentBuilder builder = jsonBuilder().value(data);
+        XContentBuilder builder = jsonBuilder().map(data);
         XContentParser parser = XContentHelper.createParser(builder.bytes());
 
         Set<String> keys = new HashSet<>();
@@ -66,7 +66,7 @@ public class FilterXContentTests extends ESTestCase {
         Map<Object, Object> innerMap = MapBuilder.newMapBuilder().put("key1", "value1").put("key2", "value2").map();
         data.put("leaf3", MapBuilder.newMapBuilder().put("key1", "value1").put("key2", innerMap).map());
 
-        BytesReference bytes = jsonBuilder().value(data).bytes();
+        BytesReference bytes = jsonBuilder().map(data).bytes();
 
         XContentParser parser = XContentHelper.createParser(bytes);
         Set<String> keys = new HashSet<>(Arrays.asList("leaf1.key2"));

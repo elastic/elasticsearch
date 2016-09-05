@@ -78,8 +78,8 @@ public class DailyScheduleTests extends ScheduleTestCase {
         XContentBuilder builder = jsonBuilder()
                 .startObject()
                 .startObject("at")
-                .field("hour", time.hour())
-                .field("minute", time.minute())
+                .array("hour", time.hour())
+                .array("minute", time.minute())
                 .endObject()
                 .endObject();
         BytesReference bytes = builder.bytes();
@@ -197,7 +197,7 @@ public class DailyScheduleTests extends ScheduleTestCase {
         String[] times = invalidDayTimesAsStrings();
         XContentBuilder builder = jsonBuilder()
                 .startObject()
-                .field("at", times)
+                .array("at", times)
                 .endObject();
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);

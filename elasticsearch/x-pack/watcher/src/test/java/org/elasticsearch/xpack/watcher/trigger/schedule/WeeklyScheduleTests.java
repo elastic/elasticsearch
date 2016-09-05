@@ -82,8 +82,8 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
                 .startObject()
                 .field("on", "mon")
                 .startObject("at")
-                .field("hour", time.hour())
-                .field("minute", time.minute())
+                .array("hour", time.hour())
+                .array("minute", time.minute())
                 .endObject()
                 .endObject();
         BytesReference bytes = builder.bytes();

@@ -135,7 +135,7 @@ public class MonthTimes implements Times {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(DAY_FIELD.getPreferredName(), days);
+        builder.array(DAY_FIELD.getPreferredName(), days);
         builder.startArray(TIME_FIELD.getPreferredName());
         for (DayTimes dayTimes : times) {
             dayTimes.toXContent(builder, params);

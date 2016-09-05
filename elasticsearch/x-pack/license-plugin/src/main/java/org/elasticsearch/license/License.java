@@ -355,11 +355,11 @@ public class License implements ToXContent {
         if (version == VERSION_START) {
             builder.field(Fields.SUBSCRIPTION_TYPE, subscriptionType);
         }
-        builder.dateValueField(Fields.ISSUE_DATE_IN_MILLIS, Fields.ISSUE_DATE, issueDate);
+        builder.dateField(Fields.ISSUE_DATE_IN_MILLIS, Fields.ISSUE_DATE, issueDate);
         if (version == VERSION_START) {
             builder.field(Fields.FEATURE, feature);
         }
-        builder.dateValueField(Fields.EXPIRY_DATE_IN_MILLIS, Fields.EXPIRY_DATE, expiryDate);
+        builder.dateField(Fields.EXPIRY_DATE_IN_MILLIS, Fields.EXPIRY_DATE, expiryDate);
         builder.field(Fields.MAX_NODES, maxNodes);
         builder.field(Fields.ISSUED_TO, issuedTo);
         builder.field(Fields.ISSUER, issuer);

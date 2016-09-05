@@ -72,7 +72,8 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
      * @param resourceBasePath The base endpoint (e.g., "/_template")
      * @param resourceName The resource name (e.g., the template or pipeline name).
      */
-    protected void assertCheckWithException(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName)
+    protected void assertCheckWithException(final PublishableHttpResource resource,
+                                            final String resourceBasePath, final String resourceName)
             throws IOException {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final ResponseException responseException = responseException("GET", endpoint, failedCheckStatus());
@@ -114,14 +115,15 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
     }
 
     /**
-     * Perform {@link PublishableHttpResource#doPublish(RestClient) doPublish} against the {@code resource} that throws an exception and assert
-     * that it returns {@code false}.
+     * Perform {@link PublishableHttpResource#doPublish(RestClient) doPublish} against the {@code resource} that throws an exception and
+     * assert that it returns {@code false}.
      *
      * @param resource The resource to execute.
      * @param resourceBasePath The base endpoint (e.g., "/_template")
      * @param resourceName The resource name (e.g., the template or pipeline name).
      */
-    protected void assertPublishWithException(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
+    protected void assertPublishWithException(final PublishableHttpResource resource,
+                                              final String resourceBasePath, final String resourceName,
                                               final Class<? extends HttpEntity> bodyType)
             throws IOException {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);

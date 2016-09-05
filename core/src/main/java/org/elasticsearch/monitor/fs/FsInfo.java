@@ -386,6 +386,30 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContent {
             out.writeLong(totalWriteKilobytes);
         }
 
+        public DeviceStats[] getDevicesStats() {
+            return devicesStats;
+        }
+
+        public long getTotalOperations() {
+            return totalOperations;
+        }
+
+        public long getTotalReadOperations() {
+            return totalReadOperations;
+        }
+
+        public long getTotalWriteOperations() {
+            return totalWriteOperations;
+        }
+
+        public long getTotalReadKilobytes() {
+            return totalReadKilobytes;
+        }
+
+        public long getTotalWriteKilobytes() {
+            return totalWriteKilobytes;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (devicesStats.length > 0) {

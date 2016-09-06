@@ -81,6 +81,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -1016,7 +1017,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             ActionListener<Releasable> callback = (ActionListener<Releasable>) invocation.getArguments()[1];
             final long primaryTerm = indexShard.getPrimaryTerm();
             if (term < primaryTerm) {
-                throw new IllegalArgumentException(String.format("%s operation term [%d] is too old (current [%d])",
+                throw new IllegalArgumentException(String.format(Locale.ROOT, "%s operation term [%d] is too old (current [%d])",
                     shardId, term, primaryTerm));
             }
             count.incrementAndGet();

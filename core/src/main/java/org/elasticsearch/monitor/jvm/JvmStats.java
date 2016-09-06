@@ -19,7 +19,7 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -40,6 +40,7 @@ import java.lang.management.RuntimeMXBean;
 import java.lang.management.ThreadMXBean;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -88,8 +89,7 @@ public class JvmStats implements Writeable, ToXContent {
                  * we just omit the pool in that case!*/
             }
         }
-        MemoryPool[] memoryPools = pools.toArray(new MemoryPool[pools.size()]);
-        Mem mem = new Mem(heapCommitted, heapUsed, heapMax, nonHeapCommitted, nonHeapUsed, memoryPools);
+        Mem mem = new Mem(heapCommitted, heapUsed, heapMax, nonHeapCommitted, nonHeapUsed, Collections.unmodifiableList(pools));
         Threads threads = new Threads(threadMXBean.getThreadCount(), threadMXBean.getPeakThreadCount());
 
         List<GarbageCollectorMXBean> gcMxBeans = ManagementFactory.getGarbageCollectorMXBeans();
@@ -474,9 +474,9 @@ public class JvmStats implements Writeable, ToXContent {
         private final long heapMax;
         private final long nonHeapCommitted;
         private final long nonHeapUsed;
-        private final MemoryPool[] pools;
+        private final List<MemoryPool> pools;
 
-        public Mem(long heapCommitted, long heapUsed, long heapMax, long nonHeapCommitted, long nonHeapUsed, MemoryPool[] pools) {
+        public Mem(long heapCommitted, long heapUsed, long heapMax, long nonHeapCommitted, long nonHeapUsed, List<MemoryPool> pools) {
             this.heapCommitted = heapCommitted;
             this.heapUsed = heapUsed;
             this.heapMax = heapMax;
@@ -491,7 +491,7 @@ public class JvmStats implements Writeable, ToXContent {
             nonHeapCommitted = in.readVLong();
             nonHeapUsed = in.readVLong();
             heapMax = in.readVLong();
-            pools = in.readArray(MemoryPool::new, MemoryPool[]::new);
+            pools = in.readList(MemoryPool::new);
         }
 
         @Override
@@ -501,12 +501,12 @@ public class JvmStats implements Writeable, ToXContent {
             out.writeVLong(nonHeapCommitted);
             out.writeVLong(nonHeapUsed);
             out.writeVLong(heapMax);
-            out.writeArray(pools);
+            out.writeList(pools);
         }
 
         @Override
         public Iterator<MemoryPool> iterator() {
-            return Arrays.stream(pools).iterator();
+            return pools.iterator();
         }
 
         public ByteSizeValue getHeapCommitted() {

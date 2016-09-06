@@ -280,10 +280,10 @@ public class NodeStatsTests extends ESTestCase {
         JvmStats jvmStats = null;
         if (frequently()) {
             int numMemoryPools = randomIntBetween(0, 10);
-            JvmStats.MemoryPool[] memoryPools = new JvmStats.MemoryPool[numMemoryPools];
+            List<JvmStats.MemoryPool> memoryPools = new ArrayList<>(numMemoryPools);
             for (int i = 0; i < numMemoryPools; i++) {
-                memoryPools[i] = new JvmStats.MemoryPool(randomAsciiOfLengthBetween(3, 10), randomPositiveLong(),
-                        randomPositiveLong(), randomPositiveLong(), randomPositiveLong());
+                memoryPools.add(new JvmStats.MemoryPool(randomAsciiOfLengthBetween(3, 10), randomPositiveLong(),
+                        randomPositiveLong(), randomPositiveLong(), randomPositiveLong()));
             }
             JvmStats.Threads threads = new JvmStats.Threads(randomIntBetween(1, 1000), randomIntBetween(1, 1000));
             int numGarbageCollectors = randomIntBetween(0, 10);

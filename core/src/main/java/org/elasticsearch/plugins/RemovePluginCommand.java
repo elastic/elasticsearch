@@ -88,5 +88,12 @@ final class RemovePluginCommand extends SettingCommand {
         pluginPaths.add(tmpPluginDir);
 
         IOUtils.rm(pluginPaths.toArray(new Path[pluginPaths.size()]));
+
+        // we preserve the config files in case the user is upgrading the plugin, but we print
+        // a message so the user knows in case they want to remove manually
+        final Path pluginConfigDir = env.configFile().resolve(pluginName);
+        if (Files.exists(pluginConfigDir)) {
+            terminal.println("-> Preserving plugin config files: " + pluginConfigDir);
+        }
     }
 }

@@ -10,7 +10,6 @@ import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.ssl.VerificationMode;
 import org.junit.After;
 import org.junit.Before;
 
@@ -32,7 +32,6 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.UnrecoverableKeyException;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
@@ -58,7 +57,7 @@ public class HttpClientTests extends ESTestCase {
         authRegistry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(null)));
         webServer = startWebServer();
         webPort = webServer.getPort();
-        httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment, new SSLService(environment.settings(), environment));
+        httpClient = new HttpClient(Settings.EMPTY, authRegistry, new SSLService(environment.settings(), environment));
     }
 
     @After
@@ -171,15 +170,54 @@ public class HttpClientTests extends ESTestCase {
                     .put("xpack.ssl.truststore.password", "truststore-testnode-only")
                     .build();
         }
-        HttpClient httpClient = new HttpClient(settings, authRegistry, environment, new SSLService(settings, environment));
+        HttpClient httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
 
         // We can't use the client created above for the server since it is only a truststore
         Settings settings2 = Settings.builder()
-                .put("xpack.http.ssl.keystore.path", getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks"))
-                .put("xpack.http.ssl.keystore.password", "testnode")
+                .put("xpack.ssl.keystore.path", getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks"))
+                .put("xpack.ssl.keystore.password", "testnode")
                 .build();
-        HttpClient httpClient2 = new HttpClient(settings2, authRegistry, environment, new SSLService(settings2, environment));
-        webServer.useHttps(httpClient2.getSslSocketFactory(), false);
+        webServer.useHttps(new SSLService(settings2, environment).sslSocketFactory(Settings.EMPTY), false);
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
+        HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)
+                .scheme(Scheme.HTTPS)
+                .path("/test")
+                .body("body");
+        HttpResponse response = httpClient.execute(request.build());
+        assertThat(response.status(), equalTo(200));
+        assertThat(response.body().utf8ToString(), equalTo("body"));
+        RecordedRequest recordedRequest = webServer.takeRequest();
+        assertThat(recordedRequest.getPath(), equalTo("/test"));
+        assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("body"));
+    }
+
+    public void testHttpsDisableHostnameVerification() throws Exception {
+        Path resource = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.jks");
+
+        Settings settings;
+        if (randomBoolean()) {
+            settings = Settings.builder()
+                    .put("xpack.http.ssl.truststore.path", resource.toString())
+                    .put("xpack.http.ssl.truststore.password", "testnode-no-subjaltname")
+                    .put("xpack.http.ssl.verification_mode", randomFrom(VerificationMode.NONE, VerificationMode.CERTIFICATE))
+                    .build();
+        } else {
+            settings = Settings.builder()
+                    .put("xpack.ssl.truststore.path", resource.toString())
+                    .put("xpack.ssl.truststore.password", "testnode-no-subjaltname")
+                    .put("xpack.ssl.verification_mode", randomFrom(VerificationMode.NONE, VerificationMode.CERTIFICATE))
+                    .build();
+        }
+        HttpClient httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
+
+        // We can't use the client created above for the server since it only defines a truststore
+        Settings settings2 = Settings.builder()
+                .put("xpack.ssl.keystore.path",
+                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.jks"))
+                .put("xpack.ssl.keystore.password", "testnode-no-subjaltname")
+                .build();
+        webServer.useHttps(new SSLService(settings2, environment).sslSocketFactory(Settings.EMPTY), false);
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)
@@ -209,8 +247,10 @@ public class HttpClientTests extends ESTestCase {
                     .build();
         }
 
-        HttpClient httpClient = new HttpClient(settings, authRegistry, environment, new SSLService(settings, environment));
-        webServer.useHttps(new ClientAuthRequiringSSLSocketFactory(httpClient.getSslSocketFactory()), false);
+        final SSLService sslService = new SSLService(settings, environment);
+        HttpClient httpClient = new HttpClient(settings, authRegistry, sslService);
+        webServer.useHttps(
+                new ClientAuthRequiringSSLSocketFactory(sslService.sslSocketFactory(settings.getByPrefix("xpack.http.ssl."))), false);
 
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequest.Builder request = HttpRequest.builder("localhost", webPort)
@@ -223,46 +263,6 @@ public class HttpClientTests extends ESTestCase {
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getPath(), equalTo("/test"));
         assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("body"));
-    }
-
-    public void testHttpClientReadKeyWithDifferentPassword() throws Exception {
-        // This truststore doesn't have a cert with a valid SAN so hostname verification will fail if used
-        Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode-different-passwords.jks");
-
-        Settings settings;
-        final boolean watcherSettings = randomBoolean();
-        if (watcherSettings) {
-            settings = Settings.builder()
-                    .put("xpack.http.ssl.keystore.path", resource.toString())
-                    .put("xpack.http.ssl.keystore.password", "testnode")
-                    .put("xpack.http.ssl.keystore.key_password", "testnode1")
-                    .build();
-        } else {
-            settings = Settings.builder()
-                    .put("xpack.ssl.keystore.path", resource.toString())
-                    .put("xpack.ssl.keystore.password", "testnode")
-                    .put("xpack.ssl.keystore.key_password", "testnode1")
-                    .build();
-        }
-
-        HttpClient httpClient = new HttpClient(settings, authRegistry, environment, new SSLService(settings, environment));
-        assertThat(httpClient.getSslSocketFactory(), notNullValue());
-
-        Settings.Builder badSettings = Settings.builder().put(settings);
-        if (watcherSettings) {
-            badSettings.remove("xpack.http.ssl.keystore.key_password");
-        } else {
-            badSettings.remove("xpack.ssl.keystore.key_password");
-        }
-
-        try {
-            new HttpClient(badSettings.build(), authRegistry, environment, new SSLService(badSettings.build(), environment));
-            fail("an exception should have been thrown since the key is not recoverable without the password");
-        } catch (Exception e) {
-            UnrecoverableKeyException rootCause = (UnrecoverableKeyException) ExceptionsHelper.unwrap(e, UnrecoverableKeyException.class);
-            assertThat(rootCause, notNullValue());
-            assertThat(rootCause.getMessage(), containsString("Cannot recover key"));
-        }
     }
 
     public void testHttpResponseWithAnyStatusCodeCanReturnBody() throws Exception {
@@ -291,27 +291,7 @@ public class HttpClientTests extends ESTestCase {
 
     @Network
     public void testHttpsWithoutTruststore() throws Exception {
-        HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry, environment, new SSLService(Settings.EMPTY, environment));
-        assertThat(httpClient.getSslSocketFactory(), notNullValue());
-
-        // Known server with a valid cert from a commercial CA
-        HttpRequest.Builder request = HttpRequest.builder("www.elastic.co", 443).scheme(Scheme.HTTPS);
-        HttpResponse response = httpClient.execute(request.build());
-        assertThat(response.status(), equalTo(200));
-        assertThat(response.hasContent(), is(true));
-        assertThat(response.body(), notNullValue());
-    }
-
-    @Network
-    public void testHttpsWithoutTruststoreAndSSLIntegrationActive() throws Exception {
-        // Add some settings with  SSL prefix to force socket factory creation
-        String setting = (randomBoolean() ? HttpClient.SETTINGS_SSL_PREFIX : "xpack.ssl.") +
-                "foo.bar";
-        Settings settings = Settings.builder()
-                .put(setting, randomBoolean())
-                .build();
-        HttpClient httpClient = new HttpClient(settings, authRegistry, environment, new SSLService(Settings.EMPTY, environment));
-        assertThat(httpClient.getSslSocketFactory(), notNullValue());
+        HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry, new SSLService(Settings.EMPTY, environment));
 
         // Known server with a valid cert from a commercial CA
         HttpRequest.Builder request = HttpRequest.builder("www.elastic.co", 443).scheme(Scheme.HTTPS);
@@ -331,7 +311,7 @@ public class HttpClientTests extends ESTestCase {
                     .put(HttpClient.SETTINGS_PROXY_HOST, "localhost")
                     .put(HttpClient.SETTINGS_PROXY_PORT, proxyServer.getPort())
                     .build();
-            HttpClient httpClient = new HttpClient(settings, authRegistry, environment, new SSLService(settings, environment));
+            HttpClient httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
 
             HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webPort)
                     .method(HttpMethod.GET)
@@ -359,7 +339,7 @@ public class HttpClientTests extends ESTestCase {
                     .put(HttpClient.SETTINGS_PROXY_HOST, "localhost")
                     .put(HttpClient.SETTINGS_PROXY_PORT, proxyServer.getPort() + 1)
                     .build();
-            HttpClient httpClient = new HttpClient(settings, authRegistry, environment, new SSLService(settings, environment));
+            HttpClient httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
 
             HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webPort)
                     .method(HttpMethod.GET)

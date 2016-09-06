@@ -15,9 +15,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
-import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.Scheme;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
@@ -65,8 +65,9 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
                 dispatcher.setFailFast(true);
                 webServer.setDispatcher(dispatcher);
                 webServer.start(webPort);
-                HttpClient httpClient = getInstanceFromMaster(HttpClient.class);
-                webServer.useHttps(httpClient.getSslSocketFactory(), false);
+                SSLService sslService = getInstanceFromMaster(SSLService.class);
+                Settings settings = getInstanceFromMaster(Settings.class);
+                webServer.useHttps(sslService.sslSocketFactory(settings.getByPrefix("xpack.http.ssl.")), false);
                 return;
             } catch (BindException be) {
                 logger.warn("port [{}] was already in use trying next port", webPort);

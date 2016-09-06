@@ -12,12 +12,13 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.common.http.auth.ApplicableHttpAuth;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.ssl.SSLService;
 
+import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocketFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -45,31 +46,31 @@ public class HttpClient extends AbstractComponent {
     static final String SETTINGS_PROXY_PORT = SETTINGS_PROXY_PREFIX + "port";
 
     private final HttpAuthRegistry httpAuthRegistry;
-    private final Environment env;
     private final TimeValue defaultConnectionTimeout;
     private final TimeValue defaultReadTimeout;
+    private final boolean isHostnameVerificationEnabled;
+    private final SSLSocketFactory sslSocketFactory;
+    private final HttpProxy proxy;
 
-    private SSLSocketFactory sslSocketFactory;
-    private HttpProxy proxy = HttpProxy.NO_PROXY;
-
-    public HttpClient(Settings settings, HttpAuthRegistry httpAuthRegistry, Environment env, SSLService sslService) {
+    public HttpClient(Settings settings, HttpAuthRegistry httpAuthRegistry, SSLService sslService) {
         super(settings);
         this.httpAuthRegistry = httpAuthRegistry;
-        this.env = env;
-        defaultConnectionTimeout = settings.getAsTime("xpack.http.default_connection_timeout", TimeValue.timeValueSeconds(10));
-        defaultReadTimeout = settings.getAsTime("xpack.http.default_read_timeout", TimeValue.timeValueSeconds(10));
+        this.defaultConnectionTimeout = settings.getAsTime("xpack.http.default_connection_timeout", TimeValue.timeValueSeconds(10));
+        this.defaultReadTimeout = settings.getAsTime("xpack.http.default_read_timeout", TimeValue.timeValueSeconds(10));
         Integer proxyPort = settings.getAsInt(SETTINGS_PROXY_PORT, null);
         String proxyHost = settings.get(SETTINGS_PROXY_HOST, null);
         if (proxyPort != null && Strings.hasText(proxyHost)) {
-            proxy = new HttpProxy(proxyHost, proxyPort);
+            this.proxy = new HttpProxy(proxyHost, proxyPort);
             logger.info("Using default proxy for http input and slack/hipchat/pagerduty/webhook actions [{}:{}]", proxyHost, proxyPort);
+        } else if (proxyPort == null && Strings.hasText(proxyHost) == false) {
+            this.proxy = HttpProxy.NO_PROXY;
         } else {
-            if (proxyPort == null && Strings.hasText(proxyHost) || proxyPort != null && !Strings.hasText(proxyHost)) {
-                logger.error("disabling proxy. Watcher HTTP HttpProxy requires both settings: [{}] and [{}]", SETTINGS_PROXY_HOST,
-                        SETTINGS_PROXY_PORT);
-            }
+            throw new IllegalArgumentException("HTTP Proxy requires both settings: [" + SETTINGS_PROXY_HOST + "] and [" +
+                    SETTINGS_PROXY_PORT + "]");
         }
-        sslSocketFactory = sslService.sslSocketFactory(settings.getByPrefix(SETTINGS_SSL_PREFIX));
+        Settings sslSettings = settings.getByPrefix(SETTINGS_SSL_PREFIX);
+        this.sslSocketFactory = sslService.sslSocketFactory(settings.getByPrefix(SETTINGS_SSL_PREFIX));
+        this.isHostnameVerificationEnabled = sslService.getVerificationMode(sslSettings, Settings.EMPTY).isHostnameVerificationEnabled();
     }
 
     public HttpResponse execute(HttpRequest request) throws IOException {
@@ -119,6 +120,9 @@ public class HttpClient extends AbstractComponent {
                 @Override
                 public Void run() {
                     httpsConn.setSSLSocketFactory(factory);
+                    if (isHostnameVerificationEnabled == false) {
+                        httpsConn.setHostnameVerifier(NoopHostnameVerifier.INSTANCE);
+                    }
                     return null;
                 }
             });
@@ -179,8 +183,13 @@ public class HttpClient extends AbstractComponent {
         return new HttpResponse(statusCode, body, responseHeaders);
     }
 
-    // TODO: we shouldn't expose this just for tests
-    public SSLSocketFactory getSslSocketFactory() {
-        return sslSocketFactory;
+    private static final class NoopHostnameVerifier implements HostnameVerifier {
+
+        private static final HostnameVerifier INSTANCE = new NoopHostnameVerifier();
+
+        @Override
+        public boolean verify(String s, SSLSession sslSession) {
+            return true;
+        }
     }
 }

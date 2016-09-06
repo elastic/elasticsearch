@@ -78,11 +78,10 @@ public class DiskThresholdDecider extends AllocationDecider {
      * Returns the size of all shards that are currently being relocated to
      * the node, but may not be finished transferring yet.
      *
-     * If subtractShardsMovingAway is set then the size of shards moving away is subtracted from the total size
-     * of all shards
+     * If subtractShardsMovingAway is true then the size of shards moving away is subtracted from the total size of all shards
      */
     static long sizeOfRelocatingShards(RoutingNode node, RoutingAllocation allocation,
-                                              boolean subtractShardsMovingAway, String dataPath) {
+                                       boolean subtractShardsMovingAway, String dataPath) {
         ClusterInfo clusterInfo = allocation.clusterInfo();
         long totalSize = 0;
         for (ShardRouting routing : node.shardsWithState(ShardRoutingState.RELOCATING, ShardRoutingState.INITIALIZING)) {
@@ -111,7 +110,9 @@ public class DiskThresholdDecider extends AllocationDecider {
         final double usedDiskThresholdLow = 100.0 - diskThresholdSettings.getFreeDiskThresholdLow();
         final double usedDiskThresholdHigh = 100.0 - diskThresholdSettings.getFreeDiskThresholdHigh();
 
-        DiskUsage usage = getDiskUsage(node, allocation, usages);
+        // subtractLeavingShards is passed as false here, because they still use disk space, and therefore should we should be extra careful
+        // and take the size into account
+        DiskUsage usage = getDiskUsage(node, allocation, usages, false);
         // First, check that the node currently over the low watermark
         double freeDiskPercentage = usage.getFreeDiskAsPercentage();
         // Cache the used disk percentage for displaying disk percentages consistent with documentation
@@ -243,7 +244,9 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        final DiskUsage usage = getDiskUsage(node, allocation, usages);
+        // subtractLeavingShards is passed as true here, since this is only for shards remaining, we will *eventually* have enough disk
+        // since shards are moving away. No new shards will be incoming since in canAllocate we pass false for this check.
+        final DiskUsage usage = getDiskUsage(node, allocation, usages, true);
         final String dataPath = clusterInfo.getDataPath(shardRouting);
         // If this node is already above the high threshold, the shard cannot remain (get it off!)
         final double freeDiskPercentage = usage.getFreeDiskAsPercentage();
@@ -280,7 +283,8 @@ public class DiskThresholdDecider extends AllocationDecider {
                 "there is enough disk on this node for the shard to remain, free: [%s]", new ByteSizeValue(freeBytes));
     }
 
-    private DiskUsage getDiskUsage(RoutingNode node, RoutingAllocation allocation, ImmutableOpenMap<String, DiskUsage> usages) {
+    private DiskUsage getDiskUsage(RoutingNode node, RoutingAllocation allocation,
+                                   ImmutableOpenMap<String, DiskUsage> usages, boolean subtractLeavingShards) {
         DiskUsage usage = usages.get(node.nodeId());
         if (usage == null) {
             // If there is no usage, and we have other nodes in the cluster,
@@ -293,7 +297,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         }
 
         if (diskThresholdSettings.includeRelocations()) {
-            long relocatingShardsSize = sizeOfRelocatingShards(node, allocation, true, usage.getPath());
+            long relocatingShardsSize = sizeOfRelocatingShards(node, allocation, subtractLeavingShards, usage.getPath());
             DiskUsage usageIncludingRelocations = new DiskUsage(node.nodeId(), node.node().getName(), usage.getPath(),
                     usage.getTotalBytes(), usage.getFreeBytes() - relocatingShardsSize);
             if (logger.isTraceEnabled()) {

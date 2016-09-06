@@ -5,6 +5,8 @@ The cluster allocation explanation API is designed to assist in answering the
 question "why is this shard unassigned?". To explain the allocation (on
 unassigned state) of a shard, issue a request like:
 
+experimental[The cluster allocation explain API is new and should still be considered experimental. The API may change in ways that are not backwards compatible]
+
 [source,js]
 --------------------------------------------------
 $ curl -XGET 'http://localhost:9200/_cluster/allocation/explain' -d'{

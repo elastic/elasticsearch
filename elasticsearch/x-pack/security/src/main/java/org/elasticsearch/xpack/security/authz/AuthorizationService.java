@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.SearchScrollAction;
+import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -159,6 +160,10 @@ public class AuthorizationService extends AbstractComponent {
      * @throws ElasticsearchSecurityException   If the given user is no allowed to execute the given request
      */
     public void authorize(Authentication authentication, String action, TransportRequest request) throws ElasticsearchSecurityException {
+        final TransportRequest originalRequest = request;
+        if (request instanceof ConcreteShardRequest) {
+            request = ((ConcreteShardRequest<?>) request).getRequest();
+        }
         // prior to doing any authorization lets set the originating action in the context only
         setOriginatingAction(action);
 
@@ -284,7 +289,7 @@ public class AuthorizationService extends AbstractComponent {
             }
         }
 
-        grant(authentication, action, request);
+        grant(authentication, action, originalRequest);
     }
 
     private void setIndicesAccessControl(IndicesAccessControl accessControl) {

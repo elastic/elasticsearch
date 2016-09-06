@@ -24,7 +24,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -851,16 +850,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         } else if (nodeJoinController == null) {
             throw new IllegalStateException("discovery module is not yet started");
         } else {
-            // The minimum supported version for a node joining a master:
-            Version minimumNodeJoinVersion = localNode().getVersion().minimumCompatibilityVersion();
-            // Sanity check: maybe we don't end up here, because serialization may have failed.
-            if (node.getVersion().before(minimumNodeJoinVersion)) {
-                callback.onFailure(
-                        new IllegalStateException("Can't handle join request from a node with a version [" + node.getVersion() + "] that is lower than the minimum compatible version [" + minimumNodeJoinVersion.minimumCompatibilityVersion() + "]")
-                );
-                return;
-            }
-
             // try and connect to the node, if it fails, we can raise an exception back to the client...
             transportService.connectToNode(node);
 

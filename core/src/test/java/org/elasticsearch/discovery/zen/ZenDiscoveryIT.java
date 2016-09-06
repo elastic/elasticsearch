@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -59,7 +58,6 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -287,32 +285,6 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         public EnumSet<MetaData.XContentContext> context() {
             return EnumSet.of(MetaData.XContentContext.GATEWAY, MetaData.XContentContext.SNAPSHOT);
         }
-    }
-
-    public void testHandleNodeJoin_incompatibleMinVersion() throws UnknownHostException {
-        Settings nodeSettings = Settings.builder()
-                .put("discovery.type", "zen") // <-- To override the local setting if set externally
-                .build();
-        String nodeName = internalCluster().startNode(nodeSettings);
-        ZenDiscovery zenDiscovery = (ZenDiscovery) internalCluster().getInstance(Discovery.class, nodeName);
-        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeName);
-        DiscoveryNode node = new DiscoveryNode("_node_id", new InetSocketTransportAddress(InetAddress.getByName("0.0.0.0"), 0),
-                emptyMap(), emptySet(), previousMajorVersion);
-        final AtomicReference<IllegalStateException> holder = new AtomicReference<>();
-        zenDiscovery.handleJoinRequest(node, clusterService.state(), new MembershipAction.JoinCallback() {
-            @Override
-            public void onSuccess() {
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                holder.set((IllegalStateException) e);
-            }
-        });
-
-        assertThat(holder.get(), notNullValue());
-        assertThat(holder.get().getMessage(), equalTo("Can't handle join request from a node with a version [" + previousMajorVersion
-                + "] that is lower than the minimum compatible version [" + Version.CURRENT.minimumCompatibilityVersion() + "]"));
     }
 
     public void testDiscoveryStats() throws IOException {

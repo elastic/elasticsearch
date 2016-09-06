@@ -1,0 +1,248 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "1"
+        ignore: 404
+
+---
+"Test search processor default values":
+  - do:
+      index:
+        index: index
+        type: type
+        id: 1
+        body: {
+          foo: "bar"
+        }
+  - do:
+      index:
+        index: index
+        type: type
+        id: 2
+        body: {
+          foo: "baz"
+        }
+
+  - do:
+      indices.refresh: {}
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "search" : {
+                  "host": "http://${host}",
+                  "index": "index",
+                  "type": "type"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "1"
+        body: {
+        }
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.foo: "/ba.+/" }
+
+---
+"Test search processor with query":
+  - do:
+      index:
+        index: index
+        type: type
+        id: 1
+        body: {
+          foo: "bar"
+        }
+
+  - do:
+      index:
+        index: index
+        type: type
+        id: 2
+        body: {
+          foo: "baz"
+        }
+
+  - do:
+      indices.refresh: {}
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+
+  # PIPELINE 1
+  - do:
+      ingest.put_pipeline:
+        id: "1"
+        body:  >
+          {
+            "processors": [
+              {
+                "search" : {
+                  "host": "http://${host}",
+                  "index": "index",
+                  "type": "type",
+                  "query": "{ \"query\" : { \"match\" : { \"foo\" : \"bar\" } } }"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "1"
+        body: {
+        }
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.foo: "bar" }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 2
+        pipeline: "1"
+        body: {
+          foo: "something"
+        }
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 2
+  - match: { _source.foo: "bar" }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 3
+        pipeline: "1"
+        body: {
+          foo: {
+            inner: "something"
+          }
+        }
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 3
+  - match: { _source.foo: "bar" }
+
+  # PIPELINE 2
+  - do:
+      ingest.put_pipeline:
+        id: "2"
+        body:  >
+          {
+            "processors": [
+              {
+                "search" : {
+                  "host": "http://${host}",
+                  "index": "index",
+                  "type": "type",
+                  "query": "{ \"query\" : { \"match\" : { \"foo\" : \"bar\" } } }",
+                  "target_field": "foo"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test2
+        type: test
+        id: 1
+        pipeline: "2"
+        body: {
+        }
+
+  - do:
+      get:
+        index: test2
+        type: test
+        id: 1
+  - match: { _source.foo.foo: "bar" }
+
+  - do:
+      index:
+        index: test2
+        type: test
+        id: 2
+        pipeline: "2"
+        body: {
+          foo: "something"
+        }
+
+  - do:
+      get:
+        index: test2
+        type: test
+        id: 2
+  - match: { _source.foo.foo: "bar" }
+
+  - do:
+      index:
+        index: test2
+        type: test
+        id: 3
+        pipeline: "2"
+        body: {
+          foo: {
+            inner: "something"
+          }
+        }
+
+  - do:
+      get:
+        index: test2
+        type: test
+        id: 3
+  - match: { _source.foo.foo: "bar" }
+  - match: { _source.foo.inner: "something" }

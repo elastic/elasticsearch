@@ -1335,6 +1335,182 @@ Renames an existing field. If the field doesn't exist or the new name is already
 }
 --------------------------------------------------
 
+[[ingest-search-processor]]
+=== Search Processor
+
+Allows running elasticsearch queries against a cluster (external or local) and extract data from the response.
+The size of the request is defined to `1` so you get the first more relevant document.
+
+[[ingest-search-options]]
+.Search Options
+[options="header"]
+|======
+| Name                   | Required  | Default                   | Description
+| `target_field`         | no        | -                         | The field to set. If empty, the result is merged from the root level.
+| `host`                 | no        | address of the local node | Elasticsearch node. For example: http://127.0.0.1:9200
+| `username`             | no        | -                         | The username is the cluster is secured
+| `password`             | no        | -                         | The password is the cluster is secured
+| `index`                | no        | -                         | Index name
+| `type`                 | no        | -                         | Type name
+| `query`                | no        |{"query":{"match_all":{}}} | Query to run.
+| `path`                 | no        | hits.hits._source         | defines a path to apply on the response to extract the object to be merged.
+|======
+
+Assume you have already indexed the following document in index `index` with type `type`:
+
+[source,js]
+--------------------------------------------------
+{
+  "foo" : "bar"
+}
+--------------------------------------------------
+
+And that you have a sample document like this one:
+
+[source,js]
+--------------------------------------------------
+{
+  "one" : 1
+}
+--------------------------------------------------
+
+
+When this `search` processor operates on this sample document:
+
+[source,js]
+--------------------------------------------------
+{
+  "search" : {
+    "index" : "index",
+    "type" : "type"
+  }
+}
+--------------------------------------------------
+
+Then the document will look like this after preprocessing:
+
+[source,js]
+--------------------------------------------------
+{
+  "one" : 1,
+  "foo" : "bar"
+}
+--------------------------------------------------
+
+Another example with the same source document. If you want to copy the result in another field:
+
+[source,js]
+--------------------------------------------------
+{
+  "search" : {
+    "index" : "index",
+    "type" : "type",
+    "target_field" : "target"
+  }
+}
+--------------------------------------------------
+
+Then the document will look like this after preprocessing:
+
+[source,js]
+--------------------------------------------------
+{
+  "one" : 1,
+  "target": {
+    "foo" : "bar"
+  }
+}
+--------------------------------------------------
+
+[[ingest-search-query]]
+==== Changing the query
+
+You can easily change the query using elasticsearch Query DSL:
+
+[source,js]
+--------------------------------------------------
+{
+  "search" : {
+    "index" : "index",
+    "type" : "type",
+    "query" : "{\"query\":{\"match\":{\"foo\":\"bar\"}}}"
+  }
+}
+--------------------------------------------------
+
+By default, it runs a `match_all` query. Note that only the first hit is fetch by the search processor.
+Remember that can always sort the result set in order to get first other results.
+
+
+[[ingest-search-path]]
+==== Extracting specific content
+
+Using `path` parameter, you can specify which field you want to actually extract from the result set.
+If the result is:
+
+[source,js]
+--------------------------------------------------
+{
+  "took" : 2,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 5,
+    "successful" : 5,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : 1,
+    "max_score" : 0.2876821,
+    "hits" : [
+      {
+        "_index" : "foo",
+        "_type" : "bar",
+        "_id" : "1",
+        "_score" : 0.2876821,
+        "_source" : {
+          "foo" : "bar"
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+
+You can define `path` to be `_shards.total` if you want to add the number of total shards to your document.
+You can also define it to `hits.hits._source.foo` to index directly `bar`. Note that if the path returns a
+core datatype, you will need to define the `target_field` to put this value in.
+
+You can also imagine running an aggregation and extract any field from the aggregation result.
+
+
+[[ingest-search-target-field]]
+==== Target field behavior
+
+Depending on the value extracted by the `path` and the source document, you might have the following behavior.
+
+If `path` extracts an object and `target_field` is not defined, the object is merged as is within the source.
+
+[[ingest-search-target-field-examples]]
+.Target field examples
+[options="header"]
+|======
+| Extracted with `path` | Source object                | `target_field`                   | Generated document
+| `{ "foo": "bar" }`    | `{ }`                        | -                                | `{ "foo": "bar" }`
+| `{ "foo": "bar" }`    | `{ }`                        | `target`                         | `{ "target": { "foo": "bar" } }`
+| `{ "foo": "bar" }`    | `{ "target": "baz" }`        | `target`                         | `{ "target": { "foo": "bar" } }`
+| `{ "foo": "bar" }`    | `{ "target": { "a": "b" } }` | `target`                         | `{ "target": { "a": "b", "foo": "bar" } }`
+| `"bar"`               | `{ }`                        | -                                | Will be rejected
+| `"bar"`               | `{ }`                        | `target`                         | `{ "target": "bar" }`
+| `"bar"`               | `{ "target": "baz" }`        | `target`                         | `{ "target": "bar" }`
+| `"bar"`               | `{ "target": { "a": "b" } }` | `target`                         | `{ "target": "bar" }`
+|======
+
+Note that your documents could be rejected if they don't match the existing mapping.
+
+For example, if you have previously indexed a document like `{ "target": "baz" }`, so `target` is defined as a
+`string`, search ingest won't be able to generate a document like `{ "target": { "foo": "bar" } }` because
+`target` would become an `Object`.
+
 [[script-processor]]
 === Script Processor
 

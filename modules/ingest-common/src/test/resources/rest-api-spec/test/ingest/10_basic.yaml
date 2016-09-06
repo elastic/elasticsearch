@@ -23,8 +23,9 @@
     - match:  { nodes.$master.ingest.processors.11.type: remove }
     - match:  { nodes.$master.ingest.processors.12.type: rename }
     - match:  { nodes.$master.ingest.processors.13.type: script }
-    - match:  { nodes.$master.ingest.processors.14.type: set }
-    - match:  { nodes.$master.ingest.processors.15.type: sort }
-    - match:  { nodes.$master.ingest.processors.16.type: split }
-    - match:  { nodes.$master.ingest.processors.17.type: trim }
-    - match:  { nodes.$master.ingest.processors.18.type: uppercase }
+    - match:  { nodes.$master.ingest.processors.14.type: search }
+    - match:  { nodes.$master.ingest.processors.15.type: set }
+    - match:  { nodes.$master.ingest.processors.16.type: sort }
+    - match:  { nodes.$master.ingest.processors.17.type: split }
+    - match:  { nodes.$master.ingest.processors.18.type: trim }
+    - match:  { nodes.$master.ingest.processors.19.type: uppercase }

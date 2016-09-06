@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.common;
 
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -32,12 +33,14 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-public class IngestCommonPlugin extends Plugin implements IngestPlugin {
+public class IngestCommonPlugin extends Plugin implements IngestPlugin, Closeable {
 
     private final Map<String, String> builtinPatterns;
+    private final SearchProcessor.Factory searchProcessorFactory;
 
     public IngestCommonPlugin() throws IOException {
         this.builtinPatterns = loadBuiltinPatterns();
+        this.searchProcessorFactory = new SearchProcessor.Factory();
     }
 
     @Override
@@ -62,6 +65,7 @@ public class IngestCommonPlugin extends Plugin implements IngestPlugin {
         processors.put(GrokProcessor.TYPE, new GrokProcessor.Factory(builtinPatterns));
         processors.put(ScriptProcessor.TYPE, new ScriptProcessor.Factory(parameters.scriptService));
         processors.put(DotExpanderProcessor.TYPE, new DotExpanderProcessor.Factory());
+        processors.put(SearchProcessor.TYPE, searchProcessorFactory);
         return Collections.unmodifiableMap(processors);
     }
 
@@ -97,5 +101,11 @@ public class IngestCommonPlugin extends Plugin implements IngestPlugin {
                 patternBank.put(parts[0], parts[1]);
             }
         }
+    }
+
+    @Override
+    public void close() throws IOException {
+        // The search processor factory initialize a REST Client which must be destroyed
+        searchProcessorFactory.close();
     }
 }

@@ -23,6 +23,7 @@ esplugin {
 }
 
 dependencies {
+    compile "org.elasticsearch.client:rest:${version}"
     compile 'org.jruby.joni:joni:2.1.6'
     // joni dependencies:
     compile 'org.jruby.jcodings:jcodings:1.0.12'
@@ -37,3 +38,10 @@ thirdPartyAudit.excludes = [
         'org.objectweb.asm.MethodVisitor',
         'org.objectweb.asm.Opcodes',
 ]
+
+dependencyLicenses {
+    // Don't check the client's license. We know it.
+    dependencies = project.configurations.runtime.fileCollection {
+        it.group.startsWith('org.elasticsearch') == false
+    } - project.configurations.provided
+}

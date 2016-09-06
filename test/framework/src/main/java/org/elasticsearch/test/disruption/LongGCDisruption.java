@@ -42,7 +42,6 @@ public class LongGCDisruption extends SingleNodeDisruption {
 
     protected final String disruptedNode;
     private Set<Thread> suspendedThreads;
-    private long stoppingTimeoutInMillis;
 
     public LongGCDisruption(Random random, String disruptedNode) {
         super(random);
@@ -82,10 +81,10 @@ public class LongGCDisruption extends SingleNodeDisruption {
                     Thread.currentThread().interrupt();
                 }
                 if (stoppingError.get() != null) {
-                    throw new RuntimeException("uknown error while stopping threads", stoppingError.get());
+                    throw new RuntimeException("unknown error while stopping threads", stoppingError.get());
                 }
                 if (stoppingThread.isAlive()) {
-                    logger.warn("failed to stop node [{}]'s thread within [{}] millis. Stopping thread stack trace:\n {}"
+                    logger.warn("failed to stop node [{}]'s threads within [{}] millis. Stopping thread stack trace:\n {}"
                         , disruptedNode, getStoppingTimeoutInMillis(), stackTrace(stoppingThread));
                     stoppingThread.interrupt(); // best effort;
                     throw new RuntimeException("stopping node threads took too long");
@@ -192,7 +191,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
 
     // for testing
     protected long getStoppingTimeoutInMillis() {
-        return 30 * 1000L;
+        return TimeValue.timeValueSeconds(30).getMillis();
     }
 
     @SuppressWarnings("deprecation") // stops/resumes threads intentionally

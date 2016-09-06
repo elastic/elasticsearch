@@ -236,7 +236,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 if (shard.primary() || shard.unassignedInfo().getReason() == UnassignedInfo.Reason.INDEX_CREATED) {
                     continue;
                 }
-                replicaShardAllocator.ignoreUnassignedIfDelayed(unassignedIterator, shard, allocation.changes());
+                if (shard.unassignedInfo().isDelayed()) {
+                    unassignedIterator.removeAndIgnore(UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION, allocation.changes());
+                }
             }
         }
     }

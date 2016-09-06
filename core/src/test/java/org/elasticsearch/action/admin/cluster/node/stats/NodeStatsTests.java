@@ -88,45 +88,42 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(nodeStats.getProcess().getOpenFileDescriptors(),
                             deserializedNodeStats.getProcess().getOpenFileDescriptors());
                 }
-                if (nodeStats.getJvm() == null) {
-                    assertNull(deserializedNodeStats.getJvm());
+                JvmStats jvm = nodeStats.getJvm();
+                JvmStats deserializedJvm = deserializedNodeStats.getJvm();
+                if (jvm == null) {
+                    assertNull(deserializedJvm);
                 } else {
-                    assertEquals(nodeStats.getJvm().getTimestamp(), deserializedNodeStats.getJvm().getTimestamp());
-                    assertEquals(nodeStats.getJvm().getMem().getHeapUsedPercent(),
-                            deserializedNodeStats.getJvm().getMem().getHeapUsedPercent());
-                    assertEquals(nodeStats.getJvm().getMem().getHeapUsed(), deserializedNodeStats.getJvm().getMem().getHeapUsed());
-                    assertEquals(nodeStats.getJvm().getMem().getHeapCommitted(),
-                            deserializedNodeStats.getJvm().getMem().getHeapCommitted());
-                    assertEquals(nodeStats.getJvm().getMem().getNonHeapCommitted(),
-                            deserializedNodeStats.getJvm().getMem().getNonHeapCommitted());
-                    assertEquals(nodeStats.getJvm().getMem().getNonHeapUsed(), deserializedNodeStats.getJvm().getMem().getNonHeapUsed());
-                    assertEquals(nodeStats.getJvm().getMem().getHeapMax(), deserializedNodeStats.getJvm().getMem().getHeapMax());
-                    assertEquals(nodeStats.getJvm().getClasses().getLoadedClassCount(),
-                            deserializedNodeStats.getJvm().getClasses().getLoadedClassCount());
-                    assertEquals(nodeStats.getJvm().getClasses().getTotalLoadedClassCount(),
-                            deserializedNodeStats.getJvm().getClasses().getTotalLoadedClassCount());
-                    assertEquals(nodeStats.getJvm().getClasses().getUnloadedClassCount(),
-                            deserializedNodeStats.getJvm().getClasses().getUnloadedClassCount());
-                    assertEquals(nodeStats.getJvm().getGc().getCollectors().length,
-                            deserializedNodeStats.getJvm().getGc().getCollectors().length);
-                    for (int i = 0; i < nodeStats.getJvm().getGc().getCollectors().length; i++) {
-                        JvmStats.GarbageCollector garbageCollector = nodeStats.getJvm().getGc().getCollectors()[i];
-                        JvmStats.GarbageCollector deserializedGarbageCollector = deserializedNodeStats.getJvm().getGc().getCollectors()[i];
+                    JvmStats.Mem mem = jvm.getMem();
+                    JvmStats.Mem deserializedMem = deserializedJvm.getMem();
+                    assertEquals(jvm.getTimestamp(), deserializedJvm.getTimestamp());
+                    assertEquals(mem.getHeapUsedPercent(), deserializedMem.getHeapUsedPercent());
+                    assertEquals(mem.getHeapUsed(), deserializedMem.getHeapUsed());
+                    assertEquals(mem.getHeapCommitted(), deserializedMem.getHeapCommitted());
+                    assertEquals(mem.getNonHeapCommitted(), deserializedMem.getNonHeapCommitted());
+                    assertEquals(mem.getNonHeapUsed(), deserializedMem.getNonHeapUsed());
+                    assertEquals(mem.getHeapMax(), deserializedMem.getHeapMax());
+                    JvmStats.Classes classes = jvm.getClasses();
+                    assertEquals(classes.getLoadedClassCount(), deserializedJvm.getClasses().getLoadedClassCount());
+                    assertEquals(classes.getTotalLoadedClassCount(), deserializedJvm.getClasses().getTotalLoadedClassCount());
+                    assertEquals(classes.getUnloadedClassCount(), deserializedJvm.getClasses().getUnloadedClassCount());
+                    assertEquals(jvm.getGc().getCollectors().length, deserializedJvm.getGc().getCollectors().length);
+                    for (int i = 0; i < jvm.getGc().getCollectors().length; i++) {
+                        JvmStats.GarbageCollector garbageCollector = jvm.getGc().getCollectors()[i];
+                        JvmStats.GarbageCollector deserializedGarbageCollector = deserializedJvm.getGc().getCollectors()[i];
                         assertEquals(garbageCollector.getName(), deserializedGarbageCollector.getName());
                         assertEquals(garbageCollector.getCollectionCount(), deserializedGarbageCollector.getCollectionCount());
                         assertEquals(garbageCollector.getCollectionTime(), deserializedGarbageCollector.getCollectionTime());
                     }
-                    assertEquals(nodeStats.getJvm().getThreads().getCount(), deserializedNodeStats.getJvm().getThreads().getCount());
-                    assertEquals(nodeStats.getJvm().getThreads().getPeakCount(),
-                            deserializedNodeStats.getJvm().getThreads().getPeakCount());
-                    assertEquals(nodeStats.getJvm().getUptime(), deserializedNodeStats.getJvm().getUptime());
-                    if (nodeStats.getJvm().getBufferPools() == null) {
-                        assertNull(deserializedNodeStats.getJvm().getBufferPools());
+                    assertEquals(jvm.getThreads().getCount(), deserializedJvm.getThreads().getCount());
+                    assertEquals(jvm.getThreads().getPeakCount(), deserializedJvm.getThreads().getPeakCount());
+                    assertEquals(jvm.getUptime(), deserializedJvm.getUptime());
+                    if (jvm.getBufferPools() == null) {
+                        assertNull(deserializedJvm.getBufferPools());
                     } else {
-                        assertEquals(nodeStats.getJvm().getBufferPools().size(), deserializedNodeStats.getJvm().getBufferPools().size());
-                        for (int i = 0; i < nodeStats.getJvm().getBufferPools().size(); i++) {
-                            JvmStats.BufferPool bufferPool = nodeStats.getJvm().getBufferPools().get(i);
-                            JvmStats.BufferPool deserializedBufferPool = deserializedNodeStats.getJvm().getBufferPools().get(i);
+                        assertEquals(jvm.getBufferPools().size(), deserializedJvm.getBufferPools().size());
+                        for (int i = 0; i < jvm.getBufferPools().size(); i++) {
+                            JvmStats.BufferPool bufferPool = jvm.getBufferPools().get(i);
+                            JvmStats.BufferPool deserializedBufferPool = deserializedJvm.getBufferPools().get(i);
                             assertEquals(bufferPool.getName(), deserializedBufferPool.getName());
                             assertEquals(bufferPool.getCount(), deserializedBufferPool.getCount());
                             assertEquals(bufferPool.getTotalCapacity(), deserializedBufferPool.getTotalCapacity());
@@ -151,32 +148,30 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(stats.getRejected(), deserializedStats.getRejected());
                     }
                 }
-                if (nodeStats.getFs() == null) {
-                    assertNull(deserializedNodeStats.getFs());
+                FsInfo fs = nodeStats.getFs();
+                FsInfo deserializedFs = deserializedNodeStats.getFs();
+                if (fs == null) {
+                    assertNull(deserializedFs);
                 } else {
-                    assertEquals(nodeStats.getFs().getTimestamp(), deserializedNodeStats.getFs().getTimestamp());
-                    assertEquals(nodeStats.getFs().getTotal().getAvailable(), deserializedNodeStats.getFs().getTotal().getAvailable());
-                    assertEquals(nodeStats.getFs().getTotal().getTotal(), deserializedNodeStats.getFs().getTotal().getTotal());
-                    assertEquals(nodeStats.getFs().getTotal().getFree(), deserializedNodeStats.getFs().getTotal().getFree());
-                    assertEquals(nodeStats.getFs().getTotal().getMount(), deserializedNodeStats.getFs().getTotal().getMount());
-                    assertEquals(nodeStats.getFs().getTotal().getPath(), deserializedNodeStats.getFs().getTotal().getPath());
-                    assertEquals(nodeStats.getFs().getTotal().getSpins(), deserializedNodeStats.getFs().getTotal().getSpins());
-                    assertEquals(nodeStats.getFs().getTotal().getType(), deserializedNodeStats.getFs().getTotal().getType());
-                    assertEquals(nodeStats.getFs().getIoStats().getTotalOperations(),
-                            deserializedNodeStats.getFs().getIoStats().getTotalOperations());
-                    assertEquals(nodeStats.getFs().getIoStats().getTotalReadKilobytes(),
-                            deserializedNodeStats.getFs().getIoStats().getTotalReadKilobytes());
-                    assertEquals(nodeStats.getFs().getIoStats().getTotalReadOperations(),
-                            deserializedNodeStats.getFs().getIoStats().getTotalReadOperations());
-                    assertEquals(nodeStats.getFs().getIoStats().getTotalWriteKilobytes(),
-                            deserializedNodeStats.getFs().getIoStats().getTotalWriteKilobytes());
-                    assertEquals(nodeStats.getFs().getIoStats().getTotalWriteOperations(),
-                            deserializedNodeStats.getFs().getIoStats().getTotalWriteOperations());
-                    assertEquals(nodeStats.getFs().getIoStats().getDevicesStats().length,
-                            deserializedNodeStats.getFs().getIoStats().getDevicesStats().length);
-                    for (int i = 0; i < nodeStats.getFs().getIoStats().getDevicesStats().length; i++) {
-                        FsInfo.DeviceStats deviceStats = nodeStats.getFs().getIoStats().getDevicesStats()[i];
-                        FsInfo.DeviceStats deserializedDeviceStats = deserializedNodeStats.getFs().getIoStats().getDevicesStats()[i];
+                    assertEquals(fs.getTimestamp(), deserializedFs.getTimestamp());
+                    assertEquals(fs.getTotal().getAvailable(), deserializedFs.getTotal().getAvailable());
+                    assertEquals(fs.getTotal().getTotal(), deserializedFs.getTotal().getTotal());
+                    assertEquals(fs.getTotal().getFree(), deserializedFs.getTotal().getFree());
+                    assertEquals(fs.getTotal().getMount(), deserializedFs.getTotal().getMount());
+                    assertEquals(fs.getTotal().getPath(), deserializedFs.getTotal().getPath());
+                    assertEquals(fs.getTotal().getSpins(), deserializedFs.getTotal().getSpins());
+                    assertEquals(fs.getTotal().getType(), deserializedFs.getTotal().getType());
+                    FsInfo.IoStats ioStats = fs.getIoStats();
+                    FsInfo.IoStats deserializedIoStats = deserializedFs.getIoStats();
+                    assertEquals(ioStats.getTotalOperations(), deserializedIoStats.getTotalOperations());
+                    assertEquals(ioStats.getTotalReadKilobytes(), deserializedIoStats.getTotalReadKilobytes());
+                    assertEquals(ioStats.getTotalReadOperations(), deserializedIoStats.getTotalReadOperations());
+                    assertEquals(ioStats.getTotalWriteKilobytes(), deserializedIoStats.getTotalWriteKilobytes());
+                    assertEquals(ioStats.getTotalWriteOperations(), deserializedIoStats.getTotalWriteOperations());
+                    assertEquals(ioStats.getDevicesStats().length, deserializedIoStats.getDevicesStats().length);
+                    for (int i = 0; i < ioStats.getDevicesStats().length; i++) {
+                        FsInfo.DeviceStats deviceStats = ioStats.getDevicesStats()[i];
+                        FsInfo.DeviceStats deserializedDeviceStats = deserializedIoStats.getDevicesStats()[i];
                         assertEquals(deviceStats.operations(), deserializedDeviceStats.operations());
                         assertEquals(deviceStats.readKilobytes(), deserializedDeviceStats.readKilobytes());
                         assertEquals(deviceStats.readOperations(), deserializedDeviceStats.readOperations());
@@ -213,44 +208,41 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(circuitBreakerStats.getTrippedCount(), deserializedCircuitBreakerStats.getTrippedCount(), 0);
                     }
                 }
-                if (nodeStats.getScriptStats() == null) {
+                ScriptStats scriptStats = nodeStats.getScriptStats();
+                if (scriptStats == null) {
                     assertNull(deserializedNodeStats.getScriptStats());
                 } else {
-                    assertEquals(nodeStats.getScriptStats().getCacheEvictions(),
-                            deserializedNodeStats.getScriptStats().getCacheEvictions());
-                    assertEquals(nodeStats.getScriptStats().getCompilations(), deserializedNodeStats.getScriptStats().getCompilations());
+                    assertEquals(scriptStats.getCacheEvictions(), deserializedNodeStats.getScriptStats().getCacheEvictions());
+                    assertEquals(scriptStats.getCompilations(), deserializedNodeStats.getScriptStats().getCompilations());
                 }
-                if (nodeStats.getDiscoveryStats() == null) {
-                    assertNull(deserializedNodeStats.getDiscoveryStats());
+                DiscoveryStats discoveryStats = nodeStats.getDiscoveryStats();
+                DiscoveryStats deserializedDiscoveryStats = deserializedNodeStats.getDiscoveryStats();
+                if (discoveryStats == null) {
+                    assertNull(deserializedDiscoveryStats);
                 } else {
-                    if (nodeStats.getDiscoveryStats().getQueueStats() == null) {
-                        assertNull(deserializedNodeStats.getDiscoveryStats().getQueueStats());
+                    PendingClusterStateStats queueStats = discoveryStats.getQueueStats();
+                    if (queueStats == null) {
+                        assertNull(deserializedDiscoveryStats.getQueueStats());
                     } else {
-                        assertEquals(nodeStats.getDiscoveryStats().getQueueStats().getCommitted(),
-                                deserializedNodeStats.getDiscoveryStats().getQueueStats().getCommitted());
-                        assertEquals(nodeStats.getDiscoveryStats().getQueueStats().getTotal(),
-                                deserializedNodeStats.getDiscoveryStats().getQueueStats().getTotal());
-                        assertEquals(nodeStats.getDiscoveryStats().getQueueStats().getPending(),
-                                deserializedNodeStats.getDiscoveryStats().getQueueStats().getPending());
+                        assertEquals(queueStats.getCommitted(), deserializedDiscoveryStats.getQueueStats().getCommitted());
+                        assertEquals(queueStats.getTotal(), deserializedDiscoveryStats.getQueueStats().getTotal());
+                        assertEquals(queueStats.getPending(), deserializedDiscoveryStats.getQueueStats().getPending());
                     }
                 }
-                if (nodeStats.getIngestStats() == null) {
-                    assertNull(deserializedNodeStats.getIngestStats());
+                IngestStats ingestStats = nodeStats.getIngestStats();
+                IngestStats deserializedIngestStats = deserializedNodeStats.getIngestStats();
+                if (ingestStats == null) {
+                    assertNull(deserializedIngestStats);
                 } else {
-                    assertEquals(nodeStats.getIngestStats().getTotalStats().getIngestCount(),
-                            deserializedNodeStats.getIngestStats().getTotalStats().getIngestCount());
-                    assertEquals(nodeStats.getIngestStats().getTotalStats().getIngestCurrent(),
-                            deserializedNodeStats.getIngestStats().getTotalStats().getIngestCurrent());
-                    assertEquals(nodeStats.getIngestStats().getTotalStats().getIngestFailedCount(),
-                            deserializedNodeStats.getIngestStats().getTotalStats().getIngestFailedCount());
-                    assertEquals(nodeStats.getIngestStats().getTotalStats().getIngestTimeInMillis(),
-                            deserializedNodeStats.getIngestStats().getTotalStats().getIngestTimeInMillis());
-                    assertEquals(nodeStats.getIngestStats().getStatsPerPipeline().size(),
-                            deserializedNodeStats.getIngestStats().getStatsPerPipeline().size());
-                    for (Map.Entry<String, IngestStats.Stats> entry : nodeStats.getIngestStats().getStatsPerPipeline().entrySet()) {
+                    IngestStats.Stats totalStats = ingestStats.getTotalStats();
+                    assertEquals(totalStats.getIngestCount(), deserializedIngestStats.getTotalStats().getIngestCount());
+                    assertEquals(totalStats.getIngestCurrent(), deserializedIngestStats.getTotalStats().getIngestCurrent());
+                    assertEquals(totalStats.getIngestFailedCount(), deserializedIngestStats.getTotalStats().getIngestFailedCount());
+                    assertEquals(totalStats.getIngestTimeInMillis(), deserializedIngestStats.getTotalStats().getIngestTimeInMillis());
+                    assertEquals(ingestStats.getStatsPerPipeline().size(), deserializedIngestStats.getStatsPerPipeline().size());
+                    for (Map.Entry<String, IngestStats.Stats> entry : ingestStats.getStatsPerPipeline().entrySet()) {
                         IngestStats.Stats stats = entry.getValue();
-                        IngestStats.Stats deserializedStats = deserializedNodeStats.getIngestStats()
-                                .getStatsPerPipeline().get(entry.getKey());
+                        IngestStats.Stats deserializedStats = deserializedIngestStats.getStatsPerPipeline().get(entry.getKey());
                         assertEquals(stats.getIngestFailedCount(), deserializedStats.getIngestFailedCount());
                         assertEquals(stats.getIngestTimeInMillis(), deserializedStats.getIngestTimeInMillis());
                         assertEquals(stats.getIngestCurrent(), deserializedStats.getIngestCurrent());

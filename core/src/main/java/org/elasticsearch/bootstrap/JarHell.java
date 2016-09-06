@@ -168,7 +168,7 @@ public class JarHell {
             if (path.toString().endsWith(".jar")) {
                 if (!seenJars.add(path)) {
                     logger.debug("excluding duplicate classpath element: {}", path);
-                    continue; // we can't fail because of sheistiness with joda-time
+                    continue;
                 }
                 logger.debug("examining jar: {}", path);
                 try (JarFile file = new JarFile(path.toString())) {
@@ -273,9 +273,6 @@ public class JarHell {
             } else {
                 if (clazz.startsWith("org.apache.log4j")) {
                     return; // go figure, jar hell for what should be System.out.println...
-                }
-                if (clazz.equals("org.joda.time.base.BaseDateTime")) {
-                    return; // apparently this is intentional... clean this up
                 }
                 if (clazz.startsWith("org.apache.logging.log4j.core.impl.ThrowableProxy")) {
                     /*

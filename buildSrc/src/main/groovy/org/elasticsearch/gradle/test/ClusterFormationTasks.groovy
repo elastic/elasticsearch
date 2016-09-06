@@ -261,7 +261,7 @@ class ClusterFormationTasks {
         writeConfig.doFirst {
             String unicastTransportUri = node.config.unicastTransportUri(seedNode, node, project.ant)
             if (unicastTransportUri != null) {
-                esConfig['discovery.zen.ping.unicast.hosts'] = unicastTransportUri
+                esConfig['discovery.zen.ping.unicast.hosts'] = "\"${unicastTransportUri}\""
             }
             File configFile = new File(node.confDir, 'elasticsearch.yml')
             logger.info("Configuring ${configFile}")

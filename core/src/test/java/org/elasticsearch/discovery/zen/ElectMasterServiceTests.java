@@ -23,8 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService.Candidate;
+import org.elasticsearch.discovery.zen.ElectMasterService.Candidate;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;

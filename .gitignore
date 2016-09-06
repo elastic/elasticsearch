@@ -21,7 +21,7 @@ nbactions.xml
 build/
 
 # gradle wrapper 
-gradle/
+/gradle/
 gradlew
 gradlew.bat
 

@@ -61,7 +61,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.logging.PrefixMessageFactory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -1566,13 +1565,13 @@ public class InternalEngineTests extends ESTestCase {
         MockAppender mockAppender = new MockAppender("testIndexWriterIFDInfoStream");
 
         final Logger iwIFDLogger;
-        if (LogManager.getContext(false).hasLogger("org.elasticsearch.index.engine.lucene.iw.ifd", new PrefixMessageFactory())) {
+        if (LogManager.getContext(false).hasLogger("org.elasticsearch.index.engine.lucene.iw.ifd")) {
             // Works when running this test inside Intellij:
             iwIFDLogger = LogManager.getLogger("org.elasticsearch.index.engine.lucene.iw.ifd");
             assertNotNull(iwIFDLogger);
         } else {
             // Works when running this test from command line:
-            assertTrue(LogManager.getContext(false).hasLogger("index.engine.lucene.iw.ifd", new PrefixMessageFactory()));
+            assertTrue(LogManager.getContext(false).hasLogger("index.engine.lucene.iw.ifd"));
             iwIFDLogger = LogManager.getLogger("index.engine.lucene.iw.ifd");
         }
 

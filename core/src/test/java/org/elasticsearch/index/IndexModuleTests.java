@@ -35,7 +35,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -86,7 +86,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 
@@ -297,6 +297,7 @@ public class IndexModuleTests extends ESTestCase {
                 .build();
         IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings("foo", indexSettings), null,
                 new AnalysisRegistry(environment, emptyMap(), emptyMap(), emptyMap(), emptyMap()));
+        Setting<String> keySetting = Setting.affixKeySetting("index.similarity.", ".key", "", Function.identity());
         module.addSimilarity("test_similarity", (string, settings) -> new SimilarityProvider() {
             @Override
             public String name() {
@@ -305,8 +306,11 @@ public class IndexModuleTests extends ESTestCase {
 
             @Override
             public Similarity get() {
-                return new TestSimilarity(settings.get("key"));
+                return new TestSimilarity(getConcreteSetting(keySetting).get(settings));
             }
+
+            @Override
+            public void addSettingsUpdateConsumer(IndexScopedSettings scopedSettings) {}
         });
 
         IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider, indicesQueryCache, mapperRegistry,

@@ -808,17 +808,17 @@ public class Setting<T> extends ToXContentToBytes {
 
     /**
      * This setting type allows to validate settings that have the same type and a common prefix and suffix. For instance
-     * storage.${backend}.enable=[true|false] can easily be added with this setting. Yet, adfix key settings don't support updaters
-     * out of the box unless {@link #getConcreteSetting(String)} is used to pull the updater.
+     * storage.${backend}.enable=[true|false] can easily be added with this setting. Yet, affix key settings don't support
+     * updaters and getters out of the box unless {@link #getConcreteSetting(String)} is used to pull the updater.
      */
-    public static <T> Setting<T> adfixKeySetting(String prefix, String suffix, Function<Settings, String> defaultValue,
+    public static <T> Setting<T> affixKeySetting(String prefix, String suffix, Function<Settings, String> defaultValue,
                                                  Function<String, T> parser, Property... properties) {
         return affixKeySetting(AffixKey.withAdfix(prefix, suffix), defaultValue, parser, properties);
     }
 
-    public static <T> Setting<T> adfixKeySetting(String prefix, String suffix, String defaultValue, Function<String, T> parser,
+    public static <T> Setting<T> affixKeySetting(String prefix, String suffix, String defaultValue, Function<String, T> parser,
                                                  Property... properties) {
-        return adfixKeySetting(prefix, suffix, (s) -> defaultValue, parser, properties);
+        return affixKeySetting(prefix, suffix, (s) -> defaultValue, parser, properties);
     }
 
     public static <T> Setting<T> affixKeySetting(AffixKey key, Function<Settings, String> defaultValue, Function<String, T> parser,
@@ -843,9 +843,63 @@ public class Setting<T> extends ToXContentToBytes {
                     throw new IllegalArgumentException("key [" + key + "] must match [" + getKey() + "] but didn't.");
                 }
             }
+
+            @Override
+            public T get(Settings settings) {
+                throw new UnsupportedOperationException("Affix settings can't be retrieved. Use #getConcreteSetting for retrieval.");
+            }
+
+            @Override
+            public String getRaw(Settings settings) {
+                throw new UnsupportedOperationException("Affix settings can't be retrieved. Use #getConcreteSetting for retrieval.");
+            }
+
+            @Override
+            public boolean exists(Settings settings) {
+                throw new UnsupportedOperationException("Affix settings can't be retrieved. Use #getConcreteSetting for retrieval.");
+            }
         };
     }
 
+    public static Setting<Settings> affixKeyGroupSetting(String prefix, String suffix, Property... properties) {
+        final AffixKey key = new AffixKey(prefix, suffix, true);
+        return new Setting<Settings>(key, (s) -> "", (s) -> null, properties) {
+            @Override
+            boolean isGroupSetting() {
+                return true;
+            }
+
+            @Override
+            AbstractScopedSettings.SettingUpdater<Settings> newUpdater(Consumer<Settings> consumer, Logger logger,
+                                                                       Consumer<Settings> validator) {
+                throw new UnsupportedOperationException("Affix settings can't be updated. Use #getConcreteSetting for updating.");
+            }
+
+            @Override
+            public Setting<Settings> getConcreteSetting(String key) {
+                if (match(key + ".*")) {
+                    return Setting.groupSetting(key + ".", properties);
+                } else {
+                    throw new IllegalArgumentException("key [" + key + "] must match [" + getKey() + "] but didn't.");
+                }
+            }
+
+            @Override
+            public String getRaw(Settings settings) {
+                throw new UnsupportedOperationException("Affix settings can't be retrieved. Use #getConcreteSetting for retrieval.");
+            }
+
+            @Override
+            public Settings get(Settings settings) {
+                throw new UnsupportedOperationException("Affix settings can't be retrieved. Use #getConcreteSetting for retrieval.");
+            }
+
+            @Override
+            public boolean exists(Settings settings) {
+                throw new UnsupportedOperationException("Affix settings can't be retrieved. Use #getConcreteSetting for retrieval.");
+            }
+        };
+    }
 
     public interface Key {
         boolean match(String key);
@@ -921,11 +975,24 @@ public class Setting<T> extends ToXContentToBytes {
 
         private final String prefix;
         private final String suffix;
+        private final boolean suffixIsPrefix;
 
         public AffixKey(String prefix, String suffix) {
+            this(prefix, suffix, false);
+        }
+
+        public AffixKey(String prefix, String suffix, boolean isPrefix) {
             assert prefix != null || suffix != null: "Either prefix or suffix must be non-null";
+            assert isPrefix == false || suffix != null: "Suffix must be non-null";
+            if (prefix != null && prefix.endsWith(".") == false) {
+                throw new IllegalArgumentException("prefix must end with a '.'");
+            }
+            if (suffix != null && suffix.startsWith(".") == false) {
+                throw new IllegalArgumentException("suffix must start with a '.'");
+            }
             this.prefix = prefix;
             this.suffix = suffix;
+            this.suffixIsPrefix = isPrefix;
         }
 
         @Override
@@ -934,8 +1001,20 @@ public class Setting<T> extends ToXContentToBytes {
             if (prefix != null) {
                 match = key.startsWith(prefix);
             }
+            if (match == false) {
+                return false;
+            }
             if (suffix != null) {
-                match = match && key.endsWith(suffix);
+                if (suffixIsPrefix) {
+                    if (prefix.length() < key.length()) {
+                        String keySuffix = key.substring(prefix.length());
+                        match &= (keySuffix.contains(suffix + ".") && keySuffix.endsWith(suffix + ".") == false);
+                    } else {
+                        match = false;
+                    }
+                } else {
+                    match &= key.endsWith(suffix);
+                }
             }
             return match;
         }
@@ -947,7 +1026,6 @@ public class Setting<T> extends ToXContentToBytes {
             }
             key.append(missingPart);
             if (suffix != null) {
-                key.append(".");
                 key.append(suffix);
             }
             return new SimpleKey(key.toString());
@@ -962,6 +1040,9 @@ public class Setting<T> extends ToXContentToBytes {
             if (suffix != null) {
                 sb.append("*");
                 sb.append(suffix);
+                if (suffixIsPrefix) {
+                    sb.append(".*");
+                }
                 sb.append(".");
             }
             return sb.toString();

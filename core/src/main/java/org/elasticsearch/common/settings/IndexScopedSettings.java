@@ -36,6 +36,13 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.similarity.BM25SimilarityProvider;
+import org.elasticsearch.index.similarity.BaseSimilarityProvider;
+import org.elasticsearch.index.similarity.DFISimilarityProvider;
+import org.elasticsearch.index.similarity.DFRSimilarityProvider;
+import org.elasticsearch.index.similarity.IBSimilarityProvider;
+import org.elasticsearch.index.similarity.LMDirichletSimilarityProvider;
+import org.elasticsearch.index.similarity.LMJelinekMercerSimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.index.store.IndexStore;
@@ -45,7 +52,6 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -142,16 +148,19 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         EngineConfig.INDEX_CODEC_SETTING,
         EngineConfig.INDEX_OPTIMIZE_AUTO_GENERATED_IDS,
         IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS,
-        // validate that built-in similarities don't get redefined
-        Setting.groupSetting("index.similarity.", (s) -> {
-            Map<String, Settings> groups = s.getAsGroups();
-            for (String key : SimilarityService.BUILT_IN.keySet()) {
-                if (groups.containsKey(key)) {
-                    throw new IllegalArgumentException("illegal value for [index.similarity." + key +
-                            "] cannot redefine built-in similarity");
-                }
-            }
-        }, Property.IndexScope), // this allows similarity settings to be passed
+        SimilarityService.TYPE_SETTING,
+        BaseSimilarityProvider.DISCOUNT_OVERLAPS_SETTING,
+        BaseSimilarityProvider.NORMALIZATION_MODE_SETTING,
+        BaseSimilarityProvider.NORMALIZATION_SETTING,
+        BM25SimilarityProvider.B_SETTING,
+        BM25SimilarityProvider.K1_SETTING,
+        DFISimilarityProvider.INDEPENDENCE_MEASURE_SETTING,
+        DFRSimilarityProvider.BASIC_MODEL_SETTING,
+        DFRSimilarityProvider.AFTER_EFFECT_SETTING,
+        IBSimilarityProvider.DISTRIBUTION_SETTING,
+        IBSimilarityProvider.COLLECTION_MODEL_SETTING,
+        LMDirichletSimilarityProvider.MU_SETTING,
+        LMJelinekMercerSimilarityProvider.LAMBDA_SETTING,
         Setting.groupSetting("index.analysis.", Property.IndexScope) // this allows analysis settings to be passed
 
     )));

@@ -32,7 +32,8 @@ import org.apache.lucene.search.similarities.BasicModelIne;
 import org.apache.lucene.search.similarities.BasicModelP;
 import org.apache.lucene.search.similarities.DFRSimilarity;
 import org.apache.lucene.search.similarities.Normalization;
-import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.HashMap;
@@ -51,7 +52,7 @@ import static java.util.Collections.unmodifiableMap;
  * </ul>
  * @see DFRSimilarity For more information about configuration
  */
-public class DFRSimilarityProvider extends AbstractSimilarityProvider {
+public class DFRSimilarityProvider extends BaseSimilarityProvider {
     private static final Map<String, BasicModel> BASIC_MODELS;
     private static final Map<String, AfterEffect> AFTER_EFFECTS;
 
@@ -73,51 +74,62 @@ public class DFRSimilarityProvider extends AbstractSimilarityProvider {
         AFTER_EFFECTS = unmodifiableMap(effects);
     }
 
-    private final DFRSimilarity similarity;
+    public static final Setting<BasicModel> BASIC_MODEL_SETTING =
+        Setting.affixKeySetting("index.similarity.", ".basic_model",
+            (s) -> "be",
+            (name) -> {
+                BasicModel model = BASIC_MODELS.get(name);
+                if (model == null) {
+                    throw new IllegalArgumentException("Unsupported BasicModel [" + name + "]");
+                }
+                return model;
+            },
+            Setting.Property.IndexScope, Setting.Property.Dynamic);
+
+
+    public static final Setting<AfterEffect> AFTER_EFFECT_SETTING =
+        Setting.affixKeySetting("index.similarity.", ".after_effect",
+            (s) -> "no",
+            (name) -> {
+                AfterEffect effect = AFTER_EFFECTS.get(name);
+                if (effect == null) {
+                    throw new IllegalArgumentException("Unsupported AfterEffect [" + name + "]");
+                }
+                return effect;
+            },
+            Setting.Property.IndexScope, Setting.Property.Dynamic);
+
+    private final boolean discountOverlaps;
+    private volatile BasicModel basicModel;
+    private volatile AfterEffect afterEffect;
+    private final Normalization normalization;
 
     public DFRSimilarityProvider(String name, Settings settings) {
         super(name);
-        BasicModel basicModel = parseBasicModel(settings);
-        AfterEffect afterEffect = parseAfterEffect(settings);
-        Normalization normalization = parseNormalization(settings);
-        this.similarity = new DFRSimilarity(basicModel, afterEffect, normalization);
+        this.discountOverlaps = getConcreteSetting(DISCOUNT_OVERLAPS_SETTING).get(settings);
+        this.basicModel = getConcreteSetting(BASIC_MODEL_SETTING).get(settings);
+        this.afterEffect = getConcreteSetting(AFTER_EFFECT_SETTING).get(settings);
+        this.normalization = parseNormalization(settings);
     }
 
-    /**
-     * Parses the given Settings and creates the appropriate {@link BasicModel}
-     *
-     * @param settings Settings to parse
-     * @return {@link BasicModel} referred to in the Settings
-     */
-    protected BasicModel parseBasicModel(Settings settings) {
-        String basicModel = settings.get("basic_model");
-        BasicModel model = BASIC_MODELS.get(basicModel);
-        if (model == null) {
-            throw new IllegalArgumentException("Unsupported BasicModel [" + basicModel + "]");
-        }
-        return model;
-    }
-
-    /**
-     * Parses the given Settings and creates the appropriate {@link AfterEffect}
-     *
-     * @param settings Settings to parse
-     * @return {@link AfterEffect} referred to in the Settings
-     */
-    protected AfterEffect parseAfterEffect(Settings settings) {
-        String afterEffect = settings.get("after_effect");
-        AfterEffect effect = AFTER_EFFECTS.get(afterEffect);
-        if (effect == null) {
-            throw new IllegalArgumentException("Unsupported AfterEffect [" + afterEffect + "]");
-        }
-        return effect;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public Similarity get() {
-        return similarity;
+    public void addSettingsUpdateConsumer(IndexScopedSettings scopedSettings) {
+        scopedSettings.addSettingsUpdateConsumer(getConcreteSetting(BASIC_MODEL_SETTING), this::setBasicModel);
+        scopedSettings.addSettingsUpdateConsumer(getConcreteSetting(AFTER_EFFECT_SETTING), this::setAfterEffect);
+    }
+
+    private void setBasicModel(BasicModel model) {
+        this.basicModel = model;
+    }
+
+    private void setAfterEffect(AfterEffect effect) {
+        this.afterEffect = effect;
+    }
+
+    @Override
+    public DFRSimilarity get() {
+        DFRSimilarity sim = new DFRSimilarity(basicModel, afterEffect, normalization);
+        sim.setDiscountOverlaps(discountOverlaps);
+        return sim;
     }
 }

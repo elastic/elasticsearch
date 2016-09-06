@@ -20,23 +20,44 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 
 /**
  * Provider for {@link Similarity} instances
  */
-public interface SimilarityProvider {
-
+public abstract class SimilarityProvider {
     /**
      * Returns the name associated with the Provider
      *
      * @return Name of the Provider
      */
-    String name();
+    public abstract String name();
 
     /**
      * Returns the {@link Similarity} the Provider is for
      *
      * @return Provided {@link Similarity}
      */
-    Similarity get();
+    public abstract Similarity get();
+
+
+    /**
+     * Allows to add update consumer for the settings of the similarity provider
+     */
+    public abstract void addSettingsUpdateConsumer(IndexScopedSettings scopedSettings);
+
+    /**
+     * Returns the concrete setting translated from the provided {@link Setting}
+     *
+     * @return The concrete setting for the provided {@link Setting}
+     */
+    protected <T> Setting<T> getConcreteSetting(Setting<T> setting) {
+        if (setting.getRawKey() instanceof Setting.AffixKey == false) {
+            throw new IllegalArgumentException("setting must be an affix setting");
+        }
+        Setting.AffixKey k = (Setting.AffixKey) setting.getRawKey();
+        String fullKey = k.toConcreteKey(name()).toString();
+        return setting.getConcreteSetting(fullKey);
+    }
 }

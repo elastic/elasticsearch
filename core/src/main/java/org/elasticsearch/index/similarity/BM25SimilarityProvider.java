@@ -20,7 +20,8 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.BM25Similarity;
-import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -34,25 +35,59 @@ import org.elasticsearch.common.settings.Settings;
  * </ul>
  * @see BM25Similarity For more information about configuration
  */
-public class BM25SimilarityProvider extends AbstractSimilarityProvider {
+public class BM25SimilarityProvider extends BaseSimilarityProvider {
+    public static final Setting<Float> B_SETTING = Setting.affixKeySetting("index.similarity.", ".b", "0.75f",
+        (v) -> {
+            float b = Float.parseFloat(v);
+            if (Float.isNaN(b) || b < 0 || b > 1) {
+                throw new IllegalArgumentException("illegal b value: " + b + ", must be between 0 and 1");
+            }
+            return b;
+        },
+        Setting.Property.IndexScope, Setting.Property.Dynamic);
 
-    private final BM25Similarity similarity;
+    public static final Setting<Float> K1_SETTING = Setting.affixKeySetting("index.similarity.", ".k1", "1.2f",
+        (v) -> {
+            float k1 = Float.parseFloat(v);
+            if (Float.isFinite(k1) == false || k1 < 0) {
+                throw new IllegalArgumentException("illegal k1 value: " + k1 + ", must be a non-negative finite value");
+            }
+            return k1;
+        },
+        Setting.Property.IndexScope, Setting.Property.Dynamic);
+
+
+    private volatile float b;
+    private volatile float k1;
+    private final boolean discountOverlaps;
 
     public BM25SimilarityProvider(String name, Settings settings) {
         super(name);
-        float k1 = settings.getAsFloat("k1", 1.2f);
-        float b = settings.getAsFloat("b", 0.75f);
-        boolean discountOverlaps = settings.getAsBoolean("discount_overlaps", true);
-
-        this.similarity = new BM25Similarity(k1, b);
-        this.similarity.setDiscountOverlaps(discountOverlaps);
+        Setting<Float> concreteBSetting = getConcreteSetting(B_SETTING);
+        Setting<Float> concreteK1Setting = getConcreteSetting(K1_SETTING);
+        this.discountOverlaps = getConcreteSetting(DISCOUNT_OVERLAPS_SETTING).get(settings);
+        this.k1 = concreteK1Setting.get(settings);
+        this.b = concreteBSetting.get(settings);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public Similarity get() {
+    public void addSettingsUpdateConsumer(IndexScopedSettings scopedSettings) {
+        scopedSettings.addSettingsUpdateConsumer(getConcreteSetting(B_SETTING), this::setB);
+        scopedSettings.addSettingsUpdateConsumer(getConcreteSetting(K1_SETTING), this::setK1);
+    }
+
+    private void setB(float b) {
+        this.b = b;
+    }
+
+    private void setK1(float k1) {
+        this.k1 = k1;
+    }
+
+    @Override
+    public BM25Similarity get() {
+        BM25Similarity similarity = new BM25Similarity(k1, b);
+        similarity.setDiscountOverlaps(discountOverlaps);
         return similarity;
     }
 }

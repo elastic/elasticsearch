@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class SettingTests extends ESTestCase {
@@ -52,7 +53,6 @@ public class SettingTests extends ESTestCase {
         byteSizeValueSetting = Setting.byteSizeSetting("a.byte.size", s -> "2048b", Property.Dynamic, Property.NodeScope);
         byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
         assertEquals(byteSizeValue.bytes(), 2048);
-
 
         AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
         ClusterSettings.SettingUpdater<ByteSizeValue> settingUpdater = byteSizeValueSetting.newUpdater(value::set, logger);
@@ -402,9 +402,9 @@ public class SettingTests extends ESTestCase {
         }
     }
 
-    public void testAdfixKeySetting() {
+    public void testAffixKeySetting() {
         Setting<Boolean> setting =
-            Setting.adfixKeySetting("foo", "enable", "false", Boolean::parseBoolean, Property.NodeScope);
+            Setting.affixKeySetting("foo.", ".enable", "false", Boolean::parseBoolean, Property.NodeScope);
         assertTrue(setting.hasComplexMatcher());
         assertTrue(setting.match("foo.bar.enable"));
         assertTrue(setting.match("foo.baz.enable"));
@@ -416,12 +416,25 @@ public class SettingTests extends ESTestCase {
         assertTrue(concreteSetting.get(Settings.builder().put("foo.bar.enable", "true").build()));
         assertFalse(concreteSetting.get(Settings.builder().put("foo.baz.enable", "true").build()));
 
-        try {
-            setting.getConcreteSetting("foo");
-            fail();
-        } catch (IllegalArgumentException ex) {
-            assertEquals("key [foo] must match [foo*enable.] but didn't.", ex.getMessage());
-        }
+        IllegalArgumentException ex =
+            expectThrows(IllegalArgumentException.class, () -> setting.getConcreteSetting("foo"));
+        assertThat(ex.getMessage(), equalTo("key [foo] must match [foo.*.enable.] but didn't."));
+    }
+
+    public void testAffixKeyGroupSetting() {
+        Setting<Settings> setting =
+            Setting.affixKeyGroupSetting("foo.", ".group", Property.NodeScope);
+        assertTrue(setting.hasComplexMatcher());
+        assertFalse(setting.match("foo.bar.group"));
+        assertTrue(setting.match("foo.baz.group.value1"));
+        assertTrue(setting.match("foo.bar.group.value2"));
+        assertFalse(setting.match("foo.bar"));
+        assertFalse(setting.match("foo.bar.baz.groups"));
+        assertFalse(setting.match("foo"));
+
+        IllegalArgumentException ex =
+            expectThrows(IllegalArgumentException.class, () -> setting.getConcreteSetting("foo"));
+        assertThat(ex.getMessage(), equalTo("key [foo] must match [foo.*.group.*.] but didn't."));
     }
 
     public void testMinMaxInt() {

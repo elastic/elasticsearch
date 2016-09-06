@@ -20,7 +20,8 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.LMDirichletSimilarity;
-import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -32,21 +33,33 @@ import org.elasticsearch.common.settings.Settings;
  * </ul>
  * @see LMDirichletSimilarity For more information about configuration
  */
-public class LMDirichletSimilarityProvider extends AbstractSimilarityProvider {
+public class LMDirichletSimilarityProvider extends BaseSimilarityProvider {
+    public static final Setting<Float> MU_SETTING =
+        Setting.affixKeySetting("index.similarity.", ".mu", "2000f", Float::parseFloat,
+            Setting.Property.IndexScope, Setting.Property.Dynamic);
 
-    private final LMDirichletSimilarity similarity;
+    private final boolean discountOverlaps;
+    private volatile float mu;
 
     public LMDirichletSimilarityProvider(String name, Settings settings) {
         super(name);
-        float mu = settings.getAsFloat("mu", 2000f);
-        this.similarity = new LMDirichletSimilarity(mu);
+        this.discountOverlaps = getConcreteSetting(DISCOUNT_OVERLAPS_SETTING).get(settings);
+        this.mu = getConcreteSetting(MU_SETTING).get(settings);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
-    public Similarity get() {
-        return similarity;
+    public void addSettingsUpdateConsumer(IndexScopedSettings scopedSettings) {
+        scopedSettings.addSettingsUpdateConsumer(getConcreteSetting(MU_SETTING), this::setMu);
+    }
+
+    private void setMu(float mu) {
+        this.mu = mu;
+    }
+
+    @Override
+    public LMDirichletSimilarity get() {
+        LMDirichletSimilarity sim = new LMDirichletSimilarity(mu);
+        sim.setDiscountOverlaps(discountOverlaps);
+        return sim;
     }
 }

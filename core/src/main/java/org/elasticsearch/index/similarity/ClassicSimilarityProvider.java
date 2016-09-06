@@ -20,6 +20,7 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.ClassicSimilarity;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -31,21 +32,21 @@ import org.elasticsearch.common.settings.Settings;
  * </ul>
  * @see ClassicSimilarity For more information about configuration
  */
-public class ClassicSimilarityProvider extends AbstractSimilarityProvider {
+public class ClassicSimilarityProvider extends BaseSimilarityProvider {
 
     private final ClassicSimilarity similarity = new ClassicSimilarity();
 
     public ClassicSimilarityProvider(String name, Settings settings) {
         super(name);
-        boolean discountOverlaps = settings.getAsBoolean("discount_overlaps", true);
+        boolean discountOverlaps = getConcreteSetting(DISCOUNT_OVERLAPS_SETTING).get(settings);
         this.similarity.setDiscountOverlaps(discountOverlaps);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public ClassicSimilarity get() {
         return similarity;
     }
+
+    @Override
+    public void addSettingsUpdateConsumer(IndexScopedSettings scopedSettings) {}
 }

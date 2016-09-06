@@ -24,7 +24,8 @@ import org.apache.lucene.search.similarities.Independence;
 import org.apache.lucene.search.similarities.IndependenceChiSquared;
 import org.apache.lucene.search.similarities.IndependenceSaturated;
 import org.apache.lucene.search.similarities.IndependenceStandardized;
-import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.HashMap;
@@ -42,7 +43,7 @@ import static java.util.Collections.unmodifiableMap;
  * </ul>
  * @see DFISimilarity For more information about configuration
  */
-public class DFISimilarityProvider extends AbstractSimilarityProvider {
+public class DFISimilarityProvider extends BaseSimilarityProvider {
     // the "basic models" of divergence from independence
     private static final Map<String, Independence> INDEPENDENCE_MEASURES;
     static {
@@ -53,27 +54,41 @@ public class DFISimilarityProvider extends AbstractSimilarityProvider {
         INDEPENDENCE_MEASURES = unmodifiableMap(measures);
     }
 
-    private final DFISimilarity similarity;
+    public static final Setting<Independence> INDEPENDENCE_MEASURE_SETTING =
+        Setting.affixKeySetting("index.similarity.", ".independence_measure",
+            (s) -> "standardized",
+            (name) -> {
+                Independence measure = INDEPENDENCE_MEASURES.get(name);
+                if (measure == null) {
+                    throw new IllegalArgumentException("Unsupported IndependenceMeasure [" + name + "]");
+                }
+                return measure;
+            },
+            Setting.Property.IndexScope, Setting.Property.Dynamic);
+
+
+    private final boolean discountOverlaps;
+    private volatile Independence measure;
 
     public DFISimilarityProvider(String name, Settings settings) {
         super(name);
-        boolean discountOverlaps = settings.getAsBoolean("discount_overlaps", true);
-        Independence measure = parseIndependence(settings);
-        this.similarity = new DFISimilarity(measure);
-        this.similarity.setDiscountOverlaps(discountOverlaps);
-    }
-
-    private Independence parseIndependence(Settings settings) {
-        String name = settings.get("independence_measure");
-        Independence measure = INDEPENDENCE_MEASURES.get(name);
-        if (measure == null) {
-            throw new IllegalArgumentException("Unsupported IndependenceMeasure [" + name + "]");
-        }
-        return measure;
+        this.discountOverlaps = getConcreteSetting(DISCOUNT_OVERLAPS_SETTING).get(settings);
+        this.measure = getConcreteSetting(INDEPENDENCE_MEASURE_SETTING).get(settings);
     }
 
     @Override
-    public Similarity get() {
-        return similarity;
+    public void addSettingsUpdateConsumer(IndexScopedSettings scopedSettings) {
+        scopedSettings.addSettingsUpdateConsumer(getConcreteSetting(INDEPENDENCE_MEASURE_SETTING), this::setIndependence);
+    }
+
+    private void setIndependence(Independence measure) {
+        this.measure = measure;
+    }
+
+    @Override
+    public DFISimilarity get() {
+        DFISimilarity sim = new DFISimilarity(measure);
+        sim.setDiscountOverlaps(discountOverlaps);
+        return sim;
     }
 }

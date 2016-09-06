@@ -24,12 +24,26 @@ import org.apache.lucene.search.similarities.NormalizationH1;
 import org.apache.lucene.search.similarities.NormalizationH2;
 import org.apache.lucene.search.similarities.NormalizationH3;
 import org.apache.lucene.search.similarities.NormalizationZ;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.function.Function;
 
 /**
  * Abstract implementation of {@link SimilarityProvider} providing common behaviour
  */
-public abstract class AbstractSimilarityProvider implements SimilarityProvider {
+public abstract class BaseSimilarityProvider extends SimilarityProvider {
+    public static final Setting<Boolean> DISCOUNT_OVERLAPS_SETTING =
+        Setting.affixKeySetting("index.similarity.", ".discount_overlaps", "true", Boolean::parseBoolean,
+            Setting.Property.IndexScope);
+
+    public static final Setting<Settings> NORMALIZATION_MODE_SETTING =
+        Setting.affixKeyGroupSetting("index.similarity.", ".normalization",
+            Setting.Property.IndexScope, Setting.Property.Dynamic);
+
+    public static final Setting<String> NORMALIZATION_SETTING =
+        Setting.affixKeySetting("index.similarity.", ".normalization", "no", Function.identity(),
+            Setting.Property.IndexScope, Setting.Property.Dynamic);
 
     protected static final Normalization NO_NORMALIZATION = new Normalization.NoNormalization();
 
@@ -40,7 +54,7 @@ public abstract class AbstractSimilarityProvider implements SimilarityProvider {
      *
      * @param name Name of the Provider
      */
-    protected AbstractSimilarityProvider(String name) {
+    protected BaseSimilarityProvider(String name) {
         this.name = name;
     }
 
@@ -59,24 +73,27 @@ public abstract class AbstractSimilarityProvider implements SimilarityProvider {
      * @return {@link Normalization} referred to in the Settings
      */
     protected Normalization parseNormalization(Settings settings) {
-        String normalization = settings.get("normalization");
-
-        if ("no".equals(normalization)) {
+        String normalization = getConcreteSetting(NORMALIZATION_SETTING).get(settings);
+        if (normalization.equals("no")) {
             return NO_NORMALIZATION;
-        } else if ("h1".equals(normalization)) {
-            float c = settings.getAsFloat("normalization.h1.c", 1f);
+        }
+        Settings innerSettings = getConcreteSetting(NORMALIZATION_MODE_SETTING).get(settings);
+        if (innerSettings.getAsMap().isEmpty() || innerSettings.getAsMap().size() > 1) {
+            throw new IllegalArgumentException("");
+        }
+        if ("h1".equals(normalization)) {
+            float c = innerSettings.getAsFloat("h1.c", -1f);
             return new NormalizationH1(c);
         } else if ("h2".equals(normalization)) {
-            float c = settings.getAsFloat("normalization.h2.c", 1f);
+            float c = innerSettings.getAsFloat("h2.c", -1f);
             return new NormalizationH2(c);
         } else if ("h3".equals(normalization)) {
-            float c = settings.getAsFloat("normalization.h3.c", 800f);
+            float c = innerSettings.getAsFloat("h3.c", -1f);
             return new NormalizationH3(c);
         } else if ("z".equals(normalization)) {
-            float z = settings.getAsFloat("normalization.z.z", 0.30f);
+            float z = innerSettings.getAsFloat("z.z", -1f);
             return new NormalizationZ(z);
-        } else {
-            throw new IllegalArgumentException("Unsupported Normalization [" + normalization + "]");
         }
+        throw new IllegalArgumentException("Unsupported Normalization [" + innerSettings.getAsMap().keySet().iterator().next() + "]");
     }
 }

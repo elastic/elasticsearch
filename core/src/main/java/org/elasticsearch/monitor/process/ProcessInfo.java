@@ -22,6 +22,7 @@ package org.elasticsearch.monitor.process;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -74,7 +75,6 @@ public class ProcessInfo implements Writeable, ToXContent {
     static final class Fields {
         static final String PROCESS = "process";
         static final String REFRESH_INTERVAL = "refresh_interval";
-        static final String REFRESH_INTERVAL_IN_MILLIS = "refresh_interval_in_millis";
         static final String ID = "id";
         static final String MLOCKALL = "mlockall";
     }
@@ -82,7 +82,7 @@ public class ProcessInfo implements Writeable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.PROCESS);
-        builder.timeValueField(Fields.REFRESH_INTERVAL_IN_MILLIS, Fields.REFRESH_INTERVAL, refreshInterval);
+        builder.field(Fields.REFRESH_INTERVAL, TimeValue.timeValueMillis(refreshInterval));
         builder.field(Fields.ID, id);
         builder.field(Fields.MLOCKALL, mlockall);
         builder.endObject();

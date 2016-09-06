@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -432,7 +433,6 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
     private static final String PARTIAL = "partial";
     private static final String STATE = "state";
     private static final String INDICES = "indices";
-    private static final String START_TIME_MILLIS = "start_time_millis";
     private static final String START_TIME = "start_time";
     private static final String SHARDS = "shards";
     private static final String INDEX = "index";
@@ -464,7 +464,7 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
             }
         }
         builder.endArray();
-        builder.timeValueField(START_TIME_MILLIS, START_TIME, entry.startTime());
+        builder.field(START_TIME, TimeValue.timeValueMillis(entry.startTime()));
         builder.startArray(SHARDS);
         {
             for (ObjectObjectCursor<ShardId, ShardSnapshotStatus> shardEntry : entry.shards) {

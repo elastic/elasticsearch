@@ -91,7 +91,7 @@ public class RefreshStats implements Streamable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.REFRESH);
         builder.field(Fields.TOTAL, total);
-        builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, totalTimeInMillis);
+        builder.field(Fields.TOTAL_TIME, TimeValue.timeValueMillis(totalTimeInMillis));
         builder.endObject();
         return builder;
     }
@@ -100,7 +100,6 @@ public class RefreshStats implements Streamable, ToXContent {
         static final String REFRESH = "refresh";
         static final String TOTAL = "total";
         static final String TOTAL_TIME = "total_time";
-        static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
     }
 
     @Override

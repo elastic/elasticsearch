@@ -72,7 +72,6 @@ public class ProcessStats implements Streamable, ToXContent {
         static final String CPU = "cpu";
         static final String PERCENT = "percent";
         static final String TOTAL = "total";
-        static final String TOTAL_IN_MILLIS = "total_in_millis";
 
         static final String MEM = "mem";
         static final String TOTAL_VIRTUAL = "total_virtual";
@@ -88,7 +87,7 @@ public class ProcessStats implements Streamable, ToXContent {
         if (cpu != null) {
             builder.startObject(Fields.CPU);
             builder.field(Fields.PERCENT, cpu.percent);
-            builder.timeValueField(Fields.TOTAL_IN_MILLIS, Fields.TOTAL, cpu.total);
+            builder.field(Fields.TOTAL, TimeValue.timeValueMillis(cpu.total));
             builder.endObject();
         }
         if (mem != null) {

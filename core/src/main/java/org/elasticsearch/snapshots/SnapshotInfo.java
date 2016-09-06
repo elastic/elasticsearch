@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.FromXContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -58,7 +59,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private static final String END_TIME = "end_time";
     private static final String END_TIME_IN_MILLIS = "end_time_in_millis";
     private static final String DURATION = "duration";
-    private static final String DURATION_IN_MILLIS = "duration_in_millis";
     private static final String FAILURES = "failures";
     private static final String SHARDS = "shards";
     private static final String TOTAL = "total";
@@ -326,7 +326,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (endTime != 0) {
             builder.field(END_TIME, DATE_TIME_FORMATTER.printer().print(endTime));
             builder.field(END_TIME_IN_MILLIS, endTime);
-            builder.timeValueField(DURATION_IN_MILLIS, DURATION, endTime - startTime);
+            builder.field(DURATION, TimeValue.timeValueMillis(endTime - startTime));
         }
         builder.startArray(FAILURES);
         for (SnapshotShardFailure shardFailure : shardFailures) {

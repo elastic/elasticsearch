@@ -216,12 +216,12 @@ public class BulkByScrollTask extends CancellableTask {
                 builder.field("search", searchRetries);
             }
             builder.endObject();
-            builder.timeValueField("throttled_millis", "throttled", throttled);
+            builder.field("throttled", throttled);
             builder.field("requests_per_second", requestsPerSecond == Float.POSITIVE_INFINITY ? -1 : requestsPerSecond);
             if (reasonCancelled != null) {
                 builder.field("canceled", reasonCancelled);
             }
-            builder.timeValueField("throttled_until_millis", "throttled_until", throttledUntil);
+            builder.field("throttled_until", throttledUntil);
             return builder;
         }
 

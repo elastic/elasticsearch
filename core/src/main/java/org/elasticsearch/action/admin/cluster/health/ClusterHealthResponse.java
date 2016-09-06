@@ -231,7 +231,6 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
     private static final String NUMBER_OF_IN_FLIGHT_FETCH = "number_of_in_flight_fetch";
     private static final String DELAYED_UNASSIGNED_SHARDS = "delayed_unassigned_shards";
     private static final String TASK_MAX_WAIT_TIME_IN_QUEUE = "task_max_waiting_in_queue";
-    private static final String TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS = "task_max_waiting_in_queue_millis";
     private static final String ACTIVE_SHARDS_PERCENT_AS_NUMBER = "active_shards_percent_as_number";
     private static final String ACTIVE_SHARDS_PERCENT = "active_shards_percent";
     private static final String ACTIVE_PRIMARY_SHARDS = "active_primary_shards";
@@ -256,7 +255,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         builder.field(DELAYED_UNASSIGNED_SHARDS, getDelayedUnassignedShards());
         builder.field(NUMBER_OF_PENDING_TASKS, getNumberOfPendingTasks());
         builder.field(NUMBER_OF_IN_FLIGHT_FETCH, getNumberOfInFlightFetch());
-        builder.timeValueField(TASK_MAX_WAIT_TIME_IN_QUEUE_IN_MILLIS, TASK_MAX_WAIT_TIME_IN_QUEUE, getTaskMaxWaitingTime());
+        builder.field(TASK_MAX_WAIT_TIME_IN_QUEUE, getTaskMaxWaitingTime());
         builder.percentageField(ACTIVE_SHARDS_PERCENT_AS_NUMBER, ACTIVE_SHARDS_PERCENT, getActiveShardsPercent());
 
         String level = params.param("level", "cluster");

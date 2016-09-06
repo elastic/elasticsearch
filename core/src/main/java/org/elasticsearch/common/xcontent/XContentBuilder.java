@@ -20,7 +20,6 @@
 package org.elasticsearch.common.xcontent;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.BytesStream;
@@ -69,6 +68,8 @@ public final class XContentBuilder implements BytesStream, Releasable {
     private final OutputStream bos;
 
     private boolean humanReadable = false;
+
+    private TimeUnit timeUnit = TimeUnit.MILLISECONDS;
 
     /**
      * Constructs a new builder using the provided xcontent and an OutputStream. Make sure
@@ -129,6 +130,18 @@ public final class XContentBuilder implements BytesStream, Releasable {
 
     public boolean humanReadable() {
         return this.humanReadable;
+    }
+
+    public XContentBuilder timeUnit(TimeUnit timeUnit) {
+        if (timeUnit == null) {
+            throw new IllegalArgumentException("Time unit cannot be null");
+        }
+        this.timeUnit = timeUnit;
+        return this;
+    }
+
+    public TimeUnit timeUnit() {
+        return timeUnit;
     }
 
     public XContentBuilder field(String name, ToXContent xContent) throws IOException {
@@ -512,29 +525,73 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
-    public XContentBuilder timeValueField(String rawFieldName, String readableFieldName, TimeValue timeValue) throws IOException {
-        if (humanReadable) {
-            field(readableFieldName, timeValue.toString());
-        }
-        field(rawFieldName, timeValue.millis());
-        return this;
+    public XContentBuilder field(String name, TimeValue value) throws IOException {
+        return field(name, value, timeUnit());
     }
 
-    public XContentBuilder timeValueField(String rawFieldName, String readableFieldName, long rawTime) throws IOException {
-        if (humanReadable) {
-            field(readableFieldName, new TimeValue(rawTime).toString());
+    public XContentBuilder field(String name, TimeValue value, TimeUnit timeUnit) throws IOException {
+        if (timeUnit == null) {
+            throw new IllegalArgumentException("Time unit cannot be null");
         }
-        field(rawFieldName, rawTime);
-        return this;
+
+        if (humanReadable) {
+            field(name);
+            value(value);
+        }
+
+        String suffix;
+        Long raw = null;
+        switch (timeUnit) {
+            case NANOSECONDS:
+                suffix = "_in_nanos";
+                if (value != null) {
+                    raw = value.nanos();
+                }
+                break;
+            case MICROSECONDS:
+                suffix = "_in_micros";
+                if (value != null) {
+                    raw = value.micros();
+                }
+                break;
+            case MILLISECONDS:
+                suffix = "_in_millis";
+                if (value != null) {
+                    raw = value.millis();
+                }
+                break;
+            case SECONDS:
+                suffix = "_in_seconds";
+                if (value != null) {
+                    raw = value.seconds();
+                }
+                break;
+            case MINUTES:
+                suffix = "_in_minutes";
+                if (value != null) {
+                    raw = value.minutes();
+                }
+                break;
+            case HOURS:
+                suffix = "_in_hours";
+                if (value != null) {
+                    raw = value.hours();
+                }
+                break;
+            case DAYS:
+                suffix = "_in_days";
+                if (value != null) {
+                    raw = value.days();
+                }
+                break;
+            default:
+                throw new IllegalArgumentException("Unsupported time unit");
+        }
+        return field(name + suffix).value(raw);
     }
 
-    public XContentBuilder timeValueField(String rawFieldName, String readableFieldName, long rawTime, TimeUnit timeUnit) throws
-        IOException {
-        if (humanReadable) {
-            field(readableFieldName, new TimeValue(rawTime, timeUnit).toString());
-        }
-        field(rawFieldName, rawTime);
-        return this;
+    public XContentBuilder value(TimeValue value) throws IOException {
+        return (value != null) ? value(value.toString()) : nullValue();
     }
 
     public XContentBuilder dateValueField(String rawFieldName, String readableFieldName, long rawTimestamp) throws IOException {

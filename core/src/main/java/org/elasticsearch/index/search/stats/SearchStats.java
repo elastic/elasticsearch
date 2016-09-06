@@ -220,19 +220,19 @@ public class SearchStats implements Streamable, ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.QUERY_TOTAL, queryCount);
-            builder.timeValueField(Fields.QUERY_TIME_IN_MILLIS, Fields.QUERY_TIME, queryTimeInMillis);
+            builder.field(Fields.QUERY_TIME, TimeValue.timeValueMillis(queryTimeInMillis));
             builder.field(Fields.QUERY_CURRENT, queryCurrent);
 
             builder.field(Fields.FETCH_TOTAL, fetchCount);
-            builder.timeValueField(Fields.FETCH_TIME_IN_MILLIS, Fields.FETCH_TIME, fetchTimeInMillis);
+            builder.field(Fields.FETCH_TIME, TimeValue.timeValueMillis(fetchTimeInMillis));
             builder.field(Fields.FETCH_CURRENT, fetchCurrent);
 
             builder.field(Fields.SCROLL_TOTAL, scrollCount);
-            builder.timeValueField(Fields.SCROLL_TIME_IN_MILLIS, Fields.SCROLL_TIME, scrollTimeInMillis);
+            builder.field(Fields.SCROLL_TIME, TimeValue.timeValueMillis(scrollTimeInMillis));
             builder.field(Fields.SCROLL_CURRENT, scrollCurrent);
 
             builder.field(Fields.SUGGEST_TOTAL, suggestCount);
-            builder.timeValueField(Fields.SUGGEST_TIME_IN_MILLIS, Fields.SUGGEST_TIME, suggestTimeInMillis);
+            builder.field(Fields.SUGGEST_TIME, TimeValue.timeValueMillis(suggestTimeInMillis));
             builder.field(Fields.SUGGEST_CURRENT, suggestCurrent);
 
             return builder;
@@ -324,19 +324,15 @@ public class SearchStats implements Streamable, ToXContent {
         static final String GROUPS = "groups";
         static final String QUERY_TOTAL = "query_total";
         static final String QUERY_TIME = "query_time";
-        static final String QUERY_TIME_IN_MILLIS = "query_time_in_millis";
         static final String QUERY_CURRENT = "query_current";
         static final String FETCH_TOTAL = "fetch_total";
         static final String FETCH_TIME = "fetch_time";
-        static final String FETCH_TIME_IN_MILLIS = "fetch_time_in_millis";
         static final String FETCH_CURRENT = "fetch_current";
         static final String SCROLL_TOTAL = "scroll_total";
         static final String SCROLL_TIME = "scroll_time";
-        static final String SCROLL_TIME_IN_MILLIS = "scroll_time_in_millis";
         static final String SCROLL_CURRENT = "scroll_current";
         static final String SUGGEST_TOTAL = "suggest_total";
         static final String SUGGEST_TIME = "suggest_time";
-        static final String SUGGEST_TIME_IN_MILLIS = "suggest_time_in_millis";
         static final String SUGGEST_CURRENT = "suggest_current";
     }
 

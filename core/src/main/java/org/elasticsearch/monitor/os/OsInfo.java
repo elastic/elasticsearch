@@ -22,6 +22,7 @@ package org.elasticsearch.monitor.os;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -94,7 +95,6 @@ public class OsInfo implements Writeable, ToXContent {
         static final String ARCH = "arch";
         static final String VERSION = "version";
         static final String REFRESH_INTERVAL = "refresh_interval";
-        static final String REFRESH_INTERVAL_IN_MILLIS = "refresh_interval_in_millis";
         static final String AVAILABLE_PROCESSORS = "available_processors";
         static final String ALLOCATED_PROCESSORS = "allocated_processors";
     }
@@ -102,7 +102,7 @@ public class OsInfo implements Writeable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.OS);
-        builder.timeValueField(Fields.REFRESH_INTERVAL_IN_MILLIS, Fields.REFRESH_INTERVAL, refreshInterval);
+        builder.field(Fields.REFRESH_INTERVAL, TimeValue.timeValueMillis(refreshInterval));
         if (name != null) {
             builder.field(Fields.NAME, name);
         }

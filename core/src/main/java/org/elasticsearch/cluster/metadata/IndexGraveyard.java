@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -438,7 +439,8 @@ public final class IndexGraveyard implements MetaData.Custom {
             builder.startObject();
             builder.field(INDEX_KEY);
             index.toXContent(builder, params);
-            builder.timeValueField(DELETE_DATE_IN_MILLIS_KEY, DELETE_DATE_KEY, deleteDateInMillis, TimeUnit.MILLISECONDS);
+            // We force the output format because it is parsed later on
+            builder.field(DELETE_DATE_KEY, TimeValue.timeValueMillis(deleteDateInMillis), TimeUnit.MILLISECONDS);
             return builder.endObject();
         }
 

@@ -134,6 +134,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         // this will fail
         System.setProperty("es.log4j.shutdownEnabled", "false");
         System.setProperty("log4j2.disable.jmx", "true");
+        System.setProperty("log4j.skipJansi", "true"); // jython has this crazy shaded Jansi version that log4j2 tries to load
         BootstrapForTesting.ensureInitialized();
     }
 

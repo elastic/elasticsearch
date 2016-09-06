@@ -41,6 +41,7 @@ import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -294,7 +295,7 @@ public class NodeStatsTests extends ESTestCase {
             JvmStats.Classes classes = new JvmStats.Classes(randomPositiveLong(), randomPositiveLong(), randomPositiveLong());
             jvmStats = frequently() ? new JvmStats(randomPositiveLong(), randomPositiveLong(), new JvmStats.Mem(randomPositiveLong(),
                     randomPositiveLong(), randomPositiveLong(), randomPositiveLong(), randomPositiveLong(), memoryPools), threads,
-                    garbageCollectors, randomBoolean() ? null : bufferPoolList, classes) : null;
+                    garbageCollectors, randomBoolean() ? Collections.emptyList() : bufferPoolList, classes) : null;
         }
         ThreadPoolStats threadPoolStats = null;
         if (frequently()) {

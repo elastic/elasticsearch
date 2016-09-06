@@ -19,7 +19,6 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -100,7 +99,7 @@ public class JvmStats implements Writeable, ToXContent {
                     gcMxBean.getCollectionCount(), gcMxBean.getCollectionTime());
         }
         GarbageCollectors garbageCollectors = new GarbageCollectors(collectors);
-        List<BufferPool> bufferPoolsList = null;
+        List<BufferPool> bufferPoolsList = Collections.emptyList();
         try {
             List<BufferPoolMXBean> bufferPools = ManagementFactory.getPlatformMXBeans(BufferPoolMXBean.class);
             bufferPoolsList = new ArrayList<>(bufferPools.size());
@@ -128,7 +127,7 @@ public class JvmStats implements Writeable, ToXContent {
     private final Classes classes;
 
     public JvmStats(long timestamp, long uptime, Mem mem, Threads threads, GarbageCollectors gc,
-                    @Nullable List<BufferPool> bufferPools, Classes classes) {
+                    List<BufferPool> bufferPools, Classes classes) {
         this.timestamp = timestamp;
         this.uptime = uptime;
         this.mem = mem;
@@ -144,11 +143,7 @@ public class JvmStats implements Writeable, ToXContent {
         mem = new Mem(in);
         threads = new Threads(in);
         gc = new GarbageCollectors(in);
-        if (in.readBoolean()) {
-            bufferPools = in.readList(BufferPool::new);
-        } else {
-            bufferPools = null;
-        }
+        bufferPools = in.readList(BufferPool::new);
         classes = new Classes(in);
     }
 
@@ -159,12 +154,7 @@ public class JvmStats implements Writeable, ToXContent {
         mem.writeTo(out);
         threads.writeTo(out);
         gc.writeTo(out);
-        if (bufferPools == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeList(bufferPools);
-        }
+        out.writeList(bufferPools);
         classes.writeTo(out);
     }
 

@@ -256,6 +256,7 @@ public class HttpExporterTests extends ESTestCase {
         final boolean useIngest = randomBoolean();
         final TimeValue templateTimeout = randomFrom(TimeValue.timeValueSeconds(30), null);
         final TimeValue pipelineTimeout = randomFrom(TimeValue.timeValueSeconds(30), null);
+        final TimeValue aliasTimeout = randomFrom(TimeValue.timeValueSeconds(30), null);
 
         final Settings.Builder builder = Settings.builder()
                 .put("xpack.monitoring.exporters._http.type", "http");
@@ -265,12 +266,16 @@ public class HttpExporterTests extends ESTestCase {
         }
 
         if (templateTimeout != null) {
-            builder.put("xpack.monitoring.exporters._http.index.template.master_timeout", templateTimeout.toString());
+            builder.put("xpack.monitoring.exporters._http.index.template.master_timeout", templateTimeout.getStringRep());
         }
 
         // note: this shouldn't get used with useIngest == false, but it doesn't hurt to try to cause issues
         if (pipelineTimeout != null) {
-            builder.put("xpack.monitoring.exporters._http.index.pipeline.master_timeout", pipelineTimeout.toString());
+            builder.put("xpack.monitoring.exporters._http.index.pipeline.master_timeout", pipelineTimeout.getStringRep());
+        }
+
+        if (aliasTimeout != null) {
+            builder.put("xpack.monitoring.exporters._http.index.aliases.master_timeout", aliasTimeout.getStringRep());
         }
 
         final Config config = createConfig(builder.build());
@@ -287,16 +292,22 @@ public class HttpExporterTests extends ESTestCase {
                 resources.stream().filter((resource) -> resource instanceof PipelineHttpResource)
                                   .map(PipelineHttpResource.class::cast)
                                   .collect(Collectors.toList());
+        final List<BackwardsCompatibilityAliasesResource> bwc =
+                resources.stream().filter(resource -> resource instanceof BackwardsCompatibilityAliasesResource)
+                                  .map(BackwardsCompatibilityAliasesResource.class::cast)
+                                  .collect(Collectors.toList());
 
         // expected number of resources
-        assertThat(multiResource.getResources().size(), equalTo(version + templates.size() + pipelines.size()));
+        assertThat(multiResource.getResources().size(), equalTo(version + templates.size() + pipelines.size() + bwc.size()));
         assertThat(version, equalTo(1));
         assertThat(templates, hasSize(3));
         assertThat(pipelines, hasSize(useIngest ? 1 : 0));
+        assertThat(bwc, hasSize(1));
 
         // timeouts
         assertMasterTimeoutSet(templates, templateTimeout);
         assertMasterTimeoutSet(pipelines, pipelineTimeout);
+        assertMasterTimeoutSet(bwc, aliasTimeout);
 
         // logging owner names
         final List<String> uniqueOwners =
@@ -401,10 +412,15 @@ public class HttpExporterTests extends ESTestCase {
         }
     }
 
-    private void assertMasterTimeoutSet(final List<? extends PublishableHttpResource> resources, final TimeValue timeout) {
+    private void assertMasterTimeoutSet(final List<? extends HttpResource> resources, final TimeValue timeout) {
         if (timeout != null) {
-            for (final PublishableHttpResource resource : resources) {
-                assertThat(resource.getParameters().get("master_timeout"), equalTo(timeout.toString()));
+            for (final HttpResource resource : resources) {
+                if (resource instanceof PublishableHttpResource) {
+                    assertEquals(timeout.getStringRep(), ((PublishableHttpResource) resource).getParameters().get("master_timeout"));
+                } else if (resource instanceof BackwardsCompatibilityAliasesResource) {
+                    assertEquals(timeout.getStringRep(),
+                            ((BackwardsCompatibilityAliasesResource) resource).parameters().get("master_timeout"));
+                }
             }
         }
     }

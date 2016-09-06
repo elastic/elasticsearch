@@ -293,15 +293,7 @@ def generate_watcher_index(client, version):
 
   # wait to accumulate some watches
   logging.info('Waiting for watch results index to fill up...')
-  for attempt in range(1, 31):
-    try:
-      response = client.search(index="bwc_watch_index", body={"query": {"match_all": {}}})
-      logging.info('(' + str(attempt) + ') Got ' + str(response['hits']['total']) + ' hits and want 10...')
-      if response['hits']['total'] >= 10:
-        break
-    except NotFoundError:
-      logging.info('(' + str(attempt) + ') Not found, retrying')
-    time.sleep(1)
+  wait_for_search(10, lambda: client.search(index="bwc_watch_index", body={"query": {"match_all": {}}}))
 
   health = client.cluster.health(wait_for_status='yellow', wait_for_relocating_shards=0, index='.watches')
   assert health['timed_out'] == False, 'cluster health timed out %s' % health
@@ -310,6 +302,35 @@ def generate_watcher_index(client, version):
   health = client.cluster.health(wait_for_status='yellow', wait_for_relocating_shards=0, index='bwc_watch_index')
   assert health['timed_out'] == False, 'cluster health timed out %s' % health
 
+def wait_for_monitoring_index_to_fill(client, version):
+  logging.info('Waiting for marvel to index the cluster_info...')
+  wait_for_search(1, lambda: client.search(index=".marvel-es-*", doc_type="cluster_info", body={"query": {"match_all": {}}}))
+  if parse_version(version) >= parse_version('2.1.0'):
+    logging.info('Waiting for marvel to index the node information...')
+    wait_for_search(1, lambda: client.search(index=".marvel-es-*", doc_type="node", body={"query": {"match_all": {}}}))
+  logging.info('Waiting for marvel index to get enough index_stats...')
+  wait_for_search(10, lambda: client.search(index=".marvel-es-*", doc_type="index_stats", body={"query": {"match_all": {}}}))
+  logging.info('Waiting for marvel index to get enough shards...')
+  wait_for_search(10, lambda: client.search(index=".marvel-es-*", doc_type="shards", body={"query": {"match_all": {}}}))
+  logging.info('Waiting for marvel index to get enough indices_stats...')
+  wait_for_search(3, lambda: client.search(index=".marvel-es-*", doc_type="indices_stats", body={"query": {"match_all": {}}}))
+  logging.info('Waiting for marvel index to get enough node_stats...')
+  wait_for_search(3, lambda: client.search(index=".marvel-es-*", doc_type="node_stats", body={"query": {"match_all": {}}}))
+  logging.info('Waiting for marvel index to get enough cluster_state...')
+  wait_for_search(3, lambda: client.search(index=".marvel-es-*", doc_type="cluster_state", body={"query": {"match_all": {}}}))
+
+def wait_for_search(required_count, searcher):
+  for attempt in range(1, 31):
+    try:
+      response = searcher()
+      logging.info('(' + str(attempt) + ') Got ' + str(response['hits']['total']) + ' hits and want ' + str(required_count) + '...')
+      if response['hits']['total'] >= required_count:
+        return
+    except NotFoundError:
+      logging.info('(' + str(attempt) + ') Not found, retrying')
+    time.sleep(1)
+  logger.error("Ran out of retries")
+  raise "Ran out of retries"
 
 def compress_index(version, tmp_dir, output_dir):
   compress(tmp_dir, output_dir, 'x-pack-%s.zip' % version, 'data')
@@ -402,16 +423,18 @@ def main():
 
     try:
 
-      # install plugins
-      remove_plugin(version, release_dir, 'license')
-      remove_plugin(version, release_dir, 'shield')
+      # Remove old plugins just in case any are around
+      remove_plugin(version, release_dir, 'marvel-agent')
       remove_plugin(version, release_dir, 'watcher')
-      # remove the shield config too before fresh install
+      remove_plugin(version, release_dir, 'shield')
+      remove_plugin(version, release_dir, 'license')
+      # Remove the shield config too before fresh install
       run('rm -rf %s' %(os.path.join(release_dir, 'config/shield')))
+      # Install the plugins we'll need
       install_plugin(version, release_dir, 'license')
       install_plugin(version, release_dir, 'shield')
       install_plugin(version, release_dir, 'watcher')
-      # here we could also install watcher etc
+      install_plugin(version, release_dir, 'marvel-agent')
 
       # create admin
       run('%s  useradd es_admin -r admin -p 0123456789' %(os.path.join(release_dir, 'bin/shield/esusers')))
@@ -424,7 +447,7 @@ def main():
       else:
         generate_security_index(client, version)
       generate_watcher_index(client, version)
-      # here we could also add watches, monitoring etc
+      wait_for_monitoring_index_to_fill(client, version)
 
       shutdown_node(node)
       node = None

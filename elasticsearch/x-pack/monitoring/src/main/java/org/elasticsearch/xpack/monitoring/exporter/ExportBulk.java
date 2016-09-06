@@ -133,7 +133,7 @@ public abstract class ExportBulk {
                     bulk.flush();
                 } catch (ExportException e) {
                     if (exception == null) {
-                        exception = new ExportException("failed to flush export bulks");
+                        exception = new ExportException("failed to flush export bulks", e);
                     }
                     exception.addExportException(e);
                 }

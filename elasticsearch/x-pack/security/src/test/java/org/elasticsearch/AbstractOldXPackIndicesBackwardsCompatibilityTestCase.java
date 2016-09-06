@@ -113,15 +113,18 @@ public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase exte
         for (String dataFile : dataFiles) {
             Version version = Version.fromString(dataFile.replace("x-pack-", "").replace(".zip", ""));
             if (false == shouldTestVersion(version)) continue;
+            long clusterStartTime = System.nanoTime();
             setupCluster(dataFile);
             ensureYellow();
-            long startTime = System.nanoTime();
+            long testStartTime = System.nanoTime();
             try {
                 checkVersion(version);
             } catch (Throwable t) {
                 throw new AssertionError("Failed while checking [" + version + "]", t);
             }
-            logger.info("--> Done testing {}, took {} millis", version, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime));
+            logger.info("--> Done testing [{}]. Setting up cluster took [{}] millis and testing took [{}] millis", version,
+                    TimeUnit.NANOSECONDS.toMillis(testStartTime - clusterStartTime),
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - testStartTime));
         }
     }
 

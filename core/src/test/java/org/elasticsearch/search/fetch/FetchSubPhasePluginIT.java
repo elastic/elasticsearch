@@ -43,8 +43,8 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,14 +56,11 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-/**
- *
- */
 @ClusterScope(scope = Scope.SUITE, supportsDedicatedMasters = false, numDataNodes = 1)
 public class FetchSubPhasePluginIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(FetchTermVectorsPlugin.class);
+        return Collections.singletonList(FetchTermVectorsPlugin.class);
     }
 
     public void testPlugin() throws Exception {
@@ -158,23 +155,20 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         }
     }
 
-    public static class TermVectorsFetchParseElement extends FetchSubPhaseParseElement<TermVectorsFetchContext> {
+    public static class TermVectorsFetchParseElement implements SearchParseElement {
 
         @Override
-        protected void innerParse(XContentParser parser, TermVectorsFetchContext termVectorsFetchContext, SearchContext searchContext)
-                throws Exception {
+        public void parse(XContentParser parser, SearchContext context) throws Exception {
+            TermVectorsFetchContext fetchSubPhaseContext = context.getFetchSubPhaseContext(TermVectorsFetchSubPhase.CONTEXT_FACTORY);
+            // this is to make sure that the SubFetchPhase knows it should execute
+            fetchSubPhaseContext.setHitExecutionNeeded(true);
             XContentParser.Token token = parser.currentToken();
             if (token == XContentParser.Token.VALUE_STRING) {
                 String fieldName = parser.text();
-                termVectorsFetchContext.setField(fieldName);
+                fetchSubPhaseContext.setField(fieldName);
             } else {
                 throw new IllegalStateException("Expected a VALUE_STRING but got " + token);
             }
-        }
-
-        @Override
-        protected FetchSubPhase.ContextFactory getContextFactory() {
-            return TermVectorsFetchSubPhase.CONTEXT_FACTORY;
         }
     }
 

@@ -111,19 +111,19 @@ public class ElectMasterService extends AbstractComponent {
     }
 
     public boolean hasEnoughMasterNodes(Iterable<DiscoveryNode> nodes) {
-        if (minimumMasterNodes < 1) {
-            return true;
-        }
         int count = 0;
         for (DiscoveryNode node : nodes) {
             if (node.isMasterNode()) {
                 count++;
             }
         }
-        return count >= minimumMasterNodes;
+        return count > 0 && (minimumMasterNodes < 0 || count >= minimumMasterNodes);
     }
 
     public boolean hasEnoughCandidates(Collection<Candidate> candidates) {
+        if (candidates.isEmpty()) {
+            return false;
+        }
         if (minimumMasterNodes < 1) {
             return true;
         }

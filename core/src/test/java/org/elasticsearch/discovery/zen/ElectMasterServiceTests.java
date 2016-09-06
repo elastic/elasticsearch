@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class ElectMasterServiceTests extends ESTestCase {
@@ -101,21 +102,21 @@ public class ElectMasterServiceTests extends ESTestCase {
     }
 
     public void testHasEnoughNodes() {
-        List<DiscoveryNode> nodes = generateRandomNodes();
+        List<DiscoveryNode> nodes = rarely() ? Collections.emptyList() : generateRandomNodes();
         ElectMasterService service = electMasterService();
         int masterNodes = (int) nodes.stream().filter(DiscoveryNode::isMasterNode).count();
         service.minimumMasterNodes(randomIntBetween(-1, masterNodes));
-        assertTrue(service.hasEnoughMasterNodes(nodes));
-        service.minimumMasterNodes(masterNodes + randomIntBetween(1, nodes.size()));
+        assertThat(service.hasEnoughMasterNodes(nodes), equalTo(masterNodes > 0));
+        service.minimumMasterNodes(masterNodes + 1 + randomIntBetween(0, nodes.size()));
         assertFalse(service.hasEnoughMasterNodes(nodes));
     }
 
     public void testHasEnoughCandidates() {
-        List<Candidate> candidates = generateRandomCandidates();
+        List<Candidate> candidates = rarely() ? Collections.emptyList() : generateRandomCandidates();
         ElectMasterService service = electMasterService();
         service.minimumMasterNodes(randomIntBetween(-1, candidates.size()));
-        assertTrue(service.hasEnoughCandidates(candidates));
-        service.minimumMasterNodes(candidates.size() + randomIntBetween(1, candidates.size()));
+        assertThat(service.hasEnoughCandidates(candidates), equalTo(candidates.size() > 0));
+        service.minimumMasterNodes(candidates.size() + 1 + randomIntBetween(0, candidates.size()));
         assertFalse(service.hasEnoughCandidates(candidates));
     }
 

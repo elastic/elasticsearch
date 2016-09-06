@@ -935,7 +935,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 return null;
             }
         } else {
-
             assert !activeMasters.contains(localNode) : "local node should never be elected as master when other nodes indicate an active master";
             // lets tie break between discovered nodes
             return electMaster.tieBreakActiveMasters(activeMasters);

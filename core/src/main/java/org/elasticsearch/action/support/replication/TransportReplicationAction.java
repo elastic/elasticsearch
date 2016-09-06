@@ -121,11 +121,11 @@ public abstract class TransportReplicationAction<
         this.transportPrimaryAction = actionName + "[p]";
         this.transportReplicaAction = actionName + "[r]";
         transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, new OperationTransportHandler());
-        transportService.registerRequestHandler(transportPrimaryAction, () -> new RequestWithAllocationID<>(request), executor,
+        transportService.registerRequestHandler(transportPrimaryAction, () -> new ConcreteShardRequest<>(request), executor,
             new PrimaryOperationTransportHandler());
         // we must never reject on because of thread pool capacity on replicas
         transportService.registerRequestHandler(transportReplicaAction,
-            () -> new RequestWithAllocationID<>(replicaRequest),
+            () -> new ConcreteShardRequest<>(replicaRequest),
             executor, true, true,
             new ReplicaOperationTransportHandler());
 
@@ -239,14 +239,14 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    class PrimaryOperationTransportHandler implements TransportRequestHandler<RequestWithAllocationID<Request>> {
+    class PrimaryOperationTransportHandler implements TransportRequestHandler<ConcreteShardRequest<Request>> {
         @Override
-        public void messageReceived(final RequestWithAllocationID<Request> request, final TransportChannel channel) throws Exception {
+        public void messageReceived(final ConcreteShardRequest<Request> request, final TransportChannel channel) throws Exception {
             throw new UnsupportedOperationException("the task parameter is required for this operation");
         }
 
         @Override
-        public void messageReceived(RequestWithAllocationID<Request> request, TransportChannel channel, Task task) {
+        public void messageReceived(ConcreteShardRequest<Request> request, TransportChannel channel, Task task) {
             new AsyncPrimaryAction(request.request, request.targetAllocationID, channel, (ReplicationTask) task).run();
         }
     }
@@ -284,7 +284,7 @@ public abstract class TransportReplicationAction<
                     assert primary.relocating() : "indexShard is marked as relocated but routing isn't" + primary;
                     DiscoveryNode relocatingNode = clusterService.state().nodes().get(primary.relocatingNodeId());
                     transportService.sendRequest(relocatingNode, transportPrimaryAction,
-                        new RequestWithAllocationID<>(request, primary.allocationId().getRelocationId()),
+                        new ConcreteShardRequest<>(request, primary.allocationId().getRelocationId()),
                         transportOptions,
                         new TransportChannelResponseHandler<Response>(logger, channel, "rerouting indexing to target primary " + primary,
                             TransportReplicationAction.this::newResponseInstance) {
@@ -405,15 +405,15 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    class ReplicaOperationTransportHandler implements TransportRequestHandler<RequestWithAllocationID<ReplicaRequest>> {
+    class ReplicaOperationTransportHandler implements TransportRequestHandler<ConcreteShardRequest<ReplicaRequest>> {
         @Override
-        public void messageReceived(final RequestWithAllocationID<ReplicaRequest> request, final TransportChannel channel)
+        public void messageReceived(final ConcreteShardRequest<ReplicaRequest> request, final TransportChannel channel)
             throws Exception {
             throw new UnsupportedOperationException("the task parameter is required for this operation");
         }
 
         @Override
-        public void messageReceived(RequestWithAllocationID<ReplicaRequest> requestWithAID, TransportChannel channel, Task task)
+        public void messageReceived(ConcreteShardRequest<ReplicaRequest> requestWithAID, TransportChannel channel, Task task)
             throws Exception {
             new AsyncReplicaAction(requestWithAID.request, requestWithAID.targetAllocationID, channel, (ReplicationTask) task).run();
         }
@@ -484,7 +484,7 @@ public abstract class TransportReplicationAction<
                         TransportChannelResponseHandler<TransportResponse.Empty> handler =
                             new TransportChannelResponseHandler<>(logger, channel, extraMessage, () -> TransportResponse.Empty.INSTANCE);
                         transportService.sendRequest(clusterService.localNode(), transportReplicaAction,
-                            new RequestWithAllocationID<>(request, targetAllocationID),
+                            new ConcreteShardRequest<>(request, targetAllocationID),
                             handler);
                     }
 
@@ -619,7 +619,7 @@ public abstract class TransportReplicationAction<
                 logger.trace("send action [{}] on primary [{}] for request [{}] with cluster state version [{}] to [{}] ",
                     transportPrimaryAction, request.shardId(), request, state.version(), primary.currentNodeId());
             }
-            performAction(node, transportPrimaryAction, true, new RequestWithAllocationID<>(request, primary.allocationId().getId()));
+            performAction(node, transportPrimaryAction, true, new ConcreteShardRequest<>(request, primary.allocationId().getId()));
         }
 
         private void performRemoteAction(ClusterState state, ShardRouting primary, DiscoveryNode node) {
@@ -921,7 +921,7 @@ public abstract class TransportReplicationAction<
                 return;
             }
             transportService.sendRequest(node, transportReplicaAction,
-                new RequestWithAllocationID<>(request, replica.allocationId().getId()), transportOptions,
+                new ConcreteShardRequest<>(request, replica.allocationId().getId()), transportOptions,
                 new ActionListenerResponseHandler<>(listener, () -> TransportResponse.Empty.INSTANCE));
         }
 
@@ -964,20 +964,20 @@ public abstract class TransportReplicationAction<
     }
 
     /** a wrapper class to encapsulate a request when being sent to a specific allocation id **/
-    final class RequestWithAllocationID<R extends TransportRequest> extends TransportRequest {
+    final class ConcreteShardRequest<R extends TransportRequest> extends TransportRequest {
 
         /** {@link AllocationId#getId()} of the shard this request is sent to **/
         private String targetAllocationID;
 
         private R request;
 
-        RequestWithAllocationID(Supplier<R> requestSupplier) {
+        ConcreteShardRequest(Supplier<R> requestSupplier) {
             request = requestSupplier.get();
             // null now, but will be populated by reading from the streams
             targetAllocationID = null;
         }
 
-        RequestWithAllocationID(R request, String targetAllocationID) {
+        ConcreteShardRequest(R request, String targetAllocationID) {
             Objects.requireNonNull(request);
             Objects.requireNonNull(targetAllocationID);
             this.request = request;

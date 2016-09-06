@@ -49,7 +49,6 @@ public class CircuitBreakerStats implements Writeable, ToXContent {
     }
 
     public CircuitBreakerStats(StreamInput in) throws IOException {
-        // limit is the maximum from the old circuit breaker stats for backwards compatibility
         limit = in.readLong();
         estimated = in.readLong();
         overhead = in.readDouble();

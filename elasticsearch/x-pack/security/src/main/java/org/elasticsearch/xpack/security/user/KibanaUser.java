@@ -6,32 +6,17 @@
 package org.elasticsearch.xpack.security.user;
 
 import org.elasticsearch.xpack.security.authz.permission.KibanaRole;
-import org.elasticsearch.xpack.security.user.User.ReservedUser;
+import org.elasticsearch.xpack.security.support.MetadataUtils;
 
 /**
- *
+ * Built in user for the kibana server
  */
-public class KibanaUser extends ReservedUser {
+public class KibanaUser extends User {
 
     public static final String NAME = "kibana";
     public static final String ROLE_NAME = KibanaRole.NAME;
-    public static final KibanaUser INSTANCE = new KibanaUser();
 
-    KibanaUser() {
-        super(NAME, ROLE_NAME);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        return INSTANCE == o;
-    }
-
-    @Override
-    public int hashCode() {
-        return System.identityHashCode(this);
-    }
-
-    public static boolean is(User user) {
-        return INSTANCE.equals(user);
+    public KibanaUser(boolean enabled) {
+        super(NAME, new String[]{ ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);
     }
 }

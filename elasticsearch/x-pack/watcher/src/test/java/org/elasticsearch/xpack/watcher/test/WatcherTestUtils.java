@@ -27,7 +27,6 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
@@ -191,9 +190,9 @@ public final class WatcherTestUtils {
         HttpRequestTemplate.Builder httpRequest = HttpRequestTemplate.builder("localhost", 80);
         httpRequest.method(HttpMethod.POST);
 
-        TextTemplate path = TextTemplate.inline("/foobarbaz/{{ctx.watch_id}}").build();
+        TextTemplate path = new TextTemplate("/foobarbaz/{{ctx.watch_id}}");
         httpRequest.path(path);
-        TextTemplate body = TextTemplate.inline("{{ctx.watch_id}} executed with {{ctx.payload.response.hits.total_hits}} hits").build();
+        TextTemplate body = new TextTemplate("{{ctx.watch_id}} executed with {{ctx.payload.response.hits.total_hits}} hits");
         httpRequest.body(body);
 
         TextTemplateEngine engine = new MockTextTemplateEngine();

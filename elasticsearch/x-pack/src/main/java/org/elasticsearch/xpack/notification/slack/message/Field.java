@@ -17,9 +17,6 @@ import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import java.io.IOException;
 import java.util.Map;
 
-/**
- *
- */
 class Field implements MessageElement {
 
     final String title;

@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.AbstractOldXPackIndicesBackwardsCompatibilityTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
@@ -35,7 +35,6 @@ import static org.hamcrest.Matchers.not;
 /**
  * Tests for watcher indexes created before 5.0.
  */
-@TestLogging("_root:INFO")
 public class OldWatcherIndicesBackwardsCompatibilityIT extends AbstractOldXPackIndicesBackwardsCompatibilityTestCase {
     @Override
     public Settings nodeSettings(int ord) {
@@ -96,11 +95,31 @@ public class OldWatcherIndicesBackwardsCompatibilityIT extends AbstractOldXPackI
         assertTrue(bwcWatch.isFound());
         assertNotNull(bwcWatch.getSource());
         Map<String, Object> source = bwcWatch.getSource().getAsMap();
+        assertEquals(1000, source.get("throttle_period_in_millis"));
+        Map<?, ?> input = (Map<?, ?>) source.get("input");
+        Map<?, ?> search = (Map<?, ?>) input.get("search");
+        assertEquals(96000, search.get("timeout_in_millis")); // We asked for 100s but 2.x converted that to 1.6m which is actually 96s...
         Map<?, ?> actions = (Map<?, ?>) source.get("actions");
         Map<?, ?> indexPayload = (Map<?, ?>) actions.get("index_payload");
+        Map<?, ?> transform = (Map<?, ?>) indexPayload.get("transform");
+        search = (Map<?, ?>) transform.get("search");
+        assertEquals(96000, search.get("timeout_in_millis")); // We asked for 100s but 2.x converted that to 1.6m which is actually 96s...
         Map<?, ?> index = (Map<?, ?>) indexPayload.get("index");
         assertEquals("bwc_watch_index", index.get("index"));
         assertEquals("bwc_watch_type", index.get("doc_type"));
+        assertEquals(96000, index.get("timeout_in_millis")); // We asked for 100s but 2.x converted that to 1.6m which is actually 96s...
+
+        // Fetch a watch with "fun" throttle periods
+        bwcWatch = watcherClient.prepareGetWatch("bwc_throttle_period").get();
+        assertTrue(bwcWatch.isFound());
+        assertNotNull(bwcWatch.getSource());
+        source = bwcWatch.getSource().getAsMap();
+        // We asked for 100s but 2.x converted that to 1.6m which is actually 96s...
+        assertEquals(96000, source.get("throttle_period_in_millis"));
+        actions = (Map<?, ?>) source.get("actions");
+        indexPayload = (Map<?, ?>) actions.get("index_payload");
+        // We asked for 100s but 2.x converted that to 1.6m which is actually 96s...
+        assertEquals(96000, indexPayload.get("throttle_period_in_millis"));
 
         if (version.onOrAfter(Version.V_2_3_0)) {
             /* Fetch a watch with a funny timeout to verify loading fractional time values. This watch is only built in >= 2.3 because

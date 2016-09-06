@@ -46,7 +46,7 @@ public class RestChangePasswordAction extends BaseRestHandler {
         final User user = securityContext.getUser();
         String username = request.param("username");
         if (username == null) {
-            username = user.runAs() == null ? user.principal() : user.runAs().principal();;
+            username = user.runAs() == null ? user.principal() : user.runAs().principal();
         }
 
         new SecurityClient(client).prepareChangePassword(username, request.content())

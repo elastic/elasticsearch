@@ -76,9 +76,6 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 public class EmailActionTests extends ESTestCase {
 
     private HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap("basic", new BasicAuthFactory(null)));
@@ -113,17 +110,17 @@ public class EmailActionTests extends ESTestCase {
         EmailTemplate.Builder emailBuilder = EmailTemplate.builder();
         TextTemplate subject = null;
         if (randomBoolean()) {
-            subject = TextTemplate.inline("_subject").build();
+            subject = new TextTemplate("_subject");
             emailBuilder.subject(subject);
         }
         TextTemplate textBody = null;
         if (randomBoolean()) {
-            textBody = TextTemplate.inline("_text_body").build();
+            textBody = new TextTemplate("_text_body");
             emailBuilder.textBody(textBody);
         }
         TextTemplate htmlBody = null;
         if (randomBoolean()) {
-            htmlBody = TextTemplate.inline("_html_body").build();
+            htmlBody = new TextTemplate("_html_body");
             emailBuilder.htmlBody(htmlBody);
         }
         EmailTemplate email = emailBuilder.build();
@@ -204,9 +201,9 @@ public class EmailActionTests extends ESTestCase {
                 randomBoolean() ? "bcc@domain" : "bcc1@domain,bcc2@domain").toArray();
         Email.Address[] replyTo = rarely() ? null : Email.AddressList.parse(
                 randomBoolean() ? "reply@domain" : "reply1@domain,reply2@domain").toArray();
-        TextTemplate subject = randomBoolean() ? TextTemplate.inline("_subject").build() : null;
-        TextTemplate textBody = randomBoolean() ? TextTemplate.inline("_text_body").build() : null;
-        TextTemplate htmlBody = randomBoolean() ? TextTemplate.inline("_text_html").build() : null;
+        TextTemplate subject = randomBoolean() ? new TextTemplate("_subject") : null;
+        TextTemplate textBody = randomBoolean() ? new TextTemplate("_text_body") : null;
+        TextTemplate htmlBody = randomBoolean() ? new TextTemplate("_text_html") : null;
         DataAttachment dataAttachment = randomDataAttachment();
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("account", "_account")
@@ -312,7 +309,7 @@ public class EmailActionTests extends ESTestCase {
         assertThat(executable.action().getAuth(), notNullValue());
         assertThat(executable.action().getAuth().user(), is("_user"));
         assertThat(executable.action().getAuth().password(), is(new Secret("_passwd".toCharArray())));
-        assertThat(executable.action().getEmail().priority(), is(TextTemplate.defaultType(priority.name()).build()));
+        assertThat(executable.action().getEmail().priority(), is(new TextTemplate(priority.name())));
         if (to != null) {
             assertThat(executable.action().getEmail().to(), arrayContainingInAnyOrder(addressesToTemplates(to)));
         } else {
@@ -338,7 +335,7 @@ public class EmailActionTests extends ESTestCase {
     private static TextTemplate[] addressesToTemplates(Email.Address[] addresses) {
         TextTemplate[] templates = new TextTemplate[addresses.length];
         for (int i = 0; i < templates.length; i++) {
-            templates[i] = TextTemplate.defaultType(addresses[i].toString()).build();
+            templates[i] = new TextTemplate(addresses[i].toString());
         }
         return templates;
     }

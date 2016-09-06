@@ -58,6 +58,9 @@
         "metadata" : {
           "type" : "object",
           "dynamic" : true
+        },
+        "enabled": {
+          "type": "boolean"
         }
       }
     },
@@ -109,6 +112,9 @@
           "type" : "keyword",
           "index" : false,
           "doc_values" : false
+        },
+        "enabled": {
+          "type": "boolean"
         }
       }
     }

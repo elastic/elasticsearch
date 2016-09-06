@@ -23,6 +23,8 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+
 public class SearchTransform implements Transform {
 
     public static final String TYPE = "search";
@@ -81,7 +83,7 @@ public class SearchTransform implements Transform {
             builder.field(Field.REQUEST.getPreferredName(), request);
         }
         if (timeout != null) {
-            builder.field(Field.TIMEOUT.getPreferredName(), timeout);
+            builder.timeValueField(Field.TIMEOUT.getPreferredName(), Field.TIMEOUT_HUMAN.getPreferredName(), timeout);
         }
         if (dynamicNameTimeZone != null) {
             builder.field(Field.DYNAMIC_NAME_TIMEZONE.getPreferredName(), dynamicNameTimeZone);
@@ -110,7 +112,10 @@ public class SearchTransform implements Transform {
                             TYPE, watchId, currentFieldName);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TIMEOUT)) {
-                timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT.toString());
+                timeout = timeValueMillis(parser.longValue());
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TIMEOUT_HUMAN)) {
+                // Parser for human specified timeouts and 2.x compatibility
+                timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT_HUMAN.toString());
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.DYNAMIC_NAME_TIMEZONE)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dynamicNameTimeZone = DateTimeZone.forID(parser.text());
@@ -192,7 +197,8 @@ public class SearchTransform implements Transform {
 
     public interface Field extends Transform.Field {
         ParseField REQUEST = new ParseField("request");
-        ParseField TIMEOUT = new ParseField("timeout");
+        ParseField TIMEOUT = new ParseField("timeout_in_millis");
+        ParseField TIMEOUT_HUMAN = new ParseField("timeout");
         ParseField DYNAMIC_NAME_TIMEZONE = new ParseField("dynamic_name_timezone");
     }
 }

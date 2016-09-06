@@ -19,9 +19,6 @@ import org.elasticsearch.xpack.common.text.TextTemplate;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class HipChatAction implements Action {
 
     public static final String TYPE = "hipchat";
@@ -182,18 +179,10 @@ public class HipChatAction implements Action {
             return this;
         }
 
-        public Builder addRooms(TextTemplate.Builder... rooms) {
-            TextTemplate[] templates = new TextTemplate[rooms.length];
-            for (int i = 0; i < rooms.length; i++) {
-                templates[i] = rooms[i].build();
-            }
-            return addRooms(templates);
-        }
-
         public Builder addRooms(String... rooms) {
             TextTemplate[] templates = new TextTemplate[rooms.length];
             for (int i = 0; i < rooms.length; i++) {
-                templates[i] = TextTemplate.inline(rooms[i]).build();
+                templates[i] = new TextTemplate(rooms[i]);
             }
             return addRooms(templates);
         }
@@ -204,18 +193,10 @@ public class HipChatAction implements Action {
             return this;
         }
 
-        public Builder addUsers(TextTemplate.Builder... users) {
-            TextTemplate[] templates = new TextTemplate[users.length];
-            for (int i = 0; i < users.length; i++) {
-                templates[i] = users[i].build();
-            }
-            return addUsers(templates);
-        }
-
         public Builder addUsers(String... users) {
             TextTemplate[] templates = new TextTemplate[users.length];
             for (int i = 0; i < users.length; i++) {
-                templates[i] = TextTemplate.inline(users[i]).build();
+                templates[i] = new TextTemplate(users[i]);
             }
             return addUsers(templates);
         }
@@ -233,10 +214,6 @@ public class HipChatAction implements Action {
         public Builder setColor(TextTemplate color) {
             messageBuilder.setColor(color);
             return this;
-        }
-
-        public Builder setColor(TextTemplate.Builder color) {
-            return setColor(color.build());
         }
 
         public Builder setColor(HipChatMessage.Color color) {

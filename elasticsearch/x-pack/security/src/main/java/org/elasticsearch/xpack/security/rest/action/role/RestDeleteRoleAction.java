@@ -17,7 +17,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xpack.security.action.role.DeleteRoleRequestBuilder;
 import org.elasticsearch.xpack.security.action.role.DeleteRoleResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 
@@ -42,18 +41,16 @@ public class RestDeleteRoleAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(RestRequest request, final RestChannel channel, NodeClient client) throws Exception {
-        DeleteRoleRequestBuilder requestBuilder = new SecurityClient(client).prepareDeleteRole(request.param("name"));
-        if (request.hasParam("refresh")) {
-            requestBuilder.refresh(request.paramAsBoolean("refresh", true));
-        }
-        requestBuilder.execute(new RestBuilderListener<DeleteRoleResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(DeleteRoleResponse response, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(response.found() ? RestStatus.OK : RestStatus.NOT_FOUND,
-                        builder.startObject()
-                        .field("found", response.found())
-                        .endObject());
-            }
-        });
+        new SecurityClient(client).prepareDeleteRole(request.param("name"))
+                .setRefreshPolicy(request.param("refresh"))
+                .execute(new RestBuilderListener<DeleteRoleResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(DeleteRoleResponse response, XContentBuilder builder) throws Exception {
+                        return new BytesRestResponse(response.found() ? RestStatus.OK : RestStatus.NOT_FOUND,
+                                builder.startObject()
+                                .field("found", response.found())
+                                .endObject());
+                    }
+                });
     }
 }

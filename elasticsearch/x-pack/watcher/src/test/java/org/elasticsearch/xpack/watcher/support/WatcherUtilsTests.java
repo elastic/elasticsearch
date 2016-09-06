@@ -206,7 +206,7 @@ public class WatcherUtilsTests extends ESTestCase {
             }
             String text = randomAsciiOfLengthBetween(1, 5);
             ScriptService.ScriptType scriptType = randomFrom(ScriptService.ScriptType.values());
-            template = new Script(text, scriptType, randomBoolean() ? null : "mustache", params);
+            template = new Script(text, scriptType, "mustache", params);
             builder.field("template", template);
         }
         builder.endObject();

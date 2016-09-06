@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
+import org.elasticsearch.xpack.security.user.XPackUser;
 
 public class TransportPutUserAction extends HandledTransportAction<PutUserRequest, PutUserResponse> {
 
@@ -35,8 +36,8 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
     @Override
     protected void doExecute(final PutUserRequest request, final ActionListener<PutUserResponse> listener) {
         final String username = request.username();
-        if (ReservedRealm.isReserved(username)) {
-            if (AnonymousUser.isAnonymousUsername(username)) {
+        if (ReservedRealm.isReserved(username, settings)) {
+            if (AnonymousUser.isAnonymousUsername(username, settings)) {
                 listener.onFailure(new IllegalArgumentException("user [" + username + "] is anonymous and cannot be modified via the API"));
                 return;
             } else {
@@ -44,7 +45,7 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
                         "password can be changed"));
                 return;
             }
-        } else if (SystemUser.NAME.equals(username)) {
+        } else if (SystemUser.NAME.equals(username) || XPackUser.NAME.equals(username)) {
             listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));
             return;
         }

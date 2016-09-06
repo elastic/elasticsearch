@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.security.user.XPackUser;
 
 /**
  */
@@ -35,10 +36,10 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
     @Override
     protected void doExecute(ChangePasswordRequest request, ActionListener<ChangePasswordResponse> listener) {
         final String username = request.username();
-        if (AnonymousUser.isAnonymousUsername(username)) {
+        if (AnonymousUser.isAnonymousUsername(username, settings)) {
             listener.onFailure(new IllegalArgumentException("user [" + username + "] is anonymous and cannot be modified via the API"));
             return;
-        } else if (SystemUser.NAME.equals(username)) {
+        } else if (SystemUser.NAME.equals(username) || XPackUser.NAME.equals(username)) {
             listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));
             return;
         }

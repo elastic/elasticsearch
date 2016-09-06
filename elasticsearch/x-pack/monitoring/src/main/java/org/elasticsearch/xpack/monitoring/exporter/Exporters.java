@@ -13,7 +13,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 
@@ -117,11 +116,6 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
     }
 
     Map<String, Exporter> initExporters(Settings settings) {
-        Settings globalSettings = Settings.builder()
-                .put(settings)
-                .put(Node.NODE_NAME_SETTING.getKey(), nodeName())
-                .build();
-
         Set<String> singletons = new HashSet<>();
         Map<String, Exporter> exporters = new HashMap<>();
         boolean hasDisabled = false;
@@ -135,7 +129,7 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
             if (factory == null) {
                 throw new SettingsException("unknown exporter type [" + type + "] set for exporter [" + name + "]");
             }
-            Exporter.Config config = new Exporter.Config(name, type, globalSettings, exporterSettings);
+            Exporter.Config config = new Exporter.Config(name, type, exporterSettings);
             if (!config.enabled()) {
                 hasDisabled = true;
                 if (logger.isDebugEnabled()) {
@@ -162,8 +156,7 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
         //          fallback on the default
         //
         if (exporters.isEmpty() && !hasDisabled) {
-            Exporter.Config config = new Exporter.Config("default_" + LocalExporter.TYPE, LocalExporter.TYPE,
-                globalSettings, Settings.EMPTY);
+            Exporter.Config config = new Exporter.Config("default_" + LocalExporter.TYPE, LocalExporter.TYPE, Settings.EMPTY);
             exporters.put(config.name(), factories.get(LocalExporter.TYPE).create(config));
         }
 

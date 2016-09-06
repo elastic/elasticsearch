@@ -84,21 +84,21 @@ public class UsersTool extends MultiCommand {
 
         @Override
         protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
-            String username = parseUsername(arguments.values(options));
-            Validation.Error validationError = Users.validateUsername(username);
+            Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
+            String username = parseUsername(arguments.values(options), env.settings());
+            Validation.Error validationError = Users.validateUsername(username, false, Settings.EMPTY);
             if (validationError != null) {
                 throw new UserException(ExitCodes.DATA_ERROR, "Invalid username [" + username + "]... " + validationError);
             }
 
             char[] password = parsePassword(terminal, passwordOption.value(options));
-            Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
             String[] roles = parseRoles(terminal, env, rolesOption.value(options));
 
             Path passwordFile = FileUserPasswdStore.resolveFile(env);
             Path rolesFile = FileUserRolesStore.resolveFile(env);
             FileAttributesChecker attributesChecker = new FileAttributesChecker(passwordFile, rolesFile);
 
-            Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(passwordFile, null));
+            Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(passwordFile, null, env.settings()));
             if (users.containsKey(username)) {
                 throw new UserException(ExitCodes.CODE_ERROR, "User [" + username + "] already exists");
             }
@@ -138,13 +138,13 @@ public class UsersTool extends MultiCommand {
 
         @Override
         protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
-            String username = parseUsername(arguments.values(options));
             Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
+            String username = parseUsername(arguments.values(options), env.settings());
             Path passwordFile = FileUserPasswdStore.resolveFile(env);
             Path rolesFile = FileUserRolesStore.resolveFile(env);
             FileAttributesChecker attributesChecker = new FileAttributesChecker(passwordFile, rolesFile);
 
-            Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(passwordFile, null));
+            Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(passwordFile, null, env.settings()));
             if (users.containsKey(username) == false) {
                 throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
@@ -193,13 +193,13 @@ public class UsersTool extends MultiCommand {
 
         @Override
         protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
-            String username = parseUsername(arguments.values(options));
+            Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
+            String username = parseUsername(arguments.values(options), env.settings());
             char[] password = parsePassword(terminal, passwordOption.value(options));
 
-            Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
             Path file = FileUserPasswdStore.resolveFile(env);
             FileAttributesChecker attributesChecker = new FileAttributesChecker(file);
-            Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(file, null));
+            Map<String, char[]> users = new HashMap<>(FileUserPasswdStore.parseFile(file, null, env.settings()));
             if (users.containsKey(username) == false) {
                 throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
@@ -237,8 +237,8 @@ public class UsersTool extends MultiCommand {
 
         @Override
         protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
-            String username = parseUsername(arguments.values(options));
             Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
+            String username = parseUsername(arguments.values(options), env.settings());
             String[] addRoles = parseRoles(terminal, env, addOption.value(options));
             String[] removeRoles = parseRoles(terminal, env, removeOption.value(options));
 
@@ -254,7 +254,7 @@ public class UsersTool extends MultiCommand {
             Path rolesFile = FileUserRolesStore.resolveFile(env);
             FileAttributesChecker attributesChecker = new FileAttributesChecker(usersFile, rolesFile);
 
-            Map<String, char[]> usersMap = FileUserPasswdStore.parseFile(usersFile, null);
+            Map<String, char[]> usersMap = FileUserPasswdStore.parseFile(usersFile, null, env.settings());
             if (!usersMap.containsKey(username)) {
                 throw new UserException(ExitCodes.NO_USER, "User [" + username + "] doesn't exist");
             }
@@ -312,7 +312,7 @@ public class UsersTool extends MultiCommand {
         Map<String, String[]> userRoles = FileUserRolesStore.parseFile(userRolesFilePath, null);
 
         Path userFilePath = FileUserPasswdStore.resolveFile(env);
-        Set<String> users = FileUserPasswdStore.parseFile(userFilePath, null).keySet();
+        Set<String> users = FileUserPasswdStore.parseFile(userFilePath, null, env.settings()).keySet();
 
         Path rolesFilePath = FileRolesStore.resolveFile(env);
         Set<String> knownRoles = Sets.union(FileRolesStore.parseFileForRoleNames(rolesFilePath, null), ReservedRolesStore.names());
@@ -388,14 +388,14 @@ public class UsersTool extends MultiCommand {
     }
 
     // pkg private for testing
-    static String parseUsername(List<String> args) throws UserException {
+    static String parseUsername(List<String> args, Settings settings) throws UserException {
         if (args.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "Missing username argument");
         } else if (args.size() > 1) {
             throw new UserException(ExitCodes.USAGE, "Expected a single username argument, found extra: " + args.toString());
         }
         String username = args.get(0);
-        Validation.Error validationError = Users.validateUsername(username);
+        Validation.Error validationError = Users.validateUsername(username, false, settings);
         if (validationError != null) {
             throw new UserException(ExitCodes.DATA_ERROR, "Invalid username [" + username + "]... " + validationError);
         }

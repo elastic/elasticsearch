@@ -50,11 +50,13 @@ public class AuthenticationService extends AbstractComponent {
     private final AuthenticationFailureHandler failureHandler;
     private final ThreadContext threadContext;
     private final String nodeName;
+    private final AnonymousUser anonymousUser;
     private final boolean signUserHeader;
     private final boolean runAsEnabled;
+    private final boolean isAnonymousUserEnabled;
 
     public AuthenticationService(Settings settings, Realms realms, AuditTrailService auditTrail, CryptoService cryptoService,
-                                 AuthenticationFailureHandler failureHandler, ThreadPool threadPool) {
+                                 AuthenticationFailureHandler failureHandler, ThreadPool threadPool, AnonymousUser anonymousUser) {
         super(settings);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.realms = realms;
@@ -62,8 +64,10 @@ public class AuthenticationService extends AbstractComponent {
         this.cryptoService = cryptoService;
         this.failureHandler = failureHandler;
         this.threadContext = threadPool.getThreadContext();
+        this.anonymousUser = anonymousUser;
         this.signUserHeader = SIGN_USER_HEADER.get(settings);
         this.runAsEnabled = RUN_AS_ENABLED.get(settings);
+        this.isAnonymousUserEnabled = AnonymousUser.isAnonymousEnabled(settings);
     }
 
     /**
@@ -157,6 +161,7 @@ public class AuthenticationService extends AbstractComponent {
                 throw handleNullUser(token);
             }
             user = lookupRunAsUserIfNecessary(user, token);
+            checkIfUserIsDisabled(user, token);
 
             final Authentication authentication = new Authentication(user, authenticatedBy, lookedupBy);
             authentication.writeToContext(threadContext, cryptoService, signUserHeader);
@@ -204,9 +209,9 @@ public class AuthenticationService extends AbstractComponent {
             if (fallbackUser != null) {
                 RealmRef authenticatedBy = new RealmRef("__fallback", "__fallback", nodeName);
                 authentication = new Authentication(fallbackUser, authenticatedBy, null);
-            } else if (AnonymousUser.enabled()) {
+            } else if (isAnonymousUserEnabled) {
                 RealmRef authenticatedBy = new RealmRef("__anonymous", "__anonymous", nodeName);
-                authentication = new Authentication(AnonymousUser.INSTANCE, authenticatedBy, null);
+                authentication = new Authentication(anonymousUser, authenticatedBy, null);
             }
 
             if (authentication != null) {
@@ -295,6 +300,13 @@ public class AuthenticationService extends AbstractComponent {
                 throw request.exceptionProcessingRequest(e, token);
             }
             return user;
+        }
+
+        void checkIfUserIsDisabled(User user, AuthenticationToken token) {
+            if (user.enabled() == false || (user.runAs() != null && user.runAs().enabled() == false)) {
+                logger.debug("user [{}] is disabled. failing authentication", user);
+                throw request.authenticationFailed(token);
+            }
         }
 
         abstract class AuditableRequest {

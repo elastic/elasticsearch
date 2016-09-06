@@ -24,12 +24,14 @@ import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
 import org.elasticsearch.xpack.security.authz.permission.TransportClientRole;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
+import org.elasticsearch.xpack.security.user.User;
 
 /**
  *
  */
 public class ReservedRolesStore implements RolesStore {
 
+    private static final User DEFAULT_ENABLED_KIBANA_USER = new KibanaUser(true);
     private final SecurityContext securityContext;
 
     public ReservedRolesStore(SecurityContext securityContext) {
@@ -54,8 +56,9 @@ public class ReservedRolesStore implements RolesStore {
             case KibanaRole.NAME:
                 // The only user that should know about this role is the kibana user itself (who has this role). The reason we want to hide
                 // this role is that it was created specifically for kibana, with all the permissions that the kibana user needs.
-                // We don't want it to be assigned to other users.
-                if (KibanaUser.is(securityContext.getUser())) {
+                // We don't want it to be assigned to other users. The Kibana user here must always be enabled if it is in the
+                // security context
+                if (DEFAULT_ENABLED_KIBANA_USER.equals(securityContext.getUser())) {
                     return KibanaRole.INSTANCE;
                 }
                 return null;
@@ -87,7 +90,7 @@ public class ReservedRolesStore implements RolesStore {
                 // The only user that should know about this role is the kibana user itself (who has this role). The reason we want to hide
                 // this role is that it was created specifically for kibana, with all the permissions that the kibana user needs.
                 // We don't want it to be assigned to other users.
-                if (KibanaUser.is(securityContext.getUser())) {
+                if (DEFAULT_ENABLED_KIBANA_USER.equals(securityContext.getUser())) {
                     return KibanaRole.DESCRIPTOR;
                 }
                 return null;
@@ -97,7 +100,7 @@ public class ReservedRolesStore implements RolesStore {
     }
 
     public Collection<RoleDescriptor> roleDescriptors() {
-        if (KibanaUser.is(securityContext.getUser())) {
+        if (DEFAULT_ENABLED_KIBANA_USER.equals(securityContext.getUser())) {
             return Arrays.asList(SuperuserRole.DESCRIPTOR, TransportClientRole.DESCRIPTOR, KibanaUserRole.DESCRIPTOR,
                     KibanaRole.DESCRIPTOR, MonitoringUserRole.DESCRIPTOR, RemoteMonitoringAgentRole.DESCRIPTOR,
                     IngestAdminRole.DESCRIPTOR);

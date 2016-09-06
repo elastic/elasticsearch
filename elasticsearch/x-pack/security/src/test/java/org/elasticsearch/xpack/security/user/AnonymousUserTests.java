@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.user;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -16,26 +15,19 @@ import static org.hamcrest.Matchers.is;
 
 public class AnonymousUserTests extends ESTestCase {
 
-    @After
-    public void resetAnonymous() {
-        AnonymousUser.initialize(Settings.EMPTY);
-    }
-
     public void testResolveAnonymousUser() throws Exception {
         Settings settings = Settings.builder()
                 .put(AnonymousUser.USERNAME_SETTING.getKey(), "anonym1")
                 .putArray(AnonymousUser.ROLES_SETTING.getKey(), "r1", "r2", "r3")
                 .build();
-        AnonymousUser.initialize(settings);
-        User user = AnonymousUser.INSTANCE;
+        AnonymousUser user = new AnonymousUser(settings);
         assertThat(user.principal(), equalTo("anonym1"));
         assertThat(user.roles(), arrayContainingInAnyOrder("r1", "r2", "r3"));
 
         settings = Settings.builder()
                 .putArray(AnonymousUser.ROLES_SETTING.getKey(), "r1", "r2", "r3")
                 .build();
-        AnonymousUser.initialize(settings);
-        user = AnonymousUser.INSTANCE;
+        user = new AnonymousUser(settings);
         assertThat(user.principal(), equalTo(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME));
         assertThat(user.roles(), arrayContainingInAnyOrder("r1", "r2", "r3"));
     }
@@ -44,8 +36,7 @@ public class AnonymousUserTests extends ESTestCase {
         Settings settings = randomBoolean() ?
                 Settings.EMPTY :
                 Settings.builder().put(AnonymousUser.USERNAME_SETTING.getKey(), "user1").build();
-        AnonymousUser.initialize(settings);
-        assertThat(AnonymousUser.enabled(), is(false));
+        assertThat(AnonymousUser.isAnonymousEnabled(settings), is(false));
     }
 
     public void testAnonymous() throws Exception {
@@ -54,24 +45,21 @@ public class AnonymousUserTests extends ESTestCase {
             settings = Settings.builder().put(settings).put(AnonymousUser.USERNAME_SETTING.getKey(), "anon").build();
         }
 
-        AnonymousUser.initialize(settings);
-        User user = AnonymousUser.INSTANCE;
-        assertThat(AnonymousUser.is(user), is(true));
-        assertThat(AnonymousUser.isAnonymousUsername(user.principal()), is(true));
+        AnonymousUser user = new AnonymousUser(settings);
+        assertEquals(user, new AnonymousUser(settings));
+        assertThat(AnonymousUser.isAnonymousUsername(user.principal(), settings), is(true));
         // make sure check works with serialization
         BytesStreamOutput output = new BytesStreamOutput();
         User.writeTo(user, output);
 
         User anonymousSerialized = User.readFrom(output.bytes().streamInput());
-        assertThat(AnonymousUser.is(anonymousSerialized), is(true));
+        assertEquals(user, anonymousSerialized);
 
-        // test with null anonymous
-        AnonymousUser.initialize(Settings.EMPTY);
-        assertThat(AnonymousUser.is(null), is(false));
+        // test with anonymous disabled
         if (user.principal().equals(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME)) {
-            assertThat(AnonymousUser.isAnonymousUsername(user.principal()), is(true));
+            assertThat(AnonymousUser.isAnonymousUsername(user.principal(), Settings.EMPTY), is(true));
         } else {
-            assertThat(AnonymousUser.isAnonymousUsername(user.principal()), is(false));
+            assertThat(AnonymousUser.isAnonymousUsername(user.principal(), Settings.EMPTY), is(false));
         }
     }
 }

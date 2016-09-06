@@ -43,6 +43,7 @@ public interface Throttler {
     }
 
     interface Field {
-        ParseField THROTTLE_PERIOD = new ParseField("throttle_period");
+        ParseField THROTTLE_PERIOD = new ParseField("throttle_period_in_millis");
+        ParseField THROTTLE_PERIOD_HUMAN = new ParseField("throttle_period");
     }
 }

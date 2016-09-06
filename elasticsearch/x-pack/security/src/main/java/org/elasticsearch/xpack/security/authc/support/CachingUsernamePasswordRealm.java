@@ -14,7 +14,6 @@ import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
-import org.elasticsearch.xpack.security.support.Exceptions;
 import org.elasticsearch.xpack.security.user.User;
 
 import java.util.Map;
@@ -149,11 +148,11 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
         CacheLoader<String, UserWithHash> callback = key -> {
             if (logger.isDebugEnabled()) {
-                logger.debug("user not found in cache, proceeding with normal lookup");
+                logger.debug("user [{}] not found in cache, proceeding with normal lookup", username);
             }
             User user = doLookupUser(username);
             if (user == null) {
-                throw Exceptions.authenticationError("could not lookup [{}]", username);
+                return null;
             }
             return new UserWithHash(user, null, null);
         };
@@ -162,10 +161,15 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             UserWithHash userWithHash = cache.computeIfAbsent(username, callback);
             return userWithHash.user;
         } catch (ExecutionException ee) {
+            if (ee.getCause() instanceof ElasticsearchSecurityException) {
+                // this should bubble out
+                throw (ElasticsearchSecurityException) ee.getCause();
+            }
+
             if (logger.isTraceEnabled()) {
                 logger.trace((Supplier<?>) () -> new ParameterizedMessage("realm [{}] could not lookup [{}]", name(), username), ee);
             } else if (logger.isDebugEnabled()) {
-                logger.debug("realm [{}] could not authenticate [{}]", name(), username);
+                logger.debug("realm [{}] could not lookup [{}]", name(), username);
             }
             return null;
         }

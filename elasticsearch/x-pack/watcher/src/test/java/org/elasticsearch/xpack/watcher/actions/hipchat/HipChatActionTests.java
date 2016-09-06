@@ -45,9 +45,6 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- *
- */
 public class HipChatActionTests extends ESTestCase {
     private HipChatService service;
 
@@ -61,7 +58,7 @@ public class HipChatActionTests extends ESTestCase {
 
         TextTemplateEngine templateEngine = mock(TextTemplateEngine.class);
 
-        TextTemplate body = TextTemplate.inline("_body").build();
+        TextTemplate body = new TextTemplate("_body");
         HipChatMessage.Template.Builder messageBuilder = new HipChatMessage.Template.Builder(body);
 
         HipChatMessage.Template messageTemplate = messageBuilder.build();
@@ -129,20 +126,20 @@ public class HipChatActionTests extends ESTestCase {
         builder.field("account", accountName);
         builder.startObject("message");
 
-        TextTemplate body = TextTemplate.inline("_body").build();
+        TextTemplate body = new TextTemplate("_body");
         builder.field("body", body);
 
         TextTemplate[] rooms = null;
         if (randomBoolean()) {
-            TextTemplate r1 = TextTemplate.inline("_r1").build();
-            TextTemplate r2 = TextTemplate.inline("_r2").build();
+            TextTemplate r1 = new TextTemplate("_r1");
+            TextTemplate r2 = new TextTemplate("_r2");
             rooms = new TextTemplate[] { r1, r2 };
             builder.array("room", r1, r2);
         }
         TextTemplate[] users = null;
         if (randomBoolean()) {
-            TextTemplate u1 = TextTemplate.inline("_u1").build();
-            TextTemplate u2 = TextTemplate.inline("_u2").build();
+            TextTemplate u1 = new TextTemplate("_u1");
+            TextTemplate u2 = new TextTemplate("_u2");
             users = new TextTemplate[] { u1, u2 };
             builder.array("user", u1, u2);
         }
@@ -158,7 +155,7 @@ public class HipChatActionTests extends ESTestCase {
         }
         TextTemplate color = null;
         if (randomBoolean()) {
-            color = TextTemplate.inline(randomFrom(HipChatMessage.Color.values()).value()).build();
+            color = new TextTemplate(randomFrom(HipChatMessage.Color.values()).value());
             builder.field("color", color);
         }
         Boolean notify = null;
@@ -185,7 +182,7 @@ public class HipChatActionTests extends ESTestCase {
 
     public void testParserSelfGenerated() throws Exception {
         String accountName = randomAsciiOfLength(10);
-        TextTemplate body = TextTemplate.inline("_body").build();
+        TextTemplate body = new TextTemplate("_body");
         HipChatMessage.Template.Builder templateBuilder = new HipChatMessage.Template.Builder(body);
 
         XContentBuilder builder = jsonBuilder().startObject();
@@ -194,14 +191,14 @@ public class HipChatActionTests extends ESTestCase {
         builder.field("body", body);
 
         if (randomBoolean()) {
-            TextTemplate r1 = TextTemplate.inline("_r1").build();
-            TextTemplate r2 = TextTemplate.inline("_r2").build();
+            TextTemplate r1 = new TextTemplate("_r1");
+            TextTemplate r2 = new TextTemplate("_r2");
             templateBuilder.addRooms(r1, r2);
             builder.array("room", r1, r2);
         }
         if (randomBoolean()) {
-            TextTemplate u1 = TextTemplate.inline("_u1").build();
-            TextTemplate u2 = TextTemplate.inline("_u2").build();
+            TextTemplate u1 = new TextTemplate("_u1");
+            TextTemplate u2 = new TextTemplate("_u2");
             templateBuilder.addUsers(u1, u2);
             builder.array("user", u1, u2);
         }
@@ -216,7 +213,7 @@ public class HipChatActionTests extends ESTestCase {
             builder.field("format", format.value());
         }
         if (randomBoolean()) {
-            TextTemplate color = TextTemplate.inline(randomFrom(HipChatMessage.Color.values()).value()).build();
+            TextTemplate color = new TextTemplate(randomFrom(HipChatMessage.Color.values()).value());
             templateBuilder.setColor(color);
             builder.field("color", color);
         }

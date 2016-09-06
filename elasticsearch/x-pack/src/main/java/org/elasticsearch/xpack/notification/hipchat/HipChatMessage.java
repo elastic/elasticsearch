@@ -23,9 +23,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- *
- */
 public class HipChatMessage implements ToXContent {
 
     final String body;
@@ -405,7 +402,7 @@ public class HipChatMessage implements ToXContent {
     public enum Color implements ToXContent {
         YELLOW, GREEN, RED, PURPLE, GRAY, RANDOM;
 
-        private final TextTemplate template = TextTemplate.inline(name()).build();
+        private final TextTemplate template = new TextTemplate(name());
 
         public TextTemplate asTemplate() {
             return template;
@@ -453,7 +450,7 @@ public class HipChatMessage implements ToXContent {
         TEXT,
         HTML;
 
-        private final TextTemplate template = TextTemplate.inline(name()).build();
+        private final TextTemplate template = new TextTemplate(name());
 
         public TextTemplate asTemplate() {
             return template;

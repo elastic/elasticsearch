@@ -19,6 +19,8 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+
 /**
  *
  */
@@ -96,7 +98,7 @@ public class IndexAction implements Action {
             builder.field(Field.EXECUTION_TIME_FIELD.getPreferredName(), executionTimeField);
         }
         if (timeout != null) {
-            builder.field(Field.TIMEOUT.getPreferredName(), timeout);
+            builder.timeValueField(Field.TIMEOUT.getPreferredName(), Field.TIMEOUT_HUMAN.getPreferredName(), timeout);
         }
         if (dynamicNameTimeZone != null) {
             builder.field(Field.DYNAMIC_NAME_TIMEZONE.getPreferredName(), dynamicNameTimeZone);
@@ -123,13 +125,21 @@ public class IndexAction implements Action {
                     throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. failed to parse index name value for " +
                             "field [{}]", pe, TYPE, watchId, actionId, currentFieldName);
                 }
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TIMEOUT)) {
+                    timeout = timeValueMillis(parser.longValue());
+                } else {
+                    throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. unexpected number field [{}]", TYPE,
+                            watchId, actionId, currentFieldName);
+                }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.DOC_TYPE)) {
                     docType = parser.text();
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.EXECUTION_TIME_FIELD)) {
                     executionTimeField = parser.text();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TIMEOUT)) {
-                    timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT.toString());
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TIMEOUT_HUMAN)) {
+                    // Parser for human specified timeouts and 2.x compatibility
+                    timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT_HUMAN.toString());
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.DYNAMIC_NAME_TIMEZONE)) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         dynamicNameTimeZone = DateTimeZone.forID(parser.text());
@@ -266,7 +276,8 @@ public class IndexAction implements Action {
         ParseField SOURCE = new ParseField("source");
         ParseField RESPONSE = new ParseField("response");
         ParseField REQUEST = new ParseField("request");
-        ParseField TIMEOUT = new ParseField("timeout");
+        ParseField TIMEOUT = new ParseField("timeout_in_millis");
+        ParseField TIMEOUT_HUMAN = new ParseField("timeout");
         ParseField DYNAMIC_NAME_TIMEZONE = new ParseField("dynamic_name_timezone");
     }
 }

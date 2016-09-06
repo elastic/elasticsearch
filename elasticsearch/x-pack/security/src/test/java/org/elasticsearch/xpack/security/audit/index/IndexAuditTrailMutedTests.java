@@ -113,11 +113,6 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         TransportMessage message = mock(TransportMessage.class);
         AuthenticationToken token = mock(AuthenticationToken.class);
 
-        // with realm
-        auditTrail.authenticationFailed(randomAsciiOfLengthBetween(2, 10), token, "_action", message);
-        assertThat(messageEnqueued.get(), is(false));
-        assertThat(clientCalled.get(), is(false));
-
         // without realm
         auditTrail.authenticationFailed(token, "_action", message);
         assertThat(messageEnqueued.get(), is(false));
@@ -136,11 +131,6 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         RestRequest restRequest = mock(RestRequest.class);
         AuthenticationToken token = mock(AuthenticationToken.class);
 
-        // with realm
-        auditTrail.authenticationFailed(randomAsciiOfLengthBetween(2, 10), token, restRequest);
-        assertThat(messageEnqueued.get(), is(false));
-        assertThat(clientCalled.get(), is(false));
-
         // without the realm
         auditTrail.authenticationFailed(token, restRequest);
         assertThat(messageEnqueued.get(), is(false));
@@ -150,7 +140,32 @@ public class IndexAuditTrailMutedTests extends ESTestCase {
         auditTrail.authenticationFailed(restRequest);
         assertThat(messageEnqueued.get(), is(false));
         assertThat(clientCalled.get(), is(false));
-        
+
+        verifyZeroInteractions(token, restRequest);
+    }
+
+    public void testAuthenticationFailedRealmMutedTransport() {
+        createAuditTrail(new String[] { "realm_authentication_failed" });
+        TransportMessage message = mock(TransportMessage.class);
+        AuthenticationToken token = mock(AuthenticationToken.class);
+
+        // with realm
+        auditTrail.authenticationFailed(randomAsciiOfLengthBetween(2, 10), token, "_action", message);
+        assertThat(messageEnqueued.get(), is(false));
+        assertThat(clientCalled.get(), is(false));
+
+        verifyZeroInteractions(token, message);
+    }
+
+    public void testAuthenticationFailedRealmMutedRest() {
+        createAuditTrail(new String[]{"realm_authentication_failed"});
+        RestRequest restRequest = mock(RestRequest.class);
+        AuthenticationToken token = mock(AuthenticationToken.class);
+
+        // with realm
+        auditTrail.authenticationFailed(randomAsciiOfLengthBetween(2, 10), token, restRequest);
+        assertThat(messageEnqueued.get(), is(false));
+        assertThat(clientCalled.get(), is(false));
         verifyZeroInteractions(token, restRequest);
     }
 

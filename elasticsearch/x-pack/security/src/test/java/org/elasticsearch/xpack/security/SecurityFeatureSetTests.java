@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
-import org.junit.After;
 import org.junit.Before;
 
 import static org.hamcrest.CoreMatchers.nullValue;
@@ -54,11 +53,6 @@ public class SecurityFeatureSetTests extends ESTestCase {
         rolesStore = mock(CompositeRolesStore.class);
         auditTrail = mock(AuditTrailService.class);
         cryptoService = mock(CryptoService.class);
-    }
-
-    @After
-    public void resetAnonymous() {
-        AnonymousUser.initialize(Settings.EMPTY);
     }
 
     public void testAvailable() throws Exception {
@@ -150,7 +144,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
 
         final boolean anonymousEnabled = randomBoolean();
         if (anonymousEnabled) {
-            AnonymousUser.initialize(Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "foo").build());
+            settings.put(AnonymousUser.ROLES_SETTING.getKey(), "foo");
         }
 
         SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState, realms, rolesStore,

@@ -27,9 +27,6 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class SlackMessageTests extends ESTestCase {
     public void testToXContent() throws Exception {
         String from = randomBoolean() ? null : randomAsciiOfLength(10);
@@ -230,7 +227,7 @@ public class SlackMessageTests extends ESTestCase {
 
         TextTemplate from = null;
         if (randomBoolean()) {
-            from = TextTemplate.inline(randomAsciiOfLength(200)).build();
+            from = new TextTemplate(randomAsciiOfLength(200));
             jsonBuilder.field("from", from, params);
         }
         TextTemplate[] to = null;
@@ -238,19 +235,19 @@ public class SlackMessageTests extends ESTestCase {
             jsonBuilder.startArray("to");
             to = new TextTemplate[randomIntBetween(1, 3)];
             for (int i = 0; i < to.length; i++) {
-                to[i] = TextTemplate.inline(randomAsciiOfLength(10)).build();
+                to[i] = new TextTemplate(randomAsciiOfLength(10));
                 to[i].toXContent(jsonBuilder, params);
             }
             jsonBuilder.endArray();
         }
         TextTemplate text = null;
         if (randomBoolean()) {
-            text = TextTemplate.inline(randomAsciiOfLength(200)).build();
+            text = new TextTemplate(randomAsciiOfLength(200));
             jsonBuilder.field("text", text, params);
         }
         TextTemplate icon = null;
         if (randomBoolean()) {
-            icon = TextTemplate.inline(randomAsciiOfLength(10)).build();
+            icon = new TextTemplate(randomAsciiOfLength(10));
             jsonBuilder.field("icon", icon);
         }
         Attachment.Template[] attachments = null;
@@ -261,57 +258,57 @@ public class SlackMessageTests extends ESTestCase {
                 jsonBuilder.startObject();
                 TextTemplate fallback = null;
                 if (randomBoolean()) {
-                    fallback = TextTemplate.inline(randomAsciiOfLength(200)).build();
+                    fallback = new TextTemplate(randomAsciiOfLength(200));
                     jsonBuilder.field("fallback", fallback, params);
                 }
                 TextTemplate color = null;
                 if (randomBoolean()) {
-                    color = TextTemplate.inline(randomAsciiOfLength(200)).build();
+                    color = new TextTemplate(randomAsciiOfLength(200));
                     jsonBuilder.field("color", color, params);
                 }
                 TextTemplate pretext = null;
                 if (randomBoolean()) {
-                    pretext = TextTemplate.inline(randomAsciiOfLength(200)).build();
+                    pretext = new TextTemplate(randomAsciiOfLength(200));
                     jsonBuilder.field("pretext", pretext, params);
                 }
                 TextTemplate authorName = null;
                 TextTemplate authorLink = null;
                 TextTemplate authorIcon = null;
                 if (randomBoolean()) {
-                    authorName = TextTemplate.inline(randomAsciiOfLength(200)).build();
+                    authorName = new TextTemplate(randomAsciiOfLength(200));
                     jsonBuilder.field("author_name", authorName, params);
                     if (randomBoolean()) {
-                        authorLink = TextTemplate.inline(randomAsciiOfLength(200)).build();
+                        authorLink = new TextTemplate(randomAsciiOfLength(200));
                         jsonBuilder.field("author_link", authorLink, params);
                     }
                     if (randomBoolean()) {
-                        authorIcon = TextTemplate.inline(randomAsciiOfLength(200)).build();
+                        authorIcon = new TextTemplate(randomAsciiOfLength(200));
                         jsonBuilder.field("author_icon", authorIcon, params);
                     }
                 }
                 TextTemplate title = null;
                 TextTemplate titleLink = null;
                 if (randomBoolean()) {
-                    title = TextTemplate.inline(randomAsciiOfLength(200)).build();
+                    title = new TextTemplate(randomAsciiOfLength(200));
                     jsonBuilder.field("title", title, params);
                     if (randomBoolean()) {
-                        titleLink = TextTemplate.inline(randomAsciiOfLength(200)).build();
+                        titleLink = new TextTemplate(randomAsciiOfLength(200));
                         jsonBuilder.field("title_link", titleLink, params);
                     }
                 }
                 TextTemplate attachmentText = null;
                 if (randomBoolean()) {
-                    attachmentText = TextTemplate.inline(randomAsciiOfLength(200)).build();
+                    attachmentText = new TextTemplate(randomAsciiOfLength(200));
                     jsonBuilder.field("text", attachmentText, params);
                 }
                 TextTemplate imageUrl = null;
                 if (randomBoolean()) {
-                    imageUrl = TextTemplate.inline(randomAsciiOfLength(200)).build();
+                    imageUrl = new TextTemplate(randomAsciiOfLength(200));
                     jsonBuilder.field("image_url", imageUrl, params);
                 }
                 TextTemplate thumbUrl = null;
                 if (randomBoolean()) {
-                    thumbUrl = TextTemplate.inline(randomAsciiOfLength(200)).build();
+                    thumbUrl = new TextTemplate(randomAsciiOfLength(200));
                     jsonBuilder.field("thumb_url", thumbUrl, params);
                 }
                 Field.Template[] fields = null;
@@ -320,9 +317,9 @@ public class SlackMessageTests extends ESTestCase {
                     fields = new Field.Template[randomIntBetween(1,3)];
                     for (int j = 0; j < fields.length; j++) {
                         jsonBuilder.startObject();
-                        TextTemplate fieldTitle = TextTemplate.inline(randomAsciiOfLength(50)).build();
+                        TextTemplate fieldTitle = new TextTemplate(randomAsciiOfLength(50));
                         jsonBuilder.field("title", fieldTitle, params);
-                        TextTemplate fieldValue = TextTemplate.inline(randomAsciiOfLength(50)).build();
+                        TextTemplate fieldValue = new TextTemplate(randomAsciiOfLength(50));
                         jsonBuilder.field("value", fieldValue, params);
                         boolean isShort = randomBoolean();
                         jsonBuilder.field("short", isShort);

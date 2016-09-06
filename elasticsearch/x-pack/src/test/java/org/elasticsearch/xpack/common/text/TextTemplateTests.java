@@ -27,7 +27,6 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -64,7 +63,7 @@ public class TextTemplateTests extends ESTestCase {
         when(service.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
-        TextTemplate template = templateBuilder(type, templateText).params(params).build();
+        TextTemplate template = templateBuilder(type, templateText, params);
         assertThat(engine.render(template, model), is("rendered_text"));
     }
 
@@ -80,7 +79,7 @@ public class TextTemplateTests extends ESTestCase {
         when(service.executable(compiledScript, model)).thenReturn(script);
         when(script.run()).thenReturn("rendered_text");
 
-        TextTemplate template = templateBuilder(scriptType, templateText).params(params).build();
+        TextTemplate template = templateBuilder(scriptType, templateText, params);
         assertThat(engine.render(template, model), is("rendered_text"));
     }
 
@@ -100,7 +99,7 @@ public class TextTemplateTests extends ESTestCase {
 
     public void testParser() throws Exception {
         ScriptType type = randomScriptType();
-        TextTemplate template = templateBuilder(type, "_template").params(singletonMap("param_key", "param_val")).build();
+        TextTemplate template = templateBuilder(type, "_template", singletonMap("param_key", "param_val"));
         XContentBuilder builder = jsonBuilder().startObject();
         switch (type) {
             case INLINE:
@@ -123,7 +122,7 @@ public class TextTemplateTests extends ESTestCase {
     }
 
     public void testParserParserSelfGenerated() throws Exception {
-        TextTemplate template = templateBuilder(randomScriptType(), "_template").params(singletonMap("param_key", "param_val")).build();
+        TextTemplate template = templateBuilder(randomScriptType(), "_template", singletonMap("param_key", "param_val"));
 
         XContentBuilder builder = jsonBuilder().value(template);
         BytesReference bytes = builder.bytes();
@@ -186,14 +185,8 @@ public class TextTemplateTests extends ESTestCase {
         assertThat(engine.render(null ,new HashMap<>()), is(nullValue()));
     }
 
-    private TextTemplate.Builder templateBuilder(ScriptType type, String text) {
-        switch (type) {
-            case INLINE:    return TextTemplate.inline(text);
-            case FILE:      return TextTemplate.file(text);
-            case STORED:   return TextTemplate.indexed(text);
-            default:
-                throw illegalArgument("unsupported script type [{}]", type);
-        }
+    private TextTemplate templateBuilder(ScriptType type, String text, Map<String, Object> params) {
+        return new TextTemplate(text, null, type, params);
     }
 
     private static ScriptType randomScriptType() {

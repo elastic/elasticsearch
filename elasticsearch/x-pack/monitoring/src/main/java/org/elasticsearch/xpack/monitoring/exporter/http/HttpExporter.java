@@ -5,93 +5,114 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.SpecialPermission;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.apache.logging.log4j.Logger;
+import org.apache.http.Header;
+import org.apache.http.HttpHost;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.message.BasicHeader;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.sniff.ElasticsearchHostsSniffer;
+import org.elasticsearch.client.sniff.ElasticsearchHostsSniffer.Scheme;
+import org.elasticsearch.client.sniff.Sniffer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
-import org.elasticsearch.xpack.monitoring.exporter.ExportException;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
-import org.elasticsearch.xpack.monitoring.support.VersionUtils;
 import org.elasticsearch.xpack.ssl.SSLService;
 
-import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.HttpsURLConnection;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.SSLSocketFactory;
-import java.io.ByteArrayOutputStream;
+import javax.net.ssl.SSLContext;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
-import java.util.Base64;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
+import java.util.function.Supplier;
 
 /**
- * With the forthcoming addition of the HTTP-based Java Client for ES, we should be able to combine this class with the
- * {@code LocalExporter} implementation, with only a few minor differences:
- *
+ * {@code HttpExporter} uses the low-level {@link RestClient} to connect to a user-specified set of nodes for exporting Monitoring
+ * documents via HTTP or HTTPS.
+ * <p>
+ * In addition to the set of nodes, it can be configured to use:
  * <ul>
- * <li>The {@code HttpExporter} needs to support configuring the certificates and authentication parameters.</li>
- * <li>Depending on how the REST client is implemented, it may or may not allow us to make some calls in the same way
- * (only time will tell; unknown unknowns).</li>
+ * <li>Certain timeouts (e.g., connection timeouts).</li>
+ * <li>User authentication.</li>
+ * <li>Sniffing (automatic detection of other nodes in the cluster to improve round robin behavior).</li>
+ * <li>Custom headers (e.g., for proxies).</li>
+ * <li>SSL / TLS.</li>
  * </ul>
  */
 public class HttpExporter extends Exporter {
 
+    private static final Logger logger = Loggers.getLogger(HttpExporter.class);
+
     public static final String TYPE = "http";
 
+    /**
+     * A string array representing the Elasticsearch node(s) to communicate with over HTTP(S).
+     */
     public static final String HOST_SETTING = "host";
+    /**
+     * Master timeout associated with bulk requests.
+     */
+    public static final String BULK_TIMEOUT_SETTING = "bulk.timeout";
+    /**
+     * Timeout used for initiating a connection.
+     */
     public static final String CONNECTION_TIMEOUT_SETTING = "connection.timeout";
+    /**
+     * Timeout used for reading from the connection.
+     */
     public static final String CONNECTION_READ_TIMEOUT_SETTING = "connection.read_timeout";
-    public static final String CONNECTION_KEEP_ALIVE_SETTING = "connection.keep_alive";
+    /**
+     * Username for basic auth.
+     */
     public static final String AUTH_USERNAME_SETTING = "auth.username";
+    /**
+     * Password for basic auth.
+     */
     public static final String AUTH_PASSWORD_SETTING = "auth.password";
-
+    /**
+     * The SSL settings.
+     *
+     * @see SSLService
+     */
+    public static final String SSL_SETTING = "ssl";
+    /**
+     * Proxy setting to allow users to send requests to a remote cluster that requires a proxy base path.
+     */
+    public static final String PROXY_BASE_PATH_SETTING = "proxy.base_path";
+    /**
+     * A boolean setting to enable or disable sniffing for extra connections.
+     */
+    public static final String SNIFF_ENABLED_SETTING = "sniff.enabled";
     /**
      * A parent setting to header key/value pairs, whose names are user defined.
      */
-    public static final String HEADERS = "headers";
+    public static final String HEADERS_SETTING = "headers";
     /**
      * Blacklist of headers that the user is not allowed to set.
      * <p>
      * Headers are blacklisted if they have the opportunity to break things and we won't be guaranteed to overwrite them.
      */
     public static final Set<String> BLACKLISTED_HEADERS = Collections.unmodifiableSet(Sets.newHashSet("Content-Length", "Content-Type"));
-
     /**
      * ES level timeout used when checking and writing templates (used to speed up tests)
      */
@@ -106,800 +127,448 @@ public class HttpExporter extends Exporter {
      * <p>
      * We must have support for ingest pipelines, which requires a minimum of 5.0.
      */
-    public static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_5_0_0_alpha5;
-
-    private static final XContentType CONTENT_TYPE = XContentType.JSON;
-
-    volatile String[] hosts;
-    final TimeValue connectionTimeout;
-    final TimeValue connectionReadTimeout;
-    final BasicAuth auth;
+    public static final Version MIN_SUPPORTED_CLUSTER_VERSION = Version.V_5_0_0_alpha6;
 
     /**
-     * https support *
+     * The {@link RestClient} automatically pools connections and keeps them alive as necessary.
      */
-    final SSLSocketFactory sslSocketFactory;
-    final boolean hostnameVerification;
-
-    final Environment env;
-    final ResolversRegistry resolvers;
-
+    private final RestClient client;
+    /**
+     * The optional {@link Sniffer} to add hosts to the {@link #client}.
+     */
     @Nullable
-    final TimeValue templateCheckTimeout;
-
-    @Nullable
-    final TimeValue pipelineCheckTimeout;
+    private final Sniffer sniffer;
+    /**
+     * The parameters (query string variables) to supply with every bulk request.
+     */
+    private final Map<String, String> defaultParams;
 
     /**
-     * Headers supplied by the user to send (likely to a proxy for routing).
+     * {@link HttpResource} allow us to wait to send bulk payloads until we have confirmed the remote cluster is ready.
      */
-    @Nullable
-    private final Map<String, String[]> headers;
+    private final HttpResource resource;
 
-    volatile boolean checkedAndUploadedIndexTemplate = false;
-    volatile boolean checkedAndUploadedIndexPipeline = false;
-    volatile boolean supportedClusterVersion = false;
+    private final ResolversRegistry resolvers;
 
-    boolean keepAlive;
-    final ConnectionKeepAliveWorker keepAliveWorker;
-    Thread keepAliveThread;
+    /**
+     * Create an {@link HttpExporter}.
+     *
+     * @param config The HTTP Exporter's configuration
+     * @param sslService The SSL Service used to create the SSL Context necessary for TLS / SSL communication
+     * @throws SettingsException if any setting is malformed
+     */
+    public HttpExporter(final Config config, final SSLService sslService) {
+        this(config, sslService, new NodeFailureListener());
+    }
 
-    public HttpExporter(Config config, Environment env, SSLService sslService) {
+    /**
+     * Create an {@link HttpExporter}.
+     *
+     * @param config The HTTP Exporter's configuration
+     * @param sslService The SSL Service used to create the SSL Context necessary for TLS / SSL communication
+     * @param listener The node failure listener used to notify an optional sniffer and resources
+     * @throws SettingsException if any setting is malformed
+     */
+    HttpExporter(final Config config, final SSLService sslService, final NodeFailureListener listener) {
+        this(config, createRestClient(config, sslService, listener), listener);
+    }
+
+    /**
+     * Create an {@link HttpExporter}.
+     *
+     * @param config The HTTP Exporter's configuration
+     * @param client The REST Client used to make all requests to the remote Elasticsearch cluster
+     * @param listener The node failure listener used to notify an optional sniffer and resources
+     * @throws SettingsException if any setting is malformed
+     */
+    HttpExporter(final Config config, final RestClient client, final NodeFailureListener listener) {
+        this(config, client, createSniffer(config, client, listener), listener, new ResolversRegistry(config.settings()));
+    }
+
+    /**
+     * Create an {@link HttpExporter}.
+     *
+     * @param config The HTTP Exporter's configuration
+     * @param client The REST Client used to make all requests to the remote Elasticsearch cluster
+     * @param listener The node failure listener used to notify an optional sniffer and resources
+     * @param resolvers The resolver registry used to load templates and resolvers
+     * @throws SettingsException if any setting is malformed
+     */
+    HttpExporter(final Config config, final RestClient client, @Nullable final Sniffer sniffer, final NodeFailureListener listener,
+                 final ResolversRegistry resolvers) {
+        this(config, client, sniffer, listener, resolvers, createResources(config, resolvers));
+    }
+
+    /**
+     * Create an {@link HttpExporter}.
+     *
+     * @param config The HTTP Exporter's configuration
+     * @param client The REST Client used to make all requests to the remote Elasticsearch cluster
+     * @param sniffer The optional sniffer, which has already been associated with the {@code listener}
+     * @param listener The node failure listener used to notify resources
+     * @param resolvers The resolver registry used to load templates and resolvers
+     * @param resource Blocking HTTP resource to prevent bulks until all requirements are met
+     * @throws SettingsException if any setting is malformed
+     */
+    HttpExporter(final Config config, final RestClient client, @Nullable final Sniffer sniffer, final NodeFailureListener listener,
+                 final ResolversRegistry resolvers, final HttpResource resource) {
         super(config);
 
-        this.env = env;
-        this.hosts = resolveHosts(config.settings());
-        this.auth = resolveAuth(config.settings());
-        // allow the user to configure headers
-        this.headers = configureHeaders(config.settings());
-        this.connectionTimeout = config.settings().getAsTime(CONNECTION_TIMEOUT_SETTING, TimeValue.timeValueMillis(6000));
-        this.connectionReadTimeout = config.settings().getAsTime(CONNECTION_READ_TIMEOUT_SETTING,
-                TimeValue.timeValueMillis(connectionTimeout.millis() * 10));
+        this.client = Objects.requireNonNull(client);
+        this.sniffer = sniffer;
+        this.resolvers = resolvers;
+        this.resource = resource;
+        this.defaultParams = createDefaultParams(config);
 
-        templateCheckTimeout = parseTimeValue(TEMPLATE_CHECK_TIMEOUT_SETTING);
-        pipelineCheckTimeout = parseTimeValue(PIPELINE_CHECK_TIMEOUT_SETTING);
+        // mark resources as dirty after any node failure
+        listener.setResource(resource);
+    }
 
-        keepAlive = config.settings().getAsBoolean(CONNECTION_KEEP_ALIVE_SETTING, true);
-        keepAliveWorker = new ConnectionKeepAliveWorker();
+    /**
+     * Create a {@link RestClientBuilder} from the HTTP Exporter's {@code config}.
+     *
+     * @param config The HTTP Exporter's configuration
+     * @param sslService The SSL Service used to create the SSL Context necessary for TLS / SSL communication
+     * @param listener The node failure listener used to log node failures
+     * @return Never {@code null}.
+     * @throws SettingsException if any required setting is missing or any setting is malformed
+     */
+    static RestClient createRestClient(final Config config, final SSLService sslService, final NodeFailureListener listener) {
+        final RestClientBuilder builder = RestClient.builder(createHosts(config)).setFailureListener(listener);
+        final String proxyBasePath = config.settings().get(PROXY_BASE_PATH_SETTING);
 
-        final Settings sslSettings = config.settings().getByPrefix("ssl.");
-        sslSocketFactory = sslService.sslSocketFactory(sslSettings);
-        hostnameVerification = sslService.getVerificationMode(sslSettings, Settings.EMPTY).isHostnameVerificationEnabled();
-
-        resolvers = new ResolversRegistry(config.settings());
-        // Checks that required templates are loaded
-        for (MonitoringIndexNameResolver resolver : resolvers) {
-            if (resolver.template() == null) {
-                throw new IllegalStateException("unable to find built-in template " + resolver.templateName());
+        // allow the user to configure proxies
+        if (proxyBasePath != null) {
+            try {
+                builder.setPathPrefix(proxyBasePath);
+            } catch (final IllegalArgumentException e) {
+                throw new SettingsException("[" + settingFQN(config, "proxy.base_path") + "] is malformed [" + proxyBasePath + "]", e);
             }
         }
 
-        logger.debug("initialized with hosts [{}], index prefix [{}]",
-                Strings.arrayToCommaDelimitedString(hosts), MonitoringIndexNameResolver.PREFIX);
+        // allow the user to configure headers that go along with _every_ request
+        configureHeaders(builder, config);
+        // commercial X-Pack users can have Security enabled (auth and SSL/TLS), and also clusters behind proxies
+        configureSecurity(builder, config, sslService);
+        // timeouts for requests
+        configureTimeouts(builder, config);
+
+        return builder.build();
     }
 
-    private String[] resolveHosts(final Settings settings) {
-        final String[] hosts = settings.getAsArray(HOST_SETTING);
+    /**
+     * Create a {@link Sniffer} from the HTTP Exporter's {@code config} for the {@code client}.
+     *
+     * @param config The HTTP Exporter's configuration
+     * @param client The REST client to sniff
+     * @param listener The node failure listener used to help improve sniffing
+     * @return Can be {@code null} if the sniffer is disabled.
+     * @throws IndexOutOfBoundsException if no {@linkplain #HOST_SETTING hosts} are set
+     */
+    static Sniffer createSniffer(final Config config, final RestClient client, final NodeFailureListener listener) {
+        final Settings settings = config.settings();
+        Sniffer sniffer = null;
+
+        // the sniffer is allowed to be ENABLED; it's disabled by default until we think it's ready for use
+        if (settings.getAsBoolean(SNIFF_ENABLED_SETTING, false)) {
+            final String[] hosts = config.settings().getAsArray(HOST_SETTING);
+            // createHosts(config) ensures that all schemes are the same for all hosts!
+            final Scheme scheme = hosts[0].startsWith("https") ? Scheme.HTTPS : Scheme.HTTP;
+            final ElasticsearchHostsSniffer hostsSniffer =
+                    new ElasticsearchHostsSniffer(client, ElasticsearchHostsSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT, scheme);
+
+            sniffer = Sniffer.builder(client).setHostsSniffer(hostsSniffer).build();
+
+            // inform the sniffer whenever there's a node failure
+            listener.setSniffer(sniffer);
+
+            logger.debug("[" + settingFQN(config) + "] using host sniffing");
+        }
+
+        return sniffer;
+    }
+
+    /**
+     * Create a {@link MultiHttpResource} that can be used to block bulk exporting until all expected resources are available.
+     *
+     * @param config The HTTP Exporter's configuration
+     * @param resolvers The resolvers that contain all known templates.
+     * @return Never {@code null}.
+     */
+    static MultiHttpResource createResources(final Config config, final ResolversRegistry resolvers) {
+        final String resourceOwnerName = settingFQN(config);
+        // order controls the order that each is checked; more direct checks should always happen first (e.g., version checks)
+        final List<HttpResource> resources = new ArrayList<>();
+
+        // block the exporter from working against a monitoring cluster with the wrong version
+        resources.add(new VersionHttpResource(resourceOwnerName, MIN_SUPPORTED_CLUSTER_VERSION));
+        // load all templates (template bodies are lazily loaded on demand)
+        configureTemplateResources(config, resolvers, resourceOwnerName, resources);
+        // load the pipeline (this will get added to as the monitoring API version increases)
+        configurePipelineResources(config, resourceOwnerName, resources);
+
+        return new MultiHttpResource(resourceOwnerName, resources);
+    }
+
+    /**
+     * Create the {@link HttpHost}s that will be connected too.
+     *
+     * @param config The exporter's configuration
+     * @return Never {@code null} or empty.
+     * @throws SettingsException if any setting is malformed or if no host is set
+     */
+    private static HttpHost[] createHosts(final Config config) {
+        final String[] hosts = config.settings().getAsArray(HOST_SETTING);
 
         if (hosts.length == 0) {
-            throw new SettingsException("missing required setting [" + settingFQN(HOST_SETTING) + "]");
+            throw new SettingsException("missing required setting [" + settingFQN(config, HOST_SETTING) + "]");
         }
 
-        for (String host : hosts) {
+        final List<HttpHost> httpHosts = new ArrayList<>(hosts.length);
+        boolean httpHostFound = false;
+        boolean httpsHostFound = false;
+
+        // every host must be configured
+        for (final String host : hosts) {
+            final HttpHost httpHost;
+
             try {
-                HttpExporterUtils.parseHostWithPath(host, "");
-            } catch (URISyntaxException | MalformedURLException e) {
-                throw new SettingsException("[" + settingFQN(HOST_SETTING) + "] invalid host: [" + host + "]", e);
+                httpHost = HttpHostBuilder.builder(host).build();
+            } catch (IllegalArgumentException e) {
+                throw new SettingsException("[" + settingFQN(config, HOST_SETTING) + "] invalid host: [" + host + "]", e);
             }
+
+            if ("http".equals(httpHost.getSchemeName())) {
+                httpHostFound = true;
+            } else {
+                httpsHostFound = true;
+            }
+
+            // fail if we find them configuring the scheme/protocol in different ways
+            if (httpHostFound && httpsHostFound) {
+                throw new SettingsException(
+                        "[" + settingFQN(config, HOST_SETTING) + "] must use a consistent scheme: http or https");
+            }
+
+            httpHosts.add(httpHost);
         }
 
-        return hosts;
+        if (logger.isDebugEnabled()) {
+            logger.debug("[{}] using hosts [{}]", settingFQN(config), Strings.arrayToCommaDelimitedString(hosts));
+        }
+
+        return httpHosts.toArray(new HttpHost[httpHosts.size()]);
     }
 
-    private Map<String, String[]> configureHeaders(final Settings settings) {
-        final Settings headerSettings = settings.getAsSettings(HEADERS);
+    /**
+     * Configures the {@linkplain RestClientBuilder#setDefaultHeaders(Header[]) default headers} to use with <em>all</em> requests.
+     *
+     * @param builder The REST client builder to configure
+     * @param config The exporter's configuration
+     * @throws SettingsException if any header is {@linkplain #BLACKLISTED_HEADERS blacklisted}
+     */
+    private static void configureHeaders(final RestClientBuilder builder, final Config config) {
+        final Settings headerSettings = config.settings().getAsSettings(HEADERS_SETTING);
         final Set<String> names = headerSettings.names();
 
         // Most users won't define headers
         if (names.isEmpty()) {
-            return null;
+            return;
         }
 
-        final Map<String, String[]> headers = new HashMap<>();
+        final List<Header> headers = new ArrayList<>();
 
         // record and validate each header as best we can
         for (final String name : names) {
             if (BLACKLISTED_HEADERS.contains(name)) {
-                throw new SettingsException("[" + name + "] cannot be overwritten via [" + settingFQN("headers") + "]");
+                throw new SettingsException("[" + name + "] cannot be overwritten via [" + settingFQN(config, "headers") + "]");
             }
 
             final String[] values = headerSettings.getAsArray(name);
 
             if (values.length == 0) {
-                throw new SettingsException("headers must have values, missing for setting [" + settingFQN("headers." + name) + "]");
+                final String settingName = settingFQN(config, "headers." + name);
+                throw new SettingsException("headers must have values, missing for setting [" + settingName + "]");
             }
 
-            headers.put(name, values);
+            // add each value as a separate header; they literally appear like:
+            //
+            //  Warning: abc
+            //  Warning: xyz
+            for (final String value : values) {
+                headers.add(new BasicHeader(name, value));
+            }
         }
 
-        return Collections.unmodifiableMap(headers);
+        builder.setDefaultHeaders(headers.toArray(new Header[headers.size()]));
     }
 
-    private TimeValue parseTimeValue(final String setting) {
-        // HORRIBLE!!! We can't use settings.getAsTime(..) !!!
-        // WE MUST FIX THIS IN CORE...
-        // TimeValue SHOULD NOT SELECTIVELY CHOOSE WHAT FIELDS TO PARSE BASED ON THEIR NAMES!!!!
-        final String checkTimeoutValue = config.settings().get(setting, null);
+    /**
+     * Configure the {@link RestClientBuilder} to use {@linkplain CredentialsProvider user authentication} and/or
+     * {@linkplain SSLContext SSL / TLS}.
+     *
+     * @param builder The REST client builder to configure
+     * @param config The exporter's configuration
+     * @param sslService The SSL Service used to create the SSL Context necessary for TLS / SSL communication
+     * @throws SettingsException if any setting causes issues
+     */
+    private static void configureSecurity(final RestClientBuilder builder, final Config config, final SSLService sslService) {
+        final Settings sslSettings = config.settings().getAsSettings(SSL_SETTING);
+        final SSLIOSessionStrategy sslStrategy = sslService.sslIOSessionStrategy(sslSettings);
+        final CredentialsProvider credentialsProvider = createCredentialsProvider(config);
 
-        return TimeValue.parseTimeValue(checkTimeoutValue, null, settingFQN(setting));
+        // sending credentials in plaintext!
+        if (credentialsProvider != null && config.settings().getAsArray(HOST_SETTING)[0].startsWith("https") == false) {
+            logger.warn("[" + settingFQN(config) + "] is not using https, but using user authentication with plaintext username/password!");
+        }
+
+        builder.setHttpClientConfigCallback(new SecurityHttpClientConfigCallback(sslStrategy, credentialsProvider));
     }
 
-    ResolversRegistry getResolvers() {
-        return resolvers;
+    /**
+     * Configure the {@link RestClientBuilder} to use initial connection and socket timeouts.
+     *
+     * @param builder The REST client builder to configure
+     * @param config The exporter's configuration
+     */
+    private static void configureTimeouts(final RestClientBuilder builder, final Config config) {
+        final Settings settings = config.settings();
+        final TimeValue connectTimeout = settings.getAsTime(CONNECTION_TIMEOUT_SETTING, TimeValue.timeValueMillis(6000));
+        final TimeValue socketTimeout = settings.getAsTime(CONNECTION_READ_TIMEOUT_SETTING,
+                                                           TimeValue.timeValueMillis(connectTimeout.millis() * 10));
+
+        // if the values could ever be null, then we should only set it if they're not null
+        builder.setRequestConfigCallback(new TimeoutRequestConfigCallback(connectTimeout, socketTimeout));
+    }
+
+    /**
+     * Creates the optional {@link CredentialsProvider} with the username/password to use with <em>all</em> requests for user
+     * authentication.
+     *
+     * @param config The exporter's configuration
+     * @return {@code null} if username and password not are provided. Otherwise the {@link CredentialsProvider} to use.
+     * @throws SettingsException if the username is missing, but a password is supplied
+     */
+    @Nullable
+    private static CredentialsProvider createCredentialsProvider(final Config config) {
+        final Settings settings = config.settings();
+        final String username = settings.get(AUTH_USERNAME_SETTING);
+        final String password = settings.get(AUTH_PASSWORD_SETTING);
+
+        // username is required for any auth
+        if (username == null) {
+            if (password != null) {
+                throw new SettingsException(
+                        "[" + settingFQN(config, AUTH_PASSWORD_SETTING) + "] without [" + settingFQN(config, AUTH_USERNAME_SETTING) + "]");
+            }
+            // nothing to configure; default situation for most users
+            return null;
+        }
+
+        final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+        credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(username, password));
+
+        return credentialsProvider;
+    }
+
+    /**
+     * Create the default parameters to use with bulk indexing operations.
+     *
+     * @param config The exporter's configuration
+     * @return Never {@code null}. Can be empty.
+     */
+    static Map<String, String> createDefaultParams(final Config config) {
+        final Settings settings = config.settings();
+        final TimeValue bulkTimeout = settings.getAsTime(BULK_TIMEOUT_SETTING, null);
+
+        final MapBuilder<String, String> params = new MapBuilder<>();
+
+        if (bulkTimeout != null) {
+            params.put("master_timeout", bulkTimeout.toString());
+        }
+
+        // allow the use of ingest pipelines to be completely optional
+        if (settings.getAsBoolean(USE_INGEST_PIPELINE_SETTING, true)) {
+            params.put("pipeline", EXPORT_PIPELINE_NAME);
+        }
+
+        // widdle down the response to just what we care to check
+        params.put("filter_path", "errors,items.*.error");
+
+        return params.immutableMap();
+    }
+
+    /**
+     * Adds the {@code resources} necessary for checking and publishing monitoring templates.
+     *
+     * @param config The HTTP Exporter's configuration
+     * @param resolvers The resolvers that contain all known templates.
+     * @param resourceOwnerName The resource owner name to display for any logging messages.
+     * @param resources The resources to add too.
+     */
+    private static void configureTemplateResources(final Config config, final ResolversRegistry resolvers, final String resourceOwnerName,
+                                                   final List<HttpResource> resources) {
+        final TimeValue templateTimeout = config.settings().getAsTime(TEMPLATE_CHECK_TIMEOUT_SETTING, null);
+        final Set<String> templateNames = new HashSet<>();
+
+        for (final MonitoringIndexNameResolver resolver : resolvers) {
+            final String templateName = resolver.templateName();
+
+            // ignore duplicates
+            if (templateNames.contains(templateName) == false) {
+                templateNames.add(templateName);
+
+                resources.add(new TemplateHttpResource(resourceOwnerName, templateTimeout, templateName, resolver::template));
+            }
+        }
+    }
+
+    /**
+     * Adds the {@code resources} necessary for checking and publishing monitoring pipelines.
+     *
+     * @param config The HTTP Exporter's configuration
+     * @param resourceOwnerName The resource owner name to display for any logging messages.
+     * @param resources The resources to add too.
+     */
+    private static void configurePipelineResources(final Config config, final String resourceOwnerName,
+                                                   final List<HttpResource> resources) {
+        final Settings settings = config.settings();
+
+        // don't require pipelines if we're not using them
+        if (settings.getAsBoolean(USE_INGEST_PIPELINE_SETTING, true)) {
+            final TimeValue pipelineTimeout = settings.getAsTime(PIPELINE_CHECK_TIMEOUT_SETTING, null);
+            // lazily load the pipeline
+            final Supplier<byte[]> pipeline = () -> BytesReference.toBytes(emptyPipeline(XContentType.JSON).bytes());
+
+            resources.add(new PipelineHttpResource(resourceOwnerName, pipelineTimeout, EXPORT_PIPELINE_NAME, pipeline));
+        }
     }
 
     @Override
-    public ExportBulk openBulk() {
-        HttpURLConnection connection = openExportingConnection();
-        return connection != null ? new Bulk(connection) : null;
+    public HttpExportBulk openBulk() {
+        // block until all resources are verified to exist
+        if (resource.checkAndPublishIfDirty(client)) {
+            return new HttpExportBulk(settingFQN(config), client, defaultParams, resolvers);
+        }
+
+        return null;
     }
 
     @Override
     public void doClose() {
-        if (keepAliveThread != null && keepAliveThread.isAlive()) {
-            keepAliveWorker.closed = true;
-            keepAliveThread.interrupt();
+        try {
+            if (sniffer != null) {
+                sniffer.close();
+            }
+        } catch (IOException | RuntimeException e) {
+            logger.error("an error occurred while closing the internal client sniffer", e);
+        } finally {
             try {
-                keepAliveThread.join(6000);
-            } catch (InterruptedException e) {
-                // don't care.
+                client.close();
+            } catch (IOException | RuntimeException e) {
+                logger.error("an error occurred while closing the internal client", e);
             }
         }
     }
 
-    private String buildQueryString() {
-        StringBuilder queryString = new StringBuilder();
-
-        if (bulkTimeout != null) {
-            queryString.append("master_timeout=").append(bulkTimeout);
-        }
-
-        // allow the use of ingest pipelines to be completely optional
-        if (config.settings().getAsBoolean(USE_INGEST_PIPELINE_SETTING, true)) {
-            if (queryString.length() != 0) {
-                queryString.append('&');
-            }
-
-            queryString.append("pipeline=").append(EXPORT_PIPELINE_NAME);
-        }
-
-        return queryString.length() != 0 ? '?' + queryString.toString() : "";
-    }
-
-    private HttpURLConnection openExportingConnection() {
-        logger.trace("setting up an export connection");
-
-        final String queryString = buildQueryString();
-        HttpURLConnection conn = openAndValidateConnection("POST", "/_bulk" + queryString, CONTENT_TYPE.mediaType());
-        if (conn != null && (keepAliveThread == null || !keepAliveThread.isAlive())) {
-            // start keep alive upon successful connection if not there.
-            initKeepAliveThread();
-        }
-        return conn;
-    }
-
-    private void render(MonitoringDoc doc, OutputStream out) throws IOException {
-        try {
-            MonitoringIndexNameResolver<MonitoringDoc> resolver = resolvers.getResolver(doc);
-            if (resolver != null) {
-                String index = resolver.index(doc);
-                String type = resolver.type(doc);
-                String id = resolver.id(doc);
-
-                try (XContentBuilder builder = new XContentBuilder(CONTENT_TYPE.xContent(), out)) {
-                    // Builds the bulk action metadata line
-                    builder.startObject();
-                    builder.startObject("index");
-                    builder.field("_index", index);
-                    builder.field("_type", type);
-                    if (id != null) {
-                        builder.field("_id", id);
-                    }
-                    builder.endObject();
-                    builder.endObject();
-                }
-
-                // Adds action metadata line bulk separator
-                out.write(CONTENT_TYPE.xContent().streamSeparator());
-
-                // Render the monitoring document
-                BytesRef bytesRef = resolver.source(doc, CONTENT_TYPE).toBytesRef();
-                out.write(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-
-                // Adds final bulk separator
-                out.write(CONTENT_TYPE.xContent().streamSeparator());
-
-                if (logger.isTraceEnabled()) {
-                    logger.trace("added index request [index={}, type={}, id={}]", index, type, id);
-                }
-            } else if (logger.isTraceEnabled()) {
-                logger.trace("no resolver found for monitoring document [class={}, id={}, version={}]",
-                        doc.getClass().getName(), doc.getMonitoringId(), doc.getMonitoringVersion());
-            }
-        } catch (Exception e) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to render document [{}], skipping it", doc), e);
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private void sendCloseExportingConnection(HttpURLConnection conn) throws IOException {
-        logger.trace("sending content");
-        closeExportingConnection(conn);
-        if (conn.getResponseCode() != 200) {
-            logConnectionError("remote target didn't respond with 200 OK", conn);
-            return;
-        }
-
-        InputStream inputStream = conn.getInputStream();
-        try (XContentParser parser = CONTENT_TYPE.xContent().createParser(inputStream)) {
-            Map<String, Object> response = parser.map();
-            if (response.get("items") != null) {
-                ArrayList<Object> list = (ArrayList<Object>) response.get("items");
-                for (Object itemObject : list) {
-                    Map<String, Object> actions = (Map<String, Object>) itemObject;
-                    for (String actionKey : actions.keySet()) {
-                        Map<String, Object> action = (Map<String, Object>) actions.get(actionKey);
-                        if (action.get("error") != null) {
-                            logger.error("{} failure (index:[{}] type: [{}]): {}", actionKey, action.get("_index"), action.get("_type"),
-                                    action.get("error"));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private void closeExportingConnection(HttpURLConnection connection) throws IOException {
-        try (OutputStream os = connection.getOutputStream()) {
-            logger.debug("closing exporting connection [{}]", connection);
-        }
-    }
-
-    /**
-     * open a connection to any host, validating it has the template installed if needed
-     *
-     * @return a url connection to the selected host or null if no current host is available.
-     */
-    private HttpURLConnection openAndValidateConnection(String method, String path, String contentType) {
-        // allows us to move faulty hosts to the end; the HTTP Client will make this code obsolete
-        int hostIndex = 0;
-        try {
-            for (; hostIndex < hosts.length; hostIndex++) {
-                String host = hosts[hostIndex];
-                if (!supportedClusterVersion) {
-                    try {
-                        Version remoteVersion = loadRemoteClusterVersion(host);
-                        if (remoteVersion == null) {
-                            logger.warn("unable to check remote cluster version: no version found on host [{}]", host);
-                            continue;
-                        }
-                        supportedClusterVersion = remoteVersion.onOrAfter(MIN_SUPPORTED_CLUSTER_VERSION);
-                        if (!supportedClusterVersion) {
-                            logger.error("remote cluster version [{}] is not supported, please use a cluster with minimum version [{}]",
-                                    remoteVersion, MIN_SUPPORTED_CLUSTER_VERSION);
-                            continue;
-                        }
-                    } catch (ElasticsearchException e) {
-                        logger.error(
-                                (Supplier<?>) () -> new ParameterizedMessage(
-                                        "exception when checking remote cluster version on host [{}]", host), e);
-                        continue;
-                    }
-                }
-
-                // NOTE: This assumes that the user is configured properly and only sending to a single cluster
-                if (checkedAndUploadedIndexTemplate == false || checkedAndUploadedIndexPipeline == false) {
-                    checkedAndUploadedIndexTemplate = checkAndUploadIndexTemplate(host);
-                    checkedAndUploadedIndexPipeline = checkedAndUploadedIndexTemplate && checkAndUploadIndexPipeline(host);
-
-                    // did we fail?
-                    if (checkedAndUploadedIndexTemplate == false || checkedAndUploadedIndexPipeline == false) {
-                        continue;
-                    }
-                }
-
-                HttpURLConnection connection = openConnection(host, method, path, contentType);
-                if (connection != null) {
-                    return connection;
-                }
-                // failed hosts - reset template & cluster versions check, someone may have restarted the target cluster and deleted
-                // it's data folder. be safe.
-                checkedAndUploadedIndexTemplate = false;
-                checkedAndUploadedIndexPipeline = false;
-                supportedClusterVersion = false;
-            }
-        } finally {
-            if (hostIndex > 0 && hostIndex < hosts.length) {
-                logger.debug("moving [{}] failed hosts to the end of the list", hostIndex);
-                String[] newHosts = new String[hosts.length];
-                System.arraycopy(hosts, hostIndex, newHosts, 0, hosts.length - hostIndex);
-                System.arraycopy(hosts, 0, newHosts, hosts.length - hostIndex, hostIndex);
-                hosts = newHosts;
-                logger.debug("preferred target host is now [{}]", hosts[0]);
-            }
-        }
-
-        logger.error("could not connect to any configured elasticsearch instances [{}]", Strings.arrayToCommaDelimitedString(hosts));
-
-        return null;
-    }
-
-    /**
-     * open a connection to the given hosts, returning null when not successful *
-     */
-    private HttpURLConnection openConnection(String host, String method, String path, @Nullable String contentType) {
-        // the HTTP Client will make this code obsolete
-        try {
-            final URL url = HttpExporterUtils.parseHostWithPath(host, path);
-            final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-
-            // Custom Headers must be set before we manually apply headers, so that our headers beat custom ones
-            if (headers != null) {
-                // Headers can technically be duplicated, although it's not expected to be used frequently
-                for (final Map.Entry<String, String[]> header : headers.entrySet()) {
-                    for (final String value : header.getValue()) {
-                        conn.addRequestProperty(header.getKey(), value);
-                    }
-                }
-            }
-
-            if (conn instanceof HttpsURLConnection && sslSocketFactory != null) {
-                final HttpsURLConnection httpsConn = (HttpsURLConnection) conn;
-                final SSLSocketFactory factory = sslSocketFactory;
-
-                SecurityManager sm = System.getSecurityManager();
-                if (sm != null) {
-                    sm.checkPermission(new SpecialPermission());
-                }
-                AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                    // Requires permission java.lang.RuntimePermission "setFactory";
-                    httpsConn.setSSLSocketFactory(factory);
-
-                    // Requires permission javax.net.ssl.SSLPermission "setHostnameVerifier";
-                    if (hostnameVerification == false) {
-                        httpsConn.setHostnameVerifier(TrustAllHostnameVerifier.INSTANCE);
-                    }
-                    return null;
-                });
-            }
-
-            conn.setRequestMethod(method);
-            conn.setConnectTimeout((int) connectionTimeout.getMillis());
-            conn.setReadTimeout((int) connectionReadTimeout.getMillis());
-            if (contentType != null) {
-                conn.setRequestProperty("Content-Type", contentType);
-            }
-            if (auth != null) {
-                auth.apply(conn);
-            }
-            conn.setUseCaches(false);
-            if (method.equalsIgnoreCase("POST") || method.equalsIgnoreCase("PUT")) {
-                conn.setDoOutput(true);
-            }
-            conn.connect();
-
-            return conn;
-        } catch (URISyntaxException e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("error parsing host [{}]", host), e);
-        } catch (IOException e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("error connecting to [{}]", host), e);
-        }
-        return null;
-    }
-
-    /**
-     * Get the version of the remote monitoring cluster
-     */
-    Version loadRemoteClusterVersion(final String host) {
-        HttpURLConnection connection = null;
-        try {
-            connection = openConnection(host, "GET", "/", null);
-            if (connection == null) {
-                throw new ElasticsearchException("unable to check remote cluster version: no available connection for host [" + host + "]");
-            }
-
-            try (InputStream is = connection.getInputStream()) {
-                ByteArrayOutputStream out = new ByteArrayOutputStream();
-                Streams.copy(is, out);
-                return VersionUtils.parseVersion(out.toByteArray());
-            }
-        } catch (IOException e) {
-            throw new ElasticsearchException("failed to verify the remote cluster version on host [" + host + "]", e);
-        } finally {
-            if (connection != null) {
-                try {
-                    connection.getInputStream().close();
-                } catch (IOException e) {
-                    // Ignore
-                }
-            }
-        }
-    }
-
-    /**
-     * Checks if the index pipeline already exists and, if not, uploads it.
-     *
-     * @return {@code true} if the pipeline exists after executing.
-     * @throws RuntimeException if any error occurs that should prevent indexing
-     */
-    private boolean checkAndUploadIndexPipeline(final String host) {
-        if (hasPipeline(host) == false) {
-            logger.debug("monitoring pipeline [{}] not found", EXPORT_PIPELINE_NAME);
-
-            return putPipeline(host);
-        } else {
-            logger.trace("monitoring pipeline [{}] found", EXPORT_PIPELINE_NAME);
-        }
-
-        return true;
-    }
-
-    private boolean hasPipeline(final String host) {
-        final String url = urlWithMasterTimeout("_ingest/pipeline/" + EXPORT_PIPELINE_NAME, pipelineCheckTimeout);
-
-        HttpURLConnection connection = null;
-        try {
-            logger.trace("checking if monitoring pipeline [{}] exists on the monitoring cluster", EXPORT_PIPELINE_NAME);
-            connection = openConnection(host, "GET", url, null);
-            if (connection == null) {
-                throw new IOException("no available connection to check for monitoring pipeline [" + EXPORT_PIPELINE_NAME + "] existence");
-            }
-
-            // 200 means that the template has been found, 404 otherwise
-            if (connection.getResponseCode() == 200) {
-                logger.debug("monitoring pipeline [{}] found", EXPORT_PIPELINE_NAME);
-                return true;
-            }
-        } catch (Exception e) {
-            logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to verify the monitoring pipeline [{}] on [{}]", EXPORT_PIPELINE_NAME, host), e);
-            return false;
-        } finally {
-            if (connection != null) {
-                try {
-                    connection.getInputStream().close();
-                } catch (IOException e) {
-                    // Ignore
-                }
-            }
-        }
-        return false;
-    }
-
-    private boolean putPipeline(final String host) {
-        logger.trace("installing pipeline [{}]", EXPORT_PIPELINE_NAME);
-
-        HttpURLConnection connection = null;
-
-        try {
-            connection = openConnection(host, "PUT", "_ingest/pipeline/" + EXPORT_PIPELINE_NAME, XContentType.JSON.mediaType());
-            if (connection == null) {
-                logger.debug("no available connection to upload monitoring pipeline [{}]", EXPORT_PIPELINE_NAME);
-                return false;
-            }
-
-            // Uploads the template and closes the outputstream
-            Streams.copy(BytesReference.toBytes(emptyPipeline(XContentType.JSON).bytes()), connection.getOutputStream());
-            if (connection.getResponseCode() != 200 && connection.getResponseCode() != 201) {
-                logConnectionError("error adding the monitoring pipeline [" + EXPORT_PIPELINE_NAME + "] to [" + host + "]", connection);
-                return false;
-            }
-
-            logger.info("monitoring pipeline [{}] set", EXPORT_PIPELINE_NAME);
-            return true;
-        } catch (IOException e) {
-            logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to update monitoring pipeline [{}] on host [{}]", EXPORT_PIPELINE_NAME, host), e);
-            return false;
-        } finally {
-            if (connection != null) {
-                try {
-                    connection.getInputStream().close();
-                } catch (IOException e) {
-                    // Ignore
-                }
-            }
-        }
-    }
-
-    /**
-     * Checks if the index templates already exist and if not uploads it
-     *
-     * @return true if template exists after executing.
-     * @throws RuntimeException if any error occurs that should prevent indexing
-     */
-    private boolean checkAndUploadIndexTemplate(final String host) {
-        // List of distinct templates
-        Map<String, String> templates = StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
-                .collect(Collectors.toMap(MonitoringIndexNameResolver::templateName, MonitoringIndexNameResolver::template, (a, b) -> a));
-
-        for (Map.Entry<String, String> template : templates.entrySet()) {
-            if (hasTemplate(template.getKey(), host) == false) {
-                logger.debug("template [{}] not found", template.getKey());
-                if (putTemplate(host, template.getKey(), template.getValue()) == false) {
-                    return false;
-                }
-            } else {
-                logger.debug("template [{}] found", template.getKey());
-            }
-        }
-        return true;
-    }
-
-    private boolean hasTemplate(String templateName, String host) {
-        final String url = urlWithMasterTimeout("_template/" + templateName, templateCheckTimeout);
-
-        HttpURLConnection connection = null;
-        try {
-            logger.debug("checking if monitoring template [{}] exists on the monitoring cluster", templateName);
-            connection = openConnection(host, "GET", url, null);
-            if (connection == null) {
-                throw new IOException("no available connection to check for monitoring template [" + templateName + "] existence");
-            }
-
-            // 200 means that the template has been found, 404 otherwise
-            if (connection.getResponseCode() == 200) {
-                logger.debug("monitoring template [{}] found", templateName);
-                return true;
-            }
-        } catch (Exception e) {
-            logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to verify the monitoring template [{}] on [{}]", templateName, host), e);
-            return false;
-        } finally {
-            if (connection != null) {
-                try {
-                    connection.getInputStream().close();
-                } catch (IOException e) {
-                    // Ignore
-                }
-            }
-        }
-        return false;
-    }
-
-    boolean putTemplate(String host, String template, String source) {
-        logger.debug("installing template [{}]", template);
-        HttpURLConnection connection = null;
-        try {
-            connection = openConnection(host, "PUT", "_template/" + template, XContentType.JSON.mediaType());
-            if (connection == null) {
-                logger.debug("no available connection to update monitoring template [{}]", template);
-                return false;
-            }
-
-            // Uploads the template and closes the outputstream
-            Streams.copy(source.getBytes(StandardCharsets.UTF_8), connection.getOutputStream());
-            if (connection.getResponseCode() != 200 && connection.getResponseCode() != 201) {
-                logConnectionError("error adding the monitoring template [" + template + "] to [" + host + "]", connection);
-                return false;
-            }
-
-            logger.info("monitoring template [{}] updated ", template);
-            return true;
-        } catch (IOException e) {
-            logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to update monitoring template [{}] on host [{}]", template, host), e);
-            return false;
-        } finally {
-            if (connection != null) {
-                try {
-                    connection.getInputStream().close();
-                } catch (IOException e) {
-                    // Ignore
-                }
-            }
-        }
-    }
-
-    /**
-     * Get the {@code url} with the optional {@code masterTimeout}.
-     * <p>
-     * This method assumes that there is no query string applied yet!
-     *
-     * @param url The URL being used
-     * @param masterTimeout The optional master_timeout
-     * @return Never {@code null}
-     */
-    private String urlWithMasterTimeout(final String url, final TimeValue masterTimeout) {
-        if (masterTimeout != null) {
-            return url + "?master_timeout=" + masterTimeout;
-        }
-
-        return url;
-    }
-
-    private void logConnectionError(String msg, HttpURLConnection conn) {
-        InputStream inputStream = conn.getErrorStream();
-        String err = "";
-        if (inputStream != null) {
-            java.util.Scanner s = new java.util.Scanner(inputStream, "UTF-8").useDelimiter("\\A");
-            err = s.hasNext() ? s.next() : "";
-        }
-
-        try {
-            logger.error("{} response code [{} {}]. content: [{}]",
-                    msg, conn.getResponseCode(),
-                    conn.getResponseMessage(),
-                    err);
-        } catch (IOException e) {
-            logger.error("{}. connection had an error while reporting the error. tough life.", msg);
-        }
-    }
-
-    protected void initKeepAliveThread() {
-        if (keepAlive) {
-            keepAliveThread = new Thread(keepAliveWorker, "monitoring-exporter[" + config.name() + "][keep_alive]");
-            keepAliveThread.setDaemon(true);
-            keepAliveThread.start();
-        }
-    }
-
-    BasicAuth resolveAuth(Settings setting) {
-        String username = setting.get(AUTH_USERNAME_SETTING, null);
-        String password = setting.get(AUTH_PASSWORD_SETTING, null);
-        if (username == null && password == null) {
-            return null;
-        }
-        if (username == null) {
-            throw new SettingsException("invalid auth setting. missing [" + settingFQN(AUTH_USERNAME_SETTING) + "]");
-        }
-        return new BasicAuth(username, password);
-    }
-
-    /**
-     * Trust all hostname verifier. This simply returns true to completely disable hostname verification
-     */
-    static class TrustAllHostnameVerifier implements HostnameVerifier {
-        static final HostnameVerifier INSTANCE = new TrustAllHostnameVerifier();
-
-        private TrustAllHostnameVerifier() {
-        }
-
-        @Override
-        public boolean verify(String s, SSLSession sslSession) {
-            return true;
-        }
-    }
-
-    /**
-     * Sadly we need to make sure we keep the connection open to the target ES a
-     * Java's connection pooling closes connections if idle for 5sec.
-     */
-    class ConnectionKeepAliveWorker implements Runnable {
-        volatile boolean closed = false;
-
-        @Override
-        public void run() {
-            logger.trace("starting keep alive thread");
-            while (!closed) {
-                try {
-                    Thread.sleep(1000);
-                    if (closed) {
-                        return;
-                    }
-                    String[] currentHosts = hosts;
-                    if (currentHosts.length == 0) {
-                        logger.trace("keep alive thread shutting down. no hosts defined");
-                        return; // no hosts configured at the moment.
-                    }
-                    HttpURLConnection conn = openConnection(currentHosts[0], "GET", "", null);
-                    if (conn == null) {
-                        logger.trace("keep alive thread shutting down. failed to open connection to current host [{}]", currentHosts[0]);
-                        return;
-                    } else {
-                        conn.getInputStream().close(); // close and release to connection pool.
-                    }
-                } catch (InterruptedException e) {
-                    // ignore, if closed, good....
-                } catch (Exception e) {
-                    logger.debug("error in keep alive thread, shutting down (will be restarted after a successful connection has been " +
-                            "made) {}", ExceptionsHelper.detailedMessage(e));
-                    return;
-                }
-            }
-        }
-    }
-
-    static class BasicAuth {
-
-        String username;
-        char[] password;
-
-        public BasicAuth(String username, String password) {
-            this.username = username;
-            this.password = password != null ? password.toCharArray() : null;
-        }
-
-        void apply(HttpURLConnection connection) throws UnsupportedEncodingException {
-            String userInfo = username + ":" + (password != null ? new String(password) : "");
-            String basicAuth = "Basic " + Base64.getEncoder().encodeToString(userInfo.getBytes("ISO-8859-1"));
-            connection.setRequestProperty("Authorization", basicAuth);
-        }
-    }
-
-    class Bulk extends ExportBulk {
-
-        private HttpURLConnection connection;
-        private OutputStream out;
-
-        public Bulk(HttpURLConnection connection) {
-            super(name());
-            this.connection = connection;
-        }
-
-        @Override
-        public void doAdd(Collection<MonitoringDoc> docs) throws ExportException {
-            try {
-                if ((docs != null) && (!docs.isEmpty())) {
-                    if (connection == null) {
-                        connection = openExportingConnection();
-                        if (connection == null) {
-                            throw new IllegalStateException("No connection available to export documents");
-                        }
-                    }
-                    if (out == null) {
-                        out = connection.getOutputStream();
-                    }
-
-                    // We need to use a buffer to render each monitoring document
-                    // because the renderer might close the outputstream (ex: XContentBuilder)
-                    try (BytesStreamOutput buffer = new BytesStreamOutput()) {
-                        for (MonitoringDoc monitoringDoc : docs) {
-                            try {
-                                render(monitoringDoc, buffer);
-                                BytesRef bytesRef = buffer.bytes().toBytesRef();
-                                // write the result to the connection
-                                out.write(bytesRef.bytes, bytesRef.offset, bytesRef.length);
-                            } finally {
-                                buffer.reset();
-                            }
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                throw new ExportException("failed to add documents to export bulk [{}]", name);
-            }
-        }
-
-        @Override
-        public void doFlush() throws ExportException {
-            if (connection != null) {
-                try {
-                    sendCloseExportingConnection(connection);
-                } catch (Exception e) {
-                    throw new ExportException("failed to flush export bulk [{}]", e, name);
-                } finally {
-                    connection = null;
-                }
-            }
-        }
-
-        @Override
-        protected void doClose() throws ExportException {
-            if (connection != null) {
-                try {
-                    closeExportingConnection(connection);
-                } catch (Exception e) {
-                    throw new ExportException("failed to close export bulk [{}]", e, name);
-                } finally {
-                    connection = null;
-                }
-            }
-        }
-    }
 }

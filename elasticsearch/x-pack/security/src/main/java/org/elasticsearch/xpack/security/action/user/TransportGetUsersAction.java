@@ -17,9 +17,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
+import org.elasticsearch.xpack.security.user.XPackUser;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,14 +29,16 @@ import static org.elasticsearch.common.Strings.arrayToDelimitedString;
 public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequest, GetUsersResponse> {
 
     private final NativeUsersStore usersStore;
+    private final ReservedRealm reservedRealm;
 
     @Inject
     public TransportGetUsersAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver, NativeUsersStore usersStore,
-                                   TransportService transportService) {
+                                   TransportService transportService, ReservedRealm reservedRealm) {
         super(settings, GetUsersAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                 GetUsersRequest::new);
         this.usersStore = usersStore;
+        this.reservedRealm = reservedRealm;
     }
 
     @Override
@@ -48,16 +50,13 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
 
         if (specificUsersRequested) {
             for (String username : requestedUsers) {
-                if (ReservedRealm.isReserved(username)) {
-                    User user = ReservedRealm.getUser(username);
+                if (ReservedRealm.isReserved(username, settings)) {
+                    User user = reservedRealm.lookupUser(username);
+                    // a user could be null if the service isn't ready or we requested the anonymous user and it is not enabled
                     if (user != null) {
                         users.add(user);
-                    } else {
-                        // the only time a user should be null is if username matches for the anonymous user and the anonymous user is not
-                        // enabled!
-                        assert AnonymousUser.enabled() == false && AnonymousUser.isAnonymousUsername(username);
                     }
-                } else if (SystemUser.NAME.equals(username)) {
+                } else if (SystemUser.NAME.equals(username) || XPackUser.NAME.equals(username)) {
                     listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));
                     return;
                 } else {
@@ -65,7 +64,7 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
                 }
             }
         } else {
-            users.addAll(ReservedRealm.users());
+            users.addAll(reservedRealm.users());
         }
 
         if (usersToSearchFor.size() == 1) {

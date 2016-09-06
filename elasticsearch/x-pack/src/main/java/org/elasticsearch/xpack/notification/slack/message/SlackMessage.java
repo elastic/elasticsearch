@@ -22,9 +22,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- *
- */
 public class SlackMessage implements MessageElement {
 
     final String from;
@@ -350,12 +347,8 @@ public class SlackMessage implements MessageElement {
                 return this;
             }
 
-            public Builder setFrom(TextTemplate.Builder from) {
-                return setFrom(from.build());
-            }
-
             public Builder setFrom(String from) {
-                return setFrom(TextTemplate.inline(from));
+                return setFrom(new TextTemplate(from));
             }
 
             public Builder addTo(TextTemplate... to) {
@@ -363,16 +356,9 @@ public class SlackMessage implements MessageElement {
                 return this;
             }
 
-            public Builder addTo(TextTemplate.Builder... to) {
-                for (TextTemplate.Builder name : to) {
-                    this.to.add(name.build());
-                }
-                return this;
-            }
-
             public Builder addTo(String... to) {
                 for (String name : to) {
-                    this.to.add(TextTemplate.inline(name).build());
+                    this.to.add(new TextTemplate(name));
                 }
                 return this;
             }
@@ -382,12 +368,8 @@ public class SlackMessage implements MessageElement {
                 return this;
             }
 
-            public Builder setText(TextTemplate.Builder text) {
-                return setText(text.build());
-            }
-
             public Builder setText(String text) {
-                return setText(TextTemplate.inline(text));
+                return setText(new TextTemplate(text));
             }
 
             public Builder setIcon(TextTemplate icon) {
@@ -395,12 +377,8 @@ public class SlackMessage implements MessageElement {
                 return this;
             }
 
-            public Builder setIcon(TextTemplate.Builder icon) {
-                return setIcon(icon.build());
-            }
-
             public Builder setIcon(String icon) {
-                return setIcon(TextTemplate.inline(icon));
+                return setIcon(new TextTemplate(icon));
             }
 
             public Builder addAttachments(Attachment.Template... attachments) {

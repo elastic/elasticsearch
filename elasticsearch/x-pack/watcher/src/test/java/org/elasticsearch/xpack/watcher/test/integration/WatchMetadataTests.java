@@ -78,7 +78,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTestCase {
         metadata.put("foo", "bar");
         metadata.put("logtext", "This is a test");
 
-        LoggingAction.Builder loggingAction = loggingAction(TextTemplate.inline("_logging"))
+        LoggingAction.Builder loggingAction = loggingAction(new TextTemplate("_logging"))
                 .setLevel(LoggingLevel.DEBUG)
                 .setCategory("test");
 

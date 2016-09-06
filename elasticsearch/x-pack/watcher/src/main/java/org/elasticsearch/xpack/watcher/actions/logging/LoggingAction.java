@@ -17,9 +17,6 @@ import org.elasticsearch.xpack.common.text.TextTemplate;
 import java.io.IOException;
 import java.util.Locale;
 
-/**
- *
- */
 public class LoggingAction implements Action {
 
     public static final String TYPE = "logging";

@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.monitoring.security;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.elasticsearch.xpack.security.InternalClient;
 
-import java.util.ArrayList;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
@@ -86,7 +86,7 @@ public class MonitoringInternalClientTests extends MonitoringIntegTestCase {
      * @return the source of a random monitoring template
      */
     private String randomTemplateSource() {
-        return randomFrom(new ArrayList<>(monitoringTemplates().values()));
+        return randomFrom(monitoringTemplates().stream().map(Tuple::v2).collect(Collectors.toList()));
     }
 }
 

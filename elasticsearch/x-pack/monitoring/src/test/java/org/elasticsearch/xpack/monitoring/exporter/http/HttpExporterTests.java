@@ -5,606 +5,422 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import com.squareup.okhttp.mockwebserver.MockResponse;
-import com.squareup.okhttp.mockwebserver.MockWebServer;
-import com.squareup.okhttp.mockwebserver.QueueDispatcher;
-import com.squareup.okhttp.mockwebserver.RecordedRequest;
-import okio.Buffer;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.sniff.Sniffer;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.xpack.monitoring.MonitoredSystem;
-import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStateMonitoringDoc;
-import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryMonitoringDoc;
+import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
-import org.elasticsearch.xpack.monitoring.exporter.Exporters;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
-import org.elasticsearch.xpack.monitoring.resolver.bulk.MonitoringBulkTimestampedResolver;
-import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
-import org.joda.time.format.DateTimeFormat;
-import org.junit.After;
-import org.junit.Before;
+import org.elasticsearch.xpack.monitoring.exporter.Exporter.Config;
+import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
+import org.elasticsearch.xpack.ssl.SSLService;
+
+import org.mockito.InOrder;
 
 import java.io.IOException;
-import java.net.BindException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyMapOf;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.atMost;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
+
+/**
+ * Tests {@link HttpExporter}.
+ */
+public class HttpExporterTests extends ESTestCase {
+
+    private final SSLService sslService = mock(SSLService.class);
+
+    public void testExporterWithBlacklistedHeaders() {
+        final String blacklistedHeader = randomFrom(HttpExporter.BLACKLISTED_HEADERS);
+        final String expected = "[" + blacklistedHeader + "] cannot be overwritten via [xpack.monitoring.exporters._http.headers]";
+        final Settings.Builder builder = Settings.builder()
+                .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE)
+                .put("xpack.monitoring.exporters._http.host", "http://localhost:9200")
+                .put("xpack.monitoring.exporters._http.headers.abc", "xyz")
+                .put("xpack.monitoring.exporters._http.headers." + blacklistedHeader, "value should not matter");
 
-@ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
-public class HttpExporterTests extends MonitoringIntegTestCase {
-
-    private int webPort;
-    private MockWebServer webServer;
-
-    @Before
-    public void startWebservice() throws Exception {
-        for (webPort = 9250; webPort < 9300; webPort++) {
-            try {
-                webServer = new MockWebServer();
-                QueueDispatcher dispatcher = new QueueDispatcher();
-                dispatcher.setFailFast(true);
-                webServer.setDispatcher(dispatcher);
-                webServer.start(webPort);
-                return;
-            } catch (BindException be) {
-                logger.warn("port [{}] was already in use trying next port", webPort);
-            }
-        }
-        throw new ElasticsearchException("unable to find open port between 9200 and 9300");
-    }
-
-    @After
-    public void cleanup() throws Exception {
-        webServer.shutdown();
-    }
-
-    private int expectedTemplateAndPipelineCalls(final boolean templateAlreadyExists, final boolean pipelineAlreadyExists) {
-        return expectedTemplateCalls(templateAlreadyExists) + expectedPipelineCalls(pipelineAlreadyExists);
-    }
-
-    private int expectedTemplateCalls(final boolean alreadyExists) {
-        return monitoringTemplates().size() * (alreadyExists ? 1 : 2);
-    }
-
-    private int expectedPipelineCalls(final boolean alreadyExists) {
-        return alreadyExists ? 1 : 2;
-    }
-
-    private void assertMonitorVersion(final MockWebServer webServer) throws Exception {
-        assertMonitorVersion(webServer, null);
-    }
-
-    private void assertMonitorVersion(final MockWebServer webServer, @Nullable final Map<String, String[]> customHeaders)
-            throws Exception {
-        RecordedRequest request = webServer.takeRequest();
-
-        assertThat(request.getMethod(), equalTo("GET"));
-        assertThat(request.getPath(), equalTo("/"));
-        assertHeaders(request, customHeaders);
-    }
-
-    private void assertMonitorTemplatesAndPipeline(final MockWebServer webServer,
-                                                   final boolean templateAlreadyExists, final boolean pipelineAlreadyExists)
-            throws Exception {
-        assertMonitorTemplatesAndPipeline(webServer, templateAlreadyExists, pipelineAlreadyExists, null);
-    }
-
-    private void assertMonitorTemplatesAndPipeline(final MockWebServer webServer,
-                                                   final boolean templateAlreadyExists, final boolean pipelineAlreadyExists,
-                                                   @Nullable final Map<String, String[]> customHeaders) throws Exception {
-        assertMonitorVersion(webServer, customHeaders);
-        assertMonitorTemplates(webServer, templateAlreadyExists, customHeaders);
-        assertMonitorPipelines(webServer, pipelineAlreadyExists, customHeaders);
-    }
-
-    private void assertMonitorTemplates(final MockWebServer webServer, final boolean alreadyExists,
-                                        @Nullable final Map<String, String[]> customHeaders) throws Exception {
-        RecordedRequest request;
-
-        for (Map.Entry<String, String> template : monitoringTemplates().entrySet()) {
-            request = webServer.takeRequest();
-
-            assertThat(request.getMethod(), equalTo("GET"));
-            assertThat(request.getPath(), equalTo("/_template/" + template.getKey()));
-            assertHeaders(request, customHeaders);
-
-            if (alreadyExists == false) {
-                request = webServer.takeRequest();
-
-                assertThat(request.getMethod(), equalTo("PUT"));
-                assertThat(request.getPath(), equalTo("/_template/" + template.getKey()));
-                assertThat(request.getBody().readUtf8(), equalTo(template.getValue()));
-                assertHeaders(request, customHeaders);
-            }
-        }
-    }
-
-    private void assertMonitorPipelines(final MockWebServer webServer, final boolean alreadyExists,
-                                        @Nullable final Map<String, String[]> customHeaders) throws Exception {
-        RecordedRequest request = webServer.takeRequest();
-
-        assertThat(request.getMethod(), equalTo("GET"));
-        assertThat(request.getPath(), equalTo("/_ingest/pipeline/" + Exporter.EXPORT_PIPELINE_NAME));
-        assertHeaders(request, customHeaders);
-
-        if (alreadyExists == false) {
-            request = webServer.takeRequest();
-
-            assertThat(request.getMethod(), equalTo("PUT"));
-            assertThat(request.getPath(), equalTo("/_ingest/pipeline/" + Exporter.EXPORT_PIPELINE_NAME));
-            assertThat(request.getBody().readUtf8(), equalTo(Exporter.emptyPipeline(XContentType.JSON).string()));
-            assertHeaders(request, customHeaders);
-        }
-    }
-
-    private RecordedRequest assertBulk(final MockWebServer webServer) throws Exception {
-        return assertBulk(webServer, -1);
-    }
-
-    private RecordedRequest assertBulk(final MockWebServer webServer, final int docs) throws Exception {
-        return assertBulk(webServer, docs, null);
-    }
-
-
-    private RecordedRequest assertBulk(final MockWebServer webServer, final int docs, @Nullable final Map<String, String[]> customHeaders)
-            throws Exception {
-        RecordedRequest request = webServer.takeRequest();
-
-        assertThat(request.getMethod(), equalTo("POST"));
-        assertThat(request.getPath(), equalTo("/_bulk?pipeline=" + Exporter.EXPORT_PIPELINE_NAME));
-        assertHeaders(request, customHeaders);
-
-        if (docs != -1) {
-            assertBulkRequest(request.getBody(), docs);
-        }
-
-        return request;
-    }
-
-    private void assertHeaders(final RecordedRequest request, final Map<String, String[]> customHeaders) {
-        if (customHeaders != null) {
-            for (final Map.Entry<String, String[]> entry : customHeaders.entrySet()) {
-                final String header = entry.getKey();
-                final String[] values = entry.getValue();
-
-                final List<String> headerValues = request.getHeaders().values(header);
-
-                assertThat(header, headerValues, hasSize(values.length));
-                assertThat(header, headerValues, containsInAnyOrder(values));
-            }
-        }
-    }
-
-    public void testExport() throws Exception {
-        final boolean templatesExistsAlready = randomBoolean();
-        final boolean pipelineExistsAlready = randomBoolean();
-        final int expectedTemplateAndPipelineCalls = expectedTemplateAndPipelineCalls(templatesExistsAlready, pipelineExistsAlready);
-
-        enqueueGetClusterVersionResponse(Version.CURRENT);
-        enqueueTemplateAndPipelineResponses(webServer, templatesExistsAlready, pipelineExistsAlready);
-        enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
-
-        Settings.Builder builder = Settings.builder()
-                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
-                .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
-                .put("xpack.monitoring.exporters._http.connection.keep_alive", false)
-                .put("xpack.monitoring.exporters._http.update_mappings", false);
-
-        internalCluster().startNode(builder);
-
-        final int nbDocs = randomIntBetween(1, 25);
-        export(newRandomMonitoringDocs(nbDocs));
-
-        assertThat(webServer.getRequestCount(), equalTo(2 + expectedTemplateAndPipelineCalls));
-        assertMonitorTemplatesAndPipeline(webServer, templatesExistsAlready, pipelineExistsAlready);
-        assertBulk(webServer, nbDocs);
-    }
-
-    public void testExportWithHeaders() throws Exception {
-        final boolean templatesExistsAlready = randomBoolean();
-        final boolean pipelineExistsAlready = randomBoolean();
-        final int expectedTemplateAndPipelineCalls = expectedTemplateAndPipelineCalls(templatesExistsAlready, pipelineExistsAlready);
-
-        final String headerValue = randomAsciiOfLengthBetween(3, 9);
-        final String[] array = generateRandomStringArray(2, 4, false);
-
-        final Map<String, String[]> headers = new HashMap<>();
-
-        headers.put("X-Cloud-Cluster", new String[] { headerValue });
-        headers.put("X-Found-Cluster", new String[] { headerValue });
-        headers.put("Array-Check", array);
-
-        enqueueGetClusterVersionResponse(Version.CURRENT);
-        enqueueTemplateAndPipelineResponses(webServer, templatesExistsAlready, pipelineExistsAlready);
-        enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
-
-        Settings.Builder builder = Settings.builder()
-                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
-                .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
-                .put("xpack.monitoring.exporters._http.connection.keep_alive", false)
-                .put("xpack.monitoring.exporters._http.update_mappings", false)
-                .put("xpack.monitoring.exporters._http.headers.X-Cloud-Cluster", headerValue)
-                .put("xpack.monitoring.exporters._http.headers.X-Found-Cluster", headerValue)
-                .putArray("xpack.monitoring.exporters._http.headers.Array-Check", array);
-
-        internalCluster().startNode(builder);
-
-        final int nbDocs = randomIntBetween(1, 25);
-        export(newRandomMonitoringDocs(nbDocs));
-
-        assertThat(webServer.getRequestCount(), equalTo(2 + expectedTemplateAndPipelineCalls));
-        assertMonitorTemplatesAndPipeline(webServer, templatesExistsAlready, pipelineExistsAlready);
-        assertBulk(webServer, nbDocs, headers);
-    }
-
-    public void testDynamicHostChange() {
-        // disable exporting to be able to use non valid hosts
-        Settings.Builder builder = Settings.builder()
-                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
-                .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.host", "test0");
-
-        String nodeName = internalCluster().startNode(builder);
-
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .putArray("xpack.monitoring.exporters._http.host", "test1")));
-        assertThat(getExporter(nodeName).hosts, arrayContaining("test1"));
-
-        // wipes the non array settings
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .putArray("xpack.monitoring.exporters._http.host", "test2")
-                .put("xpack.monitoring.exporters._http.host", "")));
-        assertThat(getExporter(nodeName).hosts, arrayContaining("test2"));
-
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .putArray("xpack.monitoring.exporters._http.host", "test3")));
-        assertThat(getExporter(nodeName).hosts, arrayContaining("test3"));
-    }
-
-    public void testHostChangeReChecksTemplate() throws Exception {
-        final boolean templatesExistsAlready = randomBoolean();
-        final boolean pipelineExistsAlready = randomBoolean();
-        final int expectedTemplateAndPipelineCalls = expectedTemplateAndPipelineCalls(templatesExistsAlready, pipelineExistsAlready);
-
-        Settings.Builder builder = Settings.builder()
-                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
-                .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
-                .put("xpack.monitoring.exporters._http.connection.keep_alive", false)
-                .put("xpack.monitoring.exporters._http.update_mappings", false);
-
-        enqueueGetClusterVersionResponse(Version.CURRENT);
-        enqueueTemplateAndPipelineResponses(webServer, templatesExistsAlready, pipelineExistsAlready);
-        enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
-
-        String agentNode = internalCluster().startNode(builder);
-
-        HttpExporter exporter = getExporter(agentNode);
-        assertThat(exporter.supportedClusterVersion, is(false));
-        export(Collections.singletonList(newRandomMonitoringDoc()));
-
-        assertThat(exporter.supportedClusterVersion, is(true));
-        assertThat(webServer.getRequestCount(), equalTo(2 + expectedTemplateAndPipelineCalls));
-        assertMonitorTemplatesAndPipeline(webServer, templatesExistsAlready, pipelineExistsAlready);
-        assertBulk(webServer);
-
-        MockWebServer secondWebServer = null;
-        int secondWebPort;
-
-        try {
-            final int expectedPipelineCalls = expectedPipelineCalls(!pipelineExistsAlready);
-
-            for (secondWebPort = 9250; secondWebPort < 9300; secondWebPort++) {
-                try {
-                    secondWebServer = new MockWebServer();
-                    QueueDispatcher dispatcher = new QueueDispatcher();
-                    dispatcher.setFailFast(true);
-                    secondWebServer.setDispatcher(dispatcher);
-                    secondWebServer.start(secondWebPort);
-                    break;
-                } catch (BindException be) {
-                    logger.warn("port [{}] was already in use trying next port", secondWebPort);
-                }
-            }
-
-            assertNotNull("Unable to start the second mock web server", secondWebServer);
-
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                    Settings.builder().putArray("xpack.monitoring.exporters._http.host",
-                            secondWebServer.getHostName() + ":" + secondWebServer.getPort())).get());
-
-            // a new exporter is created on update, so we need to re-fetch it
-            exporter = getExporter(agentNode);
-
-            enqueueGetClusterVersionResponse(secondWebServer, Version.CURRENT);
-            for (String template : monitoringTemplates().keySet()) {
-                if (template.contains(MonitoringBulkTimestampedResolver.Data.DATA)) {
-                    enqueueResponse(secondWebServer, 200, "template [" + template + "] exists");
-                } else {
-                    enqueueResponse(secondWebServer, 404, "template [" + template + "] does not exist");
-                    enqueueResponse(secondWebServer, 201, "template [" + template + "] created");
-                }
-            }
-            enqueuePipelineResponses(secondWebServer, !pipelineExistsAlready);
-            enqueueResponse(secondWebServer, 200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
-
-            logger.info("--> exporting a second event");
-            export(Collections.singletonList(newRandomMonitoringDoc()));
-
-            assertThat(secondWebServer.getRequestCount(), equalTo(2 + monitoringTemplates().size() * 2 - 1 + expectedPipelineCalls));
-            assertMonitorVersion(secondWebServer);
-
-            for (Map.Entry<String, String> template : monitoringTemplates().entrySet()) {
-                RecordedRequest recordedRequest = secondWebServer.takeRequest();
-                assertThat(recordedRequest.getMethod(), equalTo("GET"));
-                assertThat(recordedRequest.getPath(), equalTo("/_template/" + template.getKey()));
-
-                if (template.getKey().contains(MonitoringBulkTimestampedResolver.Data.DATA) == false) {
-                    recordedRequest = secondWebServer.takeRequest();
-                    assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-                    assertThat(recordedRequest.getPath(), equalTo("/_template/" + template.getKey()));
-                    assertThat(recordedRequest.getBody().readUtf8(), equalTo(template.getValue()));
-                }
-            }
-            assertMonitorPipelines(secondWebServer, !pipelineExistsAlready, null);
-            assertBulk(secondWebServer);
-        } finally {
-            if (secondWebServer != null) {
-                secondWebServer.shutdown();
-            }
-        }
-    }
-
-    public void testUnsupportedClusterVersion() throws Exception {
-        Settings.Builder builder = Settings.builder()
-                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
-                .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
-                .put("xpack.monitoring.exporters._http.connection.keep_alive", false);
-
-        // returning an unsupported cluster version
-        enqueueGetClusterVersionResponse(randomFrom(Version.fromString("0.18.0"), Version.fromString("1.0.0"),
-                Version.fromString("1.4.0")));
-
-        String agentNode = internalCluster().startNode(builder);
-
-        HttpExporter exporter = getExporter(agentNode);
-        assertThat(exporter.supportedClusterVersion, is(false));
-        assertNull(exporter.openBulk());
-
-        assertThat(exporter.supportedClusterVersion, is(false));
-        assertThat(webServer.getRequestCount(), equalTo(1));
-
-        assertMonitorVersion(webServer);
-    }
-
-    public void testDynamicIndexFormatChange() throws Exception {
-        final boolean templatesExistsAlready = randomBoolean();
-        final boolean pipelineExistsAlready = randomBoolean();
-        final int expectedTemplateAndPipelineCalls = expectedTemplateAndPipelineCalls(templatesExistsAlready, pipelineExistsAlready);
-
-        Settings.Builder builder = Settings.builder()
-                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
-                .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
-                .put("xpack.monitoring.exporters._http.connection.keep_alive", false)
-                .put("xpack.monitoring.exporters._http.update_mappings", false);
-
-        String agentNode = internalCluster().startNode(builder);
-
-        enqueueGetClusterVersionResponse(Version.CURRENT);
-        enqueueTemplateAndPipelineResponses(webServer, templatesExistsAlready, pipelineExistsAlready);
-        enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
-
-        HttpExporter exporter = getExporter(agentNode);
-
-        MonitoringDoc doc = newRandomMonitoringDoc();
-        export(Collections.singletonList(doc));
-
-        final int expectedRequests = 2 + expectedTemplateAndPipelineCalls;
-        assertThat(webServer.getRequestCount(), equalTo(expectedRequests));
-        assertMonitorTemplatesAndPipeline(webServer, templatesExistsAlready, pipelineExistsAlready);
-        RecordedRequest recordedRequest = assertBulk(webServer);
-
-        String indexName = exporter.getResolvers().getResolver(doc).index(doc);
-
-        byte[] bytes = recordedRequest.getBody().readByteArray();
-        Map<String, Object> data = XContentHelper.convertToMap(new BytesArray(bytes), false).v2();
-        Map<String, Object> index = (Map<String, Object>) data.get("index");
-        assertThat(index.get("_index"), equalTo(indexName));
-
-        String newTimeFormat = randomFrom("YY", "YYYY", "YYYY.MM", "YYYY-MM", "MM.YYYY", "MM");
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put("xpack.monitoring.exporters._http.index.name.time_format", newTimeFormat)));
-
-        enqueueGetClusterVersionResponse(Version.CURRENT);
-        enqueueTemplateAndPipelineResponses(webServer, true, true);
-        enqueueResponse(200, "{\"errors\": false, \"msg\": \"successful bulk request\"}");
-
-        doc = newRandomMonitoringDoc();
-        export(Collections.singletonList(doc));
-
-        String expectedMonitoringIndex = ".monitoring-es-" + MonitoringTemplateUtils.TEMPLATE_VERSION + "-"
-                + DateTimeFormat.forPattern(newTimeFormat).withZoneUTC().print(doc.getTimestamp());
-
-        final int expectedTemplatesAndPipelineExists = expectedTemplateAndPipelineCalls(true, true);
-        assertThat(webServer.getRequestCount(), equalTo(expectedRequests + 2 + expectedTemplatesAndPipelineExists));
-        assertMonitorTemplatesAndPipeline(webServer, true, true);
-        recordedRequest = assertBulk(webServer);
-
-        bytes = recordedRequest.getBody().readByteArray();
-        data = XContentHelper.convertToMap(new BytesArray(bytes), false).v2();
-        index = (Map<String, Object>) data.get("index");
-        assertThat(index.get("_index"), equalTo(expectedMonitoringIndex));
-    }
-
-    public void testLoadRemoteClusterVersion() throws IOException {
-        final String host = webServer.getHostName() + ":" + webServer.getPort();
-
-        Settings.Builder builder = Settings.builder()
-                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
-                .put("xpack.monitoring.exporters._http.type", "http")
-                .put("xpack.monitoring.exporters._http.host", host)
-                .put("xpack.monitoring.exporters._http.connection.keep_alive", false);
-
-        String agentNode = internalCluster().startNode(builder);
-        HttpExporter exporter = getExporter(agentNode);
-
-        enqueueGetClusterVersionResponse(Version.CURRENT);
-        Version resolved = exporter.loadRemoteClusterVersion(host);
-        assertTrue(resolved.equals(Version.CURRENT));
-
-        final Version expected = randomFrom(Version.CURRENT, Version.V_2_0_0_beta1, Version.V_2_0_0_beta2, Version.V_2_0_0_rc1,
-                Version.V_2_0_0, Version.V_2_1_0, Version.V_2_2_0, Version.V_2_3_0);
-        enqueueGetClusterVersionResponse(expected);
-        resolved = exporter.loadRemoteClusterVersion(host);
-        assertTrue(resolved.equals(expected));
-    }
-
-    private void export(Collection<MonitoringDoc> docs) throws Exception {
-        Exporters exporters = internalCluster().getInstance(Exporters.class);
-        assertThat(exporters, notNullValue());
-
-        // Wait for exporting bulks to be ready to export
-        assertBusy(() -> exporters.forEach(exporter -> assertThat(exporter.openBulk(), notNullValue())));
-        exporters.export(docs);
-    }
-
-    private HttpExporter getExporter(String nodeName) {
-        Exporters exporters = internalCluster().getInstance(Exporters.class, nodeName);
-        return (HttpExporter) exporters.iterator().next();
-    }
-
-    private MonitoringDoc newRandomMonitoringDoc() {
         if (randomBoolean()) {
-            IndexRecoveryMonitoringDoc doc = new IndexRecoveryMonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString());
-            doc.setClusterUUID(internalCluster().getClusterName());
-            doc.setTimestamp(System.currentTimeMillis());
-            doc.setSourceNode(new DiscoveryNode("id", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
-            doc.setRecoveryResponse(new RecoveryResponse());
-            return doc;
+            builder.put("xpack.monitoring.exporters._http.headers.xyz", "abc");
+        }
+
+        final Config config = createConfig(builder.build());
+
+        final SettingsException exception = expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService));
+
+        assertThat(exception.getMessage(), equalTo(expected));
+    }
+
+    public void testExporterWithEmptyHeaders() {
+        final String name = randomFrom("abc", "ABC", "X-Flag");
+        final String expected = "headers must have values, missing for setting [xpack.monitoring.exporters._http.headers." + name + "]";
+        final Settings.Builder builder = Settings.builder()
+                .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE)
+                .put("xpack.monitoring.exporters._http.host", "localhost:9200")
+                .put("xpack.monitoring.exporters._http.headers." + name, "");
+
+        if (randomBoolean()) {
+            builder.put("xpack.monitoring.exporters._http.headers.xyz", "abc");
+        }
+
+        final Config config = createConfig(builder.build());
+
+        final SettingsException exception = expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService));
+
+        assertThat(exception.getMessage(), equalTo(expected));
+    }
+
+    public void testExporterWithPasswordButNoUsername() {
+        final String expected =
+                "[xpack.monitoring.exporters._http.auth.password] without [xpack.monitoring.exporters._http.auth.username]";
+        final Settings.Builder builder = Settings.builder()
+                .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE)
+                .put("xpack.monitoring.exporters._http.host", "localhost:9200")
+                .put("xpack.monitoring.exporters._http.auth.password", "_pass");
+
+        final Config config = createConfig(builder.build());
+
+        final SettingsException exception = expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService));
+
+        assertThat(exception.getMessage(), equalTo(expected));
+    }
+
+    public void testExporterWithMissingHost() {
+        // forgot host!
+        final Settings.Builder builder = Settings.builder()
+                .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE);
+
+        if (randomBoolean()) {
+            builder.put("xpack.monitoring.exporters._http.host", "");
+        } else if (randomBoolean()) {
+            builder.putArray("xpack.monitoring.exporters._http.host");
+        } else if (randomBoolean()) {
+            builder.putNull("xpack.monitoring.exporters._http.host");
+        }
+
+        final Config config = createConfig(builder.build());
+
+        final SettingsException exception = expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService));
+
+        assertThat(exception.getMessage(), equalTo("missing required setting [xpack.monitoring.exporters._http.host]"));
+    }
+
+    public void testExporterWithInconsistentSchemes() {
+        final Settings.Builder builder = Settings.builder()
+                .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE)
+                .putArray("xpack.monitoring.exporters._http.host", "http://localhost:9200", "https://localhost:9201");
+
+        final Config config = createConfig(builder.build());
+
+        final SettingsException exception = expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService));
+
+        assertThat(exception.getMessage(),
+                   equalTo("[xpack.monitoring.exporters._http.host] must use a consistent scheme: http or https"));
+    }
+
+    public void testExporterWithInvalidHost() {
+        final String invalidHost = randomFrom("://localhost:9200", "gopher!://xyz.my.com");
+
+        final Settings.Builder builder = Settings.builder()
+                .put("xpack.monitoring.exporters._http.type", HttpExporter.TYPE);
+
+        // sometimes add a valid URL with it
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                builder.putArray("xpack.monitoring.exporters._http.host", "localhost:9200", invalidHost);
+            } else {
+                builder.putArray("xpack.monitoring.exporters._http.host", invalidHost, "localhost:9200");
+            }
         } else {
-            ClusterStateMonitoringDoc doc = new ClusterStateMonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString());
-            doc.setClusterUUID(internalCluster().getClusterName());
-            doc.setTimestamp(System.currentTimeMillis());
-            doc.setSourceNode(new DiscoveryNode("id", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
-            doc.setClusterState(ClusterState.PROTO);
-            doc.setStatus(ClusterHealthStatus.GREEN);
-            return doc;
+            builder.put("xpack.monitoring.exporters._http.host", invalidHost);
+        }
+
+        final Config config = createConfig(builder.build());
+
+        final SettingsException exception = expectThrows(SettingsException.class, () -> new HttpExporter(config, sslService));
+
+        assertThat(exception.getMessage(), equalTo("[xpack.monitoring.exporters._http.host] invalid host: [" + invalidHost + "]"));
+    }
+
+    public void testExporterWithHostOnly() throws Exception {
+        final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
+        when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
+
+        final Settings.Builder builder = Settings.builder()
+                .put("xpack.monitoring.exporters._http.type", "http")
+                .put("xpack.monitoring.exporters._http.host", "http://localhost:9200");
+
+        final Config config = createConfig(builder.build());
+
+        new HttpExporter(config, sslService).close();
+    }
+
+    public void testCreateRestClient() throws IOException {
+        final SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
+
+        when(sslService.sslIOSessionStrategy(any(Settings.class))).thenReturn(sslStrategy);
+
+        final Settings.Builder builder = Settings.builder()
+                .put("xpack.monitoring.exporters._http.type", "http")
+                .put("xpack.monitoring.exporters._http.host", "http://localhost:9200");
+
+        // use basic auth
+        if (randomBoolean()) {
+            builder.put("xpack.monitoring.exporters._http.auth.username", "_user")
+                   .put("xpack.monitoring.exporters._http.auth.password", "_pass");
+        }
+
+        // use headers
+        if (randomBoolean()) {
+            builder.put("xpack.monitoring.exporters._http.headers.abc", "xyz");
+        }
+
+        final Config config = createConfig(builder.build());
+        final NodeFailureListener listener = mock(NodeFailureListener.class);
+
+        // doesn't explode
+        HttpExporter.createRestClient(config, sslService, listener).close();
+    }
+
+    public void testCreateSnifferDisabledByDefault() {
+        final Config config = createConfig(Settings.EMPTY);
+        final RestClient client = mock(RestClient.class);
+        final NodeFailureListener listener = mock(NodeFailureListener.class);
+
+        assertThat(HttpExporter.createSniffer(config, client, listener), nullValue());
+
+        verifyZeroInteractions(client, listener);
+    }
+
+    public void testCreateSnifferWithoutHosts() {
+        final Settings.Builder builder = Settings.builder()
+                .put("xpack.monitoring.exporters._http.type", "http")
+                .put("xpack.monitoring.exporters._http.sniff.enabled", true);
+
+        final Config config = createConfig(builder.build());
+        final RestClient client = mock(RestClient.class);
+        final NodeFailureListener listener = mock(NodeFailureListener.class);
+
+        expectThrows(IndexOutOfBoundsException.class, () -> HttpExporter.createSniffer(config, client, listener));
+    }
+
+    public void testCreateSniffer() throws IOException {
+        final Settings.Builder builder = Settings.builder()
+                .put("xpack.monitoring.exporters._http.type", "http")
+                // it's a simple check: does it start with "https"?
+                .put("xpack.monitoring.exporters._http.host", randomFrom("neither", "http", "https"))
+                .put("xpack.monitoring.exporters._http.sniff.enabled", true);
+
+        final Config config = createConfig(builder.build());
+        final RestClient client = mock(RestClient.class);
+        final NodeFailureListener listener = mock(NodeFailureListener.class);
+        final Response response = mock(Response.class);
+        final StringEntity entity = new StringEntity("{}", ContentType.APPLICATION_JSON);
+
+        when(response.getEntity()).thenReturn(entity);
+        when(client.performRequest(eq("get"), eq("/_nodes/http"), anyMapOf(String.class, String.class))).thenReturn(response);
+
+        try (final Sniffer sniffer = HttpExporter.createSniffer(config, client, listener)) {
+            assertThat(sniffer, not(nullValue()));
+
+            verify(listener).setSniffer(sniffer);
+        }
+
+        // it's a race whether it triggers this at all
+        verify(client, atMost(1)).performRequest(eq("get"), eq("/_nodes/http"), anyMapOf(String.class, String.class));
+
+        verifyNoMoreInteractions(client, listener);
+    }
+
+    public void testCreateResources() {
+        final boolean useIngest = randomBoolean();
+        final TimeValue templateTimeout = randomFrom(TimeValue.timeValueSeconds(30), null);
+        final TimeValue pipelineTimeout = randomFrom(TimeValue.timeValueSeconds(30), null);
+
+        final Settings.Builder builder = Settings.builder()
+                .put("xpack.monitoring.exporters._http.type", "http");
+
+        if (useIngest == false) {
+            builder.put("xpack.monitoring.exporters._http.use_ingest", false);
+        }
+
+        if (templateTimeout != null) {
+            builder.put("xpack.monitoring.exporters._http.index.template.master_timeout", templateTimeout.toString());
+        }
+
+        // note: this shouldn't get used with useIngest == false, but it doesn't hurt to try to cause issues
+        if (pipelineTimeout != null) {
+            builder.put("xpack.monitoring.exporters._http.index.pipeline.master_timeout", pipelineTimeout.toString());
+        }
+
+        final Config config = createConfig(builder.build());
+
+        final MultiHttpResource multiResource = HttpExporter.createResources(config, new ResolversRegistry(config.settings()));
+
+        final List<HttpResource> resources = multiResource.getResources();
+        final int version = (int)resources.stream().filter((resource) -> resource instanceof VersionHttpResource).count();
+        final List<TemplateHttpResource> templates =
+                resources.stream().filter((resource) -> resource instanceof TemplateHttpResource)
+                                  .map(TemplateHttpResource.class::cast)
+                                  .collect(Collectors.toList());
+        final List<PipelineHttpResource> pipelines =
+                resources.stream().filter((resource) -> resource instanceof PipelineHttpResource)
+                                  .map(PipelineHttpResource.class::cast)
+                                  .collect(Collectors.toList());
+
+        // expected number of resources
+        assertThat(multiResource.getResources().size(), equalTo(version + templates.size() + pipelines.size()));
+        assertThat(version, equalTo(1));
+        assertThat(templates, hasSize(3));
+        assertThat(pipelines, hasSize(useIngest ? 1 : 0));
+
+        // timeouts
+        assertMasterTimeoutSet(templates, templateTimeout);
+        assertMasterTimeoutSet(pipelines, pipelineTimeout);
+
+        // logging owner names
+        final List<String> uniqueOwners =
+                resources.stream().map(HttpResource::getResourceOwnerName).distinct().collect(Collectors.toList());
+
+        assertThat(uniqueOwners, hasSize(1));
+        assertThat(uniqueOwners.get(0), equalTo("xpack.monitoring.exporters._http"));
+    }
+
+    public void testCreateDefaultParams() {
+        final TimeValue bulkTimeout = randomFrom(TimeValue.timeValueSeconds(30), null);
+        final boolean useIngest = randomBoolean();
+
+        final Settings.Builder builder = Settings.builder()
+                .put("xpack.monitoring.exporters._http.type", "http");
+
+        if (bulkTimeout != null) {
+            builder.put("xpack.monitoring.exporters._http.bulk.timeout", bulkTimeout.toString());
+        }
+
+        if (useIngest == false) {
+            builder.put("xpack.monitoring.exporters._http.use_ingest", false);
+        }
+
+        final Config config = createConfig(builder.build());
+
+        final Map<String, String> parameters = new HashMap<>(HttpExporter.createDefaultParams(config));
+
+        assertThat(parameters.remove("filter_path"), equalTo("errors,items.*.error"));
+
+        if (bulkTimeout != null) {
+            assertThat(parameters.remove("master_timeout"), equalTo(bulkTimeout.toString()));
+        }
+
+        if (useIngest) {
+            assertThat(parameters.remove("pipeline"), equalTo(Exporter.EXPORT_PIPELINE_NAME));
+        }
+
+        // should have removed everything
+        assertThat(parameters.size(), equalTo(0));
+    }
+
+    public void testHttpExporterDirtyResourcesBlock() throws Exception {
+        final Config config = createConfig(Settings.EMPTY);
+        final RestClient client = mock(RestClient.class);
+        final Sniffer sniffer = randomFrom(mock(Sniffer.class), null);
+        final NodeFailureListener listener = mock(NodeFailureListener.class);
+        final ResolversRegistry resolvers = mock(ResolversRegistry.class);
+        final HttpResource resource = new MockHttpResource(exporterName(), true, PublishableHttpResource.CheckResponse.ERROR, false);
+
+        try (final HttpExporter exporter = new HttpExporter(config, client, sniffer, listener, resolvers, resource)) {
+            verify(listener).setResource(resource);
+
+            assertThat(exporter.openBulk(), nullValue());
         }
     }
 
-    private List<MonitoringDoc> newRandomMonitoringDocs(int nb) {
-        List<MonitoringDoc> docs = new ArrayList<>(nb);
-        for (int i = 0; i < nb; i++) {
-            docs.add(newRandomMonitoringDoc());
+    public void testHttpExporter() throws Exception {
+        final Config config = createConfig(Settings.EMPTY);
+        final RestClient client = mock(RestClient.class);
+        final Sniffer sniffer = randomFrom(mock(Sniffer.class), null);
+        final NodeFailureListener listener = mock(NodeFailureListener.class);
+        final ResolversRegistry resolvers = mock(ResolversRegistry.class);
+        // sometimes dirty to start with and sometimes not; but always succeeds on checkAndPublish
+        final HttpResource resource = new MockHttpResource(exporterName(), randomBoolean());
+
+        try (final HttpExporter exporter = new HttpExporter(config, client, sniffer, listener, resolvers, resource)) {
+            verify(listener).setResource(resource);
+
+            final HttpExportBulk bulk = exporter.openBulk();
+
+            assertThat(bulk.getName(), equalTo(exporterName()));
         }
-        return docs;
     }
 
-    private void enqueueGetClusterVersionResponse(Version v) throws IOException {
-        enqueueGetClusterVersionResponse(webServer, v);
-    }
+    public void testHttpExporterShutdown() throws Exception {
+        final Config config = createConfig(Settings.EMPTY);
+        final RestClient client = mock(RestClient.class);
+        final Sniffer sniffer = randomFrom(mock(Sniffer.class), null);
+        final NodeFailureListener listener = mock(NodeFailureListener.class);
+        final ResolversRegistry resolvers = mock(ResolversRegistry.class);
+        final MultiHttpResource resource = mock(MultiHttpResource.class);
 
-    private void enqueueGetClusterVersionResponse(MockWebServer mockWebServer, Version v) throws IOException {
-        mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody(
-                jsonBuilder().startObject().startObject("version").field("number", v.toString()).endObject().endObject().bytes()
-                        .utf8ToString()));
-    }
+        if (sniffer != null && rarely()) {
+            doThrow(randomFrom(new IOException("expected"), new RuntimeException("expected"))).when(sniffer).close();
+        }
 
-    private void enqueueTemplateAndPipelineResponses(final MockWebServer webServer,
-                                                     final boolean templatesAlreadyExists, final boolean pipelineAlreadyExists)
-            throws IOException {
-        enqueueTemplateResponses(webServer, templatesAlreadyExists);
-        enqueuePipelineResponses(webServer, pipelineAlreadyExists);
-    }
+        if (rarely()) {
+            doThrow(randomFrom(new IOException("expected"), new RuntimeException("expected"))).when(client).close();
+        }
 
-    private void enqueueTemplateResponses(final MockWebServer webServer, final boolean alreadyExists) throws IOException {
-        if (alreadyExists) {
-            enqueueTemplateResponsesExistsAlready(webServer);
+        new HttpExporter(config, client, sniffer, listener, resolvers, resource).close();
+
+        // order matters; sniffer must close first
+        if (sniffer != null) {
+            final InOrder inOrder = inOrder(sniffer, client);
+
+            inOrder.verify(sniffer).close();
+            inOrder.verify(client).close();
         } else {
-            enqueueTemplateResponsesDoesNotExistYet(webServer);
+            verify(client).close();
         }
     }
 
-    private void enqueueTemplateResponsesDoesNotExistYet(final MockWebServer webServer) throws IOException {
-        for (String template : monitoringTemplates().keySet()) {
-            enqueueResponse(webServer, 404, "template [" + template + "] does not exist");
-            enqueueResponse(webServer, 201, "template [" + template + "] created");
+    private void assertMasterTimeoutSet(final List<? extends PublishableHttpResource> resources, final TimeValue timeout) {
+        if (timeout != null) {
+            for (final PublishableHttpResource resource : resources) {
+                assertThat(resource.getParameters().get("master_timeout"), equalTo(timeout.toString()));
+            }
         }
     }
 
-    private void enqueueTemplateResponsesExistsAlready(final MockWebServer webServer) throws IOException {
-        for (String template : monitoringTemplates().keySet()) {
-            enqueueResponse(webServer, 200, "template [" + template + "] exists");
-        }
+    /**
+     * Create the {@link Config} named "_http" and select those settings from {@code settings}.
+     *
+     * @param settings The settings to select the exporter's settings from
+     * @return Never {@code null}.
+     */
+    private static Config createConfig(Settings settings) {
+        return new Config("_http", HttpExporter.TYPE, settings.getAsSettings(exporterName()));
     }
 
-    private void enqueuePipelineResponses(final MockWebServer webServer, final boolean alreadyExists) throws IOException {
-        if (alreadyExists) {
-            enqueuePipelineResponsesExistsAlready(webServer);
-        } else {
-            enqueuePipelineResponsesDoesNotExistYet(webServer);
-        }
+    private static String exporterName() {
+        return "xpack.monitoring.exporters._http";
     }
 
-    private void enqueuePipelineResponsesDoesNotExistYet(final MockWebServer webServer) throws IOException {
-        enqueueResponse(webServer, 404, "pipeline [" + Exporter.EXPORT_PIPELINE_NAME + "] does not exist");
-        enqueueResponse(webServer, 201, "pipeline [" + Exporter.EXPORT_PIPELINE_NAME + "] created");
-    }
-
-    private void enqueuePipelineResponsesExistsAlready(final MockWebServer webServer) throws IOException {
-        enqueueResponse(webServer, 200, "pipeline [" + Exporter.EXPORT_PIPELINE_NAME + "] exists");
-    }
-
-    private void enqueueResponse(int responseCode, String body) throws IOException {
-        enqueueResponse(webServer, responseCode, body);
-    }
-
-    private void enqueueResponse(MockWebServer mockWebServer, int responseCode, String body) throws IOException {
-        mockWebServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
-    }
-
-    private void assertBulkRequest(Buffer requestBody, int numberOfActions) throws Exception {
-        BulkRequest bulkRequest = Requests.bulkRequest().add(new BytesArray(requestBody.readByteArray()), null, null);
-        assertThat(bulkRequest.numberOfActions(), equalTo(numberOfActions));
-        for (ActionRequest actionRequest : bulkRequest.requests()) {
-            assertThat(actionRequest, instanceOf(IndexRequest.class));
-        }
-    }
 }

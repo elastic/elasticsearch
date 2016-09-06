@@ -43,7 +43,7 @@ public class WatcherF {
 
         // this is for the Watcher Test account in HipChat
         settings.put("xpack.notification.hipchat.account.user.profile", "user");
-        settings.put("xpack.notification.hipchat.account.user.auth_token", "FYVx16oDH78ZW9r13wtXbcszyoyA7oX5tiMWg9X0");
+        settings.put("xpack.notification.hipchat.account.user.auth_token", "12rNQUuQ0wObfRVeoVD8OeoAnosCT8tSTV5UjsII");
 
         // this is for the `test-watcher-v1` notification token (hipchat)
         settings.put("xpack.notification.hipchat.account.v1.profile", "v1");

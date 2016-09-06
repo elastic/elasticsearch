@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
@@ -21,7 +22,7 @@ import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.junit.After;
+import org.elasticsearch.xpack.security.user.XPackUser;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
@@ -40,23 +41,19 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
 
 public class TransportPutUserActionTests extends ESTestCase {
 
-    @After
-    public void resetAnonymous() {
-        AnonymousUser.initialize(Settings.EMPTY);
-    }
-
     public void testAnonymousUser() {
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "superuser").build();
-        AnonymousUser.initialize(settings);
+        final AnonymousUser anonymousUser = new AnonymousUser(settings);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ThreadPool.class),
+        TransportPutUserAction action = new TransportPutUserAction(settings, mock(ThreadPool.class),
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore, mock(TransportService.class));
 
         PutUserRequest request = new PutUserRequest();
-        request.username(AnonymousUser.INSTANCE.principal());
+        request.username(anonymousUser.principal());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutUserResponse> responseRef = new AtomicReference<>();
@@ -84,7 +81,7 @@ public class TransportPutUserActionTests extends ESTestCase {
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore, mock(TransportService.class));
 
         PutUserRequest request = new PutUserRequest();
-        request.username(SystemUser.INSTANCE.principal());
+        request.username(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal()));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<PutUserResponse> responseRef = new AtomicReference<>();
@@ -107,8 +104,11 @@ public class TransportPutUserActionTests extends ESTestCase {
     }
 
     public void testReservedUser() {
-        final User reserved = randomFrom(ReservedRealm.users().toArray(new User[0]));
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
+        when(usersStore.started()).thenReturn(true);
+        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
+        ReservedRealm reservedRealm = new ReservedRealm(new Environment(settings), settings, usersStore, new AnonymousUser(settings));
+        final User reserved = randomFrom(reservedRealm.users().toArray(new User[0]));
         TransportPutUserAction action = new TransportPutUserAction(Settings.EMPTY, mock(ThreadPool.class),
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore, mock(TransportService.class));
 
@@ -132,7 +132,7 @@ public class TransportPutUserActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), instanceOf(IllegalArgumentException.class));
         assertThat(throwableRef.get().getMessage(), containsString("is reserved and only the password"));
-        verifyZeroInteractions(usersStore);
+        verify(usersStore).started();
     }
 
     public void testValidUser() {

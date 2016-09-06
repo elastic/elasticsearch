@@ -45,6 +45,10 @@ import org.elasticsearch.xpack.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.security.action.user.PutUserResponse;
+import org.elasticsearch.xpack.security.action.user.SetEnabledAction;
+import org.elasticsearch.xpack.security.action.user.SetEnabledRequest;
+import org.elasticsearch.xpack.security.action.user.SetEnabledRequestBuilder;
+import org.elasticsearch.xpack.security.action.user.SetEnabledResponse;
 
 import java.io.IOException;
 
@@ -161,6 +165,14 @@ public class SecurityClient {
 
     public void changePassword(ChangePasswordRequest request, ActionListener<ChangePasswordResponse> listener) {
         client.execute(ChangePasswordAction.INSTANCE, request, listener);
+    }
+
+    public SetEnabledRequestBuilder prepareSetEnabled(String username, boolean enabled) {
+        return new SetEnabledRequestBuilder(client).username(username).enabled(enabled);
+    }
+
+    public void setEnabled(SetEnabledRequest request, ActionListener<SetEnabledResponse> listener) {
+        client.execute(SetEnabledAction.INSTANCE, request, listener);
     }
 
     /** Role Management */

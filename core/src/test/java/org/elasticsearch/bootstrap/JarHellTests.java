@@ -111,12 +111,6 @@ public class JarHellTests extends ESTestCase {
         }
     }
 
-    public void testLog4jLeniency() throws Exception {
-        Path dir = createTempDir();
-        URL[] jars = {makeJar(dir, "foo.jar", null, "org/apache/log4j/DuplicateClass.class"), makeJar(dir, "bar.jar", null, "org/apache/log4j/DuplicateClass.class")};
-        JarHell.checkJarHell(jars);
-    }
-
     public void testLog4jThrowableProxyLeniency() throws Exception {
         Path dir = createTempDir();
         URL[] jars = {makeJar(dir, "foo.jar", null, "org.apache.logging.log4j.core.impl.ThrowableProxy.class"), makeJar(dir, "bar.jar", null, "org.apache.logging.log4j.core.impl.ThrowableProxy.class")};

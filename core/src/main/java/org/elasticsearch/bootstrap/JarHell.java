@@ -271,9 +271,6 @@ public class JarHell {
                         "class: " + clazz + System.lineSeparator() +
                         "exists multiple times in jar: " + jarpath + " !!!!!!!!!");
             } else {
-                if (clazz.startsWith("org.apache.log4j")) {
-                    return; // go figure, jar hell for what should be System.out.println...
-                }
                 if (clazz.startsWith("org.apache.logging.log4j.core.impl.ThrowableProxy")) {
                     /*
                      * deliberate to hack around a bug in Log4j

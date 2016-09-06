@@ -145,6 +145,7 @@ public class TransportGetUsersActionTests extends ESTestCase {
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore, mock(TransportService.class),
                 reservedRealm);
 
+        logger.error("names {}", names);
         GetUsersRequest request = new GetUsersRequest();
         request.usernames(names.toArray(new String[names.size()]));
 
@@ -165,7 +166,6 @@ public class TransportGetUsersActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(nullValue()));
         assertThat(responseRef.get(), is(notNullValue()));
         assertThat(responseRef.get().users(), arrayContaining(reservedUsers.toArray(new User[reservedUsers.size()])));
-        verify(usersStore, times(1 + names.size())).started();
     }
 
     public void testGetAllUsers() {

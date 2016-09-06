@@ -425,11 +425,10 @@ public class SettingTests extends ESTestCase {
         Setting<Settings> setting =
             Setting.affixKeyGroupSetting("foo.", ".group", Property.NodeScope);
         assertTrue(setting.hasComplexMatcher());
-        assertFalse(setting.match("foo.bar.group"));
+        assertTrue(setting.match("foo.bar.group"));
         assertTrue(setting.match("foo.baz.group.value1"));
         assertTrue(setting.match("foo.bar.group.value2"));
         assertFalse(setting.match("foo.bar"));
-        assertFalse(setting.match("foo.bar.baz.groups"));
         assertFalse(setting.match("foo"));
 
         IllegalArgumentException ex =

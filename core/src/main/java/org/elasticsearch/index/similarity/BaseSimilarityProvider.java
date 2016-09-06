@@ -27,8 +27,6 @@ import org.apache.lucene.search.similarities.NormalizationZ;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.function.Function;
-
 /**
  * Abstract implementation of {@link SimilarityProvider} providing common behaviour
  */
@@ -37,12 +35,8 @@ public abstract class BaseSimilarityProvider extends SimilarityProvider {
         Setting.affixKeySetting("index.similarity.", ".discount_overlaps", "true", Boolean::parseBoolean,
             Setting.Property.IndexScope);
 
-    public static final Setting<Settings> NORMALIZATION_MODE_SETTING =
+    public static final Setting<Settings> NORMALIZATION_SETTING =
         Setting.affixKeyGroupSetting("index.similarity.", ".normalization",
-            Setting.Property.IndexScope, Setting.Property.Dynamic);
-
-    public static final Setting<String> NORMALIZATION_SETTING =
-        Setting.affixKeySetting("index.similarity.", ".normalization", "no", Function.identity(),
             Setting.Property.IndexScope, Setting.Property.Dynamic);
 
     protected static final Normalization NO_NORMALIZATION = new Normalization.NoNormalization();
@@ -69,31 +63,42 @@ public abstract class BaseSimilarityProvider extends SimilarityProvider {
     /**
      * Parses the given Settings and creates the appropriate {@link Normalization}
      *
-     * @param settings Settings to parse
+     * @param innerSettings Settings to parse
      * @return {@link Normalization} referred to in the Settings
      */
-    protected Normalization parseNormalization(Settings settings) {
-        String normalization = getConcreteSetting(NORMALIZATION_SETTING).get(settings);
-        if (normalization.equals("no")) {
+    protected Normalization parseNormalization(Settings innerSettings) {
+        if (innerSettings.get("") == null) {
+            throw new IllegalArgumentException("missing normalization mode");
+        }
+        String normalization = innerSettings.get("");
+        if ("no".equals(normalization)) {
             return NO_NORMALIZATION;
         }
-        Settings innerSettings = getConcreteSetting(NORMALIZATION_MODE_SETTING).get(settings);
-        if (innerSettings.getAsMap().isEmpty() || innerSettings.getAsMap().size() > 1) {
-            throw new IllegalArgumentException("");
-        }
         if ("h1".equals(normalization)) {
+            if (innerSettings.get("h1.c") == null) {
+                throw new IllegalArgumentException("missing parameter h1.c for normalization [h1]");
+            }
             float c = innerSettings.getAsFloat("h1.c", -1f);
             return new NormalizationH1(c);
         } else if ("h2".equals(normalization)) {
+            if (innerSettings.get("h2.c") == null) {
+                throw new IllegalArgumentException("missing parameter h2.c for normalization [h2]");
+            }
             float c = innerSettings.getAsFloat("h2.c", -1f);
             return new NormalizationH2(c);
         } else if ("h3".equals(normalization)) {
+            if (innerSettings.get("h3.c") == null) {
+            throw new IllegalArgumentException("missing parameter h3.c for normalization [h3]");
+        }
             float c = innerSettings.getAsFloat("h3.c", -1f);
             return new NormalizationH3(c);
         } else if ("z".equals(normalization)) {
+            if (innerSettings.get("z.z") == null) {
+                throw new IllegalArgumentException("missing parameter z.z for normalization [z]");
+            }
             float z = innerSettings.getAsFloat("z.z", -1f);
             return new NormalizationZ(z);
         }
-        throw new IllegalArgumentException("Unsupported Normalization [" + innerSettings.getAsMap().keySet().iterator().next() + "]");
+        throw new IllegalArgumentException("Unsupported Normalization [" + normalization + "]");
     }
 }

@@ -150,7 +150,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         IndexMetaData.SETTING_WAIT_FOR_ACTIVE_SHARDS,
         SimilarityService.TYPE_SETTING,
         BaseSimilarityProvider.DISCOUNT_OVERLAPS_SETTING,
-        BaseSimilarityProvider.NORMALIZATION_MODE_SETTING,
         BaseSimilarityProvider.NORMALIZATION_SETTING,
         BM25SimilarityProvider.B_SETTING,
         BM25SimilarityProvider.K1_SETTING,

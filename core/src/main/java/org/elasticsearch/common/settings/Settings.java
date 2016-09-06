@@ -61,7 +61,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
@@ -186,6 +185,10 @@ public final class Settings implements ToXContent {
      * A settings that are filtered (and key is removed) with the specified prefix.
      */
     public Settings getByPrefix(String prefix) {
+        return getByPrefix(prefix, false);
+    }
+
+    public Settings getByPrefix(String prefix, boolean keepExactMatch) {
         Builder builder = new Builder();
         for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
             if (entry.getKey().startsWith(prefix)) {
@@ -194,6 +197,10 @@ public final class Settings implements ToXContent {
                     continue;
                 }
                 builder.put(entry.getKey().substring(prefix.length()), entry.getValue());
+            } else if (keepExactMatch && prefix.endsWith(".") &&
+                entry.getKey().equals(prefix.substring(0, prefix.length()-1))) {
+                // Exact match without the trailing '.'
+                builder.put(entry.getKey().substring(prefix.length()-1), entry.getValue());
             }
         }
         return builder.build();
@@ -216,7 +223,7 @@ public final class Settings implements ToXContent {
      * Returns the settings mapped to the given setting name.
      */
     public Settings getAsSettings(String setting) {
-        return getByPrefix(setting + ".");
+        return getByPrefix(setting + ".", false);
     }
 
     /**

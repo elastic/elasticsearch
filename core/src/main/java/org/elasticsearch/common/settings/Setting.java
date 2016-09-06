@@ -691,7 +691,7 @@ public class Setting<T> extends ToXContentToBytes {
 
             @Override
             public Settings get(Settings settings) {
-                Settings byPrefix = settings.getByPrefix(getKey());
+                Settings byPrefix = settings.getByPrefix(getKey(), true);
                 validator.accept(byPrefix);
                 return byPrefix;
             }
@@ -877,8 +877,9 @@ public class Setting<T> extends ToXContentToBytes {
 
             @Override
             public Setting<Settings> getConcreteSetting(String key) {
-                if (match(key + ".*")) {
-                    return Setting.groupSetting(key + ".", properties);
+                if (match(key)) {
+                    String newKey = key.endsWith(".") ? key : key + ".";
+                    return Setting.groupSetting(newKey, properties);
                 } else {
                     throw new IllegalArgumentException("key [" + key + "] must match [" + getKey() + "] but didn't.");
                 }
@@ -939,14 +940,13 @@ public class Setting<T> extends ToXContentToBytes {
     public static final class GroupKey extends SimpleKey {
         public GroupKey(String key) {
             super(key);
-            if (key.endsWith(".") == false) {
-                throw new IllegalArgumentException("key must end with a '.'");
-            }
         }
 
         @Override
         public boolean match(String toTest) {
-            return Regex.simpleMatch(key + "*", toTest);
+            // check for prefix or exact match without the trailing '.'
+            return Regex.simpleMatch(key + "*", toTest) ||
+                key.substring(0, key.length()-1).equals(toTest);
         }
     }
 
@@ -1008,12 +1008,12 @@ public class Setting<T> extends ToXContentToBytes {
                 if (suffixIsPrefix) {
                     if (prefix.length() < key.length()) {
                         String keySuffix = key.substring(prefix.length());
-                        match &= (keySuffix.contains(suffix + ".") && keySuffix.endsWith(suffix + ".") == false);
+                        match = keySuffix.contains(suffix);
                     } else {
                         match = false;
                     }
                 } else {
-                    match &= key.endsWith(suffix);
+                    match = key.endsWith(suffix);
                 }
             }
             return match;

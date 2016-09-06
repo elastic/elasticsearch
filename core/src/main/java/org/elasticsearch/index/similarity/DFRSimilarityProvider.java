@@ -102,20 +102,21 @@ public class DFRSimilarityProvider extends BaseSimilarityProvider {
     private final boolean discountOverlaps;
     private volatile BasicModel basicModel;
     private volatile AfterEffect afterEffect;
-    private final Normalization normalization;
+    private volatile Normalization normalization;
 
     public DFRSimilarityProvider(String name, Settings settings) {
         super(name);
         this.discountOverlaps = getConcreteSetting(DISCOUNT_OVERLAPS_SETTING).get(settings);
         this.basicModel = getConcreteSetting(BASIC_MODEL_SETTING).get(settings);
         this.afterEffect = getConcreteSetting(AFTER_EFFECT_SETTING).get(settings);
-        this.normalization = parseNormalization(settings);
+        this.normalization = parseNormalization(getConcreteSetting(NORMALIZATION_SETTING).get(settings));
     }
 
     @Override
     public void addSettingsUpdateConsumer(IndexScopedSettings scopedSettings) {
         scopedSettings.addSettingsUpdateConsumer(getConcreteSetting(BASIC_MODEL_SETTING), this::setBasicModel);
         scopedSettings.addSettingsUpdateConsumer(getConcreteSetting(AFTER_EFFECT_SETTING), this::setAfterEffect);
+        scopedSettings.addSettingsUpdateConsumer(getConcreteSetting(NORMALIZATION_SETTING), this::setNormalization);
     }
 
     private void setBasicModel(BasicModel model) {
@@ -124,6 +125,10 @@ public class DFRSimilarityProvider extends BaseSimilarityProvider {
 
     private void setAfterEffect(AfterEffect effect) {
         this.afterEffect = effect;
+    }
+
+    private void setNormalization(Settings innerSettings) {
+        this.normalization = parseNormalization(innerSettings);
     }
 
     @Override

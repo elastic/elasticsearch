@@ -31,6 +31,7 @@ import org.apache.lucene.search.similarities.IndependenceChiSquared;
 import org.apache.lucene.search.similarities.IndependenceSaturated;
 import org.apache.lucene.search.similarities.LambdaDF;
 import org.apache.lucene.search.similarities.LambdaTTF;
+import org.apache.lucene.search.similarities.NormalizationH1;
 import org.apache.lucene.search.similarities.NormalizationH2;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -256,12 +257,46 @@ public class SimilarityTests extends ESSingleNodeTestCase {
 
         {
             Settings newSettings = Settings.builder()
+                .put("index.similarity.my_similarity.normalization", "foo")
+                .build();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> client().admin().indices().prepareUpdateSettings("foo").setSettings(newSettings).execute().actionGet());
+            assertThat(e.getMessage(), startsWith("Unsupported Normalization [foo]"));
+            assertThat(provider.get().getDiscountOverlaps(), equalTo(true));
+        }
+
+        {
+            Settings newSettings = Settings.builder()
+                .put("index.similarity.my_similarity.normalization", "h1")
+                .put("index.similarity.my_similarity.normalization.h2.c", 4.4f)
+                .build();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> client().admin().indices().prepareUpdateSettings("foo").setSettings(newSettings).execute().actionGet());
+            assertThat(e.getMessage(), startsWith("missing parameter h1.c for normalization [h1]"));
+            assertThat(provider.get().getDiscountOverlaps(), equalTo(true));
+        }
+
+
+        {
+            Settings newSettings = Settings.builder()
                 .put("index.similarity.my_similarity.basic_model", "in")
                 .put("index.similarity.my_similarity.after_effect", "b")
+                .put("index.similarity.my_similarity.normalization", "h1")
+                .put("index.similarity.my_similarity.normalization.h1.c", 0.5f)
                 .build();
             client().admin().indices().prepareUpdateSettings("foo").setSettings(newSettings).execute().actionGet();
             assertThat(provider.get().getBasicModel(), instanceOf(BasicModelIn.class));
             assertThat(provider.get().getAfterEffect(), instanceOf(AfterEffectB.class));
+            assertThat(provider.get().getNormalization(), instanceOf(NormalizationH1.class));
+            assertThat(((NormalizationH1) provider.get().getNormalization()).getC(), equalTo(0.5f));
+        }
+
+        {
+            Settings newSettings = Settings.builder()
+                .put("index.similarity.my_similarity.normalization.h1.c", 0.6f)
+                .build();
+            client().admin().indices().prepareUpdateSettings("foo").setSettings(newSettings).execute().actionGet();
+            assertThat(((NormalizationH1) provider.get().getNormalization()).getC(), equalTo(0.6f));
         }
     }
 
@@ -334,12 +369,45 @@ public class SimilarityTests extends ESSingleNodeTestCase {
 
         {
             Settings newSettings = Settings.builder()
+                .put("index.similarity.my_similarity.normalization", "foo")
+                .build();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> client().admin().indices().prepareUpdateSettings("foo").setSettings(newSettings).execute().actionGet());
+            assertThat(e.getMessage(), startsWith("Unsupported Normalization [foo]"));
+            assertThat(provider.get().getDiscountOverlaps(), equalTo(true));
+        }
+
+        {
+            Settings newSettings = Settings.builder()
+                .put("index.similarity.my_similarity.normalization", "h1")
+                .put("index.similarity.my_similarity.normalization.h2.c", 4.4f)
+                .build();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> client().admin().indices().prepareUpdateSettings("foo").setSettings(newSettings).execute().actionGet());
+            assertThat(e.getMessage(), startsWith("missing parameter h1.c for normalization [h1]"));
+            assertThat(provider.get().getDiscountOverlaps(), equalTo(true));
+        }
+
+        {
+            Settings newSettings = Settings.builder()
                 .put("index.similarity.my_similarity.distribution", "ll")
                 .put("index.similarity.my_similarity.collection_model", "df")
+                .put("index.similarity.my_similarity.normalization", "h1")
+                .put("index.similarity.my_similarity.normalization.h1.c", 0.5f)
                 .build();
             client().admin().indices().prepareUpdateSettings("foo").setSettings(newSettings).execute().actionGet();
             assertThat(provider.get().getDistribution(), instanceOf(DistributionLL.class));
             assertThat(provider.get().getLambda(), instanceOf(LambdaDF.class));
+            assertThat(provider.get().getNormalization(), instanceOf(NormalizationH1.class));
+            assertThat(((NormalizationH1) provider.get().getNormalization()).getC(), equalTo(0.5f));
+        }
+
+        {
+            Settings newSettings = Settings.builder()
+                .put("index.similarity.my_similarity.normalization.h1.c", 0.6f)
+                .build();
+            client().admin().indices().prepareUpdateSettings("foo").setSettings(newSettings).execute().actionGet();
+            assertThat(((NormalizationH1) provider.get().getNormalization()).getC(), equalTo(0.6f));
         }
     }
 

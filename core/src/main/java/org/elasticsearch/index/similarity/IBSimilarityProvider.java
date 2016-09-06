@@ -88,7 +88,7 @@ public class IBSimilarityProvider extends BaseSimilarityProvider {
             Setting.Property.IndexScope, Setting.Property.Dynamic);
 
     private final boolean discountOverlaps;
-    private final Normalization normalization;
+    private volatile Normalization normalization;
     private volatile Distribution distribution;
     private volatile Lambda lambda;
 
@@ -97,13 +97,14 @@ public class IBSimilarityProvider extends BaseSimilarityProvider {
         this.discountOverlaps = getConcreteSetting(DISCOUNT_OVERLAPS_SETTING).get(settings);
         this.distribution = getConcreteSetting(DISTRIBUTION_SETTING).get(settings);
         this.lambda = getConcreteSetting(COLLECTION_MODEL_SETTING).get(settings);
-        this.normalization = parseNormalization(settings);
+        this.normalization =  parseNormalization(getConcreteSetting(NORMALIZATION_SETTING).get(settings));
     }
 
     @Override
     public void addSettingsUpdateConsumer(IndexScopedSettings scopedSettings) {
         scopedSettings.addSettingsUpdateConsumer(getConcreteSetting(DISTRIBUTION_SETTING), this::setDistribution);
         scopedSettings.addSettingsUpdateConsumer(getConcreteSetting(COLLECTION_MODEL_SETTING), this::setCollectionModel);
+        scopedSettings.addSettingsUpdateConsumer(getConcreteSetting(NORMALIZATION_SETTING), this::setNormalization);
     }
 
     private void setDistribution(Distribution distribution) {
@@ -112,6 +113,10 @@ public class IBSimilarityProvider extends BaseSimilarityProvider {
 
     private void setCollectionModel(Lambda lambda) {
         this.lambda = lambda;
+    }
+
+    private void setNormalization(Settings settings) {
+        this.normalization = parseNormalization(settings);
     }
 
     @Override

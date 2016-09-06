@@ -862,7 +862,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(capturedRequest.action, equalTo("testActionWithExceptions[r]"));
         assertThat(capturedRequest.request, instanceOf(Action.RequestWithAllocationID.class));
         assertThat(((Action.RequestWithAllocationID) capturedRequest.request).getRequest(), equalTo(request));
-        assertThat(((Action.RequestWithAllocationID) capturedRequest.request).getTargetAllocationID(), equalTo(replica.allocationId().getId()));
+        assertThat(((Action.RequestWithAllocationID) capturedRequest.request).getTargetAllocationID(),
+            equalTo(replica.allocationId().getId()));
     }
 
 

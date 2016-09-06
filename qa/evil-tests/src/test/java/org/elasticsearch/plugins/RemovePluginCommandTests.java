@@ -119,7 +119,7 @@ public class RemovePluginCommandTests extends ESTestCase {
         Files.createFile(configDir.resolve("fake.yml"));
         final MockTerminal terminal = removePlugin("fake", home);
         assertTrue(Files.exists(env.configFile().resolve("fake")));
-        assertThat(terminal.getOutput(), containsString("-> Preserving plugin config files: " + configDir));
+        assertThat(terminal.getOutput(), containsString(expectedConfigDirPreservedMessage(configDir)));
         assertRemoveCleaned(env);
     }
 
@@ -127,7 +127,11 @@ public class RemovePluginCommandTests extends ESTestCase {
         Files.createDirectories(env.pluginsFile().resolve("fake"));
         final Path configDir = env.configFile().resolve("fake");
         final MockTerminal terminal = removePlugin("fake", home);
-        assertThat(terminal.getOutput(), not(containsString("-> Preserving plugin config files: " + configDir)));
+        assertThat(terminal.getOutput(), not(containsString(expectedConfigDirPreservedMessage(configDir))));
+    }
+
+    private String expectedConfigDirPreservedMessage(final Path configDir) {
+        return "-> Preserving plugin config files [" + configDir + "] in case of upgrade, delete manually if not needed";
     }
 
 }

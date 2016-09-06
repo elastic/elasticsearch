@@ -117,9 +117,9 @@ public class JarHellTests extends ESTestCase {
         JarHell.checkJarHell(jars);
     }
 
-    public void testBaseDateTimeLeniency() throws Exception {
+    public void testLog4jThrowableProxyLeniency() throws Exception {
         Path dir = createTempDir();
-        URL[] jars = {makeJar(dir, "foo.jar", null, "org/joda/time/base/BaseDateTime.class"), makeJar(dir, "bar.jar", null, "org/joda/time/base/BaseDateTime.class")};
+        URL[] jars = {makeJar(dir, "foo.jar", null, "org.apache.logging.log4j.core.impl.ThrowableProxy.class"), makeJar(dir, "bar.jar", null, "org.apache.logging.log4j.core.impl.ThrowableProxy.class")};
         JarHell.checkJarHell(jars);
     }
 

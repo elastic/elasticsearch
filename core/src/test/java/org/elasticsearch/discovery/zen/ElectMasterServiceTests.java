@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.discovery.zen.elect.ElectMasterService.Candidate;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -31,6 +32,9 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 public class ElectMasterServiceTests extends ESTestCase {
 
@@ -55,6 +59,22 @@ public class ElectMasterServiceTests extends ESTestCase {
         return nodes;
     }
 
+    List<Candidate> generateRandomCandidates() {
+        int count = scaledRandomIntBetween(1, 100);
+        ArrayList<Candidate> candidates = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            Set<DiscoveryNode.Role> roles = new HashSet<>();
+            roles.add(DiscoveryNode.Role.MASTER);
+            DiscoveryNode node = new DiscoveryNode("n_" + i, "n_" + i, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
+                roles, Version.CURRENT);
+            candidates.add(new Candidate(node, randomBoolean() ? Candidate.UNRECOVERED_CLUSTER_VERSION : randomPositiveLong()));
+        }
+
+        Collections.shuffle(candidates, random());
+        return candidates;
+    }
+
+
     public void testSortByMasterLikelihood() {
         List<DiscoveryNode> nodes = generateRandomNodes();
         List<DiscoveryNode> sortedNodes = electMasterService().sortByMasterLikelihood(nodes);
@@ -69,37 +89,54 @@ public class ElectMasterServiceTests extends ESTestCase {
             }
             prevNode = node;
         }
+    }
 
+    public void testTieBreakActiveMasters() {
+        List<DiscoveryNode> nodes = generateRandomCandidates().stream().map(Candidate::getNode).collect(Collectors.toList());
+        DiscoveryNode bestMaster = electMasterService().tieBreakActiveMasters(nodes);
+        for (DiscoveryNode node: nodes) {
+            if (node.equals(bestMaster) == false) {
+                assertTrue(bestMaster.getId().compareTo(node.getId()) < 0);
+            }
+        }
+    }
+
+    public void testHasEnoughNodes() {
+        List<DiscoveryNode> nodes = generateRandomNodes();
+        ElectMasterService service = electMasterService();
+        int masterNodes = (int) nodes.stream().filter(DiscoveryNode::isMasterNode).count();
+        service.minimumMasterNodes(randomIntBetween(-1, masterNodes));
+        assertTrue(service.hasEnoughMasterNodes(nodes));
+        service.minimumMasterNodes(masterNodes + randomIntBetween(1, nodes.size()));
+        assertFalse(service.hasEnoughMasterNodes(nodes));
+    }
+
+    public void testHasEnoughCandidates() {
+        List<Candidate> candidates = generateRandomCandidates();
+        ElectMasterService service = electMasterService();
+        service.minimumMasterNodes(randomIntBetween(-1, candidates.size()));
+        assertTrue(service.hasEnoughCandidates(candidates));
+        service.minimumMasterNodes(candidates.size() + randomIntBetween(1, candidates.size()));
+        assertFalse(service.hasEnoughCandidates(candidates));
     }
 
     public void testElectMaster() {
-        List<DiscoveryNode> nodes = generateRandomNodes();
+        List<Candidate> candidates = generateRandomCandidates();
         ElectMasterService service = electMasterService();
-        int min_master_nodes = randomIntBetween(0, nodes.size());
+        int min_master_nodes = randomIntBetween(0, candidates.size());
         service.minimumMasterNodes(min_master_nodes);
-
-        int master_nodes = 0;
-        for (DiscoveryNode node : nodes) {
-            if (node.isMasterNode()) {
-                master_nodes++;
-            }
-        }
-        DiscoveryNode master = null;
-        if (service.hasEnoughMasterNodes(nodes)) {
-            master = service.electMaster(nodes);
-        }
-
-        if (master_nodes == 0) {
-            assertNull(master);
-        } else if (min_master_nodes > 0 && master_nodes < min_master_nodes) {
-            assertNull(master);
-        } else {
+        Candidate master = service.electMaster(candidates);
             assertNotNull(master);
-            for (DiscoveryNode node : nodes) {
-                if (node.isMasterNode()) {
-                    assertTrue(master.getId().compareTo(node.getId()) <= 0);
+            for (Candidate candidate : candidates) {
+                if (candidate.getNode().equals(master.getNode())) {
+                       // meh
+                } else if (candidate.getClusterStateVersion() == master.getClusterStateVersion()) {
+                    assertThat("candidate " + candidate + " has a lower or equal id than master " + master, candidate.getNode().getId(),
+                        greaterThan(master.getNode().getId()));
+                } else {
+                    assertThat("candidate " + master + " has a higher id than candidate " + candidate, master.getClusterStateVersion(),
+                        greaterThan(candidate.getClusterStateVersion()));
                 }
             }
-        }
     }
 }

@@ -110,7 +110,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values())));
             DiscoveryNode node = new DiscoveryNode("node_" + i, "id_" + i, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
                     roles, Version.CURRENT);
-            responses.add(new ZenPing.PingResponse(node, randomBoolean() ? null : node, new ClusterName("test"), randomBoolean()));
+            responses.add(new ZenPing.PingResponse(node, randomBoolean() ? null : node, new ClusterName("test"), randomLong()));
             allNodes.add(node);
             if (node.isMasterNode()) {
                 masterNodes.add(node);
@@ -118,8 +118,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         }
 
         boolean ignore = randomBoolean();
-        List<ZenPing.PingResponse> filtered = ZenDiscovery.filterPingResponses(
-                responses.toArray(new ZenPing.PingResponse[responses.size()]), ignore, logger);
+        List<ZenPing.PingResponse> filtered = ZenDiscovery.filterPingResponses(responses, ignore, logger);
         final List<DiscoveryNode> filteredNodes = filtered.stream().map(ZenPing.PingResponse::node).collect(Collectors.toList());
         if (ignore) {
             assertThat(filteredNodes, equalTo(masterNodes));

@@ -93,7 +93,9 @@ final class RemovePluginCommand extends SettingCommand {
         // a message so the user knows in case they want to remove manually
         final Path pluginConfigDir = env.configFile().resolve(pluginName);
         if (Files.exists(pluginConfigDir)) {
-            terminal.println("-> Preserving plugin config files: " + pluginConfigDir);
+            terminal.println(
+                    "-> Preserving plugin config files [" + pluginConfigDir + "] in case of upgrade, delete manually if not needed");
         }
     }
+
 }

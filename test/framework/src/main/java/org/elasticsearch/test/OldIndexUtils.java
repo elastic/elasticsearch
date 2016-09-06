@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
@@ -31,7 +32,6 @@ import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.IndexFolderUpgrader;
@@ -61,7 +61,7 @@ import static org.junit.Assert.assertEquals;
 
 public class OldIndexUtils {
 
-    public static List<String> loadIndexesList(String prefix, Path bwcIndicesPath) throws IOException {
+    public static List<String> loadDataFilesList(String prefix, Path bwcIndicesPath) throws IOException {
         List<String> indexes = new ArrayList<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(bwcIndicesPath, prefix + "-*.zip")) {
             for (Path path : stream) {
@@ -86,7 +86,7 @@ public class OldIndexUtils {
         IndexFolderUpgrader.upgradeIndicesIfNeeded(Settings.EMPTY, nodeEnvironment);
     }
 
-    public static void loadIndex(String indexName, String indexFile, Path unzipDir, Path bwcPath, ESLogger logger, Path... paths) throws
+    public static void loadIndex(String indexName, String indexFile, Path unzipDir, Path bwcPath, Logger logger, Path... paths) throws
         Exception {
         Path unzipDataDir = unzipDir.resolve("data");
 
@@ -128,7 +128,7 @@ public class OldIndexUtils {
     }
 
     // randomly distribute the files from src over dests paths
-    public static void copyIndex(final ESLogger logger, final Path src, final String indexName, final Path... dests) throws IOException {
+    public static void copyIndex(final Logger logger, final Path src, final String indexName, final Path... dests) throws IOException {
         Path destinationDataPath = dests[randomInt(dests.length - 1)];
         for (Path dest : dests) {
             Path indexDir = dest.resolve(indexName);
@@ -194,7 +194,7 @@ public class OldIndexUtils {
     }
 
     public static boolean isUpgraded(Client client, String index) throws Exception {
-        ESLogger logger = Loggers.getLogger(OldIndexUtils.class);
+        Logger logger = Loggers.getLogger(OldIndexUtils.class);
         int toUpgrade = 0;
         for (IndexUpgradeStatus status : getUpgradeStatus(client, index)) {
             logger.info("Index: {}, total: {}, toUpgrade: {}", status.getIndex(), status.getTotalBytes(), status.getToUpgradeBytes());

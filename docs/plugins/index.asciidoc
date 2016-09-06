@@ -1,7 +1,9 @@
 = Elasticsearch Plugins and Integrations
 
-:ref: https://www.elastic.co/guide/en/elasticsearch/reference/master
-:guide: https://www.elastic.co/guide
+:ref:            https://www.elastic.co/guide/en/elasticsearch/reference/master
+:guide:          https://www.elastic.co/guide
+:version:        5.0.0-alpha5
+:lucene_version: 6.2.0
 
 [[intro]]
 == Introduction to plugins
@@ -62,5 +64,3 @@ include::integrations.asciidoc[]
 include::authors.asciidoc[]
 
 include::redirects.asciidoc[]
-
-

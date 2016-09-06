@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.ESLogger;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,11 +37,11 @@ import java.util.function.Consumer;
  * might be blocked until other items are processed
  */
 public abstract class AsyncIOProcessor<Item> {
-    private final ESLogger logger;
+    private final Logger logger;
     private final ArrayBlockingQueue<Tuple<Item, Consumer<Exception>>> queue;
     private final Semaphore promiseSemaphore = new Semaphore(1);
 
-    protected AsyncIOProcessor(ESLogger logger, int queueSize) {
+    protected AsyncIOProcessor(Logger logger, int queueSize) {
         this.logger = logger;
         this.queue = new ArrayBlockingQueue<>(queueSize);
     }

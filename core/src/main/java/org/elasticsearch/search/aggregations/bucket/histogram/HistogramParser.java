@@ -19,13 +19,13 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -85,26 +85,27 @@ public class HistogramParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
-            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+    protected boolean token(String aggregationName, String currentFieldName, Token token,
+                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
+        XContentParser parser = context.getParser();
         if (token.isValue()) {
-            if (parseFieldMatcher.match(currentFieldName, Histogram.INTERVAL_FIELD)) {
+            if (context.matchField(currentFieldName, Histogram.INTERVAL_FIELD)) {
                 otherOptions.put(Histogram.INTERVAL_FIELD, parser.doubleValue());
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, Histogram.MIN_DOC_COUNT_FIELD)) {
+            } else if (context.matchField(currentFieldName, Histogram.MIN_DOC_COUNT_FIELD)) {
                 otherOptions.put(Histogram.MIN_DOC_COUNT_FIELD, parser.longValue());
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, Histogram.KEYED_FIELD)) {
+            } else if (context.matchField(currentFieldName, Histogram.KEYED_FIELD)) {
                 otherOptions.put(Histogram.KEYED_FIELD, parser.booleanValue());
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, Histogram.OFFSET_FIELD)) {
+            } else if (context.matchField(currentFieldName, Histogram.OFFSET_FIELD)) {
                 otherOptions.put(Histogram.OFFSET_FIELD, parser.doubleValue());
                 return true;
             } else {
                 return false;
             }
         } else if (token == XContentParser.Token.START_OBJECT) {
-            if (parseFieldMatcher.match(currentFieldName, Histogram.ORDER_FIELD)) {
+            if (context.matchField(currentFieldName, Histogram.ORDER_FIELD)) {
                 InternalOrder order = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -122,8 +123,8 @@ public class HistogramParser extends NumericValuesSourceParser {
                 }
                 otherOptions.put(Histogram.ORDER_FIELD, order);
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, Histogram.EXTENDED_BOUNDS_FIELD)) {
-                double[] bounds = EXTENDED_BOUNDS_PARSER.apply(parser, () -> parseFieldMatcher);
+            } else if (context.matchField(currentFieldName, Histogram.EXTENDED_BOUNDS_FIELD)) {
+                double[] bounds = EXTENDED_BOUNDS_PARSER.apply(parser, context::getParseFieldMatcher);
                 otherOptions.put(Histogram.EXTENDED_BOUNDS_FIELD, bounds);
                 return true;
             } else {

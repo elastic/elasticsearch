@@ -71,6 +71,7 @@ The following chart shows how the error varies before and after the threshold:
 
 ////
 To generate this chart use this gnuplot script:
+[source,gnuplot]
 -------
 #!/usr/bin/gnuplot
 reset
@@ -95,6 +96,7 @@ plot "test.dat" using 1:2 title "threshold=100", \
 
 and generate data in a 'test.dat' file using the below Java code:
 
+[source,java]
 -------
 private static double error(HyperLogLogPlusPlus h, long expected) {
     double actual = h.cardinality(0);
@@ -140,7 +142,7 @@ counting millions of items.
 On string fields that have a high cardinality, it might be faster to store the
 hash of your field values in your index and then run the cardinality aggregation
 on this field. This can either be done by providing hash values from client-side
-or by letting elasticsearch compute hash values for you by using the 
+or by letting elasticsearch compute hash values for you by using the
 {plugins}/mapper-murmur3.html[`mapper-murmur3`] plugin.
 
 NOTE: Pre-computing hashes is usually only useful on very large and/or

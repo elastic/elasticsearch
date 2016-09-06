@@ -19,6 +19,8 @@
 
 package org.elasticsearch.tribe;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -274,7 +276,7 @@ public class TribeService extends AbstractLifecycleComponent {
                         otherNode.close();
                     } catch (Exception inner) {
                         inner.addSuppressed(e);
-                        logger.warn("failed to close node {} on failed start", inner, otherNode);
+                        logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to close node {} on failed start", otherNode), inner);
                     }
                 }
                 if (e instanceof RuntimeException) {
@@ -296,7 +298,7 @@ public class TribeService extends AbstractLifecycleComponent {
             try {
                 node.close();
             } catch (Exception e) {
-                logger.warn("failed to close node {}", e, node);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to close node {}", node), e);
             }
         }
     }
@@ -320,7 +322,7 @@ public class TribeService extends AbstractLifecycleComponent {
                     event,
                     ClusterStateTaskConfig.build(Priority.NORMAL),
                     executor,
-                    (source, e) -> logger.warn("failed to process [{}]", e, source));
+                    (source, e) -> logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to process [{}]", source), e));
         }
     }
 

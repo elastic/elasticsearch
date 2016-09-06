@@ -244,7 +244,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 lo = Math.round(Math.ceil(dValue * scalingFactor));
             }
             Long hi = null;
-            if (lowerTerm != null) {
+            if (upperTerm != null) {
                 double dValue = NumberFieldMapper.NumberType.DOUBLE.parse(upperTerm).doubleValue();
                 if (includeUpper == false) {
                     dValue = Math.nextDown(dValue);

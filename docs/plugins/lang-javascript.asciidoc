@@ -1,6 +1,8 @@
 [[lang-javascript]]
 === JavaScript Language Plugin
 
+deprecated[5.0.0,JavaScript will be replaced by the new scripting language {ref}/modules-scripting-painless.html[`Painless`]]
+
 The JavaScript language plugin enables the use of JavaScript in Elasticsearch
 scripts, via Mozilla's
 https://developer.mozilla.org/en-US/docs/Mozilla/Projects/Rhino[Rhino JavaScript] engine.
@@ -15,7 +17,6 @@ This plugin can be installed using the plugin manager:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin install lang-javascript
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
@@ -30,7 +31,6 @@ The plugin can be removed with the following command:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin remove lang-javascript
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The node must be stopped before removing the plugin.
 
@@ -145,11 +145,10 @@ JavaScript:
 First, save this file as `config/scripts/my_script.js` on every node
 in the cluster:
 
-[source,js]
+[source,painless]
 ----
 doc["num"].value * factor
 ----
-// NOTCONSOLE
 
 then use the script as follows:
 

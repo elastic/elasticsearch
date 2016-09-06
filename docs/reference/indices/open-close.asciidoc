@@ -12,10 +12,12 @@ example:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST 'localhost:9200/my_index/_close'
+POST /my_index/_close
 
-curl -XPOST 'localhost:9200/my_index/_open'
+POST /my_index/_open
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT my_index\n/]
 
 It is possible to open and close multiple indices. An error will be thrown
 if the request explicitly refers to a missing index. This behaviour can be

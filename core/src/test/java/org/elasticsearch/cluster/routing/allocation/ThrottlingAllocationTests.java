@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.IntHashSet;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -30,7 +31,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.Snapshot;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class ThrottlingAllocationTests extends ESAllocationTestCase {
-    private final ESLogger logger = Loggers.getLogger(ThrottlingAllocationTests.class);
+    private final Logger logger = Loggers.getLogger(ThrottlingAllocationTests.class);
 
     public void testPrimaryRecoveryThrottling() {
         AllocationService strategy = createAllocationService(Settings.builder()

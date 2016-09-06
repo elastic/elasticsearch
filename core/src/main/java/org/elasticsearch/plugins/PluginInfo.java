@@ -22,7 +22,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -32,7 +32,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
 
-public class PluginInfo implements Streamable, ToXContent {
+public class PluginInfo implements Writeable, ToXContent {
 
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
@@ -45,13 +45,10 @@ public class PluginInfo implements Streamable, ToXContent {
         static final String CLASSNAME = "classname";
     }
 
-    private String name;
-    private String description;
-    private String version;
-    private String classname;
-
-    public PluginInfo() {
-    }
+    private final String name;
+    private final String description;
+    private final String version;
+    private final String classname;
 
     /**
      * Information about plugins
@@ -60,11 +57,26 @@ public class PluginInfo implements Streamable, ToXContent {
      * @param description Its description
      * @param version     Version number
      */
-    PluginInfo(String name, String description, String version, String classname) {
+    public PluginInfo(String name, String description, String version, String classname) {
         this.name = name;
         this.description = description;
         this.version = version;
         this.classname = classname;
+    }
+
+    public PluginInfo(StreamInput in) throws IOException {
+        this.name = in.readString();
+        this.description = in.readString();
+        this.version = in.readString();
+        this.classname = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeString(description);
+        out.writeString(version);
+        out.writeString(classname);
     }
 
     /** reads (and validates) plugin metadata descriptor file */
@@ -136,28 +148,6 @@ public class PluginInfo implements Streamable, ToXContent {
      */
     public String getVersion() {
         return version;
-    }
-
-    public static PluginInfo readFromStream(StreamInput in) throws IOException {
-        PluginInfo info = new PluginInfo();
-        info.readFrom(in);
-        return info;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        this.name = in.readString();
-        this.description = in.readString();
-        this.version = in.readString();
-        this.classname = in.readString();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
-        out.writeString(description);
-        out.writeString(version);
-        out.writeString(classname);
     }
 
     @Override

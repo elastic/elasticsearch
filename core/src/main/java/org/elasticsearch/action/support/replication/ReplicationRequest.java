@@ -248,4 +248,12 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     public String getDescription() {
         return toString();
     }
+
+    /**
+     * This method is called before this replication request is retried
+     * the first time.
+     */
+    public void onRetry() {
+        // nothing by default
+    }
 }

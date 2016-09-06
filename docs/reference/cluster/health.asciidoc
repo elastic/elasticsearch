@@ -13,6 +13,8 @@ GET _cluster/health
 // TEST[s/^/PUT test1\n/]
 
 Returns this:
+
+[source,js]
 --------------------------------------------------
 {
   "cluster_name" : "testcluster",

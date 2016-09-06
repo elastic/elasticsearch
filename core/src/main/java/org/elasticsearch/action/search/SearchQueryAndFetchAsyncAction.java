@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.search.action.SearchTransportService;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
@@ -36,7 +36,7 @@ import java.io.IOException;
 
 class SearchQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<QueryFetchSearchResult> {
 
-    SearchQueryAndFetchAsyncAction(ESLogger logger, SearchTransportService searchTransportService,
+    SearchQueryAndFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
                                            ClusterService clusterService, IndexNameExpressionResolver indexNameExpressionResolver,
                                            SearchPhaseController searchPhaseController, ThreadPool threadPool,
                                            SearchRequest request, ActionListener<SearchResponse> listener) {

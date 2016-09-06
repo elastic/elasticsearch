@@ -14,7 +14,6 @@ This plugin can be installed using the plugin manager:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin install repository-gcs
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 NOTE: The plugin requires new permission to be installed in order to work
 
@@ -31,7 +30,6 @@ The plugin can be removed with the following command:
 ----------------------------------------------------------------
 sudo bin/elasticsearch-plugin remove repository-gcs
 ----------------------------------------------------------------
-// NOTCONSOLE
 
 The node must be stopped before removing the plugin.
 
@@ -133,6 +131,7 @@ A service account file looks like this:
   "client_x509_cert_url": "..."
 }
 ----
+// NOTCONSOLE
 
 This file must be copied in the `config` directory of the elasticsearch installation and on
 every node of the cluster.

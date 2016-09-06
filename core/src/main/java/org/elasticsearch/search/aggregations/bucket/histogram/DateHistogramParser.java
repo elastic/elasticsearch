@@ -19,11 +19,11 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -79,10 +79,11 @@ public class DateHistogramParser extends NumericValuesSourceParser {
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
-            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+    protected boolean token(String aggregationName, String currentFieldName, Token token,
+                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
+        XContentParser parser = context.getParser();
         if (token.isValue()) {
-            if (parseFieldMatcher.match(currentFieldName, Histogram.INTERVAL_FIELD)) {
+            if (context.matchField(currentFieldName, Histogram.INTERVAL_FIELD)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     otherOptions.put(Histogram.INTERVAL_FIELD, new DateHistogramInterval(parser.text()));
                     return true;
@@ -90,13 +91,13 @@ public class DateHistogramParser extends NumericValuesSourceParser {
                     otherOptions.put(Histogram.INTERVAL_FIELD, parser.longValue());
                     return true;
                 }
-            } else if (parseFieldMatcher.match(currentFieldName, Histogram.MIN_DOC_COUNT_FIELD)) {
+            } else if (context.matchField(currentFieldName, Histogram.MIN_DOC_COUNT_FIELD)) {
                 otherOptions.put(Histogram.MIN_DOC_COUNT_FIELD, parser.longValue());
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, Histogram.KEYED_FIELD)) {
+            } else if (context.matchField(currentFieldName, Histogram.KEYED_FIELD)) {
                 otherOptions.put(Histogram.KEYED_FIELD, parser.booleanValue());
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, Histogram.OFFSET_FIELD)) {
+            } else if (context.matchField(currentFieldName, Histogram.OFFSET_FIELD)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     otherOptions.put(Histogram.OFFSET_FIELD,
                             DateHistogramAggregationBuilder.parseStringOffset(parser.text()));
@@ -109,7 +110,7 @@ public class DateHistogramParser extends NumericValuesSourceParser {
                 return false;
             }
         } else if (token == XContentParser.Token.START_OBJECT) {
-            if (parseFieldMatcher.match(currentFieldName, Histogram.ORDER_FIELD)) {
+            if (context.matchField(currentFieldName, Histogram.ORDER_FIELD)) {
                 InternalOrder order = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
@@ -127,9 +128,10 @@ public class DateHistogramParser extends NumericValuesSourceParser {
                 }
                 otherOptions.put(Histogram.ORDER_FIELD, order);
                 return true;
-            } else if (parseFieldMatcher.match(currentFieldName, ExtendedBounds.EXTENDED_BOUNDS_FIELD)) {
+            } else if (context.matchField(currentFieldName, ExtendedBounds.EXTENDED_BOUNDS_FIELD)) {
                 try {
-                    otherOptions.put(ExtendedBounds.EXTENDED_BOUNDS_FIELD, ExtendedBounds.PARSER.apply(parser, () -> parseFieldMatcher));
+                    otherOptions.put(ExtendedBounds.EXTENDED_BOUNDS_FIELD,
+                            ExtendedBounds.PARSER.apply(parser, context::getParseFieldMatcher));
                 } catch (Exception e) {
                     throw new ParsingException(parser.getTokenLocation(), "Error parsing [{}]", e, aggregationName);
                 }

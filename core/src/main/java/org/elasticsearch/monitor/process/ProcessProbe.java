@@ -126,8 +126,8 @@ public class ProcessProbe {
         return -1;
     }
 
-    public ProcessInfo processInfo() {
-        return new ProcessInfo(jvmInfo().pid(), BootstrapInfo.isMemoryLocked());
+    public ProcessInfo processInfo(long refreshInterval) {
+        return new ProcessInfo(jvmInfo().pid(), BootstrapInfo.isMemoryLocked(), refreshInterval);
     }
 
     public ProcessStats processStats() {

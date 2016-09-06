@@ -116,4 +116,5 @@ class Elasticsearch extends SettingCommand {
     static void close(String[] args) throws IOException {
         Bootstrap.stop();
     }
+
 }

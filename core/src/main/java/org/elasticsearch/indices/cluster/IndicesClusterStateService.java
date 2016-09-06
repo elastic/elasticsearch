@@ -19,6 +19,9 @@
 
 package org.elasticsearch.indices.cluster;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,7 +40,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -61,10 +63,10 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.flush.SyncedFlushService;
-import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.RestoreService;
@@ -269,7 +271,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 threadPool.generic().execute(new AbstractRunnable() {
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn("[{}] failed to complete pending deletion for index", e, index);
+                        logger.warn(
+                            (Supplier<?>) () -> new ParameterizedMessage("[{}] failed to complete pending deletion for index", index), e);
                     }
 
                     @Override
@@ -559,7 +562,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      * routing to *require* peer recovery, use {@link ShardRouting#recoverySource()} to
      * check if its needed or not.
      */
-    private static DiscoveryNode findSourceNodeForPeerRecovery(ESLogger logger, RoutingTable routingTable, DiscoveryNodes nodes,
+    private static DiscoveryNode findSourceNodeForPeerRecovery(Logger logger, RoutingTable routingTable, DiscoveryNodes nodes,
                                                                ShardRouting shardRouting) {
         DiscoveryNode sourceNode = null;
         if (!shardRouting.primary()) {
@@ -637,11 +640,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         } catch (Exception inner) {
             inner.addSuppressed(failure);
             logger.warn(
-                "[{}][{}] failed to remove shard after failure ([{}])",
-                inner,
-                shardRouting.getIndexName(),
-                shardRouting.getId(),
-                message);
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "[{}][{}] failed to remove shard after failure ([{}])",
+                    shardRouting.getIndexName(),
+                    shardRouting.getId(),
+                    message),
+                inner);
         }
         if (sendShardFailure) {
             sendFailShard(shardRouting, message, failure);
@@ -650,17 +654,20 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private void sendFailShard(ShardRouting shardRouting, String message, @Nullable Exception failure) {
         try {
-            logger.warn("[{}] marking and sending shard failed due to [{}]", failure, shardRouting.shardId(), message);
+            logger.warn(
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "[{}] marking and sending shard failed due to [{}]", shardRouting.shardId(), message), failure);
             failedShardsCache.put(shardRouting.shardId(), shardRouting);
             shardStateAction.localShardFailed(shardRouting, message, failure, SHARD_STATE_ACTION_LISTENER);
         } catch (Exception inner) {
             if (failure != null) inner.addSuppressed(failure);
             logger.warn(
+                (Supplier<?>) () -> new ParameterizedMessage(
                     "[{}][{}] failed to mark shard as failed (because of [{}])",
-                    inner,
                     shardRouting.getIndexName(),
                     shardRouting.getId(),
-                    message);
+                    message),
+                inner);
         }
     }
 

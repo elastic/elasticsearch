@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -30,7 +31,6 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -56,7 +56,7 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class SingleShardNoReplicasRoutingTests extends ESAllocationTestCase {
-    private final ESLogger logger = Loggers.getLogger(SingleShardNoReplicasRoutingTests.class);
+    private final Logger logger = Loggers.getLogger(SingleShardNoReplicasRoutingTests.class);
 
     public void testSingleIndexStartedShard() {
         AllocationService strategy = createAllocationService(Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
@@ -27,7 +28,6 @@ import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -241,13 +241,13 @@ public abstract class TransportWriteAction<
         private final RespondingWriteResult respond;
         private final IndexShard indexShard;
         private final WriteRequest<?> request;
-        private final ESLogger logger;
+        private final Logger logger;
 
         AsyncAfterWriteAction(final IndexShard indexShard,
                              final WriteRequest<?> request,
                              @Nullable final Translog.Location location,
                              final RespondingWriteResult respond,
-                             final ESLogger logger) {
+                             final Logger logger) {
             this.indexShard = indexShard;
             this.request = request;
             boolean waitUntilRefresh = false;

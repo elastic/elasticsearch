@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -26,7 +27,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class ReplicaAllocatedAfterPrimaryTests extends ESAllocationTestCase {
-    private final ESLogger logger = Loggers.getLogger(ReplicaAllocatedAfterPrimaryTests.class);
+    private final Logger logger = Loggers.getLogger(ReplicaAllocatedAfterPrimaryTests.class);
 
     public void testBackupIsAllocatedAfterPrimary() {
         AllocationService strategy = createAllocationService(Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build());

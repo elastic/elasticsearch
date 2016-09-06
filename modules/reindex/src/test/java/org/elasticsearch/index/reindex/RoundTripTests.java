@@ -206,14 +206,6 @@ public class RoundTripTests extends ESTestCase {
                 emptyMap()); // Params
     }
 
-    private long randomPositiveLong() {
-        long l;
-        do {
-            l = randomLong();
-        } while (l < 0);
-        return l;
-    }
-
     private void assertResponseEquals(BulkIndexByScrollResponse expected, BulkIndexByScrollResponse actual) {
         assertEquals(expected.getTook(), actual.getTook());
         assertTaskStatusEquals(expected.getStatus(), actual.getStatus());

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -30,8 +30,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.concurrent.TimeUnit;
 
-/**
- */
 public final class SearchSlowLog implements SearchOperationListener {
     private boolean reformat;
 
@@ -47,8 +45,8 @@ public final class SearchSlowLog implements SearchOperationListener {
 
     private SlowLogLevel level;
 
-    private final ESLogger queryLogger;
-    private final ESLogger fetchLogger;
+    private final Logger queryLogger;
+    private final Logger fetchLogger;
 
     private static final String INDEX_SEARCH_SLOWLOG_PREFIX = "index.search.slowlog";
     public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING =
@@ -113,8 +111,8 @@ public final class SearchSlowLog implements SearchOperationListener {
 
     private void setLevel(SlowLogLevel level) {
         this.level = level;
-        this.queryLogger.setLevel(level.name());
-        this.fetchLogger.setLevel(level.name());
+        Loggers.setLevel(queryLogger, level.name());
+        Loggers.setLevel(fetchLogger, level.name());
     }
     @Override
     public void onQueryPhase(SearchContext context, long tookInNanos) {

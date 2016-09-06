@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.List;
@@ -107,9 +109,9 @@ public interface SearchOperationListener {
      */
     final class CompositeListener implements SearchOperationListener {
         private final List<SearchOperationListener> listeners;
-        private final ESLogger logger;
+        private final Logger logger;
 
-        public CompositeListener(List<SearchOperationListener> listeners, ESLogger logger) {
+        public CompositeListener(List<SearchOperationListener> listeners, Logger logger) {
             this.listeners = listeners;
             this.logger = logger;
         }
@@ -120,7 +122,7 @@ public interface SearchOperationListener {
                 try {
                     listener.onPreQueryPhase(searchContext);
                 } catch (Exception e) {
-                    logger.warn("onPreQueryPhase listener [{}] failed", e, listener);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("onPreQueryPhase listener [{}] failed", listener), e);
                 }
             }
         }
@@ -131,7 +133,7 @@ public interface SearchOperationListener {
                 try {
                     listener.onFailedQueryPhase(searchContext);
                 } catch (Exception e) {
-                    logger.warn("onFailedQueryPhase listener [{}] failed", e, listener);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("onFailedQueryPhase listener [{}] failed", listener), e);
                 }
             }
         }
@@ -142,7 +144,7 @@ public interface SearchOperationListener {
                 try {
                     listener.onQueryPhase(searchContext, tookInNanos);
                 } catch (Exception e) {
-                    logger.warn("onQueryPhase listener [{}] failed", e, listener);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("onQueryPhase listener [{}] failed", listener), e);
                 }
             }
         }
@@ -153,7 +155,7 @@ public interface SearchOperationListener {
                 try {
                     listener.onPreFetchPhase(searchContext);
                 } catch (Exception e) {
-                    logger.warn("onPreFetchPhase listener [{}] failed", e, listener);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("onPreFetchPhase listener [{}] failed", listener), e);
                 }
             }
         }
@@ -164,7 +166,7 @@ public interface SearchOperationListener {
                 try {
                     listener.onFailedFetchPhase(searchContext);
                 } catch (Exception e) {
-                    logger.warn("onFailedFetchPhase listener [{}] failed", e, listener);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("onFailedFetchPhase listener [{}] failed", listener), e);
                 }
             }
         }
@@ -175,7 +177,7 @@ public interface SearchOperationListener {
                 try {
                     listener.onFetchPhase(searchContext, tookInNanos);
                 } catch (Exception e) {
-                    logger.warn("onFetchPhase listener [{}] failed", e, listener);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("onFetchPhase listener [{}] failed", listener), e);
                 }
             }
         }
@@ -186,7 +188,7 @@ public interface SearchOperationListener {
                 try {
                     listener.onNewContext(context);
                 } catch (Exception e) {
-                    logger.warn("onNewContext listener [{}] failed", e, listener);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("onNewContext listener [{}] failed", listener), e);
                 }
             }
         }
@@ -197,7 +199,7 @@ public interface SearchOperationListener {
                 try {
                     listener.onFreeContext(context);
                 } catch (Exception e) {
-                    logger.warn("onFreeContext listener [{}] failed", e, listener);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("onFreeContext listener [{}] failed", listener), e);
                 }
             }
         }
@@ -208,7 +210,7 @@ public interface SearchOperationListener {
                 try {
                     listener.onNewScrollContext(context);
                 } catch (Exception e) {
-                    logger.warn("onNewScrollContext listener [{}] failed", e, listener);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("onNewScrollContext listener [{}] failed", listener), e);
                 }
             }
         }
@@ -219,7 +221,7 @@ public interface SearchOperationListener {
                 try {
                     listener.onFreeScrollContext(context);
                 } catch (Exception e) {
-                    logger.warn("onFreeScrollContext listener [{}] failed", e, listener);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("onFreeScrollContext listener [{}] failed", listener), e);
                 }
             }
         }

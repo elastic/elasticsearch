@@ -69,6 +69,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.replication.TransportReplicationActionTests;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
@@ -117,7 +118,6 @@ import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.instanceOf;
 
 @ClusterScope(scope = Scope.SUITE, numClientNodes = 1, minNumDataNodes = 2)
 public class IndicesRequestIT extends ESIntegTestCase {
@@ -638,8 +638,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
                 assertThat("no internal requests intercepted for action [" + action + "]", requests.size(), greaterThan(0));
             }
             for (TransportRequest internalRequest : requests) {
-                assertThat(internalRequest, instanceOf(IndicesRequest.class));
-                IndicesRequest indicesRequest = (IndicesRequest) internalRequest;
+                IndicesRequest indicesRequest = convertRequest(internalRequest);
                 assertThat(internalRequest.getClass().getName(), indicesRequest.indices(), equalTo(originalRequest.indices()));
                 assertThat(indicesRequest.indicesOptions(), equalTo(originalRequest.indicesOptions()));
             }
@@ -651,12 +650,22 @@ public class IndicesRequestIT extends ESIntegTestCase {
             List<TransportRequest> requests = consumeTransportRequests(action);
             assertThat("no internal requests intercepted for action [" + action + "]", requests.size(), greaterThan(0));
             for (TransportRequest internalRequest : requests) {
-                assertThat(internalRequest, instanceOf(IndicesRequest.class));
-                for (String index : ((IndicesRequest) internalRequest).indices()) {
+                IndicesRequest indicesRequest = convertRequest(internalRequest);
+                for (String index : indicesRequest.indices()) {
                     assertThat(indices, hasItem(index));
                 }
             }
         }
+    }
+
+    static IndicesRequest convertRequest(TransportRequest request) {
+        final IndicesRequest indicesRequest;
+        if (request instanceof IndicesRequest) {
+            indicesRequest = (IndicesRequest) request;
+        } else {
+            indicesRequest = TransportReplicationActionTests.resolveRequest(request);
+        }
+        return indicesRequest;
     }
 
     private String randomIndexOrAlias() {

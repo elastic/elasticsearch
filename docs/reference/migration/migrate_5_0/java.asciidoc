@@ -67,12 +67,13 @@ client.prepareSearch(indices).suggest(new SuggestBuilder().addSuggestion("foo", 
 
 ==== Elasticsearch will no longer detect logging implementations
 
-Elasticsearch now logs only to log4j 1.2. Previously if log4j wasn't on the
-classpath it made some effort to degrade to slf4j or java.util.logging. Now it
-will fail to work without the log4j 1.2 api. The log4j-over-slf4j bridge ought
-to work when using the java client, as should log4j 2's log4j-1.2-api. The
-Elasticsearch server now only supports log4j as configured by `logging.yml`
-and will fail if log4j isn't present.
+Elasticsearch now logs using Log4j 2. Previously if Log4j wasn't on the
+classpath it made some effort to degrade to SLF4J or Java logging. Now it will
+fail to work without the Log4j 2 API. The log4j-over-slf4j bridge ought to work
+when using the Java client. The log4j-1.2-api bridge is used for third-party
+dependencies that still use the Log4j 1 API. The Elasticsearch server now only
+supports Log4j 2 as configured by `log4j2.properties` and will fail if Log4j
+isn't present.
 
 ==== Groovy dependencies
 
@@ -348,7 +349,9 @@ The `setQuery(BytesReference)` method have been removed in favor of using `setQu
 ==== ClusterStatsResponse
 
 Removed the `getMemoryAvailable` method from `OsStats`, which could be previously accessed calling
-`clusterStatsResponse.getNodesStats().getOs().getMemoryAvailable()`.
+`clusterStatsResponse.getNodesStats().getOs().getMemoryAvailable()`. It is now replaced with
+`clusterStatsResponse.getNodesStats().getOs().getMem()` which exposes `getTotal()`, `getFree()`,
+`getUsed()`, `getFreePercent()` and `getUsedPercent()`.
 
 ==== setRefresh(boolean) has been removed
 

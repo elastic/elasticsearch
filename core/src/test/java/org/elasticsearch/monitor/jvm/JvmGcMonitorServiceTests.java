@@ -19,7 +19,7 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -32,7 +32,7 @@ import static org.mockito.Mockito.when;
 public class JvmGcMonitorServiceTests extends ESTestCase {
 
     public void testSlowGcLogging() {
-        final ESLogger logger = mock(ESLogger.class);
+        final Logger logger = mock(Logger.class);
         when(logger.isWarnEnabled()).thenReturn(true);
         when(logger.isInfoEnabled()).thenReturn(true);
         when(logger.isDebugEnabled()).thenReturn(true);
@@ -138,7 +138,7 @@ public class JvmGcMonitorServiceTests extends ESTestCase {
         final int current = randomIntBetween(1, Integer.MAX_VALUE);
         final long elapsed = randomIntBetween(current, Integer.MAX_VALUE);
         final long seq = randomIntBetween(1, Integer.MAX_VALUE);
-        final ESLogger logger = mock(ESLogger.class);
+        final Logger logger = mock(Logger.class);
         when(logger.isWarnEnabled()).thenReturn(true);
         when(logger.isInfoEnabled()).thenReturn(true);
         when(logger.isDebugEnabled()).thenReturn(true);

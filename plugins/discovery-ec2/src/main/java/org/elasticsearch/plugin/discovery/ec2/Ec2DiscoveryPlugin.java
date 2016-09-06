@@ -19,6 +19,25 @@
 
 package org.elasticsearch.plugin.discovery.ec2;
 
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.cloud.aws.AwsEc2Service;
+import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
+import org.elasticsearch.cloud.aws.Ec2Module;
+import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
+import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.ec2.AwsEc2UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.plugins.DiscoveryPlugin;
+import org.elasticsearch.plugins.Plugin;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,32 +53,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
-import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.cloud.aws.AwsEc2Service;
-import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
-import org.elasticsearch.cloud.aws.Ec2Module;
-import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
-import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.discovery.ec2.AwsEc2UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.plugins.DiscoveryPlugin;
-import org.elasticsearch.plugins.Plugin;
-
 /**
  *
  */
 public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
-    private static ESLogger logger = Loggers.getLogger(Ec2DiscoveryPlugin.class);
+    private static Logger logger = Loggers.getLogger(Ec2DiscoveryPlugin.class);
 
     public static final String EC2 = "ec2";
 

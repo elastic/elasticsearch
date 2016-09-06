@@ -232,13 +232,8 @@ public class RelocationIT extends ESIntegTestCase {
                                 logger.error("Extra id [{}]", id);
                             }
                         }
-                        set.forEach(new IntProcedure() {
-
-                            @Override
-                            public void apply(int value) {
-                                logger.error("Missing id [{}]", value);
-                            }
-
+                        set.forEach((IntProcedure) value -> {
+                            logger.error("Missing id [{}]", value);
                         });
                     }
                     assertThat(hits.totalHits(), equalTo(indexer.totalIndexedDocs()));
@@ -363,7 +358,7 @@ public class RelocationIT extends ESIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName, "type").setCreate(true).setSource("{}"));
+            requests.add(client().prepareIndex(indexName, "type").setSource("{}"));
         }
         indexRandom(true, requests);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").setWaitForGreenStatus().get().isTimedOut());

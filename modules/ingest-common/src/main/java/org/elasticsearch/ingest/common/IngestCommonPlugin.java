@@ -61,6 +61,7 @@ public class IngestCommonPlugin extends Plugin implements IngestPlugin {
         processors.put(SortProcessor.TYPE, new SortProcessor.Factory());
         processors.put(GrokProcessor.TYPE, new GrokProcessor.Factory(builtinPatterns));
         processors.put(ScriptProcessor.TYPE, new ScriptProcessor.Factory(parameters.scriptService));
+        processors.put(DotExpanderProcessor.TYPE, new DotExpanderProcessor.Factory());
         return Collections.unmodifiableMap(processors);
     }
 

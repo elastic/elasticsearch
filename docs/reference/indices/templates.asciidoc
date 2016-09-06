@@ -38,6 +38,7 @@ PUT _template/template_1
 }
 --------------------------------------------------
 // CONSOLE
+// TESTSETUP
 
 Defines a template named template_1, with a template pattern of `te*`.
 The settings and mappings will be applied to any index name that matches
@@ -47,7 +48,7 @@ It is also possible to include aliases in an index template as follows:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/_template/template_1 -d '
+PUT _template/template_1
 {
     "template" : "te*",
     "settings" : {
@@ -64,8 +65,9 @@ curl -XPUT localhost:9200/_template/template_1 -d '
         "{index}-alias" : {} <1>
     }
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/DELETE _template\/template_1\n/]
 
 <1> the `{index}` placeholder within the alias name will be replaced with the
 actual index name that the template gets applied to during index creation.
@@ -79,8 +81,9 @@ Index templates are identified by a name (in the above case
 
 [source,js]
 --------------------------------------------------
-curl -XDELETE localhost:9200/_template/template_1
+DELETE /_template/template_1
 --------------------------------------------------
+// CONSOLE
 
 [float]
 [[getting]]
@@ -91,24 +94,26 @@ Index templates are identified by a name (in the above case
 
 [source,js]
 --------------------------------------------------
-curl -XGET localhost:9200/_template/template_1
+GET /_template/template_1
 --------------------------------------------------
+// CONSOLE
 
 You can also match several templates by using wildcards like:
 
 [source,js]
 --------------------------------------------------
-curl -XGET localhost:9200/_template/temp*
-curl -XGET localhost:9200/_template/template_1,template_2
+GET /_template/temp*
+GET /_template/template_1,template_2
 --------------------------------------------------
+// CONSOLE
 
 To get list of all index templates you can run:
 
 [source,js]
 --------------------------------------------------
-curl -XGET localhost:9200/_template/
+GET /_template
 --------------------------------------------------
-
+// CONSOLE
 
 [float]
 [[indices-templates-exists]]
@@ -118,12 +123,12 @@ Used to check if the template exists or not. For example:
 
 [source,js]
 -----------------------------------------------
-curl -XHEAD -i localhost:9200/_template/template_1
+HEAD _template/template_1
 -----------------------------------------------
+// CONSOLE
 
 The HTTP status code indicates if the template with the given name
 exists or not. A status code `200` means it exists, a `404` it does not.
-
 
 [float]
 [[multiple-templates]]
@@ -137,7 +142,7 @@ orders overriding them. For example:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/_template/template_1 -d '
+PUT /_template/template_1
 {
     "template" : "*",
     "order" : 0,
@@ -150,9 +155,8 @@ curl -XPUT localhost:9200/_template/template_1 -d '
         }
     }
 }
-'
 
-curl -XPUT localhost:9200/_template/template_2 -d '
+PUT /_template/template_2
 {
     "template" : "te*",
     "order" : 1,
@@ -165,8 +169,9 @@ curl -XPUT localhost:9200/_template/template_2 -d '
         }
     }
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/DELETE _template\/template_1\n/]
 
 The above will disable storing the `_source` on all `type1` types, but
 for indices of that start with `te*`, source will still be enabled.

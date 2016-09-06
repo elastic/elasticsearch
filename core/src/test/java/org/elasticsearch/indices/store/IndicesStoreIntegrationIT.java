@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.store;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,7 +38,6 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -474,11 +474,11 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
      * the ShardActiveRequest.
      */
     public static class ReclocationStartEndTracer extends MockTransportService.Tracer {
-        private final ESLogger logger;
+        private final Logger logger;
         private final CountDownLatch beginRelocationLatch;
         private final CountDownLatch receivedShardExistsRequestLatch;
 
-        public ReclocationStartEndTracer(ESLogger logger, CountDownLatch beginRelocationLatch, CountDownLatch receivedShardExistsRequestLatch) {
+        public ReclocationStartEndTracer(Logger logger, CountDownLatch beginRelocationLatch, CountDownLatch receivedShardExistsRequestLatch) {
             this.logger = logger;
             this.beginRelocationLatch = beginRelocationLatch;
             this.receivedShardExistsRequestLatch = receivedShardExistsRequestLatch;

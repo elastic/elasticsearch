@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.io.IOException;
@@ -36,7 +36,7 @@ import java.util.Locale;
  */
 final class IfConfig {
 
-    private static final ESLogger logger = Loggers.getLogger(IfConfig.class);
+    private static final Logger logger = Loggers.getLogger(IfConfig.class);
     private static final String INDENT = "        ";
 
     /** log interface configuration at debug level, if its enabled */

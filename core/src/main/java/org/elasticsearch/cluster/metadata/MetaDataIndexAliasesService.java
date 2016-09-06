@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
@@ -64,7 +63,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
     private final AliasValidator aliasValidator;
 
     private final NodeServicesProvider nodeServicesProvider;
-    
+
     private final MetaDataDeleteIndexService deleteIndexService;
 
     @Inject

@@ -21,6 +21,7 @@ package org.elasticsearch.percolator;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -28,20 +29,26 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.percolator.PercolatorTestUtil.preparePercolate;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
@@ -52,7 +59,7 @@ public class PercolatorBackwardsCompatibilityTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(PercolatorPlugin.class);
+        return Arrays.asList(PercolatorPlugin.class, FoolMeScriptLang.class);
     }
 
     @Override
@@ -81,25 +88,43 @@ public class PercolatorBackwardsCompatibilityTests extends ESIntegTestCase {
             .setTypes(".percolator")
             .addSort("_uid", SortOrder.ASC)
             .get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4L));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
+        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("4"));
+        assertThat(XContentMapValues.extractValue("query.script.script.inline",
+                searchResponse.getHits().getAt(3).sourceAsMap()), equalTo("return true"));
+        // we don't upgrade the script definitions so that they include explicitly the lang,
+        // because we read / parse the query at search time.
+        assertThat(XContentMapValues.extractValue("query.script.script.lang",
+                searchResponse.getHits().getAt(3).sourceAsMap()), nullValue());
 
         // verify percolate response
         PercolateResponse percolateResponse = preparePercolate(client())
+                .setIndices(INDEX_NAME)
+                .setDocumentType("message")
+                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
+                .get();
+
+        assertThat(percolateResponse.getCount(), equalTo(1L));
+        assertThat(percolateResponse.getMatches().length, equalTo(1));
+        assertThat(percolateResponse.getMatches()[0].getId().string(), equalTo("4"));
+
+        percolateResponse = preparePercolate(client())
             .setIndices(INDEX_NAME)
             .setDocumentType("message")
             .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("message", "the quick brown fox jumps over the lazy dog"))
             .get();
 
-        assertThat(percolateResponse.getCount(), equalTo(2L));
-        assertThat(percolateResponse.getMatches().length, equalTo(2));
+        assertThat(percolateResponse.getCount(), equalTo(3L));
+        assertThat(percolateResponse.getMatches().length, equalTo(3));
         assertThat(percolateResponse.getMatches()[0].getId().string(), equalTo("1"));
         assertThat(percolateResponse.getMatches()[1].getId().string(), equalTo("2"));
+        assertThat(percolateResponse.getMatches()[2].getId().string(), equalTo("4"));
 
         // add an extra query and verify the results
-        client().prepareIndex(INDEX_NAME, ".percolator", "4")
+        client().prepareIndex(INDEX_NAME, ".percolator", "5")
             .setSource(jsonBuilder().startObject().field("query", matchQuery("message", "fox jumps")).endObject())
             .get();
         refresh();
@@ -110,8 +135,8 @@ public class PercolatorBackwardsCompatibilityTests extends ESIntegTestCase {
             .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("message", "the quick brown fox jumps over the lazy dog"))
             .get();
 
-        assertThat(percolateResponse.getCount(), equalTo(3L));
-        assertThat(percolateResponse.getMatches().length, equalTo(3));
+        assertThat(percolateResponse.getCount(), equalTo(4L));
+        assertThat(percolateResponse.getMatches().length, equalTo(4));
         assertThat(percolateResponse.getMatches()[0].getId().string(), equalTo("1"));
         assertThat(percolateResponse.getMatches()[1].getId().string(), equalTo("2"));
         assertThat(percolateResponse.getMatches()[2].getId().string(), equalTo("4"));
@@ -129,6 +154,21 @@ public class PercolatorBackwardsCompatibilityTests extends ESIntegTestCase {
             .put(Environment.PATH_DATA_SETTING.getKey(), dataDir);
         internalCluster().startNode(nodeSettings.build());
         ensureGreen(INDEX_NAME);
+    }
+
+    // Fool the script service that this is the groovy script language,
+    // so that we can run a script that has no lang defined implicetely against the legacy language:
+    public static class FoolMeScriptLang extends MockScriptPlugin {
+
+        @Override
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Collections.singletonMap("return true", (vars) -> true);
+        }
+
+        @Override
+        public String pluginScriptLang() {
+            return "groovy";
+        }
     }
 
 }

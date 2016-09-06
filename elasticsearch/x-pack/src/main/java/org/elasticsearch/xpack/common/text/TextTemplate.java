@@ -37,7 +37,7 @@ public class TextTemplate implements ToXContent {
 
     public TextTemplate(String template, @Nullable XContentType contentType, ScriptType type,
                         @Nullable Map<String, Object> params) {
-        this.script = new Script(template, type, null, params, contentType);
+        this.script = new Script(template, type, "mustache", params, contentType);
         this.inlineTemplate = null;
     }
 
@@ -95,7 +95,7 @@ public class TextTemplate implements ToXContent {
         if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
             return new TextTemplate(parser.text());
         } else {
-            return new TextTemplate(Script.parse(parser, ParseFieldMatcher.STRICT, null));
+            return new TextTemplate(Script.parse(parser, ParseFieldMatcher.STRICT, "mustache"));
         }
     }
 }

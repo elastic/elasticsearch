@@ -17,50 +17,47 @@
  * under the License.
  */
 
-
 import org.elasticsearch.gradle.test.NodeInfo
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
-RestIntegTestTask oldClusterTask = task oldClusterTest(type: RestIntegTestTask) {
+apply plugin: 'elasticsearch.standalone-test'
+
+task oldClusterTest(type: RestIntegTestTask) {
   mustRunAfter(precommit)
   cluster {
     distribution = 'zip'
     bwcVersion = '2.4.0' // TODO: either randomize, or make this settable with sysprop
     numBwcNodes = 2
-    numNodes = 0
+    numNodes = 2
     clusterName = 'rolling-upgrade'
   }
   systemProperty 'tests.rest.suite', 'old_cluster'
 }
 
 task mixedClusterTest(type: RestIntegTestTask) {
-  dependsOn(oldClusterTest, 'oldClusterTest.node1') // TODO: what does this `oldClusterTest.node1` do?  is it a task?
-  NodeInfo aliveNode = oldClusterTask.getNodes().get(0)
-  NodeInfo stoppedNode = oldClusterTask.getNodes().get(1)
+  dependsOn(oldClusterTest, 'oldClusterTest#node1.stop')
   cluster {
     distribution = 'zip'
     clusterName = 'rolling-upgrade'
-    unicastTransportUri = { -> aliveNode.transportUri() }
-    dataDir = stoppedNode.dataDir
+    unicastTransportUri = { seedNode, node, ant -> oldClusterTest.nodes.get(0).transportUri() }
+    dataDir = "${-> oldClusterTest.nodes[1].dataDir}"
   }
   systemProperty 'tests.rest.suite', 'mixed_cluster'
 
 }
 
 task upgradedClusterTest(type: RestIntegTestTask) {
-  // stop alive node from oldClusterTest and get its dataDir, and get alive node for unicast host
-  NodeInfo stoppedNode = null
-  NodeInfo aliveNode = null
+  dependsOn(mixedClusterTest, 'oldClusterTest#node0.stop')
   cluster {
     distribution = 'zip'
     clusterName = 'rolling-upgrade'
-    unicastTransportUri = { -> aliveNode.transportUri() }
-    dataDir = stoppedNode.dataDir
+    unicastTransportUri = { seedNode, node, ant -> mixedClusterTest.nodes.get(0).transportUri() }
+    dataDir = "${-> oldClusterTest.nodes[0].dataDir}"
   }
   systemProperty 'tests.rest.suite', 'upgraded_cluster'
 }
 
 task integTest {
-  dependsOn = [upgradedClusterTest]
+  dependsOn = [oldClusterTest, mixedClusterTest, upgradedClusterTest]
 }
 check.dependsOn(integTest)

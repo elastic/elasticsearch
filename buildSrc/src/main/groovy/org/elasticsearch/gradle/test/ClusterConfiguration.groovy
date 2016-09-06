@@ -45,9 +45,12 @@ class ClusterConfiguration {
     @Input
     int transportPort = 0
 
-    /** An override of the data directory. This may only be used with a single node. */
+    /**
+     * An override of the data directory. This may only be used with a single node.
+     * The value is lazily evaluated at runtime as a String path.
+     */
     @Input
-    File dataDir = null
+    Object dataDir = null
 
     /** Optional override of the cluster name. */
     @Input
@@ -65,16 +68,24 @@ class ClusterConfiguration {
             " " + System.getProperty('tests.jvm.argline', '')
 
     /**
-     * A uri that should be used for the unicast host list.
+     * A closure to call which returns the unicast host to connect to for cluster formation.
      *
      * This allows multi node clusters, or a new cluster to connect to an existing cluster.
-     * The type is Object to allow lazy evaluation. Typically this would be set with a
-     * closure in a GString like:
-     *
-     * {@code "$&#123;-> node.transportUri()&#125;"}
+     * The closure takes two arguments, the NodeInfo for the first node in the cluster, and
+     * an AntBuilder which may be used to wait on conditions before returning.
      */
     @Input
-    Closure unicastTransportUri = null
+    Closure unicastTransportUri = { NodeInfo seedNode, NodeInfo node, AntBuilder ant ->
+        if (seedNode == node) {
+            return null
+        }
+        ant.waitfor(maxwait: '20', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond') {
+            resourceexists {
+                file(file: seedNode.transportPortsFile.toString())
+            }
+        }
+        return seedNode.transportUri()
+    }
 
     /**
      * A closure to call before the cluster is considered ready. The closure is passed the node info,

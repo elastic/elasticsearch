@@ -57,8 +57,8 @@ class NodeInfo {
     /** config directory */
     File confDir
 
-    /** data directory */
-    File dataDir
+    /** data directory (as an Object, to allow lazy evaluation) */
+    Object dataDir
 
     /** THE config file */
     File configFile
@@ -155,7 +155,7 @@ class NodeInfo {
             }
         }
         env.put('ES_JVM_OPTIONS', new File(confDir, 'jvm.options'))
-        args.addAll("-E", "path.conf=${confDir}", "-E", "path.data=${dataDir}")
+        args.addAll("-E", "path.conf=${confDir}", "-E", "path.data=${-> dataDir.toString()}")
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             args.add('"') // end the entire command, quoted
         }
@@ -197,6 +197,16 @@ class NodeInfo {
     /** Returns an address and port suitable for a uri to connect to this node over transport protocol */
     String transportUri() {
         return transportPortsFile.readLines("UTF-8").get(0)
+    }
+
+    /** Returns the file which contains the transport protocol ports for this node */
+    File getTransportPortsFile() {
+        return transportPortsFile
+    }
+
+    /** Returns the data directory for this node */
+    File getDataDir() {
+        return dataDir
     }
 
     /** Returns the directory elasticsearch home is contained in for the given distribution */

@@ -86,7 +86,6 @@ class ClusterFormationTasks {
             configureDistributionDependency(project, config.distribution, project.configurations.elasticsearchBwcDistro, config.bwcVersion)
         }
 
-        NodeInfo seedNode = null
         for (int i = 0; i < config.numNodes; ++i) {
             // we start N nodes and out of these N nodes there might be M bwc nodes.
             // for each of those nodes we might have a different configuratioon
@@ -97,10 +96,7 @@ class ClusterFormationTasks {
             }
             NodeInfo node = new NodeInfo(config, i, project, task, elasticsearchVersion, sharedDir)
             nodes.add(node)
-            if (i == 0) {
-                seedNode = node
-            }
-            startTasks.add(configureNode(project, task, cleanup, node, distro, seedNode))
+            startTasks.add(configureNode(project, task, cleanup, node, distro, nodes.get(0)))
         }
 
         Task wait = configureWaitTask("${task.name}#wait", project, nodes, startTasks)
@@ -263,20 +259,9 @@ class ClusterFormationTasks {
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         writeConfig.doFirst {
-            if (node.config.unicastTransportUri != null) {
-                // if the unicast transport uri was specified, use it for all nodes
-                // this will typically be the case if all the nodes we are setting up
-                // should connect to a master in an already formed cluster
-                esConfig['discovery.zen.ping.unicast.hosts'] = node.config.unicastTransportUri()
-            } else if (node.nodeNum > 0) { // multi-node cluster case, we have to wait for the seed node to startup
-                ant.waitfor(maxwait: '20', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond') {
-                    resourceexists {
-                        file(file: seedNode.transportPortsFile.toString())
-                    }
-                }
-                // the seed node is enough to form the cluster - all subsequent nodes will get the seed node as a unicast
-                // host and join the cluster via that.
-                esConfig['discovery.zen.ping.unicast.hosts'] = "\"${seedNode.transportUri()}\""
+            String unicastTransportUri = node.config.unicastTransportUri(seedNode, node, project.ant)
+            if (unicastTransportUri != null) {
+                esConfig['discovery.zen.ping.unicast.hosts'] = unicastTransportUri
             }
             File configFile = new File(node.confDir, 'elasticsearch.yml')
             logger.info("Configuring ${configFile}")

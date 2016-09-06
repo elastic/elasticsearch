@@ -20,9 +20,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class Attachment implements MessageElement {
 
     final String fallback;
@@ -460,12 +457,8 @@ public class Attachment implements MessageElement {
                 return this;
             }
 
-            public Builder setFallback(TextTemplate.Builder fallback) {
-                return setFallback(fallback.build());
-            }
-
             public Builder setFallback(String fallback) {
-                return setFallback(TextTemplate.indexed(fallback));
+                return setFallback(new TextTemplate(fallback));
             }
 
             public Builder setColor(TextTemplate color) {
@@ -473,12 +466,8 @@ public class Attachment implements MessageElement {
                 return this;
             }
 
-            public Builder setColor(TextTemplate.Builder color) {
-                return setColor(color.build());
-            }
-
             public Builder setColor(String color) {
-                return setColor(TextTemplate.inline(color));
+                return setColor(new TextTemplate(color));
             }
 
             public Builder setPretext(TextTemplate pretext) {
@@ -486,12 +475,8 @@ public class Attachment implements MessageElement {
                 return this;
             }
 
-            public Builder setPretext(TextTemplate.Builder pretext) {
-                return setPretext(pretext.build());
-            }
-
             public Builder setPretext(String pretext) {
-                return setPretext(TextTemplate.inline(pretext));
+                return setPretext(new TextTemplate(pretext));
             }
 
             public Builder setAuthorName(TextTemplate authorName) {
@@ -499,12 +484,8 @@ public class Attachment implements MessageElement {
                 return this;
             }
 
-            public Builder setAuthorName(TextTemplate.Builder authorName) {
-                return setAuthorName(authorName.build());
-            }
-
             public Builder setAuthorName(String authorName) {
-                return setAuthorName(TextTemplate.inline(authorName));
+                return setAuthorName(new TextTemplate(authorName));
             }
 
             public Builder setAuthorLink(TextTemplate authorLink) {
@@ -512,12 +493,8 @@ public class Attachment implements MessageElement {
                 return this;
             }
 
-            public Builder setAuthorLink(TextTemplate.Builder authorLink) {
-                return setAuthorLink(authorLink.build());
-            }
-
             public Builder setAuthorLink(String authorLink) {
-                return setAuthorLink(TextTemplate.inline(authorLink));
+                return setAuthorLink(new TextTemplate(authorLink));
             }
 
             public Builder setAuthorIcon(TextTemplate authorIcon) {
@@ -525,12 +502,8 @@ public class Attachment implements MessageElement {
                 return this;
             }
 
-            public Builder setAuthorIcon(TextTemplate.Builder authorIcon) {
-                return setAuthorIcon(authorIcon.build());
-            }
-
             public Builder setAuthorIcon(String authorIcon) {
-                return setAuthorIcon(TextTemplate.inline(authorIcon));
+                return setAuthorIcon(new TextTemplate(authorIcon));
             }
 
             public Builder setTitle(TextTemplate title) {
@@ -538,12 +511,8 @@ public class Attachment implements MessageElement {
                 return this;
             }
 
-            public Builder setTitle(TextTemplate.Builder title) {
-                return setTitle(title.build());
-            }
-
             public Builder setTitle(String title) {
-                return setTitle(TextTemplate.inline(title));
+                return setTitle(new TextTemplate(title));
             }
 
             public Builder setTitleLink(TextTemplate titleLink) {
@@ -551,12 +520,8 @@ public class Attachment implements MessageElement {
                 return this;
             }
 
-            public Builder setTitleLink(TextTemplate.Builder titleLink) {
-                return setTitleLink(titleLink.build());
-            }
-
             public Builder setTitleLink(String titleLink) {
-                return setTitleLink(TextTemplate.inline(titleLink));
+                return setTitleLink(new TextTemplate(titleLink));
             }
 
             public Builder setText(TextTemplate text) {
@@ -564,12 +529,8 @@ public class Attachment implements MessageElement {
                 return this;
             }
 
-            public Builder setText(TextTemplate.Builder text) {
-                return setText(text.build());
-            }
-
             public Builder setText(String text) {
-                return setText(TextTemplate.inline(text));
+                return setText(new TextTemplate(text));
             }
 
             public Builder addField(TextTemplate title, TextTemplate value, boolean isShort) {
@@ -577,12 +538,8 @@ public class Attachment implements MessageElement {
                 return this;
             }
 
-            public Builder addField(TextTemplate.Builder title, TextTemplate.Builder value, boolean isShort) {
-                return addField(title.build(), value.build(), isShort);
-            }
-
             public Builder addField(String title, String value, boolean isShort) {
-                return addField(TextTemplate.inline(title), TextTemplate.inline(value), isShort);
+                return addField(new TextTemplate(title), new TextTemplate(value), isShort);
             }
 
             public Builder setImageUrl(TextTemplate imageUrl) {
@@ -590,12 +547,8 @@ public class Attachment implements MessageElement {
                 return this;
             }
 
-            public Builder setImageUrl(TextTemplate.Builder imageUrl) {
-                return setImageUrl(imageUrl.build());
-            }
-
             public Builder setImageUrl(String imageUrl) {
-                return setImageUrl(TextTemplate.inline(imageUrl));
+                return setImageUrl(new TextTemplate(imageUrl));
             }
 
             public Builder setThumbUrl(TextTemplate thumbUrl) {
@@ -603,12 +556,8 @@ public class Attachment implements MessageElement {
                 return this;
             }
 
-            public Builder setThumbUrl(TextTemplate.Builder thumbUrl) {
-                return setThumbUrl(thumbUrl.build());
-            }
-
             public Builder setThumbUrl(String thumbUrl) {
-                return setThumbUrl(TextTemplate.inline(thumbUrl));
+                return setThumbUrl(new TextTemplate(thumbUrl));
             }
 
             public Template build() {

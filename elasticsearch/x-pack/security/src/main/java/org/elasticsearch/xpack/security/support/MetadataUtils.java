@@ -55,7 +55,7 @@ public class MetadataUtils {
     public static void verifyNoReservedMetadata(Map<String, Object> metadata) {
         for (String key : metadata.keySet()) {
             if (key.startsWith(RESERVED_PREFIX)) {
-                throw new IllegalArgumentException("invalid user metadata. [" + key + "] is a reserved for internal uses");
+                throw new IllegalArgumentException("invalid user metadata. [" + key + "] is a reserved for internal use");
             }
         }
     }

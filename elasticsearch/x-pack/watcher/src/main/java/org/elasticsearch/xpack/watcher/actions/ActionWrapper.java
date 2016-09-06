@@ -33,6 +33,8 @@ import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+
 /**
  *
  */
@@ -180,7 +182,8 @@ public class ActionWrapper implements ToXContent {
         builder.startObject();
         TimeValue throttlePeriod = throttler.throttlePeriod();
         if (throttlePeriod != null) {
-            builder.field(Throttler.Field.THROTTLE_PERIOD.getPreferredName(), throttlePeriod);
+            builder.timeValueField(Throttler.Field.THROTTLE_PERIOD.getPreferredName(),
+                    Throttler.Field.THROTTLE_PERIOD_HUMAN.getPreferredName(), throttlePeriod);
         }
         if (condition != null) {
             builder.startObject(Watch.Field.CONDITION.getPreferredName())
@@ -218,8 +221,10 @@ public class ActionWrapper implements ToXContent {
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Transform.Field.TRANSFORM)) {
                     transform = transformRegistry.parse(watchId, parser);
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Throttler.Field.THROTTLE_PERIOD)) {
+                    throttlePeriod = timeValueMillis(parser.longValue());
+                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Throttler.Field.THROTTLE_PERIOD_HUMAN)) {
                     try {
-                        throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, Throttler.Field.THROTTLE_PERIOD.toString());
+                        throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, Throttler.Field.THROTTLE_PERIOD_HUMAN.toString());
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse action [{}/{}]. failed to parse field [{}] as time value",
                                 pe, watchId, actionId, currentFieldName);

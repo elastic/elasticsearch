@@ -66,8 +66,6 @@ import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- */
 public class HttpInputTests extends ESTestCase {
     private HttpClient httpClient;
     private HttpInputFactory httpParser;
@@ -123,7 +121,7 @@ public class HttpInputTests extends ESTestCase {
 
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
-        when(templateEngine.render(eq(TextTemplate.inline("_body").build()), any(Map.class))).thenReturn("_body");
+        when(templateEngine.render(eq(new TextTemplate("_body")), any(Map.class))).thenReturn("_body");
 
         WatchExecutionContext ctx = createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
@@ -142,7 +140,7 @@ public class HttpInputTests extends ESTestCase {
         String notJson = "This is not json";
         HttpResponse response = new HttpResponse(123, notJson.getBytes(StandardCharsets.UTF_8));
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
-        when(templateEngine.render(eq(TextTemplate.inline("_body").build()), any(Map.class))).thenReturn("_body");
+        when(templateEngine.render(eq(new TextTemplate("_body")), any(Map.class))).thenReturn("_body");
 
         WatchExecutionContext ctx = createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());
@@ -156,18 +154,18 @@ public class HttpInputTests extends ESTestCase {
         String host = randomAsciiOfLength(3);
         int port = randomIntBetween(8000, 9000);
         String path = randomAsciiOfLength(3);
-        TextTemplate pathTemplate = TextTemplate.inline(path).build();
+        TextTemplate pathTemplate = new TextTemplate(path);
         String body = randomBoolean() ? randomAsciiOfLength(3) : null;
         Map<String, TextTemplate> params =
-                randomBoolean() ? new MapBuilder<String, TextTemplate>().put("a", TextTemplate.inline("b").build()).map() : null;
+                randomBoolean() ? new MapBuilder<String, TextTemplate>().put("a", new TextTemplate("b")).map() : null;
         Map<String, TextTemplate> headers =
-                randomBoolean() ? new MapBuilder<String, TextTemplate>().put("c", TextTemplate.inline("d").build()).map() : null;
+                randomBoolean() ? new MapBuilder<String, TextTemplate>().put("c", new TextTemplate("d")).map() : null;
         HttpAuth auth = randomBoolean() ? new BasicAuth("username", "password".toCharArray()) : null;
         HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder(host, port)
                 .scheme(scheme)
                 .method(httpMethod)
                 .path(pathTemplate)
-                .body(body != null ? TextTemplate.inline(body).build() : null)
+                .body(body != null ? new TextTemplate(body) : null)
                 .auth(auth);
 
         if (params != null) {
@@ -197,7 +195,7 @@ public class HttpInputTests extends ESTestCase {
         assertThat(result.getRequest().method(), equalTo(httpMethod != null ? httpMethod : HttpMethod.GET)); // get is the default
         assertThat(result.getRequest().host(), equalTo(host));
         assertThat(result.getRequest().port(), equalTo(port));
-        assertThat(result.getRequest().path(), is(TextTemplate.inline(path).build()));
+        assertThat(result.getRequest().path(), is(new TextTemplate(path)));
         assertThat(result.getExpectedResponseXContentType(), equalTo(expectedResponseXContentType));
         if (expectedResponseXContentType != HttpContentType.TEXT && extractKeys != null) {
             for (String key : extractKeys) {
@@ -205,14 +203,14 @@ public class HttpInputTests extends ESTestCase {
             }
         }
         if (params != null) {
-            assertThat(result.getRequest().params(), hasEntry(is("a"), is(TextTemplate.inline("b").build())));
+            assertThat(result.getRequest().params(), hasEntry(is("a"), is(new TextTemplate("b"))));
         }
         if (headers != null) {
-            assertThat(result.getRequest().headers(), hasEntry(is("c"), is(TextTemplate.inline("d").build())));
+            assertThat(result.getRequest().headers(), hasEntry(is("c"), is(new TextTemplate("d"))));
         }
         assertThat(result.getRequest().auth(), equalTo(auth));
         if (body != null) {
-            assertThat(result.getRequest().body(), is(TextTemplate.inline(body).build()));
+            assertThat(result.getRequest().body(), is(new TextTemplate(body)));
         } else {
             assertThat(result.getRequest().body(), nullValue());
         }
@@ -256,7 +254,7 @@ public class HttpInputTests extends ESTestCase {
 
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
 
-        when(templateEngine.render(eq(TextTemplate.inline("_body").build()), any(Map.class))).thenReturn("_body");
+        when(templateEngine.render(eq(new TextTemplate("_body")), any(Map.class))).thenReturn("_body");
 
         WatchExecutionContext ctx = createWatchExecutionContext();
         HttpInput.Result result = input.execute(ctx, new Payload.Simple());

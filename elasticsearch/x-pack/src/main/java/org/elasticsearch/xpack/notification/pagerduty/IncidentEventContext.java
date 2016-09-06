@@ -21,9 +21,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- *
- */
 public class IncidentEventContext implements ToXContent {
 
     enum Type {

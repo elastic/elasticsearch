@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.security.user.XPackUser;
 
 /**
  */
@@ -36,7 +37,7 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
     @Override
     protected void doExecute(AuthenticateRequest request, ActionListener<AuthenticateResponse> listener) {
         final User user = securityContext.getUser();
-        if (SystemUser.is(user)) {
+        if (SystemUser.is(user) || XPackUser.is(user)) {
             listener.onFailure(new IllegalArgumentException("user [" + user.principal() + "] is internal"));
             return;
         }

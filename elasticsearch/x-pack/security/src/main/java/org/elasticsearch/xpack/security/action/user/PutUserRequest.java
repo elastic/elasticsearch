@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.security.authc.support.CharArrays;
+import org.elasticsearch.xpack.security.support.MetadataUtils;
 
 import java.io.IOException;
 import java.util.Map;
@@ -45,6 +46,10 @@ public class PutUserRequest extends ActionRequest<PutUserRequest> implements Use
         }
         if (roles == null) {
             validationException = addValidationError("roles are missing", validationException);
+        }
+        if (metadata != null && MetadataUtils.containsReservedMetadata(metadata)) {
+            validationException = addValidationError("metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
+                    validationException);
         }
         // we do not check for a password hash here since it is possible that the user exists and we don't want to update the password
         return validationException;

@@ -51,6 +51,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authz.privilege.SystemPrivilege;
@@ -85,19 +86,20 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.REALM_AUTHENTICATION_FAILED;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.indices;
 import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestContent;
-import static org.elasticsearch.xpack.security.audit.index.IndexAuditLevel.ACCESS_DENIED;
-import static org.elasticsearch.xpack.security.audit.index.IndexAuditLevel.ACCESS_GRANTED;
-import static org.elasticsearch.xpack.security.audit.index.IndexAuditLevel.ANONYMOUS_ACCESS_DENIED;
-import static org.elasticsearch.xpack.security.audit.index.IndexAuditLevel.AUTHENTICATION_FAILED;
-import static org.elasticsearch.xpack.security.audit.index.IndexAuditLevel.CONNECTION_DENIED;
-import static org.elasticsearch.xpack.security.audit.index.IndexAuditLevel.CONNECTION_GRANTED;
-import static org.elasticsearch.xpack.security.audit.index.IndexAuditLevel.RUN_AS_DENIED;
-import static org.elasticsearch.xpack.security.audit.index.IndexAuditLevel.RUN_AS_GRANTED;
-import static org.elasticsearch.xpack.security.audit.index.IndexAuditLevel.SYSTEM_ACCESS_GRANTED;
-import static org.elasticsearch.xpack.security.audit.index.IndexAuditLevel.TAMPERED_REQUEST;
-import static org.elasticsearch.xpack.security.audit.index.IndexAuditLevel.parse;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_DENIED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_GRANTED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.ANONYMOUS_ACCESS_DENIED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.AUTHENTICATION_FAILED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.CONNECTION_DENIED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.CONNECTION_GRANTED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.RUN_AS_DENIED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.RUN_AS_GRANTED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.SYSTEM_ACCESS_GRANTED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.TAMPERED_REQUEST;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.resolve;
 
 /**
@@ -105,27 +107,30 @@ import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.res
  */
 public class IndexAuditTrail extends AbstractComponent implements AuditTrail, ClusterStateListener {
 
-    public static final int DEFAULT_BULK_SIZE = 1000;
-    public static final int MAX_BULK_SIZE = 10000;
-    public static final int DEFAULT_MAX_QUEUE_SIZE = 1000;
-    public static final TimeValue DEFAULT_FLUSH_INTERVAL = TimeValue.timeValueSeconds(1);
-    public static final IndexNameResolver.Rollover DEFAULT_ROLLOVER = IndexNameResolver.Rollover.DAILY;
+
     public static final String NAME = "index";
     public static final String INDEX_NAME_PREFIX = ".security_audit_log";
     public static final String DOC_TYPE = "event";
-    public static final Setting<IndexNameResolver.Rollover> ROLLOVER_SETTING =
+    public static final String INDEX_TEMPLATE_NAME = "security_audit_log";
+
+    private static final int DEFAULT_BULK_SIZE = 1000;
+    private static final int MAX_BULK_SIZE = 10000;
+    private static final int DEFAULT_MAX_QUEUE_SIZE = 1000;
+    private static final TimeValue DEFAULT_FLUSH_INTERVAL = TimeValue.timeValueSeconds(1);
+    private static final IndexNameResolver.Rollover DEFAULT_ROLLOVER = IndexNameResolver.Rollover.DAILY;
+    private static final Setting<IndexNameResolver.Rollover> ROLLOVER_SETTING =
             new Setting<>(setting("audit.index.rollover"), (s) -> DEFAULT_ROLLOVER.name(),
                     s -> IndexNameResolver.Rollover.valueOf(s.toUpperCase(Locale.ENGLISH)), Property.NodeScope);
-    public static final Setting<Integer> QUEUE_SIZE_SETTING =
+    private static final Setting<Integer> QUEUE_SIZE_SETTING =
             Setting.intSetting(setting("audit.index.queue_max_size"), DEFAULT_MAX_QUEUE_SIZE, 1, Property.NodeScope);
-    public static final String INDEX_TEMPLATE_NAME = "security_audit_log";
-    public static final String DEFAULT_CLIENT_NAME = "security-audit-client";
+    private static final String DEFAULT_CLIENT_NAME = "security-audit-client";
 
-    static final List<String> DEFAULT_EVENT_INCLUDES = Arrays.asList(
+    private static final List<String> DEFAULT_EVENT_INCLUDES = Arrays.asList(
             ACCESS_DENIED.toString(),
             ACCESS_GRANTED.toString(),
             ANONYMOUS_ACCESS_DENIED.toString(),
             AUTHENTICATION_FAILED.toString(),
+            REALM_AUTHENTICATION_FAILED.toString(),
             CONNECTION_DENIED.toString(),
             CONNECTION_GRANTED.toString(),
             TAMPERED_REQUEST.toString(),
@@ -134,22 +139,23 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     );
     private static final String FORBIDDEN_INDEX_SETTING = "index.mapper.dynamic";
 
-    public static final Setting<Settings> INDEX_SETTINGS =
+    private static final Setting<Settings> INDEX_SETTINGS =
             Setting.groupSetting(setting("audit.index.settings.index."), Property.NodeScope);
-    public static final Setting<List<String>> INCLUDE_EVENT_SETTINGS =
+    private static final Setting<List<String>> INCLUDE_EVENT_SETTINGS =
             Setting.listSetting(setting("audit.index.events.include"), DEFAULT_EVENT_INCLUDES, Function.identity(),
                     Property.NodeScope);
-    public static final Setting<List<String>> EXCLUDE_EVENT_SETTINGS =
+    private static final Setting<List<String>> EXCLUDE_EVENT_SETTINGS =
             Setting.listSetting(setting("audit.index.events.exclude"), Collections.emptyList(),
                     Function.identity(), Property.NodeScope);
-    public static final Setting<Settings> REMOTE_CLIENT_SETTINGS =
+    private static final Setting<Boolean> INCLUDE_REQUEST_BODY =
+            Setting.boolSetting(setting("audit.index.events.emit_request_body"), false, Property.NodeScope);
+    private static final Setting<Settings> REMOTE_CLIENT_SETTINGS =
             Setting.groupSetting(setting("audit.index.client."), Property.NodeScope);
-    public static final Setting<Integer> BULK_SIZE_SETTING =
+    private static final Setting<Integer> BULK_SIZE_SETTING =
             Setting.intSetting(setting("audit.index.bulk_size"), DEFAULT_BULK_SIZE, 1, MAX_BULK_SIZE, Property.NodeScope);
-    public static final Setting<TimeValue> FLUSH_TIMEOUT_SETTING =
+    private static final Setting<TimeValue> FLUSH_TIMEOUT_SETTING =
             Setting.timeSetting(setting("audit.index.flush_interval"), DEFAULT_FLUSH_INTERVAL,
                     TimeValue.timeValueMillis(1L), Property.NodeScope);
-
 
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final String nodeName;
@@ -160,12 +166,13 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
     private final Lock putMappingLock = new ReentrantLock();
     private final ClusterService clusterService;
     private final boolean indexToRemoteCluster;
+    private final EnumSet<AuditLevel> events;
+    private final IndexNameResolver.Rollover rollover;
+    private final boolean includeRequestBody;
 
     private BulkProcessor bulkProcessor;
-    private IndexNameResolver.Rollover rollover;
     private String nodeHostName;
     private String nodeHostAddress;
-    private EnumSet<IndexAuditLevel> events;
 
     @Override
     public String name() {
@@ -180,25 +187,10 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         this.queueConsumer = new QueueConsumer(EsExecutors.threadName(settings, "audit-queue-consumer"));
         int maxQueueSize = QUEUE_SIZE_SETTING.get(settings);
         this.eventQueue = createQueue(maxQueueSize);
-
-        // we have to initialize this here since we use rollover in determining if we can start...
-        rollover = ROLLOVER_SETTING.get(settings);
-
-        // we have to initialize the events here since we can receive events before starting...
-        List<String> includedEvents = INCLUDE_EVENT_SETTINGS.get(settings);
-        List<String> excludedEvents = EXCLUDE_EVENT_SETTINGS.get(settings);
-        try {
-            events = parse(includedEvents, excludedEvents);
-        } catch (IllegalArgumentException e) {
-            logger.warn(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                            "invalid event type specified, using default for audit index output. include events [{}], exclude events [{}]",
-                            includedEvents,
-                            excludedEvents),
-                    e);
-            events = parse(DEFAULT_EVENT_INCLUDES, Collections.emptyList());
-        }
+        this.rollover = ROLLOVER_SETTING.get(settings);
+        this.events = parse(INCLUDE_EVENT_SETTINGS.get(settings), EXCLUDE_EVENT_SETTINGS.get(settings));
         this.indexToRemoteCluster = REMOTE_CLIENT_SETTINGS.get(settings).names().size() > 0;
+        this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);
 
         if (indexToRemoteCluster == false) {
             // in the absence of client settings for remote indexing, fall back to the client that was passed in.
@@ -391,7 +383,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
     @Override
     public void authenticationFailed(String realm, AuthenticationToken token, String action, TransportMessage message) {
-        if (events.contains(AUTHENTICATION_FAILED)) {
+        if (events.contains(REALM_AUTHENTICATION_FAILED)) {
             if (XPackUser.is(token.principal()) == false) {
                 try {
                     enqueue(message("authentication_failed", action, token, realm, indices(message), message), "authentication_failed");
@@ -404,7 +396,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
     @Override
     public void authenticationFailed(String realm, AuthenticationToken token, RestRequest request) {
-        if (events.contains(AUTHENTICATION_FAILED)) {
+        if (events.contains(REALM_AUTHENTICATION_FAILED)) {
             if (XPackUser.is(token.principal()) == false) {
                 try {
                     enqueue(message("authentication_failed", null, token, realm, null, request), "authentication_failed");
@@ -610,7 +602,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         if (indices != null) {
             msg.builder.array(Field.INDICES, indices.toArray(Strings.EMPTY_ARRAY));
         }
-        msg.builder.field(Field.REQUEST_BODY, restRequestContent(request));
+        if (includeRequestBody) {
+            msg.builder.field(Field.REQUEST_BODY, restRequestContent(request));
+        }
         msg.builder.field(Field.ORIGIN_TYPE, "rest");
         SocketAddress address = request.getRemoteAddress();
         if (address instanceof InetSocketAddress) {
@@ -630,7 +624,9 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         common("rest", type, msg.builder);
 
         msg.builder.field(Field.PRINCIPAL, user.principal());
-        msg.builder.field(Field.REQUEST_BODY, restRequestContent(request));
+        if (includeRequestBody) {
+            msg.builder.field(Field.REQUEST_BODY, restRequestContent(request));
+        }
         msg.builder.field(Field.ORIGIN_TYPE, "rest");
         SocketAddress address = request.getRemoteAddress();
         if (address instanceof InetSocketAddress) {
@@ -905,6 +901,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         settings.add(FLUSH_TIMEOUT_SETTING);
         settings.add(QUEUE_SIZE_SETTING);
         settings.add(REMOTE_CLIENT_SETTINGS);
+        settings.add(INCLUDE_REQUEST_BODY);
     }
 
     private class QueueConsumer extends Thread {

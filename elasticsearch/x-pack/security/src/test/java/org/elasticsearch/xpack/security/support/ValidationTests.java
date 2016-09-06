@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.support;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.support.Validation.Error;
 import org.elasticsearch.xpack.security.support.Validation.Users;
@@ -55,12 +56,12 @@ public class ValidationTests extends ESTestCase {
     public void testUsersValidateUsername() throws Exception {
         int length = randomIntBetween(1, 30);
         String name = new String(generateValidName(length));
-        assertThat(Users.validateUsername(name), nullValue());
+        assertThat(Users.validateUsername(name, false, Settings.EMPTY), nullValue());
     }
 
     public void testReservedUsernames() {
         final String username = randomFrom(ElasticUser.NAME, KibanaUser.NAME);
-        final Error error = Users.validateUsername(username);
+        final Error error = Users.validateUsername(username, false, Settings.EMPTY);
         assertNotNull(error);
         assertThat(error.toString(), containsString("is reserved"));
     }
@@ -71,13 +72,13 @@ public class ValidationTests extends ESTestCase {
         if (length > 0) {
             name = generateValidName(length);
         }
-        assertThat(Users.validateUsername(new String(name)), notNullValue());
+        assertThat(Users.validateUsername(new String(name), false, Settings.EMPTY), notNullValue());
     }
 
     public void testUsersValidateUsernameInvalidCharacters() throws Exception {
         int length = randomIntBetween(1, 30); // valid length
         String name = new String(generateInvalidName(length));
-        assertThat(Users.validateUsername(name), notNullValue());
+        assertThat(Users.validateUsername(name, false, Settings.EMPTY), notNullValue());
     }
 
     public void testUsersValidatePassword() throws Exception {
@@ -112,13 +113,13 @@ public class ValidationTests extends ESTestCase {
         if (length > 0) {
             name = generateValidName(length);
         }
-        assertThat(Users.validateUsername(new String(name)), notNullValue());
+        assertThat(Users.validateUsername(new String(name), false, Settings.EMPTY), notNullValue());
     }
 
     public void testRolesValidateRoleNameInvalidCharacters() throws Exception {
         int length = randomIntBetween(1, 30); // valid length
         String name = new String(generateInvalidName(length));
-        assertThat(Users.validateUsername(name), notNullValue());
+        assertThat(Users.validateUsername(name, false, Settings.EMPTY), notNullValue());
     }
 
     private static char[] generateValidName(int length) {

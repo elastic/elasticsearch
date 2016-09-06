@@ -24,29 +24,27 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- */
 public class EmailTemplateTests extends ESTestCase {
     public void testEmailTemplateParserSelfGenerated() throws Exception {
-        TextTemplate from = randomFrom(TextTemplate.inline("from@from.com").build(), null);
+        TextTemplate from = randomFrom(new TextTemplate("from@from.com"), null);
         List<TextTemplate> addresses = new ArrayList<>();
         for( int i = 0; i < randomIntBetween(1, 5); ++i){
-            addresses.add(TextTemplate.inline("address" + i + "@test.com").build());
+            addresses.add(new TextTemplate("address" + i + "@test.com"));
         }
         TextTemplate[] possibleList = addresses.toArray(new TextTemplate[addresses.size()]);
         TextTemplate[] replyTo = randomFrom(possibleList, null);
         TextTemplate[] to = randomFrom(possibleList, null);
         TextTemplate[] cc = randomFrom(possibleList, null);
         TextTemplate[] bcc = randomFrom(possibleList, null);
-        TextTemplate priority = TextTemplate.inline(randomFrom(Email.Priority.values()).name()).build();
+        TextTemplate priority = new TextTemplate(randomFrom(Email.Priority.values()).name());
 
-        TextTemplate subjectTemplate = TextTemplate.inline("Templated Subject {{foo}}").build();
+        TextTemplate subjectTemplate = new TextTemplate("Templated Subject {{foo}}");
         String subject = "Templated Subject bar";
 
-        TextTemplate textBodyTemplate = TextTemplate.inline("Templated Body {{foo}}").build();
+        TextTemplate textBodyTemplate = new TextTemplate("Templated Body {{foo}}");
         String textBody = "Templated Body bar";
 
-        TextTemplate htmlBodyTemplate = TextTemplate.inline("Templated Html Body <script>nefarious scripting</script>").build();
+        TextTemplate htmlBodyTemplate = new TextTemplate("Templated Html Body <script>nefarious scripting</script>");
         String htmlBody = "Templated Html Body <script>nefarious scripting</script>";
         String sanitizedHtmlBody = "Templated Html Body";
 

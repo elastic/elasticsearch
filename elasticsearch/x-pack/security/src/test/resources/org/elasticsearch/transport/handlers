@@ -21,6 +21,7 @@ cluster:admin/xpack/security/user/change_password
 cluster:admin/xpack/security/user/put
 cluster:admin/xpack/security/user/delete
 cluster:admin/xpack/security/user/get
+cluster:admin/xpack/security/user/set_enabled
 indices:admin/analyze[s]
 indices:admin/cache/clear[n]
 indices:admin/forcemerge[n]

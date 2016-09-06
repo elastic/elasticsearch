@@ -229,7 +229,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
             Path usersFile = FileUserPasswdStore.resolveFile(env);
             Path usersRolesFile = FileUserRolesStore.resolveFile(env);
             terminal.println("importing users from [" + usersFile + "]...");
-            Map<String, char[]> userToHashedPW = FileUserPasswdStore.parseFile(usersFile, null);
+            Map<String, char[]> userToHashedPW = FileUserPasswdStore.parseFile(usersFile, null, settings);
             Map<String, String[]> userToRoles = FileUserRolesStore.parseFile(usersRolesFile, null);
             Set<String> existingUsers;
             try {

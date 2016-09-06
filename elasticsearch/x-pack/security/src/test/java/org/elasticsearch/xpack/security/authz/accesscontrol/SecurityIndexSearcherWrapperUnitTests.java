@@ -440,7 +440,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
     public void testTemplating() throws Exception {
         User user = new User("_username", new String[]{"role1", "role2"}, "_full_name", "_email",
-                Collections.singletonMap("key", "value"));
+                Collections.singletonMap("key", "value"), true);
         securityIndexSearcherWrapper =
                 new SecurityIndexSearcherWrapper(indexSettings, null, mapperService, null, threadContext, licenseState, scriptService) {
 

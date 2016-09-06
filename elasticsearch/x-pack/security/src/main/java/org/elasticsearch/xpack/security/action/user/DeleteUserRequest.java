@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.action.user;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -17,16 +18,27 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to delete a native user.
  */
-public class DeleteUserRequest extends ActionRequest<DeleteUserRequest> implements UserRequest {
+public class DeleteUserRequest extends ActionRequest<DeleteUserRequest> implements UserRequest, WriteRequest<DeleteUserRequest> {
 
     private String username;
-    private boolean refresh = true;
+    private RefreshPolicy refreshPolicy = RefreshPolicy.IMMEDIATE;
 
     public DeleteUserRequest() {
     }
 
     public DeleteUserRequest(String username) {
         this.username = username;
+    }
+
+    @Override
+    public DeleteUserRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {
+        this.refreshPolicy = refreshPolicy;
+        return this;
+    }
+
+    @Override
+    public RefreshPolicy getRefreshPolicy() {
+        return refreshPolicy;
     }
 
     @Override
@@ -42,16 +54,8 @@ public class DeleteUserRequest extends ActionRequest<DeleteUserRequest> implemen
         return this.username;
     }
 
-    public boolean refresh() {
-        return refresh;
-    }
-
     public void username(String username) {
         this.username = username;
-    }
-
-    public void refresh(boolean refresh) {
-        this.refresh = refresh;
     }
 
     @Override
@@ -63,14 +67,14 @@ public class DeleteUserRequest extends ActionRequest<DeleteUserRequest> implemen
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         username = in.readString();
-        refresh = in.readBoolean();
+        refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(username);
-        out.writeBoolean(refresh);
+        refreshPolicy.writeTo(out);
     }
 
 }

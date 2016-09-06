@@ -9,22 +9,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.xpack.security.user.User.ReservedUser;
+import org.elasticsearch.xpack.security.support.MetadataUtils;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 
 /**
- * The user object for the anonymous user. This class needs to be instantiated with the <code>initialize</code> method since the values
- * of the user depends on the settings. However, this is still a singleton instance. Ideally we would assert that an instance of this class
- * is only initialized once, but with the way our tests work the same class will be initialized multiple times (one for each node in a
- * integration test).
+ * The user object for the anonymous user.
  */
-public class AnonymousUser extends ReservedUser {
+public class AnonymousUser extends User {
 
     public static final String DEFAULT_ANONYMOUS_USERNAME = "_anonymous";
     public static final Setting<String> USERNAME_SETTING =
@@ -32,57 +27,18 @@ public class AnonymousUser extends ReservedUser {
     public static final Setting<List<String>> ROLES_SETTING =
             Setting.listSetting(setting("authc.anonymous.roles"), Collections.emptyList(), s -> s, Property.NodeScope);
 
-    private static String username = DEFAULT_ANONYMOUS_USERNAME;
-    private static String[] roles = null;
-
-    public static final AnonymousUser INSTANCE = new AnonymousUser();
-
-    private AnonymousUser() {
-        super(DEFAULT_ANONYMOUS_USERNAME);
+    public AnonymousUser(Settings settings) {
+        super(USERNAME_SETTING.get(settings), ROLES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY), null, null,
+                MetadataUtils.DEFAULT_RESERVED_METADATA, isAnonymousEnabled(settings));
     }
 
-    @Override
-    public String principal() {
-        return username;
+    public static boolean isAnonymousEnabled(Settings settings) {
+        return ROLES_SETTING.exists(settings) && ROLES_SETTING.get(settings).isEmpty() == false;
     }
 
-    @Override
-    public String[] roles() {
-        return roles;
-    }
-
-    public static boolean enabled() {
-        return roles != null;
-    }
-
-    public static boolean is(User user) {
-        return INSTANCE == user;
-    }
-
-    public static boolean isAnonymousUsername(String username) {
-        return AnonymousUser.username.equals(username);
-    }
-
-    /**
-     * This method should be used to initialize the AnonymousUser instance with the correct username and password
-     * @param settings the settings to initialize the anonymous user with
-     */
-    public static synchronized void initialize(Settings settings) {
-        username = USERNAME_SETTING.get(settings);
-        List<String> rolesList = ROLES_SETTING.get(settings);
-        if (rolesList.isEmpty()) {
-            roles = null;
-        } else {
-            roles = rolesList.toArray(Strings.EMPTY_ARRAY);
-        }
-    }
-
-    public static String[] getRoles() {
-        return roles;
-    }
-
-    public static List<Setting<?>> getSettings() {
-        return Arrays.asList();
+    public static boolean isAnonymousUsername(String username, Settings settings) {
+        // this is possibly the same check but we should not let anything use the default name either
+        return USERNAME_SETTING.get(settings).equals(username) || DEFAULT_ANONYMOUS_USERNAME.equals(username);
     }
 
     public static void addSettings(List<Setting<?>> settingsList) {

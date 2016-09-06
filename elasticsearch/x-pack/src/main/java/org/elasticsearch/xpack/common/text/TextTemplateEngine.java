@@ -28,18 +28,24 @@ public class TextTemplateEngine extends AbstractComponent {
         this.service = service;
     }
 
-    // TODO: move over to use o.e.script.Script instead
-    public String render(TextTemplate template, Map<String, Object> model) {
-        if (template == null) {
+    public String render(TextTemplate textTemplate, Map<String, Object> model) {
+        if (textTemplate == null) {
             return null;
         }
 
+        String template = textTemplate.getTemplate();
         XContentType contentType = detectContentType(template);
         Map<String, String> compileParams = compileParams(contentType);
-        template = trimContentType(template);
+        template = trimContentType(textTemplate);
 
-        CompiledScript compiledScript = service.compile(convert(template, model), Watcher.SCRIPT_CONTEXT,
-                compileParams);
+        Map<String, Object> mergedModel = new HashMap<>();
+        if (textTemplate.getParams() != null) {
+            mergedModel.putAll(textTemplate.getParams());
+        }
+        mergedModel.putAll(model);
+
+        Script script = new Script(template, textTemplate.getType(), "mustache", mergedModel, textTemplate.getContentType());
+        CompiledScript compiledScript = service.compile(script, Watcher.SCRIPT_CONTEXT, compileParams);
         ExecutableScript executable = service.executable(compiledScript, model);
         Object result = executable.run();
         if (result instanceof BytesReference) {
@@ -48,10 +54,10 @@ public class TextTemplateEngine extends AbstractComponent {
         return result.toString();
     }
 
-    private TextTemplate trimContentType(TextTemplate textTemplate) {
+    private String trimContentType(TextTemplate textTemplate) {
         String template = textTemplate.getTemplate();
         if (!template.startsWith("__")){
-            return textTemplate; //Doesn't even start with __ so can't have a content type
+            return template; //Doesn't even start with __ so can't have a content type
         }
         // There must be a __<content_type__:: prefix so the minimum length before detecting '__::' is 3
         int index = template.indexOf("__::", 3);
@@ -64,26 +70,18 @@ public class TextTemplateEngine extends AbstractComponent {
                 template = template.substring(index + 4);
             }
         }
-        return new TextTemplate(template, textTemplate.getContentType(), textTemplate.getType(), textTemplate.getParams());
+        return template;
     }
 
-    private XContentType detectContentType(TextTemplate textTemplate) {
-        String template = textTemplate.getTemplate();
-        if (template.startsWith("__")) {
+    private XContentType detectContentType(String content) {
+        if (content.startsWith("__")) {
             //There must be a __<content_type__:: prefix so the minimum length before detecting '__::' is 3
-            int endOfContentName = template.indexOf("__::", 3);
+            int endOfContentName = content.indexOf("__::", 3);
             if (endOfContentName != -1) {
-                return XContentType.fromMediaTypeOrFormat(template.substring(2, endOfContentName));
+                return XContentType.fromMediaTypeOrFormat(content.substring(2, endOfContentName));
             }
         }
         return null;
-    }
-
-    private Script convert(TextTemplate textTemplate, Map<String, Object> model) {
-        Map<String, Object> mergedModel = new HashMap<>();
-        mergedModel.putAll(textTemplate.getParams());
-        mergedModel.putAll(model);
-        return new Script(textTemplate.getTemplate(), textTemplate.getType(), "mustache", mergedModel, textTemplate.getContentType());
     }
 
     private Map<String, String> compileParams(XContentType contentType) {

@@ -11,14 +11,15 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
-import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
+import org.elasticsearch.xpack.security.user.ElasticUser;
+import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.junit.After;
+import org.elasticsearch.xpack.security.user.XPackUser;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
@@ -40,19 +41,13 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class TransportDeleteUserActionTests extends ESTestCase {
 
-    @After
-    public void resetAnonymous() {
-        AnonymousUser.initialize(Settings.EMPTY);
-    }
-
     public void testAnonymousUser() {
         Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "superuser").build();
-        AnonymousUser.initialize(settings);
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
-        TransportDeleteUserAction action = new TransportDeleteUserAction(Settings.EMPTY, mock(ThreadPool.class),
+        TransportDeleteUserAction action = new TransportDeleteUserAction(settings, mock(ThreadPool.class),
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore, mock(TransportService.class));
 
-        DeleteUserRequest request = new DeleteUserRequest(AnonymousUser.INSTANCE.principal());
+        DeleteUserRequest request = new DeleteUserRequest(new AnonymousUser(settings).principal());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<DeleteUserResponse> responseRef = new AtomicReference<>();
@@ -74,12 +69,12 @@ public class TransportDeleteUserActionTests extends ESTestCase {
         verifyZeroInteractions(usersStore);
     }
 
-    public void testSystemUser() {
+    public void testInternalUser() {
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportDeleteUserAction action = new TransportDeleteUserAction(Settings.EMPTY, mock(ThreadPool.class),
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore, mock(TransportService.class));
 
-        DeleteUserRequest request = new DeleteUserRequest(SystemUser.INSTANCE.principal());
+        DeleteUserRequest request = new DeleteUserRequest(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal()));
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<DeleteUserResponse> responseRef = new AtomicReference<>();
@@ -102,7 +97,7 @@ public class TransportDeleteUserActionTests extends ESTestCase {
     }
 
     public void testReservedUser() {
-        final User reserved = randomFrom(ReservedRealm.users().toArray(new User[0]));
+        final User reserved = randomFrom(new ElasticUser(true), new KibanaUser(true));
         NativeUsersStore usersStore = mock(NativeUsersStore.class);
         TransportDeleteUserAction action = new TransportDeleteUserAction(Settings.EMPTY, mock(ThreadPool.class),
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), usersStore, mock(TransportService.class));

@@ -18,9 +18,6 @@ import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 
-/**
- *
- */
 public final class ActionBuilders {
 
     private ActionBuilders() {
@@ -47,11 +44,7 @@ public final class ActionBuilders {
     }
 
     public static LoggingAction.Builder loggingAction(String text) {
-        return loggingAction(TextTemplate.inline(text));
-    }
-
-    public static LoggingAction.Builder loggingAction(TextTemplate.Builder text) {
-        return loggingAction(text.build());
+        return loggingAction(new TextTemplate(text));
     }
 
     public static LoggingAction.Builder loggingAction(TextTemplate text) {
@@ -59,20 +52,13 @@ public final class ActionBuilders {
     }
 
     public static HipChatAction.Builder hipchatAction(String message) {
-        return hipchatAction(TextTemplate.inline(message));
+        return hipchatAction(new TextTemplate(message));
     }
 
     public static HipChatAction.Builder hipchatAction(String account, String body) {
-        return hipchatAction(account, TextTemplate.inline(body));
+        return hipchatAction(account, new TextTemplate(body));
     }
 
-    public static HipChatAction.Builder hipchatAction(TextTemplate.Builder body) {
-        return hipchatAction(body.build());
-    }
-
-    public static HipChatAction.Builder hipchatAction(String account, TextTemplate.Builder body) {
-        return hipchatAction(account, body.build());
-    }
 
     public static HipChatAction.Builder hipchatAction(TextTemplate body) {
         return hipchatAction(null, body);

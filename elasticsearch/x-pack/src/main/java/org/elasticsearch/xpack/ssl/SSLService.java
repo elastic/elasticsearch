@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ssl;
 
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -13,6 +15,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.XPackSettings;
 
+import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
@@ -93,12 +96,62 @@ public class SSLService extends AbstractComponent {
     }
 
     /**
+     * Create a new {@link SSLIOSessionStrategy} based on the provided settings. The settings are used to identify the SSL configuration
+     * that should be used to create the context.
+     *
+     * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix. An empty settings will return
+     *                 a context created from the default configuration
+     * @return Never {@code null}.
+     */
+    public SSLIOSessionStrategy sslIOSessionStrategy(Settings settings) {
+        SSLConfiguration config = sslConfiguration(settings);
+        SSLContext sslContext = sslContext(config);
+        String[] ciphers = supportedCiphers(sslParameters(sslContext).getCipherSuites(), config.cipherSuites(), false);
+        String[] supportedProtocols = config.supportedProtocols().toArray(Strings.EMPTY_ARRAY);
+        HostnameVerifier verifier;
+
+        if (config.verificationMode().isHostnameVerificationEnabled()) {
+            verifier = SSLIOSessionStrategy.getDefaultHostnameVerifier();
+        } else {
+            verifier = NoopHostnameVerifier.INSTANCE;
+        }
+
+        return sslIOSessionStrategy(sslContext, supportedProtocols, ciphers, verifier);
+    }
+
+    /**
+     * The {@link SSLParameters} that are associated with the {@code sslContext}.
+     * <p>
+     * This method exists to simplify testing since {@link SSLContext#getSupportedSSLParameters()} is {@code final}.
+     *
+     * @param sslContext The SSL context for the current SSL settings
+     * @return Never {@code null}.
+     */
+    SSLParameters sslParameters(SSLContext sslContext) {
+        return sslContext.getSupportedSSLParameters();
+    }
+
+    /**
+     * This method only exists to simplify testing of {@link #sslIOSessionStrategy(Settings)} because {@link SSLIOSessionStrategy} does
+     * not expose any of the parameters that you give it.
+     *
+     * @param sslContext SSL Context used to handle SSL / TCP requests
+     * @param protocols Supported protocols
+     * @param ciphers Supported ciphers
+     * @param verifier Hostname verifier
+     * @return Never {@code null}.
+     */
+    SSLIOSessionStrategy sslIOSessionStrategy(SSLContext sslContext, String[] protocols, String[] ciphers, HostnameVerifier verifier) {
+        return new SSLIOSessionStrategy(sslContext, protocols, ciphers, verifier);
+    }
+
+    /**
      * Create a new {@link SSLSocketFactory} based on the provided settings. The settings are used to identify the ssl configuration that
      * should be used to create the socket factory. The socket factory will also properly configure the ciphers and protocols on each
      * socket that is created
      * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix. An empty settings will return
      *                 a factory created from the default configuration
-     * @return {@link SSLSocketFactory}
+     * @return Never {@code null}.
      */
     public SSLSocketFactory sslSocketFactory(Settings settings) {
         SSLConfiguration sslConfiguration = sslConfiguration(settings);

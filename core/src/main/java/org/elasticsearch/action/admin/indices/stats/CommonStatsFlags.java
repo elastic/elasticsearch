@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -63,11 +62,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         groups = in.readStringArray();
         fieldDataFields = in.readStringArray();
         completionDataFields = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_5_0_0_alpha1)) {
-            includeSegmentFileSizes = in.readBoolean();
-        } else {
-            includeSegmentFileSizes = false;
-        }
+        includeSegmentFileSizes = in.readBoolean();
     }
 
     @Override
@@ -82,9 +77,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         out.writeStringArrayNullable(groups);
         out.writeStringArrayNullable(fieldDataFields);
         out.writeStringArrayNullable(completionDataFields);
-        if (out.getVersion().onOrAfter(Version.V_5_0_0_alpha1)) {
-            out.writeBoolean(includeSegmentFileSizes);
-        }
+        out.writeBoolean(includeSegmentFileSizes);
     }
 
     /**

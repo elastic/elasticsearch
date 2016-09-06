@@ -66,7 +66,9 @@ class RemovePluginCommand extends SettingCommand {
 
         Path pluginDir = env.pluginsFile().resolve(pluginName);
         if (Files.exists(pluginDir) == false) {
-            throw new UserException(ExitCodes.USAGE, "plugin " + pluginName + " not found; run 'elasticsearch-plugin list' to get list of installed plugins");
+            throw new UserException(
+                    ExitCodes.USAGE,
+                    "plugin " + pluginName + " not found; run 'elasticsearch-plugin list' to get list of installed plugins");
         }
 
         List<Path> pluginPaths = new ArrayList<>();

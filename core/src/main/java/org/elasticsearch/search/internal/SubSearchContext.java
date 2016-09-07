@@ -37,8 +37,6 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
 
-/**
- */
 public class SubSearchContext extends FilteredSearchContext {
 
     // By default return 3 hits per bucket. A higher default would make the response really large by default, since

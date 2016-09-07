@@ -19,28 +19,12 @@
 
 package org.elasticsearch.search.fetch;
 
+import org.elasticsearch.common.xcontent.XContentParser;
+
 /**
- * All configuration and context needed by the FetchSubPhase to execute on hits.
- * The only required information in this base class is whether or not the sub phase needs to be run at all.
- * It can be extended by FetchSubPhases to hold information the phase needs to execute on hits.
+ * Parser for the ext section of a search request, which can hold custom fetch sub phase
  */
-public abstract class FetchSubPhaseContext {
+public interface FetchSubPhaseParser<Context extends FetchSubPhaseContext> {
 
-    // This is to store if the FetchSubPhase should be executed at all.
-    private boolean hitExecutionNeeded = false;
-
-    /**
-     * Set if this phase should be executed at all.
-     */
-    public void setHitExecutionNeeded(boolean hitExecutionNeeded) {
-        this.hitExecutionNeeded = hitExecutionNeeded;
-    }
-
-    /**
-     * Returns if this phase be executed at all.
-     */
-    public boolean hitExecutionNeeded() {
-        return hitExecutionNeeded;
-    }
-
+    Context parse(XContentParser parser) throws Exception;
 }

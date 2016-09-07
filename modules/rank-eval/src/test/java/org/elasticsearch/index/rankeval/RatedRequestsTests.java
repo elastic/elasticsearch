@@ -42,7 +42,7 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 
-public class QuerySpecTests extends ESTestCase {
+public class RatedRequestsTests extends ESTestCase {
 
     private static SearchModule searchModule;
     private static SearchRequestParsers searchRequestParsers;

@@ -82,7 +82,7 @@ public class RankEvalSpecTests extends ESTestCase {
         List<RatedRequest> specs = new ArrayList<>();
         size = randomIntBetween(1, 2); // TODO I guess requests with no query spec should be rejected...
         for (int i = 0; i < size; i++) {
-            specs.add(QuerySpecTests.createTestItem(indices, types));
+            specs.add(RatedRequestsTests.createTestItem(indices, types));
         }
 
         String specId = randomAsciiOfLengthBetween(1, 10); // TODO we should reject zero length ids ...

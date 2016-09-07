@@ -35,12 +35,14 @@ public class UnassignedShardDecisionTests extends ESTestCase {
     public void testDecisionNotTaken() {
         UnassignedShardDecision unassignedShardDecision = UnassignedShardDecision.DECISION_NOT_TAKEN;
         assertFalse(unassignedShardDecision.isDecisionTaken());
-        assertNull(unassignedShardDecision.getDecision());
+        assertNull(unassignedShardDecision.getFinalDecision());
         assertNull(unassignedShardDecision.getAllocationStatus());
         assertNull(unassignedShardDecision.getAllocationId());
         assertNull(unassignedShardDecision.getAssignedNodeId());
-        assertNull(unassignedShardDecision.getExplanation());
+        assertNull(unassignedShardDecision.getFinalExplanation());
         assertNull(unassignedShardDecision.getNodeDecisions());
+        expectThrows(IllegalArgumentException.class, () -> unassignedShardDecision.getFinalDecisionSafe());
+        expectThrows(IllegalArgumentException.class, () -> unassignedShardDecision.getFinalExplanationSafe());
     }
 
     public void testNoDecision() {
@@ -49,9 +51,9 @@ public class UnassignedShardDecisionTests extends ESTestCase {
         );
         UnassignedShardDecision noDecision = UnassignedShardDecision.noDecision(allocationStatus, "something is wrong");
         assertTrue(noDecision.isDecisionTaken());
-        assertEquals(Decision.Type.NO, noDecision.getDecision().type());
+        assertEquals(Decision.Type.NO, noDecision.getFinalDecision().type());
         assertEquals(allocationStatus, noDecision.getAllocationStatus());
-        assertEquals("something is wrong", noDecision.getExplanation());
+        assertEquals("something is wrong", noDecision.getFinalExplanation());
         assertNull(noDecision.getNodeDecisions());
         assertNull(noDecision.getAssignedNodeId());
         assertNull(noDecision.getAllocationId());
@@ -61,9 +63,9 @@ public class UnassignedShardDecisionTests extends ESTestCase {
         nodeDecisions.put("node2", Decision.NO);
         noDecision = UnassignedShardDecision.noDecision(AllocationStatus.DECIDERS_NO, "something is wrong", nodeDecisions);
         assertTrue(noDecision.isDecisionTaken());
-        assertEquals(Decision.Type.NO, noDecision.getDecision().type());
+        assertEquals(Decision.Type.NO, noDecision.getFinalDecision().type());
         assertEquals(AllocationStatus.DECIDERS_NO, noDecision.getAllocationStatus());
-        assertEquals("something is wrong", noDecision.getExplanation());
+        assertEquals("something is wrong", noDecision.getFinalExplanation());
         assertEquals(nodeDecisions, noDecision.getNodeDecisions());
         assertNull(noDecision.getAssignedNodeId());
         assertNull(noDecision.getAllocationId());
@@ -79,9 +81,9 @@ public class UnassignedShardDecisionTests extends ESTestCase {
         nodeDecisions.put("node2", Decision.THROTTLE);
         UnassignedShardDecision throttleDecision = UnassignedShardDecision.throttleDecision("too much happening", nodeDecisions);
         assertTrue(throttleDecision.isDecisionTaken());
-        assertEquals(Decision.Type.THROTTLE, throttleDecision.getDecision().type());
+        assertEquals(Decision.Type.THROTTLE, throttleDecision.getFinalDecision().type());
         assertEquals(AllocationStatus.DECIDERS_THROTTLED, throttleDecision.getAllocationStatus());
-        assertEquals("too much happening", throttleDecision.getExplanation());
+        assertEquals("too much happening", throttleDecision.getFinalExplanation());
         assertEquals(nodeDecisions, throttleDecision.getNodeDecisions());
         assertNull(throttleDecision.getAssignedNodeId());
         assertNull(throttleDecision.getAllocationId());
@@ -100,9 +102,9 @@ public class UnassignedShardDecisionTests extends ESTestCase {
             "node was very kind", "node1", allocId, nodeDecisions
         );
         assertTrue(yesDecision.isDecisionTaken());
-        assertEquals(Decision.Type.YES, yesDecision.getDecision().type());
+        assertEquals(Decision.Type.YES, yesDecision.getFinalDecision().type());
         assertNull(yesDecision.getAllocationStatus());
-        assertEquals("node was very kind", yesDecision.getExplanation());
+        assertEquals("node was very kind", yesDecision.getFinalExplanation());
         assertEquals(nodeDecisions, yesDecision.getNodeDecisions());
         assertEquals("node1", yesDecision.getAssignedNodeId());
         assertEquals(allocId, yesDecision.getAllocationId());

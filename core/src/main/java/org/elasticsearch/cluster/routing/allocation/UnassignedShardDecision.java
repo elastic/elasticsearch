@@ -38,11 +38,11 @@ public class UnassignedShardDecision {
 
     private final boolean decisionTaken;
     @Nullable
-    private final Decision decision;
+    private final Decision finalDecision;
     @Nullable
     private final AllocationStatus allocationStatus;
     @Nullable
-    private final String explanation;
+    private final String finalExplanation;
     @Nullable
     private final String assignedNodeId;
     @Nullable
@@ -51,23 +51,26 @@ public class UnassignedShardDecision {
     private final Map<String, Decision> nodeDecisions;
 
     private UnassignedShardDecision(boolean decisionTaken,
-                                    Decision decision,
+                                    Decision finalDecision,
                                     AllocationStatus allocationStatus,
-                                    String explanation,
+                                    String finalExplanation,
                                     String assignedNodeId,
                                     String allocationId,
                                     Map<String, Decision> nodeDecisions) {
-        assert decision != null || decisionTaken == false : "if a decision was taken, we must have the accompanying decision";
-        assert explanation != null || decisionTaken == false : "if a decision was taken, there must be an explanation for it";
-        assert assignedNodeId != null || decisionTaken == false || decision.type() != Type.YES :
+        assert finalDecision != null || decisionTaken == false :
+            "if a decision was taken, we must have the accompanying decision";
+        assert finalExplanation != null || decisionTaken == false :
+            "if a decision was taken, there must be an explanation for it";
+        assert assignedNodeId != null || decisionTaken == false || finalDecision.type() != Type.YES :
             "a yes decision must have a node to assign the shard to";
-        assert allocationStatus != null || decisionTaken == false || decision.type() == Type.YES :
+        assert allocationStatus != null || decisionTaken == false || finalDecision.type() == Type.YES :
             "only a yes decision should not have an allocation status";
-        assert allocationId == null || assignedNodeId != null : "allocation id can only be null if the assigned node is null";
+        assert allocationId == null || assignedNodeId != null :
+            "allocation id can only be null if the assigned node is null";
         this.decisionTaken = decisionTaken;
-        this.decision = decision;
+        this.finalDecision = finalDecision;
         this.allocationStatus = allocationStatus;
-        this.explanation = explanation;
+        this.finalExplanation = finalExplanation;
         this.assignedNodeId = assignedNodeId;
         this.allocationId = allocationId;
         this.nodeDecisions = nodeDecisions != null ? Collections.unmodifiableMap(nodeDecisions) : null;
@@ -77,9 +80,7 @@ public class UnassignedShardDecision {
      * Creates a NO decision with the given {@link AllocationStatus} and explanation for the NO decision.
      */
     public static UnassignedShardDecision noDecision(AllocationStatus allocationStatus, String explanation) {
-        Objects.requireNonNull(explanation, "explanation must not be null");
-        Objects.requireNonNull(allocationStatus, "allocationStatus must not be null");
-        return new UnassignedShardDecision(true, Decision.NO, allocationStatus, explanation, null, null, null);
+        return noDecision(allocationStatus, explanation, null);
     }
 
     /**
@@ -88,10 +89,9 @@ public class UnassignedShardDecision {
      */
     public static UnassignedShardDecision noDecision(AllocationStatus allocationStatus,
                                                      String explanation,
-                                                     Map<String, Decision> nodeDecisions) {
+                                                     @Nullable Map<String, Decision> nodeDecisions) {
         Objects.requireNonNull(explanation, "explanation must not be null");
         Objects.requireNonNull(allocationStatus, "allocationStatus must not be null");
-        Objects.requireNonNull(nodeDecisions, "nodeDecisions must not be null");
         return new UnassignedShardDecision(true, Decision.NO, allocationStatus, explanation, null, null, nodeDecisions);
     }
 
@@ -114,7 +114,7 @@ public class UnassignedShardDecision {
      */
     public static UnassignedShardDecision yesDecision(String explanation,
                                                       String assignedNodeId,
-                                                      String allocationId,
+                                                      @Nullable String allocationId,
                                                       Map<String, Decision> nodeDecisions) {
         Objects.requireNonNull(explanation, "explanation must not be null");
         Objects.requireNonNull(assignedNodeId, "assignedNodeId must not be null");
@@ -135,8 +135,20 @@ public class UnassignedShardDecision {
      * This value can only be {@code null} if {@link #isDecisionTaken()} returns {@code false}.
      */
     @Nullable
-    public Decision getDecision() {
-        return decision;
+    public Decision getFinalDecision() {
+        return finalDecision;
+    }
+
+    /**
+     * Returns the final decision made by the allocator on whether to assign the unassigned shard.
+     * Only call this method if {@link #isDecisionTaken()} returns {@code true}, otherwise it will
+     * throw an {@code IllegalArgumentException}.
+     */
+    public Decision getFinalDecisionSafe() {
+        if (isDecisionTaken() == false) {
+            throw new IllegalArgumentException("decision must have been taken in order to return the final decision");
+        }
+        return finalDecision;
     }
 
     /**
@@ -149,15 +161,27 @@ public class UnassignedShardDecision {
     }
 
     /**
-     * Get the free-text explanation for the reason behind the decision taken in {@link #getDecision()}.
+     * Returns the free-text explanation for the reason behind the decision taken in {@link #getFinalDecision()}.
      */
     @Nullable
-    public String getExplanation() {
-        return explanation;
+    public String getFinalExplanation() {
+        return finalExplanation;
     }
 
     /**
-     * Get the node id that the allocator will assign the shard to, unless {@link #getDecision()} returns
+     * Returns the free-text explanation for the reason behind the decision taken in {@link #getFinalDecision()}.
+     * Only call this method if {@link #isDecisionTaken()} returns {@code true}, otherwise it will
+     * throw an {@code IllegalArgumentException}.
+     */
+    public String getFinalExplanationSafe() {
+        if (isDecisionTaken() == false) {
+            throw new IllegalArgumentException("decision must have been taken in order to return the final explanation");
+        }
+        return finalExplanation;
+    }
+
+    /**
+     * Get the node id that the allocator will assign the shard to, unless {@link #getFinalDecision()} returns
      * a value other than {@link Decision.Type#YES}, in which case this returns {@code null}.
      */
     @Nullable
@@ -178,7 +202,7 @@ public class UnassignedShardDecision {
 
     /**
      * Gets the individual node-level decisions that went into making the final decision as represented by
-     * {@link #getDecision()}.  The map that is returned has the node id as the key and a {@link Decision}
+     * {@link #getFinalDecision()}.  The map that is returned has the node id as the key and a {@link Decision}
      * as the decision for the given node.
      */
     @Nullable

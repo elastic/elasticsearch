@@ -24,7 +24,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 /**
  * Parser for the ext section of a search request, which can hold custom fetch sub phase
  */
-public interface FetchSubPhaseParser<Context extends FetchSubPhaseContext> {
+public interface FetchSubPhaseParser {
 
-    Context parse(XContentParser parser) throws Exception;
+    Object parse(XContentParser parser) throws Exception;
 }

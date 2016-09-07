@@ -26,6 +26,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -62,6 +63,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         return Collections.singletonList(FetchTermVectorsPlugin.class);
     }
 
+    @SuppressWarnings("unchecked")
     public void testPlugin() throws Exception {
         client().admin()
                 .indices()
@@ -104,22 +106,20 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
     }
 
     public static final class TermVectorsFetchSubPhase implements FetchSubPhase {
-
-        public static final String NAME = "term_vectors_fetch";
+        private static final String NAME = "term_vectors_fetch";
 
         @Override
         public Map<String, ? extends FetchSubPhaseParser> parsers() {
-            return singletonMap("term_vectors_fetch", new TermVectorsFetchParser());
+            return singletonMap(NAME, new TermVectorsFetchParser());
         }
 
         @Override
         public void hitExecute(SearchContext context, HitContext hitContext) {
-            TermVectorsFetchContext fetchSubPhaseContext = context.getFetchSubPhaseContext(NAME);
-            if (fetchSubPhaseContext.hitExecutionNeeded() == false) {
+            TermVectorsFetchBuilder fetchSubPhaseBuilder = (TermVectorsFetchBuilder)context.getFetchSubPhaseBuilder(NAME);
+            if (fetchSubPhaseBuilder == null) {
                 return;
             }
-            String field = fetchSubPhaseContext.getField();
-
+            String field = fetchSubPhaseBuilder.getField();
             if (hitContext.hit().fieldsOrNull() == null) {
                 hitContext.hit().fields(new HashMap<>());
             }
@@ -145,32 +145,27 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         }
     }
 
-    public static class TermVectorsFetchParser implements FetchSubPhaseParser<TermVectorsFetchContext> {
-
+    public static class TermVectorsFetchParser implements FetchSubPhaseParser {
         @Override
-        public TermVectorsFetchContext parse(XContentParser parser) throws Exception {
-            // this is to make sure that the SubFetchPhase knows it should execute
-            TermVectorsFetchContext termVectorsFetchContext = new TermVectorsFetchContext();
-            termVectorsFetchContext.setHitExecutionNeeded(true);
+        public TermVectorsFetchBuilder parse(XContentParser parser) throws Exception {
+            String field;
             XContentParser.Token token = parser.currentToken();
             if (token == XContentParser.Token.VALUE_STRING) {
-                String fieldName = parser.text();
-                termVectorsFetchContext.setField(fieldName);
+                field = parser.text();
             } else {
-                throw new IllegalStateException("Expected a VALUE_STRING but got " + token);
+                throw new ParsingException(parser.getTokenLocation(), "Expected a VALUE_STRING but got " + token);
             }
-            return termVectorsFetchContext;
+            if (field == null) {
+                throw new ParsingException(parser.getTokenLocation(), "no fields specified for " + TermVectorsFetchSubPhase.NAME);
+            }
+            return new TermVectorsFetchBuilder(field);
         }
     }
 
-    public static class TermVectorsFetchContext extends FetchSubPhaseContext {
+    public static class TermVectorsFetchBuilder {
+        private final String field;
 
-        private String field = null;
-
-        public TermVectorsFetchContext() {
-        }
-
-        public void setField(String field) {
+        private TermVectorsFetchBuilder(String field) {
             this.field = field;
         }
 

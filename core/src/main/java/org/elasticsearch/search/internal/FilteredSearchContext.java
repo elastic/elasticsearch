@@ -43,7 +43,6 @@ import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
@@ -511,13 +510,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(String name) {
-        return in.getFetchSubPhaseContext(name);
+    public void putFetchSubPhaseBuilder(String name, Object fetchSubPhaseBuilder) {
+        in.putFetchSubPhaseBuilder(name, fetchSubPhaseBuilder);
     }
 
     @Override
-    public <SubPhaseContext extends FetchSubPhaseContext> void putFetchSubPhaseContext(String name, SubPhaseContext subPhaseContext) {
-        in.putFetchSubPhaseContext(name, subPhaseContext);
+    public Object getFetchSubPhaseBuilder(String name) {
+        return in.getFetchSubPhaseBuilder(name);
     }
 
     @Override

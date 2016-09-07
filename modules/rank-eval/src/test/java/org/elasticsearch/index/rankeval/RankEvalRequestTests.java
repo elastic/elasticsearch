@@ -35,15 +35,6 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
 
-@ESIntegTestCase.ClusterScope(
-        scope = ESIntegTestCase.Scope.SUITE,
-        minNumDataNodes = 1,
-        numDataNodes = 2,
-        maxNumDataNodes = 3,
-        numClientNodes = 1,
-        transportClientRatio = 0.5,
-        supportsDedicatedMasters = true,
-        randomDynamicTemplates = true)
 public class RankEvalRequestTests  extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {

@@ -30,6 +30,7 @@ install.enabled = false
 uploadArchives.enabled = false
 
 dependencies {
+  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   compile "junit:junit:${versions.junit}"
   compile "org.hamcrest:hamcrest-all:${versions.hamcrest}"

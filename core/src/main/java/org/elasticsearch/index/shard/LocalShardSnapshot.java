@@ -85,7 +85,7 @@ final class LocalShardSnapshot implements Closeable {
             }
 
             @Override
-            public void renameFile(String source, String dest) throws IOException {
+            public void rename(String source, String dest) throws IOException {
                 throw new UnsupportedOperationException("this directory is read-only");
             }
 

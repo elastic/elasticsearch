@@ -19,8 +19,8 @@
 
 package org.elasticsearch.test.rest.yaml;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,7 +39,7 @@ import java.util.regex.Pattern;
 public class Stash implements ToXContent {
     private static final Pattern EXTENDED_KEY = Pattern.compile("\\$\\{([^}]+)\\}");
 
-    private static final ESLogger logger = Loggers.getLogger(Stash.class);
+    private static final Logger logger = Loggers.getLogger(Stash.class);
 
     public static final Stash EMPTY = new Stash();
 

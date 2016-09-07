@@ -101,7 +101,7 @@ public class RestClientMultipleHostsTests extends RestClientTestCase {
             httpHosts[i] = new HttpHost("localhost", 9200 + i);
         }
         failureListener = new HostsTrackingFailureListener();
-        restClient = new RestClient(httpClient, 10000, new Header[0], httpHosts, failureListener);
+        restClient = new RestClient(httpClient, 10000, new Header[0], httpHosts, null, failureListener);
     }
 
     public void testRoundRobinOkStatusCodes() throws IOException {

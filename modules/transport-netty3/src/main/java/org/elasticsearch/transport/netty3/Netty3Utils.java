@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.transport.netty3;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.SuppressForbidden;
@@ -121,7 +123,9 @@ public class Netty3Utils {
                     }
                 });
             } catch (final SecurityException e) {
-                Loggers.getLogger(Netty3Utils.class).debug("Unable to get/set System Property: {}", e, key);
+                Loggers
+                        .getLogger(Netty3Utils.class)
+                        .debug((Supplier<?>) () -> new ParameterizedMessage("Unable to get/set System Property: {}", key), e);
             }
         }
     }

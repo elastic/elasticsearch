@@ -291,8 +291,4 @@ public class AllFieldMapper extends MetadataFieldMapper {
         super.doMerge(mergeWith, updateAllTypes);
     }
 
-    @Override
-    public boolean isGenerated() {
-        return true;
-    }
 }

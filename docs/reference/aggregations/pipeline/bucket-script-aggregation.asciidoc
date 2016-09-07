@@ -77,7 +77,7 @@ POST /sales/_search
                           "tShirtSales": "t-shirts>sales",
                           "totalSales": "total_sales"
                         },
-                        "script": "tShirtSales / totalSales * 100"
+                        "script": "params.tShirtSales / params.totalSales * 100"
                     }
                 }
             }

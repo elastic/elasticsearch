@@ -51,12 +51,17 @@ public final class RestClientBuilder {
     private RestClient.FailureListener failureListener;
     private HttpClientConfigCallback httpClientConfigCallback;
     private RequestConfigCallback requestConfigCallback;
+    private String pathPrefix;
 
     /**
      * Creates a new builder instance and sets the hosts that the client will send requests to.
+     *
+     * @throws NullPointerException if {@code hosts} or any host is {@code null}.
+     * @throws IllegalArgumentException if {@code hosts} is empty.
      */
     RestClientBuilder(HttpHost... hosts) {
-        if (hosts == null || hosts.length == 0) {
+        Objects.requireNonNull(hosts, "hosts must not be null");
+        if (hosts.length == 0) {
             throw new IllegalArgumentException("no hosts provided");
         }
         for (HttpHost host : hosts) {
@@ -66,7 +71,11 @@ public final class RestClientBuilder {
     }
 
     /**
-     * Sets the default request headers, which will be sent along with each request
+     * Sets the default request headers, which will be sent along with each request.
+     * <p>
+     * Request-time headers will always overwrite any default headers.
+     *
+     * @throws NullPointerException if {@code defaultHeaders} or any header is {@code null}.
      */
     public RestClientBuilder setDefaultHeaders(Header[] defaultHeaders) {
         Objects.requireNonNull(defaultHeaders, "defaultHeaders must not be null");
@@ -79,6 +88,8 @@ public final class RestClientBuilder {
 
     /**
      * Sets the {@link RestClient.FailureListener} to be notified for each request failure
+     *
+     * @throws NullPointerException if {@code failureListener} is {@code null}.
      */
     public RestClientBuilder setFailureListener(RestClient.FailureListener failureListener) {
         Objects.requireNonNull(failureListener, "failureListener must not be null");
@@ -90,7 +101,7 @@ public final class RestClientBuilder {
      * Sets the maximum timeout (in milliseconds) to honour in case of multiple retries of the same request.
      * {@link #DEFAULT_MAX_RETRY_TIMEOUT_MILLIS} if not specified.
      *
-     * @throws IllegalArgumentException if maxRetryTimeoutMillis is not greater than 0
+     * @throws IllegalArgumentException if {@code maxRetryTimeoutMillis} is not greater than 0
      */
     public RestClientBuilder setMaxRetryTimeoutMillis(int maxRetryTimeoutMillis) {
         if (maxRetryTimeoutMillis <= 0) {
@@ -102,6 +113,8 @@ public final class RestClientBuilder {
 
     /**
      * Sets the {@link HttpClientConfigCallback} to be used to customize http client configuration
+     *
+     * @throws NullPointerException if {@code httpClientConfigCallback} is {@code null}.
      */
     public RestClientBuilder setHttpClientConfigCallback(HttpClientConfigCallback httpClientConfigCallback) {
         Objects.requireNonNull(httpClientConfigCallback, "httpClientConfigCallback must not be null");
@@ -111,10 +124,49 @@ public final class RestClientBuilder {
 
     /**
      * Sets the {@link RequestConfigCallback} to be used to customize http client configuration
+     *
+     * @throws NullPointerException if {@code requestConfigCallback} is {@code null}.
      */
     public RestClientBuilder setRequestConfigCallback(RequestConfigCallback requestConfigCallback) {
         Objects.requireNonNull(requestConfigCallback, "requestConfigCallback must not be null");
         this.requestConfigCallback = requestConfigCallback;
+        return this;
+    }
+
+    /**
+     * Sets the path's prefix for every request used by the http client.
+     * <p>
+     * For example, if this is set to "/my/path", then any client request will become <code>"/my/path/" + endpoint</code>.
+     * <p>
+     * In essence, every request's {@code endpoint} is prefixed by this {@code pathPrefix}. The path prefix is useful for when
+     * Elasticsearch is behind a proxy that provides a base path; it is not intended for other purposes and it should not be supplied in
+     * other scenarios.
+     *
+     * @throws NullPointerException if {@code pathPrefix} is {@code null}.
+     * @throws IllegalArgumentException if {@code pathPrefix} is empty, only '/', or ends with more than one '/'.
+     */
+    public RestClientBuilder setPathPrefix(String pathPrefix) {
+        Objects.requireNonNull(pathPrefix, "pathPrefix must not be null");
+        String cleanPathPrefix = pathPrefix;
+
+        if (cleanPathPrefix.startsWith("/") == false) {
+            cleanPathPrefix = "/" + cleanPathPrefix;
+        }
+
+        // best effort to ensure that it looks like "/base/path" rather than "/base/path/"
+        if (cleanPathPrefix.endsWith("/")) {
+            cleanPathPrefix = cleanPathPrefix.substring(0, cleanPathPrefix.length() - 1);
+
+            if (cleanPathPrefix.endsWith("/")) {
+                throw new IllegalArgumentException("pathPrefix is malformed. too many trailing slashes: [" + pathPrefix + "]");
+            }
+        }
+
+        if (cleanPathPrefix.isEmpty() || "/".equals(cleanPathPrefix)) {
+            throw new IllegalArgumentException("pathPrefix must not be empty or '/': [" + pathPrefix + "]");
+        }
+
+        this.pathPrefix = cleanPathPrefix;
         return this;
     }
 
@@ -126,7 +178,7 @@ public final class RestClientBuilder {
             failureListener = new RestClient.FailureListener();
         }
         CloseableHttpAsyncClient httpClient = createHttpClient();
-        RestClient restClient = new RestClient(httpClient, maxRetryTimeout, defaultHeaders, hosts, failureListener);
+        RestClient restClient = new RestClient(httpClient, maxRetryTimeout, defaultHeaders, hosts, pathPrefix, failureListener);
         httpClient.start();
         return restClient;
     }

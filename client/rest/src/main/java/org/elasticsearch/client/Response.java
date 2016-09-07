@@ -32,7 +32,7 @@ import java.util.Objects;
  * Holds an elasticsearch response. It wraps the {@link HttpResponse} returned and associates it with
  * its corresponding {@link RequestLine} and {@link HttpHost}.
  */
-public final class Response {
+public class Response {
 
     private final RequestLine requestLine;
     private final HttpHost host;

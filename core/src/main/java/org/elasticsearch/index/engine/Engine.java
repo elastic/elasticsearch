@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.engine;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexCommit;
@@ -48,7 +51,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -84,15 +86,12 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 
-/**
- *
- */
 public abstract class Engine implements Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";
 
     protected final ShardId shardId;
-    protected final ESLogger logger;
+    protected final Logger logger;
     protected final EngineConfig engineConfig;
     protected final Store store;
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
@@ -277,7 +276,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract boolean index(Index operation) throws EngineException;
+    public abstract void index(Index operation) throws EngineException;
 
     public abstract void delete(Delete delete) throws EngineException;
 
@@ -364,7 +363,7 @@ public abstract class Engine implements Closeable {
             throw ex;
         } catch (Exception ex) {
             ensureOpen(); // throw EngineCloseException here if we are already closed
-            logger.error("failed to acquire searcher, source {}", ex, source);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to acquire searcher, source {}", source), ex);
             throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
         } finally {
             if (!success) {  // release the ref in the case of an error...
@@ -443,8 +442,7 @@ public abstract class Engine implements Closeable {
             try {
                 directory = engineConfig.getCodec().compoundFormat().getCompoundReader(segmentReader.directory(), segmentCommitInfo.info, IOContext.READ);
             } catch (IOException e) {
-                logger.warn("Error when opening compound reader for Directory [{}] and SegmentCommitInfo [{}]", e,
-                            segmentReader.directory(), segmentCommitInfo);
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Error when opening compound reader for Directory [{}] and SegmentCommitInfo [{}]", segmentReader.directory(), segmentCommitInfo), e);
 
                 return ImmutableOpenMap.of();
             }
@@ -459,14 +457,16 @@ public abstract class Engine implements Closeable {
             try {
                 files = directory.listAll();
             } catch (IOException e) {
-                logger.warn("Couldn't list Compound Reader Directory [{}]", e, directory);
+                final Directory finalDirectory = directory;
+                logger.warn(
+                    (Supplier<?>) () -> new ParameterizedMessage("Couldn't list Compound Reader Directory [{}]", finalDirectory), e);
                 return ImmutableOpenMap.of();
             }
         } else {
             try {
                 files = segmentReader.getSegmentInfo().files().toArray(new String[]{});
             } catch (IOException e) {
-                logger.warn("Couldn't list Directory from SegmentReader [{}] and SegmentInfo [{}]", e, segmentReader, segmentReader.getSegmentInfo());
+                logger.warn((Supplier<?>) () -> new ParameterizedMessage("Couldn't list Directory from SegmentReader [{}] and SegmentInfo [{}]", segmentReader, segmentReader.getSegmentInfo()), e);
                 return ImmutableOpenMap.of();
             }
         }
@@ -480,7 +480,10 @@ public abstract class Engine implements Closeable {
             } catch (NoSuchFileException | FileNotFoundException e) {
                 logger.warn("Tried to query fileLength but file is gone [{}] [{}]", e, directory, file);
             } catch (IOException e) {
-                logger.warn("Error when trying to query fileLength [{}] [{}]", e, directory, file);
+                final Directory finalDirectory = directory;
+                logger.warn(
+                    (Supplier<?>)
+                        () -> new ParameterizedMessage("Error when trying to query fileLength [{}] [{}]", finalDirectory, file), e);
             }
             if (length == 0L) {
                 continue;
@@ -492,7 +495,10 @@ public abstract class Engine implements Closeable {
             try {
                 directory.close();
             } catch (IOException e) {
-                logger.warn("Error when closing compound reader on Directory [{}]", e, directory);
+                final Directory finalDirectory = directory;
+                logger.warn(
+                    (Supplier<?>)
+                        () -> new ParameterizedMessage("Error when closing compound reader on Directory [{}]", finalDirectory), e);
             }
         }
 
@@ -527,7 +533,7 @@ public abstract class Engine implements Closeable {
                 try {
                     segment.sizeInBytes = info.sizeInBytes();
                 } catch (IOException e) {
-                    logger.trace("failed to get size for [{}]", e, info.info.name);
+                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
                 }
                 final SegmentReader segmentReader = segmentReader(reader.reader());
                 segment.memoryInBytes = segmentReader.ramBytesUsed();
@@ -557,7 +563,7 @@ public abstract class Engine implements Closeable {
                     try {
                         segment.sizeInBytes = info.sizeInBytes();
                     } catch (IOException e) {
-                        logger.trace("failed to get size for [{}]", e, info.info.name);
+                        logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
                     }
                     segments.put(info.info.name, segment);
                 } else {
@@ -591,7 +597,7 @@ public abstract class Engine implements Closeable {
               the store is closed so we need to make sure we increment it here
              */
             try {
-                return !getSearcherManager().isSearcherCurrent();
+                return getSearcherManager().isSearcherCurrent() == false;
             } catch (IOException e) {
                 logger.error("failed to access searcher manager", e);
                 failEngine("failed to access searcher manager", e);
@@ -669,10 +675,10 @@ public abstract class Engine implements Closeable {
                     closeNoLock("engine failed on: [" + reason + "]");
                 } finally {
                     if (failedEngine != null) {
-                        logger.debug("tried to fail engine but engine is already failed. ignoring. [{}]", failure, reason);
+                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("tried to fail engine but engine is already failed. ignoring. [{}]", reason), failure);
                         return;
                     }
-                    logger.warn("failed engine [{}]", failure, reason);
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed engine [{}]", reason), failure);
                     // we must set a failure exception, generate one if not supplied
                     failedEngine = (failure != null) ? failure : new IllegalStateException(reason);
                     // we first mark the store as corrupted before we notify any listeners
@@ -696,7 +702,7 @@ public abstract class Engine implements Closeable {
                 store.decRef();
             }
         } else {
-            logger.debug("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", failure, reason);
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason), failure);
         }
     }
 
@@ -847,18 +853,24 @@ public abstract class Engine implements Closeable {
     public static class Index extends Operation {
 
         private final ParsedDocument doc;
+        private final long autoGeneratedIdTimestamp;
+        private final boolean isRetry;
+        private boolean created;
 
-        public Index(Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime) {
+        public Index(Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime,
+                     long autoGeneratedIdTimestamp, boolean isRetry) {
             super(uid, version, versionType, origin, startTime);
             this.doc = doc;
+            this.isRetry = isRetry;
+            this.autoGeneratedIdTimestamp = autoGeneratedIdTimestamp;
         }
 
         public Index(Term uid, ParsedDocument doc) {
             this(uid, doc, Versions.MATCH_ANY);
-        }
+        } // TEST ONLY
 
-        public Index(Term uid, ParsedDocument doc, long version) {
-            this(uid, doc, version, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
+        Index(Term uid, ParsedDocument doc, long version) {
+            this(uid, doc, version, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime(), -1, false);
         }
 
         public ParsedDocument parsedDoc() {
@@ -905,9 +917,34 @@ public abstract class Engine implements Closeable {
             return this.doc.source();
         }
 
+        public boolean isCreated() {
+            return created;
+        }
+
+        public void setCreated(boolean created) {
+            this.created = created;
+        }
+
         @Override
         protected int estimatedSizeInBytes() {
             return (id().length() + type().length()) * 2 + source().length() + 12;
+        }
+
+        /**
+         * Returns a positive timestamp if the ID of this document is auto-generated by elasticsearch.
+         * if this property is non-negative indexing code might optimize the addition of this document
+         * due to it's append only nature.
+         */
+        public long getAutoGeneratedIdTimestamp() {
+            return autoGeneratedIdTimestamp;
+        }
+
+        /**
+         * Returns <code>true</code> if this index requests has been retried on the coordinating node and can therefor be delivered
+         * multiple times. Note: this might also be set to true if an equivalent event occurred like the replay of the transaction log
+         */
+        public boolean isRetry() {
+            return isRetry;
         }
 
     }
@@ -1000,32 +1037,23 @@ public abstract class Engine implements Closeable {
     public static class GetResult implements Releasable {
         private final boolean exists;
         private final long version;
-        private final Translog.Source source;
         private final Versions.DocIdAndVersion docIdAndVersion;
         private final Searcher searcher;
 
-        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null);
+        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null, null);
 
-        /**
-         * Build a realtime get result from the translog.
-         */
-        public GetResult(boolean exists, long version, @Nullable Translog.Source source) {
-            this.source = source;
+        private GetResult(boolean exists, long version, Versions.DocIdAndVersion docIdAndVersion, Searcher searcher) {
             this.exists = exists;
             this.version = version;
-            this.docIdAndVersion = null;
-            this.searcher = null;
+            this.docIdAndVersion = docIdAndVersion;
+            this.searcher = searcher;
         }
 
         /**
          * Build a non-realtime get result from the searcher.
          */
         public GetResult(Searcher searcher, Versions.DocIdAndVersion docIdAndVersion) {
-            this.exists = true;
-            this.source = null;
-            this.version = docIdAndVersion.version;
-            this.docIdAndVersion = docIdAndVersion;
-            this.searcher = searcher;
+            this(true, docIdAndVersion.version, docIdAndVersion, searcher);
         }
 
         public boolean exists() {
@@ -1034,11 +1062,6 @@ public abstract class Engine implements Closeable {
 
         public long version() {
             return this.version;
-        }
-
-        @Nullable
-        public Translog.Source source() {
-            return source;
         }
 
         public Searcher searcher() {
@@ -1055,9 +1078,7 @@ public abstract class Engine implements Closeable {
         }
 
         public void release() {
-            if (searcher != null) {
-                searcher.close();
-            }
+            Releasables.close(searcher);
         }
     }
 

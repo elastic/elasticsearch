@@ -1,6 +1,8 @@
 [[geohash-precision]]
 === `geohash_precision`
 
+deprecated[5.0.0, Will be removed in the next major version.]
+
 Geohashes are a form of lat/lon encoding which divides the earth up into
 a grid. Each cell in this grid is represented by a geohash string. Each
 cell in turn can be further subdivided into smaller cells which are
@@ -19,7 +21,7 @@ It accepts:
 If a distance is specified, it will be translated to the smallest
 geohash-length that will provide the requested resolution.
 
-For example:
+For example, using this mapping:
 
 [source,js]
 --------------------------------------------------
@@ -37,8 +39,16 @@ PUT my_index
     }
   }
 }
+--------------------------------------------------
+// CONSOLE
+// TEST[warning:geo_point geohash_precision parameter is deprecated and will be removed in the next major release]
+// TEST[warning:geo_point geohash_prefix parameter is deprecated and will be removed in the next major release]
+// TEST[warning:geo_point geohash parameter is deprecated and will be removed in the next major release]
 
-PUT my_index/my_type/1
+You can issue this index and query:
+[source,js]
+--------------------------------------------------
+PUT my_index/my_type/1?refresh
 {
   "location": {
     "lat": 41.12,
@@ -57,4 +67,6 @@ GET my_index/_search?fielddata_fields=location.geohash
 
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
+
 <1> A `geohash_precision` of 6 equates to geohash cells of approximately 1.26km x 0.6km

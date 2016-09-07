@@ -44,6 +44,7 @@ public class SegmentsStats implements Streamable, ToXContent {
     private long docValuesMemoryInBytes;
     private long indexWriterMemoryInBytes;
     private long versionMapMemoryInBytes;
+    private long maxUnsafeAutoIdTimestamp = Long.MIN_VALUE;
     private long bitsetMemoryInBytes;
     private ImmutableOpenMap<String, Long> fileSizes = ImmutableOpenMap.of();
 
@@ -114,6 +115,10 @@ public class SegmentsStats implements Streamable, ToXContent {
         this.versionMapMemoryInBytes += versionMapMemoryInBytes;
     }
 
+    void updateMaxUnsafeAutoIdTimestamp(long maxUnsafeAutoIdTimestamp) {
+        this.maxUnsafeAutoIdTimestamp = Math.max(maxUnsafeAutoIdTimestamp, this.maxUnsafeAutoIdTimestamp);
+    }
+
     public void addBitsetMemoryInBytes(long bitsetMemoryInBytes) {
         this.bitsetMemoryInBytes += bitsetMemoryInBytes;
     }
@@ -138,6 +143,7 @@ public class SegmentsStats implements Streamable, ToXContent {
         if (mergeStats == null) {
             return;
         }
+        updateMaxUnsafeAutoIdTimestamp(mergeStats.maxUnsafeAutoIdTimestamp);
         add(mergeStats.count, mergeStats.memoryInBytes);
         addTermsMemoryInBytes(mergeStats.termsMemoryInBytes);
         addStoredFieldsMemoryInBytes(mergeStats.storedFieldsMemoryInBytes);
@@ -272,6 +278,14 @@ public class SegmentsStats implements Streamable, ToXContent {
         return fileSizes;
     }
 
+    /**
+     * Returns the max timestamp that is used to de-optimize documents with auto-generated IDs in the engine.
+     * This is used to ensure we don't add duplicate documents when we assume an append only case based on auto-generated IDs
+     */
+    public long getMaxUnsafeAutoIdTimestamp() {
+        return maxUnsafeAutoIdTimestamp;
+    }
+
     public static SegmentsStats readSegmentsStats(StreamInput in) throws IOException {
         SegmentsStats stats = new SegmentsStats();
         stats.readFrom(in);
@@ -292,6 +306,7 @@ public class SegmentsStats implements Streamable, ToXContent {
         builder.byteSizeField(Fields.INDEX_WRITER_MEMORY_IN_BYTES, Fields.INDEX_WRITER_MEMORY, indexWriterMemoryInBytes);
         builder.byteSizeField(Fields.VERSION_MAP_MEMORY_IN_BYTES, Fields.VERSION_MAP_MEMORY, versionMapMemoryInBytes);
         builder.byteSizeField(Fields.FIXED_BIT_SET_MEMORY_IN_BYTES, Fields.FIXED_BIT_SET, bitsetMemoryInBytes);
+        builder.field(Fields.MAX_UNSAFE_AUTO_ID_TIMESTAMP, maxUnsafeAutoIdTimestamp);
         builder.startObject(Fields.FILE_SIZES);
         for (Iterator<ObjectObjectCursor<String, Long>> it = fileSizes.iterator(); it.hasNext();) {
             ObjectObjectCursor<String, Long> entry = it.next();
@@ -326,6 +341,7 @@ public class SegmentsStats implements Streamable, ToXContent {
         static final String INDEX_WRITER_MEMORY_IN_BYTES = "index_writer_memory_in_bytes";
         static final String VERSION_MAP_MEMORY = "version_map_memory";
         static final String VERSION_MAP_MEMORY_IN_BYTES = "version_map_memory_in_bytes";
+        static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP = "max_unsafe_auto_id_timestamp";
         static final String FIXED_BIT_SET = "fixed_bit_set";
         static final String FIXED_BIT_SET_MEMORY_IN_BYTES = "fixed_bit_set_memory_in_bytes";
         static final String FILE_SIZES = "file_sizes";
@@ -347,6 +363,7 @@ public class SegmentsStats implements Streamable, ToXContent {
         indexWriterMemoryInBytes = in.readLong();
         versionMapMemoryInBytes = in.readLong();
         bitsetMemoryInBytes = in.readLong();
+        maxUnsafeAutoIdTimestamp = in.readLong();
 
         int size = in.readVInt();
         ImmutableOpenMap.Builder<String, Long> map = ImmutableOpenMap.builder(size);
@@ -371,6 +388,7 @@ public class SegmentsStats implements Streamable, ToXContent {
         out.writeLong(indexWriterMemoryInBytes);
         out.writeLong(versionMapMemoryInBytes);
         out.writeLong(bitsetMemoryInBytes);
+        out.writeLong(maxUnsafeAutoIdTimestamp);
 
         out.writeVInt(fileSizes.size());
         for (Iterator<ObjectObjectCursor<String, Long>> it = fileSizes.iterator(); it.hasNext();) {

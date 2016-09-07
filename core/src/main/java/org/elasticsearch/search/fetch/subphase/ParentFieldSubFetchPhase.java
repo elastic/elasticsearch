@@ -38,6 +38,9 @@ public final class ParentFieldSubFetchPhase implements FetchSubPhase {
 
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) {
+        if (context.storedFieldsContext() != null && context.storedFieldsContext().fetchFields() == false) {
+            return ;
+        }
         ParentFieldMapper parentFieldMapper = context.mapperService().documentMapper(hitContext.hit().type()).parentFieldMapper();
         if (parentFieldMapper.active() == false) {
             return;

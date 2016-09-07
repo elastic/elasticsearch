@@ -163,33 +163,16 @@ public class OsProbe {
     private OsProbe() {
     }
 
-    public OsInfo osInfo() {
-        OsInfo info = new OsInfo();
-        info.availableProcessors = Runtime.getRuntime().availableProcessors();
-        info.name = Constants.OS_NAME;
-        info.arch = Constants.OS_ARCH;
-        info.version = Constants.OS_VERSION;
-        return info;
+    public OsInfo osInfo(long refreshInterval, int allocatedProcessors) {
+        return new OsInfo(refreshInterval, Runtime.getRuntime().availableProcessors(),
+                allocatedProcessors, Constants.OS_NAME, Constants.OS_ARCH, Constants.OS_VERSION);
     }
 
     public OsStats osStats() {
-        OsStats stats = new OsStats();
-        stats.timestamp = System.currentTimeMillis();
-        stats.cpu = new OsStats.Cpu();
-        stats.cpu.percent = getSystemCpuPercent();
-        stats.cpu.loadAverage = getSystemLoadAverage();
-
-        OsStats.Mem mem = new OsStats.Mem();
-        mem.total = getTotalPhysicalMemorySize();
-        mem.free = getFreePhysicalMemorySize();
-        stats.mem = mem;
-
-        OsStats.Swap swap = new OsStats.Swap();
-        swap.total = getTotalSwapSpaceSize();
-        swap.free = getFreeSwapSpaceSize();
-        stats.swap = swap;
-
-        return stats;
+        OsStats.Cpu cpu = new OsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage());
+        OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getFreePhysicalMemorySize());
+        OsStats.Swap swap = new OsStats.Swap(getTotalSwapSpaceSize(), getFreeSwapSpaceSize());
+        return new OsStats(System.currentTimeMillis(), cpu, mem , swap);
     }
 
     /**

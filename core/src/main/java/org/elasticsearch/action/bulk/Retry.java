@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.action.bulk;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -89,7 +89,7 @@ public class Retry {
     }
 
     static class AbstractRetryHandler implements ActionListener<BulkResponse> {
-        private final ESLogger logger;
+        private final Logger logger;
         private final Client client;
         private final ActionListener<BulkResponse> listener;
         private final Iterator<TimeValue> backoff;

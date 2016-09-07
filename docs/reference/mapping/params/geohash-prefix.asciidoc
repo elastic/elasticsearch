@@ -1,6 +1,9 @@
 [[geohash-prefix]]
 === `geohash_prefix`
 
+deprecated[5.0.0, Will be removed in the next major version.]
+
+
 Geohashes are a form of lat/lon encoding which divides the earth up into
 a grid. Each cell in this grid is represented by a geohash string. Each
 cell in turn can be further subdivided into smaller cells which are
@@ -37,7 +40,14 @@ PUT my_index
     }
   }
 }
+--------------------------------------------------
+// CONSOLE
+// TEST[warning:geo_point geohash_precision parameter is deprecated and will be removed in the next major release]
+// TEST[warning:geo_point geohash_prefix parameter is deprecated and will be removed in the next major release]
+// TEST[warning:geo_point geohash parameter is deprecated and will be removed in the next major release]
 
+[source,js]
+--------------------------------------------------
 PUT my_index/my_type/1
 {
   "location": {
@@ -61,4 +71,4 @@ GET my_index/_search?fielddata_fields=location.geohash
 }
 --------------------------------------------------
 // CONSOLE
-
+// TEST[continued]

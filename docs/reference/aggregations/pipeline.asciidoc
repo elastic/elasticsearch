@@ -34,12 +34,14 @@ will be included in the final output.
 Most pipeline aggregations require another aggregation as their input.  The input aggregation is defined via the `buckets_path`
 parameter, which follows a specific format:
 
+// https://en.wikipedia.org/wiki/Extended_Backus%E2%80%93Naur_Form
+[source,ebnf]
 --------------------------------------------------
-AGG_SEPARATOR       :=  '>'
-METRIC_SEPARATOR    :=  '.'
-AGG_NAME            :=  <the name of the aggregation>
-METRIC              :=  <the name of the metric (in case of multi-value metrics aggregation)>
-PATH                :=  <AGG_NAME>[<AGG_SEPARATOR><AGG_NAME>]*[<METRIC_SEPARATOR><METRIC>]
+AGG_SEPARATOR       =  '>' ;
+METRIC_SEPARATOR    =  '.' ;
+AGG_NAME            =  <the name of the aggregation> ;
+METRIC              =  <the name of the metric (in case of multi-value metrics aggregation)> ;
+PATH                =  <AGG_NAME> [ <AGG_SEPARATOR>, <AGG_NAME> ]* [ <METRIC_SEPARATOR>, <METRIC> ] ;
 --------------------------------------------------
 
 For example, the path `"my_bucket>my_stats.avg"` will path to the `avg` value in the `"my_stats"` metric, which is
@@ -165,7 +167,7 @@ POST /sales/_search
               "count": "categories._bucket_count" <1>
             },
             "script": {
-              "inline": "count != 0"
+              "inline": "params.count != 0"
             }
           }
         }

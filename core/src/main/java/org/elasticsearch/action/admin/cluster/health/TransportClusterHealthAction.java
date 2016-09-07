@@ -19,8 +19,11 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -105,7 +108,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
 
                 @Override
                 public void onFailure(String source, Exception e) {
-                    logger.error("unexpected failure during [{}]", e, source);
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
                     listener.onFailure(e);
                 }
 
@@ -125,10 +128,10 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         if (request.waitForStatus() == null) {
             waitFor--;
         }
-        if (request.waitForRelocatingShards() == -1) {
+        if (request.waitForNoRelocatingShards() == false) {
             waitFor--;
         }
-        if (request.waitForActiveShards() == -1) {
+        if (request.waitForActiveShards().equals(ActiveShardCount.NONE)) {
             waitFor--;
         }
         if (request.waitForNodes().isEmpty()) {
@@ -203,11 +206,22 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         if (request.waitForStatus() != null && response.getStatus().value() <= request.waitForStatus().value()) {
             waitForCounter++;
         }
-        if (request.waitForRelocatingShards() != -1 && response.getRelocatingShards() <= request.waitForRelocatingShards()) {
+        if (request.waitForNoRelocatingShards() && response.getRelocatingShards() == 0) {
             waitForCounter++;
         }
-        if (request.waitForActiveShards() != -1 && response.getActiveShards() >= request.waitForActiveShards()) {
-            waitForCounter++;
+        if (request.waitForActiveShards().equals(ActiveShardCount.NONE) == false) {
+            ActiveShardCount waitForActiveShards = request.waitForActiveShards();
+            assert waitForActiveShards.equals(ActiveShardCount.DEFAULT) == false :
+                "waitForActiveShards must not be DEFAULT on the request object, instead it should be NONE";
+            if (waitForActiveShards.equals(ActiveShardCount.ALL)
+                    && response.getUnassignedShards() == 0
+                    && response.getInitializingShards() == 0) {
+                // if we are waiting for all shards to be active, then the num of unassigned and num of initializing shards must be 0
+                waitForCounter++;
+            } else if (waitForActiveShards.enoughShardsActive(response.getActiveShards())) {
+                // there are enough active shards to meet the requirements of the request
+                waitForCounter++;
+            }
         }
         if (request.indices() != null && request.indices().length > 0) {
             try {

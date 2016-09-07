@@ -21,6 +21,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.Map;
@@ -87,17 +88,23 @@ public interface Processor {
         public final TemplateService templateService;
 
         /**
+         * Provide analyzer support
+         */
+        public final AnalysisRegistry analysisRegistry;
+
+        /**
          * Allows processors to read headers set by {@link org.elasticsearch.action.support.ActionFilter}
          * instances that have run prior to in ingest.
          */
         public final ThreadContext threadContext;
 
         public Parameters(Environment env, ScriptService scriptService, TemplateService templateService,
-                          ThreadContext threadContext) {
+                          AnalysisRegistry analysisRegistry, ThreadContext threadContext) {
             this.env = env;
             this.scriptService = scriptService;
             this.templateService = templateService;
             this.threadContext = threadContext;
+            this.analysisRegistry = analysisRegistry;
         }
 
     }

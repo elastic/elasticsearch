@@ -22,7 +22,9 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Counter;
+import org.apache.lucene.util.RefCount;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -30,6 +32,8 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -39,6 +43,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -64,10 +69,20 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public abstract class SearchContext implements Releasable {
+/**
+ * This class encapsulates the state needed to execute a search. It holds a reference to the
+ * shards point in time snapshot (IndexReader / ContextIndexSearcher) and allows passing on
+ * state from one query / fetch phase to another.
+ *
+ * This class also implements {@link RefCounted} since in some situations like in {@link org.elasticsearch.search.SearchService}
+ * a SearchContext can be closed concurrently due to independent events ie. when an index gets removed. To prevent accessing closed
+ * IndexReader / IndexSearcher instances the SearchContext can be guarded by a reference count and fail if it's been closed by
+ * an external event.
+ */
+// For reference why we use RefCounted here see #20095
+public abstract class SearchContext extends AbstractRefCounted implements Releasable {
 
     private static ThreadLocal<SearchContext> current = new ThreadLocal<>();
     public static final int DEFAULT_TERMINATE_AFTER = 0;
@@ -91,6 +106,7 @@ public abstract class SearchContext implements Releasable {
     protected final ParseFieldMatcher parseFieldMatcher;
 
     protected SearchContext(ParseFieldMatcher parseFieldMatcher) {
+        super("search_context");
         this.parseFieldMatcher = parseFieldMatcher;
     }
 
@@ -100,16 +116,26 @@ public abstract class SearchContext implements Releasable {
 
     @Override
     public final void close() {
-        if (closed.compareAndSet(false, true)) { // prevent double release
-            try {
-                clearReleasables(Lifetime.CONTEXT);
-            } finally {
-                doClose();
-            }
+        if (closed.compareAndSet(false, true)) { // prevent double closing
+            decRef();
         }
     }
 
     private boolean nowInMillisUsed;
+
+    @Override
+    protected final void closeInternal() {
+        try {
+            clearReleasables(Lifetime.CONTEXT);
+        } finally {
+            doClose();
+        }
+    }
+
+    @Override
+    protected void alreadyClosed() {
+        throw new IllegalStateException("search context is already closed can't increment refCount current count [" + refCount() + "]");
+    }
 
     protected abstract void doClose();
 
@@ -265,11 +291,18 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SearchContext size(int size);
 
-    public abstract boolean hasFieldNames();
+    public abstract boolean hasStoredFields();
 
-    public abstract List<String> fieldNames();
+    public abstract boolean hasStoredFieldsContext();
 
-    public abstract void emptyFieldNames();
+    /**
+     * A shortcut function to see whether there is a storedFieldsContext and it says the fields are requested.
+     */
+    public abstract boolean storedFieldsRequested();
+
+    public abstract StoredFieldsContext storedFieldsContext();
+
+    public abstract SearchContext storedFieldsContext(StoredFieldsContext storedFieldsContext);
 
     public abstract boolean explain();
 

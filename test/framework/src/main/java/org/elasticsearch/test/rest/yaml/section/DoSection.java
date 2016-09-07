@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
@@ -66,7 +66,7 @@ import static org.junit.Assert.fail;
  */
 public class DoSection implements ExecutableSection {
 
-    private static final ESLogger logger = Loggers.getLogger(DoSection.class);
+    private static final Logger logger = Loggers.getLogger(DoSection.class);
 
     private final XContentLocation location;
     private String catchParam;

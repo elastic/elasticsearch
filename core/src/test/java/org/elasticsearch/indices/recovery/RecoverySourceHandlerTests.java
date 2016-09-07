@@ -35,6 +35,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
@@ -83,7 +84,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
                 new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
-            null, RecoveryState.Type.STORE, randomLong());
+            null, randomBoolean(), randomLong());
         Store store = newStore(createTempDir());
         RecoverySourceHandler handler = new RecoverySourceHandler(null, null, request, () -> 0L, e -> () -> {},
             recoverySettings.getChunkSize().bytesAsInt(), logger);
@@ -135,7 +136,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
                 new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
-            null, RecoveryState.Type.STORE, randomLong());
+            null, randomBoolean(), randomLong());
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
@@ -199,7 +200,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
                 new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
                 new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
-            null, RecoveryState.Type.STORE, randomLong());
+            null, randomBoolean(), randomLong());
         Path tempDir = createTempDir();
         Store store = newStore(tempDir, false);
         AtomicBoolean failedEngine = new AtomicBoolean(false);
@@ -258,7 +259,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
             new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
             new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
-            null, RecoveryState.Type.REPLICA, randomLong());
+            null, false, randomLong());
         IndexShard shard = mock(IndexShard.class);
         Translog.View translogView = mock(Translog.View.class);
         when(shard.acquireTranslogView()).thenReturn(translogView);
@@ -288,7 +289,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         StartRecoveryRequest request = new StartRecoveryRequest(shardId,
             new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
             new DiscoveryNode("b", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT),
-            null, RecoveryState.Type.PRIMARY_RELOCATION, randomLong());
+            null, true, randomLong());
         AtomicBoolean phase1Called = new AtomicBoolean();
         AtomicBoolean phase2Called = new AtomicBoolean();
         AtomicBoolean ensureClusterStateVersionCalled = new AtomicBoolean();

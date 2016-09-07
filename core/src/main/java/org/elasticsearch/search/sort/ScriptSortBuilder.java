@@ -244,7 +244,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 currentName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (parseField.match(currentName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, parseField);
+                    script = Script.parse(parser, parseField, context.getDefaultScriptLanguage());
                 } else if (parseField.match(currentName, NESTED_FILTER_FIELD)) {
                     nestedFilter = context.parseInnerQueryBuilder();
                 } else {
@@ -260,7 +260,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 } else if (parseField.match(currentName, NESTED_PATH_FIELD)) {
                     nestedPath = parser.text();
                 } else if (parseField.match(currentName, ScriptField.SCRIPT)) {
-                    script = Script.parse(parser, parseField);
+                    script = Script.parse(parser, parseField, context.getDefaultScriptLanguage());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] failed to parse field [" + currentName + "]");
                 }

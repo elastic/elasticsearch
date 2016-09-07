@@ -28,21 +28,14 @@ import java.util.List;
  * This class is NOT threadsafe.
  */
 public final class SampleRecorder {
-    private final int warmupIterations;
     private final List<Sample> samples;
-    private int currentIteration;
 
-    public SampleRecorder(int warmupIterations, int iterations) {
-        this.warmupIterations = warmupIterations;
+    public SampleRecorder(int iterations) {
         this.samples = new ArrayList<>(iterations);
     }
 
     public void addSample(Sample sample) {
-        currentIteration++;
-        // only add samples after warmup
-        if (currentIteration > warmupIterations) {
-            samples.add(sample);
-        }
+        samples.add(sample);
     }
 
     public List<Sample> getSamples() {

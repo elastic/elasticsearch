@@ -19,22 +19,22 @@
 
 package org.elasticsearch.mapper.attachments;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
 public class MapperAttachmentsPlugin extends Plugin implements MapperPlugin {
 
-    private static ESLogger logger = ESLoggerFactory.getLogger("mapper.attachment");
+    private static Logger logger = ESLoggerFactory.getLogger("mapper.attachment");
     private static DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
     @Override
@@ -50,4 +50,5 @@ public class MapperAttachmentsPlugin extends Plugin implements MapperPlugin {
     public Map<String, Mapper.TypeParser> getMappers() {
         return Collections.singletonMap("attachment", new AttachmentMapper.TypeParser());
     }
+
 }

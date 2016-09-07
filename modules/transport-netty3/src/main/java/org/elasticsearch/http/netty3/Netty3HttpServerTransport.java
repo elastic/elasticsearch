@@ -21,6 +21,8 @@ package org.elasticsearch.http.netty3;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -285,13 +287,13 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
         this.serverOpenChannels = new Netty3OpenChannelsHandler(logger);
         if (blockingServer) {
             serverBootstrap = new ServerBootstrap(new OioServerSocketChannelFactory(
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_boss")),
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_worker"))
+                Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_BOSS_THREAD_NAME_PREFIX)),
+                Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX))
             ));
         } else {
             serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_boss")),
-                Executors.newCachedThreadPool(daemonThreadFactory(settings, "http_server_worker")),
+                Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_BOSS_THREAD_NAME_PREFIX)),
+                Executors.newCachedThreadPool(daemonThreadFactory(settings, HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)),
                 workerCount));
         }
         serverBootstrap.setPipelineFactory(configureServerChannelPipelineFactory());
@@ -495,10 +497,18 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
                 return;
             }
             if (!NetworkExceptionHelper.isCloseConnectionException(e.getCause())) {
-                logger.warn("Caught exception while handling client http traffic, closing connection {}", e.getCause(), ctx.getChannel());
+                logger.warn(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "Caught exception while handling client http traffic, closing connection {}",
+                        ctx.getChannel()),
+                    e.getCause());
                 ctx.getChannel().close();
             } else {
-                logger.debug("Caught exception while handling client http traffic, closing connection {}", e.getCause(), ctx.getChannel());
+                logger.debug(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "Caught exception while handling client http traffic, closing connection {}",
+                        ctx.getChannel()),
+                    e.getCause());
                 ctx.getChannel().close();
             }
         }

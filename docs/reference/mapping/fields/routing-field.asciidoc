@@ -14,7 +14,7 @@ value per document.  For instance:
 
 [source,js]
 ------------------------------
-PUT my_index/my_type/1?routing=user1 <1>
+PUT my_index/my_type/1?routing=user1&refresh=true <1>
 {
   "title": "This is a document"
 }
@@ -29,7 +29,7 @@ GET my_index/my_type/1?routing=user1 <2>
     <<docs-get,getting>>, <<docs-delete,deleting>>, or <<docs-update,updating>>
     the document.
 
-The value of the `_routing` field is accessible in queries and scripts:
+The value of the `_routing` field is accessible in queries:
 
 [source,js]
 --------------------------
@@ -39,22 +39,12 @@ GET my_index/_search
     "terms": {
       "_routing": [ "user1" ] <1>
     }
-  },
-  "script_fields": {
-    "Routing value": {
-      "script": {
-        "lang": "painless",
-        "inline": "doc['_routing']" <2>
-      }
-    }
   }
 }
 --------------------------
 // CONSOLE
 
 <1> Querying on the `_routing` field (also see the <<query-dsl-ids-query,`ids` query>>)
-<2> Accessing the `_routing` field in scripts
-
 
 ==== Searching with custom routing
 

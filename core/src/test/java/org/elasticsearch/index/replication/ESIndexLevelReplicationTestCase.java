@@ -41,6 +41,8 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -73,7 +75,7 @@ import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoverySourceHandler;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
-import org.elasticsearch.indices.recovery.RecoveryTargetService;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
@@ -108,10 +110,10 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
 
     protected ThreadPool threadPool;
-    private final Index index = new Index("test", "uuid");
+    protected final Index index = new Index("test", "uuid");
     private final ShardId shardId = new ShardId(index, 0);
     private final Map<String, String> indexMapping = Collections.singletonMap("type", "{ \"type\": {} }");
-    protected static final RecoveryTargetService.RecoveryListener recoveryListener = new RecoveryTargetService.RecoveryListener() {
+    protected static final PeerRecoveryTargetService.RecoveryListener recoveryListener = new PeerRecoveryTargetService.RecoveryListener() {
         @Override
         public void onRecoveryDone(RecoveryState state) {
 
@@ -208,7 +210,8 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
         // add node name to settings for propper logging
         final Settings nodeSettings = Settings.builder().put("node.name", node.getName()).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetaData, nodeSettings);
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, node.getId(), primary, ShardRoutingState.INITIALIZING);
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, node.getId(), primary, ShardRoutingState.INITIALIZING,
+            primary ? StoreRecoverySource.EMPTY_STORE_INSTANCE : PeerRecoverySource.INSTANCE);
         final Path path = Files.createDirectories(homePath.resolve(node.getId()));
         final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(path);
         ShardPath shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
@@ -259,6 +262,15 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
             return numOfDoc;
         }
 
+        public int appendDocs(final int numOfDoc) throws Exception {
+            for (int doc = 0; doc < numOfDoc; doc++) {
+                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type").source("{}");
+                final IndexResponse response = index(indexRequest);
+                assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
+            }
+            return numOfDoc;
+        }
+
         public IndexResponse index(IndexRequest indexRequest) throws Exception {
             PlainActionFuture<IndexingResult> listener = new PlainActionFuture<>();
             IndexingOp op = new IndexingOp(indexRequest, listener, this);
@@ -268,12 +280,11 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
 
         public synchronized void startAll() throws IOException {
             final DiscoveryNode pNode = getDiscoveryNode(primary.routingEntry().currentNodeId());
-            primary.markAsRecovering("store", new RecoveryState(primary.shardId(), true, RecoveryState.Type.STORE, pNode, pNode));
+            primary.markAsRecovering("store", new RecoveryState(primary.routingEntry(), pNode, null));
             primary.recoverFromStore();
             primary.updateRoutingEntry(ShardRoutingHelper.moveToStarted(primary.routingEntry()));
             for (IndexShard replicaShard : replicas) {
-                recoverReplica(replicaShard,
-                    (replica, sourceNode) -> new RecoveryTarget(replica, sourceNode, recoveryListener, version -> {}));
+                recoverReplica(replicaShard);
             }
         }
 
@@ -282,6 +293,11 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
             replicas.add(replica);
             return replica;
         }
+
+        public void recoverReplica(IndexShard replica) throws IOException {
+            recoverReplica(replica, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener, version -> {}));
+        }
+
         public void recoverReplica(IndexShard replica, BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier)
             throws IOException {
             recoverReplica(replica, targetSupplier, true);
@@ -293,14 +309,15 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
             final DiscoveryNode pNode = getPrimaryNode();
             final DiscoveryNode rNode = getDiscoveryNode(replica.routingEntry().currentNodeId());
             if (markAsRecovering) {
-                replica.markAsRecovering("remote", new RecoveryState(replica.shardId(), false, RecoveryState.Type.REPLICA, pNode, rNode));
+                replica.markAsRecovering("remote",
+                    new RecoveryState(replica.routingEntry(), pNode, rNode));
             } else {
                 assertEquals(replica.state(), IndexShardState.RECOVERING);
             }
             replica.prepareForIndexRecovery();
             RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
             StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), pNode, rNode,
-                getMetadataSnapshotOrEmpty(replica), RecoveryState.Type.REPLICA, 0);
+                getMetadataSnapshotOrEmpty(replica), false, 0);
             RecoverySourceHandler recovery = new RecoverySourceHandler(primary, recoveryTarget, request, () -> 0L, e -> () -> {},
                 (int) ByteSizeUnit.MB.toKB(1), logger);
             recovery.recoverToTarget();
@@ -425,6 +442,12 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
         }
 
         @Override
+        protected Set<String> getInSyncAllocationIds(ShardId shardId, ClusterState clusterState) {
+            return replicationGroup.shardRoutings().stream().filter(ShardRouting::active)
+                .map(shr -> shr.allocationId().getId()).collect(Collectors.toSet());
+        }
+
+        @Override
         protected String checkActiveShardCount() {
             return null;
         }
@@ -479,6 +502,12 @@ public abstract class ESIndexLevelReplicationTestCase extends ESTestCase {
         @Override
         public void failShard(ShardRouting replica, long primaryTerm, String message, Exception exception, Runnable onSuccess,
                               Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void markShardCopyAsStale(ShardId shardId, String allocationId, long primaryTerm, Runnable onSuccess,
+                                         Consumer<Exception> onPrimaryDemoted, Consumer<Exception> onIgnoredFailure) {
             throw new UnsupportedOperationException();
         }
     }

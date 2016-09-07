@@ -1777,16 +1777,15 @@ public class PercolatorIT extends ESIntegTestCase {
         assertThat(response1.getMatches()[0].getId().string(), equalTo("1"));
     }
 
-    public void testParentChild() throws Exception {
-        // We don't fail p/c queries, but those queries are unusable because only a single document can be provided in
-        // the percolate api
-
+    public void testFailParentChild() throws Exception {
         assertAcked(prepareCreate(INDEX_NAME)
                 .addMapping(TYPE_NAME, "query", "type=percolator")
                 .addMapping("child", "_parent", "type=parent").addMapping("parent"));
-        client().prepareIndex(INDEX_NAME, TYPE_NAME, "1")
+        Exception e = expectThrows(MapperParsingException.class, () -> client().prepareIndex(INDEX_NAME, TYPE_NAME, "1")
                 .setSource(jsonBuilder().startObject().field("query", hasChildQuery("child", matchAllQuery(), ScoreMode.None)).endObject())
-                .execute().actionGet();
+                .get());
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(e.getCause().getMessage(), equalTo("the [has_child] query is unsupported inside a percolator query"));
     }
 
     public void testPercolateDocumentWithParentField() throws Exception {

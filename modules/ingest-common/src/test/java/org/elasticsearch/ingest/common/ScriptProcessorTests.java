@@ -46,11 +46,9 @@ public class ScriptProcessorTests extends ESTestCase {
         int randomBytesTotal = randomBytesIn + randomBytesOut;
 
         ScriptService scriptService = mock(ScriptService.class);
-        CompiledScript compiledScript = mock(CompiledScript.class);
         Script script = new Script("_script");
-        when(scriptService.compile(any(), any(), any())).thenReturn(compiledScript);
         ExecutableScript executableScript = mock(ExecutableScript.class);
-        when(scriptService.executable(any(), any())).thenReturn(executableScript);
+        when(scriptService.executable(any(), any(), any())).thenReturn(executableScript);
 
         Map<String, Object> document = new HashMap<>();
         document.put("bytes_in", randomInt());

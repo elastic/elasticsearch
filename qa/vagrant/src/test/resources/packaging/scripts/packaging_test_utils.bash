@@ -476,7 +476,8 @@ run_elasticsearch_tests() {
       "query": {
         "script": {
           "script": {
-            "file": "is_guide"
+            "file": "is_guide",
+            "lang": "groovy"
           }
         }
       }
@@ -499,7 +500,7 @@ move_config() {
     mv "$oldConfig"/* "$ESCONFIG"
     chown -R elasticsearch:elasticsearch "$ESCONFIG"
     assert_file_exist "$ESCONFIG/elasticsearch.yml"
-    assert_file_exist "$ESCONFIG/logging.yml"
+    assert_file_exist "$ESCONFIG/log4j2.properties"
 }
 
 # Copies a script into the Elasticsearch install.

@@ -25,20 +25,20 @@ import org.elasticsearch.client.benchmark.metrics.SampleRecorder;
 import java.util.concurrent.TimeUnit;
 
 public class SearchBenchmarkTask implements BenchmarkTask {
-    private static final long MICROS_PER_SEC = TimeUnit.SECONDS.toMicros(1L);
-    private static final long NANOS_PER_MICRO = TimeUnit.MICROSECONDS.toNanos(1L);
-
     private final SearchRequestExecutor searchRequestExecutor;
     private final String searchRequestBody;
-    private final int iterations;
+    private final int warmupIterations;
+    private final int measurementIterations;
     private final int targetThroughput;
 
     private SampleRecorder sampleRecorder;
 
-    public SearchBenchmarkTask(SearchRequestExecutor searchRequestExecutor, String body, int iterations, int targetThroughput) {
+    public SearchBenchmarkTask(SearchRequestExecutor searchRequestExecutor, String body, int warmupIterations,
+                               int measurementIterations, int targetThroughput) {
         this.searchRequestExecutor = searchRequestExecutor;
         this.searchRequestBody = body;
-        this.iterations = iterations;
+        this.warmupIterations = warmupIterations;
+        this.measurementIterations = measurementIterations;
         this.targetThroughput = targetThroughput;
     }
 
@@ -49,27 +49,24 @@ public class SearchBenchmarkTask implements BenchmarkTask {
 
     @Override
     public void run() throws Exception {
-        for (int iteration = 0; iteration < this.iterations; iteration++) {
-            final long start = System.nanoTime();
-            boolean success = searchRequestExecutor.search(searchRequestBody);
-            final long stop = System.nanoTime();
-            sampleRecorder.addSample(new Sample("search", start, stop, success));
-
-            int waitTime = (int) Math.floor(MICROS_PER_SEC / targetThroughput - (stop - start) / NANOS_PER_MICRO);
-            if (waitTime > 0) {
-                waitMicros(waitTime);
-            }
-        }
+        runIterations(warmupIterations, false);
+        runIterations(measurementIterations, true);
     }
 
-    private void waitMicros(int waitTime) throws InterruptedException {
-        // Thread.sleep() time is not very accurate (it's most of the time around 1 - 2 ms off)
-        // we busy spin all the time to avoid introducing additional measurement artifacts (noticed 100% skew on 99.9th percentile)
-        // this approach is not suitable for low throughput rates (in the second range) though
-        if (waitTime > 0) {
-            long end = System.nanoTime() + 1000L * waitTime;
-            while (end > System.nanoTime()) {
+    private void runIterations(int iterations, boolean addSample) {
+        long interval = TimeUnit.SECONDS.toNanos(1L) / targetThroughput;
+
+        long totalStart = System.nanoTime();
+        for (int iteration = 0; iteration < iterations; iteration++) {
+            long expectedStart = totalStart + iteration * interval;
+            while (System.nanoTime() < expectedStart) {
                 // busy spin
+            }
+            long start = System.nanoTime();
+            boolean success = searchRequestExecutor.search(searchRequestBody);
+            long stop = System.nanoTime();
+            if (addSample) {
+                sampleRecorder.addSample(new Sample("search", expectedStart, start, stop, success));
             }
         }
     }

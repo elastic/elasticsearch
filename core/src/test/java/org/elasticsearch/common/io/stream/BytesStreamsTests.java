@@ -30,19 +30,22 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests for {@link BytesStreamOutput} paging behaviour.
@@ -462,11 +465,11 @@ public class BytesStreamsTests extends ESTestCase {
         }
 
         final BytesStreamOutput out = new BytesStreamOutput();
-        out.writeMapOfLists(expected);
+        out.writeMapOfLists(expected, StreamOutput::writeString, StreamOutput::writeString);
 
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
 
-        final Map<String, List<String>> loaded = in.readMapOfLists();
+        final Map<String, List<String>> loaded = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
 
         assertThat(loaded.size(), equalTo(expected.size()));
 
@@ -621,5 +624,51 @@ public class BytesStreamsTests extends ESTestCase {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(value);
         }
+    }
+
+    public void testWriteMapWithConsistentOrder() throws IOException {
+        Map<String, String> map =
+            randomMap(new TreeMap<>(), randomIntBetween(2, 20),
+                () -> randomAsciiOfLength(5),
+                () -> randomAsciiOfLength(5));
+
+        Map<String, Object> reverseMap = new TreeMap<>(Collections.reverseOrder());
+        reverseMap.putAll(map);
+
+        List<String> mapKeys = map.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toList());
+        List<String> reverseMapKeys = reverseMap.entrySet().stream().map(Map.Entry::getKey).collect(Collectors.toList());
+
+        assertNotEquals(mapKeys, reverseMapKeys);
+
+        BytesStreamOutput output = new BytesStreamOutput();
+        BytesStreamOutput reverseMapOutput = new BytesStreamOutput();
+        output.writeMapWithConsistentOrder(map);
+        reverseMapOutput.writeMapWithConsistentOrder(reverseMap);
+
+        assertEquals(output.bytes(), reverseMapOutput.bytes());
+    }
+
+    public void testReadMapByUsingWriteMapWithConsistentOrder() throws IOException {
+        Map<String, String> streamOutMap =
+            randomMap(new HashMap<>(), randomIntBetween(2, 20),
+                () -> randomAsciiOfLength(5),
+                () -> randomAsciiOfLength(5));
+        BytesStreamOutput streamOut = new BytesStreamOutput();
+        streamOut.writeMapWithConsistentOrder(streamOutMap);
+        StreamInput in = StreamInput.wrap(BytesReference.toBytes(streamOut.bytes()));
+        Map<String, Object> streamInMap = in.readMap();
+        assertEquals(streamOutMap, streamInMap);
+    }
+
+    public void testWriteMapWithConsistentOrderWithLinkedHashMapShouldThrowAssertError() throws IOException {
+        BytesStreamOutput output = new BytesStreamOutput();
+        Map<String, Object> map = new LinkedHashMap<>();
+        Throwable e = expectThrows(AssertionError.class, () -> output.writeMapWithConsistentOrder(map));
+        assertEquals(AssertionError.class, e.getClass());
+    }
+
+    private static <K, V> Map<K, V> randomMap(Map<K, V> map, int size, Supplier<K> keyGenerator, Supplier<V> valueGenerator) {
+        IntStream.range(0, size).forEach(i -> map.put(keyGenerator.get(), valueGenerator.get()));
+        return map;
     }
 }

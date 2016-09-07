@@ -173,7 +173,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         } else {
             out.writeBoolean(false);
         }
-        out.writeMap(collateParams);
+        out.writeMapWithConsistentOrder(collateParams);
         out.writeOptionalBoolean(collatePrune);
         out.writeVInt(this.generators.size());
         for (Entry<String, List<CandidateGenerator>> entry : this.generators.entrySet()) {

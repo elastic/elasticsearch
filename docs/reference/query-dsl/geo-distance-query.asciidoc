@@ -199,7 +199,7 @@ The following are options allowed on the filter:
     before the distance check. Defaults to `memory` which will do in memory
     checks. Can also have values of `indexed` to use indexed value check (make
     sure the `geo_point` type index lat lon in this case), or `none` which
-    disables bounding box optimization.
+    disables bounding box optimization. deprecated[2.2]
 
 `_name`::
 

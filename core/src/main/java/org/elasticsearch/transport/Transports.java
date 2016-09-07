@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.transport.local.LocalTransport;
 
 import java.util.Arrays;
@@ -38,8 +39,10 @@ public enum Transports {
         final String threadName = t.getName();
         for (String s : Arrays.asList(
                 LocalTransport.LOCAL_TRANSPORT_THREAD_NAME_PREFIX,
-                TcpTransport.HTTP_SERVER_BOSS_THREAD_NAME_PREFIX,
-                TcpTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX,
+                HttpServerTransport.HTTP_SERVER_BOSS_THREAD_NAME_PREFIX,
+                HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX,
+                TcpTransport.TRANSPORT_SERVER_BOSS_THREAD_NAME_PREFIX,
+                TcpTransport.TRANSPORT_SERVER_WORKER_THREAD_NAME_PREFIX,
                 TcpTransport.TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX,
                 TcpTransport.TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX,
                 TEST_MOCK_TRANSPORT_THREAD_PREFIX)) {

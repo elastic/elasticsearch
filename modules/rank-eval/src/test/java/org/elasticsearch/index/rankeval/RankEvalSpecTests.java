@@ -22,12 +22,7 @@ package org.elasticsearch.index.rankeval;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
@@ -95,13 +90,7 @@ public class RankEvalSpecTests extends ESTestCase {
 
         RankEvalSpec testItem = new RankEvalSpec(specId, specs, metric);
 
-        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        if (randomBoolean()) {
-            builder.prettyPrint();
-        }
-        testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentBuilder shuffled = shuffleXContent(builder);
-        XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
+        XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
 
         QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, itemParser, ParseFieldMatcher.STRICT);
         RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,

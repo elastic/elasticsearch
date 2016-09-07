@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gateway.AsyncShardFetch.FetchResult;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardStateMetaData;
 
@@ -118,7 +119,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             return UnassignedShardDecision.DECISION_NOT_TAKEN;
         }
 
-        final AsyncShardFetch.FetchResult<NodeGatewayStartedShards> shardState = fetchData(unassignedShard, allocation);
+        final FetchResult<NodeGatewayStartedShards> shardState = fetchData(unassignedShard, allocation);
         if (shardState.hasData() == false) {
             allocation.setHasPendingAsyncFetch();
             return UnassignedShardDecision.noDecision(AllocationStatus.FETCHING_SHARD_DATA,
@@ -259,10 +260,10 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
      * lastActiveAllocationIds are added to the list. Otherwise, any node that has a shard is added to the list, but
      * entries with matching allocation id are always at the front of the list.
      */
-    protected NodeShardsResult buildAllocationIdBasedNodeShardsResult(ShardRouting shard, boolean matchAnyShard, Set<String> ignoreNodes,
-                                                                      Set<String> lastActiveAllocationIds,
-                                                                      AsyncShardFetch.FetchResult<NodeGatewayStartedShards> shardState,
-                                                                      Logger logger) {
+    protected static NodeShardsResult buildAllocationIdBasedNodeShardsResult(ShardRouting shard, boolean matchAnyShard,
+                                                                             Set<String> ignoreNodes, Set<String> lastActiveAllocationIds,
+                                                                             FetchResult<NodeGatewayStartedShards> shardState,
+                                                                             Logger logger) {
         LinkedList<NodeGatewayStartedShards> matchingNodeShardStates = new LinkedList<>();
         LinkedList<NodeGatewayStartedShards> nonMatchingNodeShardStates = new LinkedList<>();
         int numberOfAllocationsFound = 0;
@@ -382,9 +383,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
      * Builds a list of previously started shards. If matchAnyShard is set to false, only shards with the highest shard version are added to
      * the list. Otherwise, any existing shard is added to the list, but entries with highest version are always at the front of the list.
      */
-    NodeShardsResult buildVersionBasedNodeShardsResult(ShardRouting shard, boolean matchAnyShard, Set<String> ignoreNodes,
-                                                       AsyncShardFetch.FetchResult<NodeGatewayStartedShards> shardState,
-                                                       Logger logger) {
+    static NodeShardsResult buildVersionBasedNodeShardsResult(ShardRouting shard, boolean matchAnyShard, Set<String> ignoreNodes,
+                                                              FetchResult<NodeGatewayStartedShards> shardState, Logger logger) {
         final List<NodeGatewayStartedShards> allocationCandidates = new ArrayList<>();
         int numberOfAllocationsFound = 0;
         long highestVersion = ShardStateMetaData.NO_VERSION;
@@ -458,7 +458,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
             && IndexMetaData.INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING.get(metaData.getSettings(), this.settings);
     }
 
-    protected abstract AsyncShardFetch.FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);
+    protected abstract FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);
 
     static class NodeShardsResult {
         public final List<NodeGatewayStartedShards> orderedAllocationCandidates;
@@ -482,7 +482,10 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         }
     }
 
-    // TODO: javadocs
+    /**
+     * This class encapsulates the shard state retrieved from a node and the decision that was made
+     * by the allocator for allocating to the node that holds the shard copy.
+     */
     private static class DecidedNode {
         final NodeGatewayStartedShards nodeShardState;
         final Decision decision;

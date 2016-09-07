@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.common.stats.Counters;
 import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.Watcher;
@@ -60,13 +61,14 @@ public class ExecutionService extends AbstractComponent {
     private final Clock clock;
     private final TimeValue defaultThrottlePeriod;
     private final TimeValue maxStopTimeout;
+    private final ThreadPool threadPool;
 
     private volatile CurrentExecutions currentExecutions = null;
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     @Inject
     public ExecutionService(Settings settings, HistoryStore historyStore, TriggeredWatchStore triggeredWatchStore, WatchExecutor executor,
-                            WatchStore watchStore, WatchLockService watchLockService, Clock clock) {
+                            WatchStore watchStore, WatchLockService watchLockService, Clock clock, ThreadPool threadPool) {
         super(settings);
         this.historyStore = historyStore;
         this.triggeredWatchStore = triggeredWatchStore;
@@ -76,6 +78,7 @@ public class ExecutionService extends AbstractComponent {
         this.clock = clock;
         this.defaultThrottlePeriod = DEFAULT_THROTTLE_PERIOD_SETTING.get(settings);
         this.maxStopTimeout = Watcher.MAX_STOP_TIMEOUT_SETTING.get(settings);
+        this.threadPool = threadPool;
     }
 
     public void start(ClusterState state) throws Exception {
@@ -141,12 +144,7 @@ public class ExecutionService extends AbstractComponent {
             currentExecutions.add(watchExecution.createSnapshot());
         }
         // Lets show the longest running watch first:
-        Collections.sort(currentExecutions, new Comparator<WatchExecutionSnapshot>() {
-            @Override
-            public int compare(WatchExecutionSnapshot e1, WatchExecutionSnapshot e2) {
-                return e1.executionTime().compareTo(e2.executionTime());
-            }
-        });
+        Collections.sort(currentExecutions, Comparator.comparing(WatchExecutionSnapshot::executionTime));
         return currentExecutions;
     }
 
@@ -163,12 +161,8 @@ public class ExecutionService extends AbstractComponent {
             queuedWatches.add(new QueuedWatch(executionTask.ctx));
         }
         // Lets show the execution that pending the longest first:
-        Collections.sort(queuedWatches, new Comparator<QueuedWatch>() {
-            @Override
-            public int compare(QueuedWatch e1, QueuedWatch e2) {
-                return e1.executionTime().compareTo(e2.executionTime());
-            }
-        });
+
+        Collections.sort(queuedWatches, Comparator.comparing(QueuedWatch::executionTime));
         return queuedWatches;
     }
 
@@ -332,20 +326,36 @@ public class ExecutionService extends AbstractComponent {
        thread pool that executes the watches is completely busy, we don't lose the fact that the watch was
        triggered (it'll have its history record)
     */
-
-    private void executeAsync(WatchExecutionContext ctx, TriggeredWatch triggeredWatch) throws Exception {
+    private void executeAsync(WatchExecutionContext ctx, final TriggeredWatch triggeredWatch) {
         try {
             executor.execute(new WatchExecutionTask(ctx));
         } catch (EsRejectedExecutionException e) {
-            String message = "failed to run triggered watch [" + triggeredWatch.id() + "] due to thread pool capacity";
-            logger.debug("{}", message);
-            WatchRecord record = ctx.abortBeforeExecution(ExecutionState.FAILED, message);
-            if (ctx.overrideRecordOnConflict()) {
-                historyStore.forcePut(record);
-            } else {
-                historyStore.put(record);
-            }
-            triggeredWatchStore.delete(triggeredWatch.id());
+            // we are still in the transport thread here most likely, so we cannot run heavy operations
+            // this means some offloading needs to be done for indexing into the history and delete the triggered watches entry
+            threadPool.generic().execute(() -> {
+                String message = "failed to run triggered watch [" + triggeredWatch.id() + "] due to thread pool capacity";
+                logger.debug("{}", message);
+                WatchRecord record = ctx.abortBeforeExecution(ExecutionState.FAILED, message);
+                try {
+                    if (ctx.overrideRecordOnConflict()) {
+                        historyStore.forcePut(record);
+                    } else {
+                        historyStore.put(record);
+                    }
+                } catch (Exception exc) {
+                    logger.error((Supplier<?>) () ->
+                            new ParameterizedMessage("Error storing watch history record for watch [{}] after thread pool rejection",
+                                    triggeredWatch.id()), exc);
+                }
+
+                try {
+                    triggeredWatchStore.delete(triggeredWatch.id());
+                } catch (Exception exc) {
+                    logger.error((Supplier<?>) () ->
+                            new ParameterizedMessage("Error deleting triggered watch store record for watch [{}] after thread pool " +
+                                    "rejection", triggeredWatch.id()), exc);
+                }
+            });
         }
     }
 
@@ -436,6 +446,15 @@ public class ExecutionService extends AbstractComponent {
         }
 
         return counters.toMap();
+    }
+
+    /**
+     * This clears out the current executions and sets new empty current executions
+     * This is needed, because when this method is called, watcher keeps running, so sealing executions would be a bad idea
+     */
+    public void clearExecutions() {
+        currentExecutions.sealAndAwaitEmpty(maxStopTimeout);
+        currentExecutions = new CurrentExecutions();
     }
 
     private static final class StartupExecutionContext extends TriggeredExecutionContext {

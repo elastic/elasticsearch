@@ -5,7 +5,9 @@
  */
 package org.elasticsearch.xpack.common.http;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -14,6 +16,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.Scheme;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
+import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -63,6 +69,54 @@ public class HttpRequestTests extends ESTestCase {
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("Malformed URL [https://]"));
         }
+    }
+
+    public void testXContentSerialization() throws Exception {
+        final HttpRequest.Builder builder;
+        if (randomBoolean()) {
+            builder = HttpRequest.builder();
+            builder.fromUrl("http://localhost:9200/generic/createevent");
+        } else {
+            builder = HttpRequest.builder("localhost", 9200);
+            if (randomBoolean()) {
+                builder.scheme(randomFrom(Scheme.values()));
+                if (usually()) {
+                    builder.path(randomAsciiOfLength(50));
+                }
+            }
+        }
+        if (usually()) {
+            builder.method(randomFrom(HttpMethod.values()));
+        }
+        if (randomBoolean()) {
+            builder.setParam(randomAsciiOfLength(10), randomAsciiOfLength(10));
+            if (randomBoolean()) {
+                builder.setParam(randomAsciiOfLength(10), randomAsciiOfLength(10));
+            }
+        }
+        if (randomBoolean()) {
+            builder.setHeader(randomAsciiOfLength(10), randomAsciiOfLength(10));
+            if (randomBoolean()) {
+                builder.setHeader(randomAsciiOfLength(10), randomAsciiOfLength(10));
+            }
+        }
+        if (randomBoolean()) {
+            builder.auth(new BasicAuth(randomAsciiOfLength(10), randomAsciiOfLength(20).toCharArray()));
+        }
+        if (randomBoolean()) {
+            builder.body(randomAsciiOfLength(200));
+        }
+        if (randomBoolean()) {
+            builder.connectionTimeout(TimeValue.parseTimeValue(randomTimeValue(), "my.setting"));
+        }
+        if (randomBoolean()) {
+            builder.readTimeout(TimeValue.parseTimeValue(randomTimeValue(), "my.setting"));
+        }
+        if (randomBoolean()) {
+            builder.proxy(new HttpProxy(randomAsciiOfLength(10), randomIntBetween(1024, 65000)));
+        }
+
+        builder.build().toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
     }
 
     private void assertThatManualBuilderEqualsParsingFromUrl(String url, HttpRequest.Builder builder) throws Exception {

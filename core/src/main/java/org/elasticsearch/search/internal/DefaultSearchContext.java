@@ -58,7 +58,6 @@ import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -146,7 +145,7 @@ public class DefaultSearchContext extends SearchContext {
     private volatile long lastAccessTime = -1;
     private Profilers profilers;
 
-    private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
+    private final Map<String, Object> subPhaseBuilders = new HashMap<>();
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
     private final QueryShardContext queryShardContext;
     private FetchPhase fetchPhase;
@@ -386,14 +385,13 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(String name) {
-        return (SubPhaseContext) subPhaseContexts.get(name);
+    public Object getFetchSubPhaseBuilder(String name) {
+        return subPhaseBuilders.get(name);
     }
 
     @Override
-    public <SubPhaseContext extends FetchSubPhaseContext> void putFetchSubPhaseContext(String name, SubPhaseContext subPhaseContext) {
-        subPhaseContexts.put(name, subPhaseContext);
+    public void putFetchSubPhaseBuilder(String name, Object fetchSubPhaseBuilder) {
+        subPhaseBuilders.put(name, fetchSubPhaseBuilder);
     }
 
     @Override

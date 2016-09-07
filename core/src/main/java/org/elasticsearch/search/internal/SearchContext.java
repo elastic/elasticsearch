@@ -49,7 +49,6 @@ import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.fetch.FetchSubPhaseContext;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -185,10 +184,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract SearchContext aggregations(SearchContextAggregations aggregations);
 
-    public abstract <SubPhaseContext extends FetchSubPhaseContext> void putFetchSubPhaseContext(String name,
-                                                                                                SubPhaseContext subPhaseContext);
+    public abstract void putFetchSubPhaseBuilder(String name, Object fetchSubPhaseBuilder);
 
-    public abstract <SubPhaseContext extends FetchSubPhaseContext> SubPhaseContext getFetchSubPhaseContext(String name);
+    public abstract Object getFetchSubPhaseBuilder(String name);
 
     public abstract SearchContextHighlight highlight();
 

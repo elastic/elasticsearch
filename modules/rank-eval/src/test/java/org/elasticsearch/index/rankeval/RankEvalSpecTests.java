@@ -89,14 +89,13 @@ public class RankEvalSpecTests extends ESTestCase {
         }
 
         RankEvalSpec testItem = new RankEvalSpec(specId, specs, metric);
-
         XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
 
         QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, itemParser, ParseFieldMatcher.STRICT);
         RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,
-                searchRequestParsers);
+                searchRequestParsers, null);
 
-        RankEvalSpec parsedItem = RankEvalSpec.parse(itemParser, rankContext);
+        RankEvalSpec parsedItem = RankEvalSpec.parse(itemParser, rankContext, false);
         // IRL these come from URL parameters - see RestRankEvalAction
         parsedItem.getSpecifications().stream().forEach(e -> {e.setIndices(indices); e.setTypes(types);}); 
         assertNotSame(testItem, parsedItem);

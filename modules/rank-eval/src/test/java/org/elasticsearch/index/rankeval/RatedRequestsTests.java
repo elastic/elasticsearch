@@ -101,7 +101,7 @@ public class RatedRequestsTests extends ESTestCase {
 
         QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, itemParser, ParseFieldMatcher.STRICT);
         RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,
-                searchRequestParsers);
+                searchRequestParsers, null);
 
         RatedRequest parsedItem = RatedRequest.fromXContent(itemParser, rankContext);
         parsedItem.setIndices(indices); // IRL these come from URL parameters - see RestRankEvalAction
@@ -133,7 +133,7 @@ public class RatedRequestsTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(querySpecString).createParser(querySpecString);
         QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, parser, ParseFieldMatcher.STRICT);
         RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,
-                searchRequestParsers);
+                searchRequestParsers, null);
         RatedRequest specification = RatedRequest.fromXContent(parser, rankContext);
         assertEquals("my_qa_query", specification.getSpecId());
         assertNotNull(specification.getTestRequest());

@@ -19,12 +19,14 @@
 
 package org.elasticsearch.index.rankeval;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,8 +34,11 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
+
+import java.util.Map;
 
 /**
  * Defines a QA specification: All end user supplied query intents will be mapped to the search request specified in this search request
@@ -42,6 +47,7 @@ import java.util.Objects;
  * The resulting document lists can then be compared against what was specified in the set of rated documents as part of a QAQuery.
  * */
 public class RatedRequest extends ToXContentToBytes implements Writeable {
+    private static final Logger logger = Loggers.getLogger(RatedRequest.class);
 
     private String specId;
     private SearchSourceBuilder testRequest;
@@ -49,6 +55,8 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     private List<String> types = new ArrayList<>();
     /** Collection of rated queries for this query QA specification.*/
     private List<RatedDocument> ratedDocs = new ArrayList<>();
+    /** Map of parameters to use for filling a query template, can be used instead of providing testRequest. */
+    private Map<String, Object> params = new HashMap<>();
 
     public RatedRequest() {
         // ctor that doesn't require all args to be present immediatly is easier to use with ObjectParser
@@ -82,6 +90,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         for (int i = 0; i < intentSize; i++) {
             ratedDocs.add(new RatedDocument(in));
         }
+        this.params = in.readMap();
     }
 
     @Override
@@ -100,6 +109,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         for (RatedDocument ratedDoc : ratedDocs) {
             ratedDoc.writeTo(out);
         }
+        out.writeMap(params);
     }
 
     public SearchSourceBuilder getTestRequest() {
@@ -145,16 +155,26 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     public void setRatedDocs(List<RatedDocument> ratedDocs) {
         this.ratedDocs = ratedDocs;
     }
+    
+    public void setParams(Map<String, Object> params) {
+        this.params = params;
+    }
+    
+    public Map<String, Object> getParams() {
+        return this.params;
+    }
 
     private static final ParseField ID_FIELD = new ParseField("id");
     private static final ParseField REQUEST_FIELD = new ParseField("request");
     private static final ParseField RATINGS_FIELD = new ParseField("ratings");
+    private static final ParseField PARAMS_FIELD = new ParseField("params");
     private static final ObjectParser<RatedRequest, RankEvalContext> PARSER = new ObjectParser<>("requests", RatedRequest::new);
 
     static {
         PARSER.declareString(RatedRequest::setSpecId, ID_FIELD);
         PARSER.declareObject(RatedRequest::setTestRequest, (p, c) -> {
             try {
+                logger.error("Building search source builder");
                 return SearchSourceBuilder.fromXContent(c.getParseContext(), c.getAggs(),  c.getSuggesters());
             } catch (IOException ex) {
                 throw new ParsingException(p.getTokenLocation(), "error parsing request", ex);
@@ -166,7 +186,14 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
             } catch (IOException ex) {
                 throw new ParsingException(p.getTokenLocation(), "error parsing ratings", ex);
             }
-        } , RATINGS_FIELD);
+        }, RATINGS_FIELD);
+        PARSER.declareObject(RatedRequest::setParams, (p, c) -> {
+            try {
+                return p.map();
+            } catch (IOException ex) {
+                throw new ParsingException(p.getTokenLocation(), "error parsing ratings", ex);
+            }
+        }, PARAMS_FIELD);
     }
 
     /**
@@ -197,7 +224,13 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ID_FIELD.getPreferredName(), this.specId);
-        builder.field(REQUEST_FIELD.getPreferredName(), this.testRequest);
+        if (testRequest != null)
+            builder.field(REQUEST_FIELD.getPreferredName(), this.testRequest);
+//        builder.startArray(PARAMS_FIELD.getPreferredName());
+//        for (Entry<String, Object> entry : this.params.entrySet()) {
+//            builder.field(entry.getKey(), entry.getValue());
+//        }
+//        builder.endArray();
         builder.startArray(RATINGS_FIELD.getPreferredName());
         for (RatedDocument doc : this.ratedDocs) {
             doc.toXContent(builder, params);

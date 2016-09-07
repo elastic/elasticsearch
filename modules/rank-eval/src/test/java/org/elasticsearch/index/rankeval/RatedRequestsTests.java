@@ -101,7 +101,7 @@ public class RatedRequestsTests extends ESTestCase {
 
         QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, itemParser, ParseFieldMatcher.STRICT);
         RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,
-                searchRequestParsers);
+                searchRequestParsers, null);
 
         RatedRequest parsedItem = RatedRequest.fromXContent(itemParser, rankContext);
         parsedItem.setIndices(indices); // IRL these come from URL parameters - see RestRankEvalAction

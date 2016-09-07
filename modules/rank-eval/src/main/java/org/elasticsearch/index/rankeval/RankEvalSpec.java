@@ -169,7 +169,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
         logger.trace("request received: {}", spec.toString());
         if (templated) {
             String template = spec.getTemplate();
-            for (QuerySpec query_spec : spec.getSpecifications()) {
+            for (RatedRequest query_spec : spec.getSpecifications()) {
                 @SuppressWarnings({ "unchecked", "rawtypes" })
                 Map<String, String> params = (Map) query_spec.getParams();
                 Script script = new Script(template, ScriptService.ScriptType.INLINE, "mustache", params);

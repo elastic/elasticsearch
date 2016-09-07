@@ -94,7 +94,7 @@ public class RankEvalSpecTests extends ESTestCase {
 
         QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, itemParser, ParseFieldMatcher.STRICT);
         RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,
-                searchRequestParsers);
+                searchRequestParsers, null);
 
         RankEvalSpec parsedItem = RankEvalSpec.parse(itemParser, rankContext);
         // IRL these come from URL parameters - see RestRankEvalAction

@@ -36,9 +36,6 @@ public class RatedDocumentTests extends ESTestCase {
         return new RatedDocument(new RatedDocumentKey(index, type, docId), rating);
     }
 
-        RankEvalContext context = new RankEvalContext(ParseFieldMatcher.STRICT, null, null, null);
-        RatedDocument parsedItem = RatedDocument.fromXContent(itemParser, context);
-
     public void testXContentParsing() throws IOException {
         RatedDocument testItem = createTestItem();
         XContentParser itemParser = XContentTestHelper.roundtrip(testItem);

@@ -43,7 +43,7 @@ public abstract class BaseGatewayShardAllocator extends AbstractComponent {
 
     /**
      * Allocate unassigned shards to nodes (if any) where valid copies of the shard already exist.
-     * It is up to the individual implementations of {@link #makeAllocationDecision(ShardRouting, RoutingAllocation, boolean, Logger)}
+     * It is up to the individual implementations of {@link #makeAllocationDecision(ShardRouting, RoutingAllocation, Logger)}
      * to make decisions on assigning shards to nodes.
      *
      * @param allocation the allocation state container object
@@ -53,7 +53,7 @@ public abstract class BaseGatewayShardAllocator extends AbstractComponent {
         final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
             final ShardRouting shard = unassignedIterator.next();
-            final UnassignedShardDecision unassignedShardDecision = makeAllocationDecision(shard, allocation, false, logger);
+            final UnassignedShardDecision unassignedShardDecision = makeAllocationDecision(shard, allocation, logger);
 
             if (unassignedShardDecision.isDecisionTaken() == false) {
                 // no decision was taken by this allocator
@@ -79,12 +79,10 @@ public abstract class BaseGatewayShardAllocator extends AbstractComponent {
      *
      * @param unassignedShard  the unassigned shard to allocate
      * @param allocation       the current routing state
-     * @param explain          whether to explain the decision in the return object
      * @param logger           the logger
      * @return an {@link UnassignedShardDecision} with the final decision of whether to allocate and details of the decision
      */
     public abstract UnassignedShardDecision makeAllocationDecision(ShardRouting unassignedShard,
                                                                    RoutingAllocation allocation,
-                                                                   boolean explain,
                                                                    Logger logger);
 }

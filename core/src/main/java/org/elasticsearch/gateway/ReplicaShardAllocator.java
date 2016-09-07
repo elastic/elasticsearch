@@ -142,7 +142,6 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     @Override
     public UnassignedShardDecision makeAllocationDecision(final ShardRouting unassignedShard,
                                                           final RoutingAllocation allocation,
-                                                          final boolean explain,
                                                           final Logger logger) {
         if (isResponsibleFor(unassignedShard) == false) {
             // this allocator is not responsible for deciding on this shard
@@ -150,6 +149,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         }
 
         final RoutingNodes routingNodes = allocation.routingNodes();
+        final boolean explain = allocation.debugDecision();
         // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
         Tuple<Decision, Map<String, Decision>> allocateDecision = canBeAllocatedToAtLeastOneNode(unassignedShard, allocation, explain);
         if (allocateDecision.v1().type() != Decision.Type.YES) {

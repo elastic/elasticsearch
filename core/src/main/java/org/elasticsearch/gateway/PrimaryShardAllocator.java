@@ -112,13 +112,13 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
     @Override
     public UnassignedShardDecision makeAllocationDecision(final ShardRouting unassignedShard,
                                                           final RoutingAllocation allocation,
-                                                          final boolean explain,
                                                           final Logger logger) {
         if (isResponsibleFor(unassignedShard) == false) {
             // this allocator is not responsible for allocating this shard
             return UnassignedShardDecision.DECISION_NOT_TAKEN;
         }
 
+        final boolean explain = allocation.debugDecision();
         final FetchResult<NodeGatewayStartedShards> shardState = fetchData(unassignedShard, allocation);
         if (shardState.hasData() == false) {
             allocation.setHasPendingAsyncFetch();

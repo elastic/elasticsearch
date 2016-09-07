@@ -33,7 +33,6 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchHitField;
-import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
@@ -106,42 +105,32 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
 
     public static final class TermVectorsFetchSubPhase implements FetchSubPhase {
 
-        public static final ContextFactory<TermVectorsFetchContext> CONTEXT_FACTORY = new ContextFactory<TermVectorsFetchContext>() {
-
-            @Override
-            public String getName() {
-                return NAMES[0];
-            }
-
-            @Override
-            public TermVectorsFetchContext newContextInstance() {
-                return new TermVectorsFetchContext();
-            }
-        };
-
-        public static final String[] NAMES = {"term_vectors_fetch"};
+        public static final String NAME = "term_vectors_fetch";
 
         @Override
-        public Map<String, ? extends SearchParseElement> parseElements() {
-            return singletonMap("term_vectors_fetch", new TermVectorsFetchParseElement());
+        public Map<String, ? extends FetchSubPhaseParser> parsers() {
+            return singletonMap("term_vectors_fetch", new TermVectorsFetchParser());
         }
 
         @Override
         public void hitExecute(SearchContext context, HitContext hitContext) {
-            if (context.getFetchSubPhaseContext(CONTEXT_FACTORY).hitExecutionNeeded() == false) {
+            TermVectorsFetchContext fetchSubPhaseContext = context.getFetchSubPhaseContext(NAME);
+            if (fetchSubPhaseContext.hitExecutionNeeded() == false) {
                 return;
             }
-            String field = context.getFetchSubPhaseContext(CONTEXT_FACTORY).getField();
+            String field = fetchSubPhaseContext.getField();
 
             if (hitContext.hit().fieldsOrNull() == null) {
                 hitContext.hit().fields(new HashMap<>());
             }
-            SearchHitField hitField = hitContext.hit().fields().get(NAMES[0]);
+            SearchHitField hitField = hitContext.hit().fields().get(NAME);
             if (hitField == null) {
-                hitField = new InternalSearchHitField(NAMES[0], new ArrayList<>(1));
-                hitContext.hit().fields().put(NAMES[0], hitField);
+                hitField = new InternalSearchHitField(NAME, new ArrayList<>(1));
+                hitContext.hit().fields().put(NAME, hitField);
             }
-            TermVectorsResponse termVector = TermVectorsService.getTermVectors(context.indexShard(), new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(), hitContext.hit().type(), hitContext.hit().id()));
+            TermVectorsRequest termVectorsRequest = new TermVectorsRequest(context.indexShard().shardId().getIndex().getName(),
+                    hitContext.hit().type(), hitContext.hit().id());
+            TermVectorsResponse termVector = TermVectorsService.getTermVectors(context.indexShard(), termVectorsRequest);
             try {
                 Map<String, Integer> tv = new HashMap<>();
                 TermsEnum terms = termVector.getFields().terms(field).iterator();
@@ -156,20 +145,21 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         }
     }
 
-    public static class TermVectorsFetchParseElement implements SearchParseElement {
+    public static class TermVectorsFetchParser implements FetchSubPhaseParser<TermVectorsFetchContext> {
 
         @Override
-        public void parse(XContentParser parser, SearchContext context) throws Exception {
-            TermVectorsFetchContext fetchSubPhaseContext = context.getFetchSubPhaseContext(TermVectorsFetchSubPhase.CONTEXT_FACTORY);
+        public TermVectorsFetchContext parse(XContentParser parser) throws Exception {
             // this is to make sure that the SubFetchPhase knows it should execute
-            fetchSubPhaseContext.setHitExecutionNeeded(true);
+            TermVectorsFetchContext termVectorsFetchContext = new TermVectorsFetchContext();
+            termVectorsFetchContext.setHitExecutionNeeded(true);
             XContentParser.Token token = parser.currentToken();
             if (token == XContentParser.Token.VALUE_STRING) {
                 String fieldName = parser.text();
-                fetchSubPhaseContext.setField(fieldName);
+                termVectorsFetchContext.setField(fieldName);
             } else {
                 throw new IllegalStateException("Expected a VALUE_STRING but got " + token);
             }
+            return termVectorsFetchContext;
         }
     }
 

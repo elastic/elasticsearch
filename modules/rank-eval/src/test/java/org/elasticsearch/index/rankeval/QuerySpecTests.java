@@ -74,7 +74,7 @@ public class QuerySpecTests extends ESTestCase {
         String specId = randomAsciiOfLength(50);
 
         SearchSourceBuilder testRequest = new SearchSourceBuilder();
-        testRequest.size(23);
+        testRequest.size(randomInt());
         testRequest.query(new MatchAllQueryBuilder());
 
         List<RatedDocument> ratedDocs = new ArrayList<>();
@@ -108,7 +108,7 @@ public class QuerySpecTests extends ESTestCase {
         testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentBuilder shuffled = shuffleXContent(builder);
         XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
-        itemParser.nextToken(); // TODO this could be the reason why the metric roundtrip tests failed
+        itemParser.nextToken();
 
         QueryParseContext queryContext = new QueryParseContext(searchRequestParsers.queryParsers, itemParser, ParseFieldMatcher.STRICT);
         RankEvalContext rankContext = new RankEvalContext(ParseFieldMatcher.STRICT, queryContext,

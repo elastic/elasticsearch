@@ -761,7 +761,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             XContentParser extParser = null;
             try {
                 extParser = XContentFactory.xContent(source.ext()).createParser(source.ext());
-                XContentParser.Token token = extParser.nextToken();
+                if (extParser.nextToken() != XContentParser.Token.START_OBJECT) {
+                    throw new SearchParseException(context, "expected start object, found [" + extParser.currentToken() + "] instead",
+                            extParser.getTokenLocation());
+                }
+                XContentParser.Token token;
                 String currentFieldName = null;
                 while ((token = extParser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {

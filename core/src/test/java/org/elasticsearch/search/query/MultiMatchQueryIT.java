@@ -44,6 +44,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -59,11 +60,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchContainsHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponsesEqual;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -122,6 +124,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 "last_name", "",
                 "category", "marvel hero",
                 "skill", 1));
+
         List<String> firstNames = new ArrayList<>();
         fill(firstNames, "Captain", between(15, 25));
         fill(firstNames, "Ultimate", between(5, 10));
@@ -363,7 +366,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                                 .add(matchQuery("last_name", "marvel hero captain america"))
                                 .add(matchQuery("category", "marvel hero captain america"))
                         ).get();
-                assertEquivalent("marvel hero captain america", left, right);
+                assertSearchResponsesEqual("marvel hero captain america", left, right);
             }
 
             {
@@ -385,7 +388,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                                 .should(matchQuery("last_name", "captain america").operator(op))
                                 .should(matchQuery("category", "captain america").operator(op))
                         ).get();
-                assertEquivalent("captain america", left, right);
+                assertSearchResponsesEqual("captain america", left, right);
             }
 
             {
@@ -403,7 +406,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                                 .should(matchPhrasePrefixQuery("last_name", "capta"))
                                 .should(matchPhrasePrefixQuery("category", "capta"))
                         ).get();
-                assertEquivalent("capta", left, right);
+                assertSearchResponsesEqual("capta", left, right);
             }
             {
                 String minShouldMatch = randomBoolean() ? null : "" + between(0, 1);
@@ -427,7 +430,7 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                                 .should(matchPhraseQuery("last_name", "captain america"))
                                 .should(matchPhraseQuery("category", "captain america"))
                         ).get();
-                assertEquivalent("captain america", left, right);
+                assertSearchResponsesEqual("captain america", left, right);
             }
         }
     }
@@ -572,9 +575,9 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .setQuery(randomizeType(multiMatchQuery("the ultimate", "full_name", "first_name", "last_name", "category").field("last_name", 10)
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .operator(Operator.AND))).get();
-        assertFirstHit(searchResponse, hasId("ultimate1"));   // has ultimate in the last_name and that is boosted
-        assertSecondHit(searchResponse, hasId("ultimate2"));
-        assertThat(searchResponse.getHits().hits()[0].getScore(), greaterThan(searchResponse.getHits().hits()[1].getScore()));
+        assertSearchContainsHit(searchResponse, hasId("ultimate1"));   // has ultimate in the last_name and that is boosted
+        assertSearchContainsHit(searchResponse, hasId("ultimate2"));
+        assertThat(getHitById(searchResponse, "ultimate1").getScore(), greaterThan(getHitById(searchResponse, "ultimate2").getScore()));
 
         // since we try to treat the matching fields as one field scores are very similar but we have a small bias towards the
         // more frequent field that acts as a tie-breaker internally
@@ -582,9 +585,9 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                 .setQuery(randomizeType(multiMatchQuery("the ultimate", "full_name", "first_name", "last_name", "category")
                         .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
                         .operator(Operator.AND))).get();
-        assertFirstHit(searchResponse, hasId("ultimate2"));
-        assertSecondHit(searchResponse, hasId("ultimate1"));
-        assertThat(searchResponse.getHits().hits()[0].getScore(), greaterThan(searchResponse.getHits().hits()[1].getScore()));
+        assertSearchContainsHit(searchResponse, hasId("ultimate2"));
+        assertSearchContainsHit(searchResponse, hasId("ultimate1"));
+        assertThat(getHitById(searchResponse, "ultimate2").getScore(), greaterThan(getHitById(searchResponse, "ultimate1").getScore()));
 
         // Test group based on numeric fields
         searchResponse = client().prepareSearch("test")
@@ -627,24 +630,8 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("ultimate1"));
     }
 
-    private static void assertEquivalent(String query, SearchResponse left, SearchResponse right) {
-        assertNoFailures(left);
-        assertNoFailures(right);
-        SearchHits leftHits = left.getHits();
-        SearchHits rightHits = right.getHits();
-        assertThat(leftHits.getTotalHits(), equalTo(rightHits.getTotalHits()));
-        assertThat(leftHits.getHits().length, equalTo(rightHits.getHits().length));
-        SearchHit[] hits = leftHits.getHits();
-        SearchHit[] rHits = rightHits.getHits();
-        for (int i = 0; i < hits.length; i++) {
-            assertThat("query: " + query + " hit: " + i, (double) hits[i].getScore(), closeTo(rHits[i].getScore(), 0.00001d));
-        }
-        for (int i = 0; i < hits.length; i++) {
-            if (hits[i].getScore() == hits[hits.length - 1].getScore()) {
-                return; // we need to cut off here since this is the tail of the queue and we might not have fetched enough docs
-            }
-            assertThat("query: " + query, hits[i].getId(), equalTo(rHits[i].getId()));
-        }
+    private SearchHit getHitById(SearchResponse searchResponse, String id) {
+        return Stream.of(searchResponse.getHits().hits()).filter(searchHit -> searchHit.id().equals(id)).findFirst().get();
     }
 
     public static List<String> fill(List<String> list, String value, int times) {

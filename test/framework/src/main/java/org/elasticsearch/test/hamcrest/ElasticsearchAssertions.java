@@ -57,13 +57,17 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.CoreMatchers;
+import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
+import org.hamcrest.StringDescription;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.lang.reflect.Constructor;
@@ -76,6 +80,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static org.apache.lucene.util.LuceneTestCase.random;
@@ -83,6 +88,7 @@ import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -284,6 +290,18 @@ public class ElasticsearchAssertions {
         assertSearchHit(searchResponse.getHits().getAt(number - 1), matcher);
         assertVersionSerializable(searchResponse);
     }
+
+    public static void assertSearchContainsHit(SearchResponse searchResponse, Matcher<SearchHit> matcher) {
+        if (Stream.of(searchResponse.getHits().hits()).noneMatch(matcher::matches)) {
+            Description description = new StringDescription();
+            description.appendText("\nExpected: ")
+                .appendDescriptionOf(matcher);
+            throw new AssertionError(description.toString());
+        }
+        assertVersionSerializable(searchResponse);
+    }
+
+
 
     public static void assertNoFailures(SearchResponse searchResponse) {
         assertThat("Unexpected ShardFailures: " + Arrays.toString(searchResponse.getShardFailures()),
@@ -682,6 +700,26 @@ public class ElasticsearchAssertions {
 
     public static void assertVersionSerializable(Version version, final Exception e) {
         ElasticsearchAssertions.assertVersionSerializable(version, new ExceptionWrapper(e));
+    }
+
+    public static void assertSearchResponsesEqual(String query, SearchResponse left, SearchResponse right) {
+        assertNoFailures(left);
+        assertNoFailures(right);
+        SearchHits leftHits = left.getHits();
+        SearchHits rightHits = right.getHits();
+        Assert.assertThat(leftHits.getTotalHits(), Matchers.equalTo(rightHits.getTotalHits()));
+        Assert.assertThat(leftHits.getHits().length, Matchers.equalTo(rightHits.getHits().length));
+        SearchHit[] hits = leftHits.getHits();
+        SearchHit[] rHits = rightHits.getHits();
+        for (int i = 0; i < hits.length; i++) {
+            Assert.assertThat("query: " + query + " hit: " + i, (double) hits[i].getScore(), closeTo(rHits[i].getScore(), 0.00001d));
+        }
+        for (int i = 0; i < hits.length; i++) {
+            if (hits[i].getScore() == hits[hits.length - 1].getScore()) {
+                return; // we need to cut off here since this is the tail of the queue and we might not have fetched enough docs
+            }
+            Assert.assertThat("query: " + query, hits[i].getId(), Matchers.equalTo(rHits[i].getId()));
+        }
     }
 
     public static final class ExceptionWrapper implements Streamable {

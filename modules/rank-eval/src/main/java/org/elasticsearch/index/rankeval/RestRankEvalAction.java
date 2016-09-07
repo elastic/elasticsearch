@@ -223,7 +223,7 @@ public class RestRankEvalAction extends BaseRestHandler {
             logger.trace("rank eval request is not templated");
             spec = RankEvalSpec.parse(context.parser(), context, false);
         }
-        for (QuerySpec specification : spec.getSpecifications()) {
+        for (RatedRequest specification : spec.getSpecifications()) {
             specification.setIndices(indices);
             specification.setTypes(types);
         };

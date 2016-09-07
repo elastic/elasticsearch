@@ -134,4 +134,20 @@ public class PrecisionAtNTests extends ESTestCase {
         partialResults.add(new EvalQueryQuality(0.6, emptyList()));
         assertEquals(0.3, metric.combine(partialResults), Double.MIN_VALUE);
     }
+
+    public static PrecisionAtN createTestItem() {
+        int position = randomIntBetween(0, 1000);
+        return new PrecisionAtN(position);
+    }
+
+    public void testXContentRoundtrip() throws IOException {
+        PrecisionAtN testItem = createTestItem();
+        XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
+        itemParser.nextToken();
+        itemParser.nextToken();
+        PrecisionAtN parsedItem = PrecisionAtN.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
+        assertNotSame(testItem, parsedItem);
+        assertEquals(testItem, parsedItem);
+        assertEquals(testItem.hashCode(), parsedItem.hashCode());
+    }
 }

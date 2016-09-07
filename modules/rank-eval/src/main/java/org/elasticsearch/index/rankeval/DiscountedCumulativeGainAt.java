@@ -50,24 +50,6 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric<Discount
     public static final String NAME = "dcg_at_n";
     private static final double LOG2 = Math.log(2.0);
 
-    public DiscountedCumulativeGainAt(StreamInput in) throws IOException {
-        position = in.readInt();
-        normalize = in.readBoolean();
-        unknownDocRating = in.readOptionalVInt();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(position);
-        out.writeBoolean(normalize);
-        out.writeOptionalVInt(unknownDocRating);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return NAME;
-    }
-
     /**
      * Initialises position with 10
      * */
@@ -87,15 +69,32 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric<Discount
 
     /**
      * @param position number of top results to check against a given set of relevant results. Must be positive.
-     *  // TODO is there a way to enforce this?
      * @param normalize If set to true, dcg will be normalized (ndcg)
      * See https://en.wikipedia.org/wiki/Discounted_cumulative_gain
      * @param unknownDocRating the rating for docs the user hasn't supplied an explicit rating for
      * */
     public DiscountedCumulativeGainAt(int position, boolean normalize, Integer unknownDocRating) {
-        this.position = position;
+        this(position);
         this.normalize = normalize;
         this.unknownDocRating = unknownDocRating;
+    }
+
+    public DiscountedCumulativeGainAt(StreamInput in) throws IOException {
+        this(in.readInt());
+        normalize = in.readBoolean();
+        unknownDocRating = in.readOptionalVInt();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeInt(position);
+        out.writeBoolean(normalize);
+        out.writeOptionalVInt(unknownDocRating);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
     }
 
     /**
@@ -195,12 +194,7 @@ public class DiscountedCumulativeGainAt extends RankedListQualityMetric<Discount
 
     @Override
     public DiscountedCumulativeGainAt fromXContent(XContentParser parser, ParseFieldMatcher matcher) {
-        return DiscountedCumulativeGainAt.fromXContent(parser, new ParseFieldMatcherSupplier() {
-            @Override
-            public ParseFieldMatcher getParseFieldMatcher() {
-                return matcher;
-            }
-        });
+        return DiscountedCumulativeGainAt.fromXContent(parser, () -> matcher);
     }
 
     public static DiscountedCumulativeGainAt fromXContent(XContentParser parser, ParseFieldMatcherSupplier matcher) {

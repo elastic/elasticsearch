@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.security.authz.permission.KibanaRole;
 import org.elasticsearch.xpack.security.authz.permission.KibanaUserRole;
 import org.elasticsearch.xpack.security.authz.permission.MonitoringUserRole;
 import org.elasticsearch.xpack.security.authz.permission.RemoteMonitoringAgentRole;
+import org.elasticsearch.xpack.security.authz.permission.ReportingUserRole;
 import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
 import org.elasticsearch.xpack.security.authz.permission.TransportClientRole;
 import org.elasticsearch.xpack.security.user.ElasticUser;
@@ -66,9 +67,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(reservedRolesStore.role(RemoteMonitoringAgentRole.NAME), sameInstance(RemoteMonitoringAgentRole.INSTANCE));
         assertThat(reservedRolesStore.roleDescriptor(RemoteMonitoringAgentRole.NAME), sameInstance(RemoteMonitoringAgentRole.DESCRIPTOR));
 
+        assertThat(reservedRolesStore.role(ReportingUserRole.NAME), sameInstance(ReportingUserRole.INSTANCE));
+        assertThat(reservedRolesStore.roleDescriptor(ReportingUserRole.NAME), sameInstance(ReportingUserRole.DESCRIPTOR));
+
         assertThat(reservedRolesStore.roleDescriptors(), contains(SuperuserRole.DESCRIPTOR, TransportClientRole.DESCRIPTOR,
                 KibanaUserRole.DESCRIPTOR, MonitoringUserRole.DESCRIPTOR, RemoteMonitoringAgentRole.DESCRIPTOR,
-                IngestAdminRole.DESCRIPTOR));
+                IngestAdminRole.DESCRIPTOR, ReportingUserRole.DESCRIPTOR));
 
         assertThat(reservedRolesStore.role(KibanaRole.NAME), nullValue());
         assertThat(reservedRolesStore.roleDescriptor(KibanaRole.NAME), nullValue());
@@ -99,9 +103,12 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(reservedRolesStore.role(RemoteMonitoringAgentRole.NAME), sameInstance(RemoteMonitoringAgentRole.INSTANCE));
         assertThat(reservedRolesStore.roleDescriptor(RemoteMonitoringAgentRole.NAME), sameInstance(RemoteMonitoringAgentRole.DESCRIPTOR));
 
+        assertThat(reservedRolesStore.role(ReportingUserRole.NAME), sameInstance(ReportingUserRole.INSTANCE));
+        assertThat(reservedRolesStore.roleDescriptor(ReportingUserRole.NAME), sameInstance(ReportingUserRole.DESCRIPTOR));
+
         assertThat(reservedRolesStore.roleDescriptors(), contains(SuperuserRole.DESCRIPTOR, TransportClientRole.DESCRIPTOR,
                 KibanaUserRole.DESCRIPTOR, KibanaRole.DESCRIPTOR, MonitoringUserRole.DESCRIPTOR, RemoteMonitoringAgentRole.DESCRIPTOR,
-                IngestAdminRole.DESCRIPTOR));
+                IngestAdminRole.DESCRIPTOR, ReportingUserRole.DESCRIPTOR));
 
         assertThat(reservedRolesStore.role(SystemUser.ROLE_NAME), nullValue());
     }
@@ -116,5 +123,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(ReservedRolesStore.isReserved(IngestAdminRole.NAME), is(true));
         assertThat(ReservedRolesStore.isReserved(RemoteMonitoringAgentRole.NAME), is(true));
         assertThat(ReservedRolesStore.isReserved(MonitoringUserRole.NAME), is(true));
+        assertThat(ReservedRolesStore.isReserved(ReportingUserRole.NAME), is(true));
     }
 }

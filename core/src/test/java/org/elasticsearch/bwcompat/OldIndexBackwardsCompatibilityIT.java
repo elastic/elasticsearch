@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -310,6 +311,14 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         searchRsp = searchReq.get();
         ElasticsearchAssertions.assertNoFailures(searchRsp);
         assertEquals(numDocs, searchRsp.getHits().getTotalHits());
+        GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(indexName).get();
+        Version versionCreated = Version.fromId(Integer.parseInt(getSettingsResponse.getSetting(indexName, "index.version.created")));
+        if (versionCreated.onOrAfter(Version.V_2_4_0)) {
+            searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.existsQuery("field.with.dots"));
+            searchRsp = searchReq.get();
+            ElasticsearchAssertions.assertNoFailures(searchRsp);
+            assertEquals(numDocs, searchRsp.getHits().getTotalHits());
+        }
     }
 
     boolean findPayloadBoostInExplanation(Explanation expl) {

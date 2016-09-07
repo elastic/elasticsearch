@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.BytesValuesSourceParser;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeAggregationBuilder.Range;
+import org.elasticsearch.search.aggregations.support.XContentParseContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -102,21 +103,22 @@ public class IpRangeParser extends BytesValuesSourceParser {
 
     @Override
     protected boolean token(String aggregationName, String currentFieldName,
-            Token token, XContentParser parser,
-            ParseFieldMatcher parseFieldMatcher,
-            Map<ParseField, Object> otherOptions) throws IOException {
-        if (parseFieldMatcher.match(currentFieldName, RangeAggregator.RANGES_FIELD)) {
+                            Token token,
+                            XContentParseContext context,
+                            Map<ParseField, Object> otherOptions) throws IOException {
+        XContentParser parser = context.getParser();
+        if (context.matchField(currentFieldName, RangeAggregator.RANGES_FIELD)) {
             if (parser.currentToken() != Token.START_ARRAY) {
                 throw new ParsingException(parser.getTokenLocation(), "[ranges] must be passed as an array, but got a " + token);
             }
             List<Range> ranges = new ArrayList<>();
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                Range range = parseRange(parser, parseFieldMatcher);
+                Range range = parseRange(parser, context.getParseFieldMatcher());
                 ranges.add(range);
             }
             otherOptions.put(RangeAggregator.RANGES_FIELD, ranges);
             return true;
-        } else if (parseFieldMatcher.match(parser.currentName(), RangeAggregator.KEYED_FIELD)) {
+        } else if (context.matchField(parser.currentName(), RangeAggregator.KEYED_FIELD)) {
             otherOptions.put(RangeAggregator.KEYED_FIELD, parser.booleanValue());
             return true;
         }

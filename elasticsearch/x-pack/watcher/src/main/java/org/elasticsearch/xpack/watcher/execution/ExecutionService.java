@@ -141,12 +141,7 @@ public class ExecutionService extends AbstractComponent {
             currentExecutions.add(watchExecution.createSnapshot());
         }
         // Lets show the longest running watch first:
-        Collections.sort(currentExecutions, new Comparator<WatchExecutionSnapshot>() {
-            @Override
-            public int compare(WatchExecutionSnapshot e1, WatchExecutionSnapshot e2) {
-                return e1.executionTime().compareTo(e2.executionTime());
-            }
-        });
+        Collections.sort(currentExecutions, Comparator.comparing(WatchExecutionSnapshot::executionTime));
         return currentExecutions;
     }
 
@@ -163,12 +158,8 @@ public class ExecutionService extends AbstractComponent {
             queuedWatches.add(new QueuedWatch(executionTask.ctx));
         }
         // Lets show the execution that pending the longest first:
-        Collections.sort(queuedWatches, new Comparator<QueuedWatch>() {
-            @Override
-            public int compare(QueuedWatch e1, QueuedWatch e2) {
-                return e1.executionTime().compareTo(e2.executionTime());
-            }
-        });
+
+        Collections.sort(queuedWatches, Comparator.comparing(QueuedWatch::executionTime));
         return queuedWatches;
     }
 
@@ -436,6 +427,15 @@ public class ExecutionService extends AbstractComponent {
         }
 
         return counters.toMap();
+    }
+
+    /**
+     * This clears out the current executions and sets new empty current executions
+     * This is needed, because when this method is called, watcher keeps running, so sealing executions would be a bad idea
+     */
+    public void clearExecutions() {
+        currentExecutions.sealAndAwaitEmpty(maxStopTimeout);
+        currentExecutions = new CurrentExecutions();
     }
 
     private static final class StartupExecutionContext extends TriggeredExecutionContext {

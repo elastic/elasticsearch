@@ -16,9 +16,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
-import org.elasticsearch.xpack.support.clock.Clock;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchLockService;
@@ -291,5 +291,14 @@ public class WatcherService extends AbstractComponent {
         Map<String, Object> innerMap = executionService.usageStats();
         innerMap.putAll(watchStore.usageStats());
         return innerMap;
+    }
+
+    /**
+     * Something deleted or closed the {@link WatchStore#INDEX} and thus we need to do some cleanup to prevent further execution of watches
+     * as those watches cannot be updated anymore
+     */
+    public void watchIndexDeletedOrClosed() {
+        watchStore.clearWatchesInMemory();
+        executionService.clearExecutions();
     }
 }

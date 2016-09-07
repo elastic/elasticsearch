@@ -111,6 +111,7 @@ GET twitter/tweet/_validate/query?q=post_date:foo&explain=true
 
 responds with:
 
+[source,js]
 --------------------------------------------------
 {
   "valid" : false,

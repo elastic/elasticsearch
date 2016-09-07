@@ -515,7 +515,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                             currentFieldName = sourceParser.currentName();
                         } else if (token == XContentParser.Token.START_OBJECT) {
                             if ("query".equals(currentFieldName)) {
-                                return parseQuery(context, mapUnmappedFieldsAsString, sourceParser);
+                                QueryParseContext queryParseContext = context.newParseContextWithLegacyScriptLanguage(sourceParser);
+                                return parseQuery(context, mapUnmappedFieldsAsString, queryParseContext, sourceParser);
                             } else {
                                 sourceParser.skipChildren();
                             }

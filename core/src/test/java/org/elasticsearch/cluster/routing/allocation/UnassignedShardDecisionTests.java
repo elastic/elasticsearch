@@ -90,7 +90,6 @@ public class UnassignedShardDecisionTests extends ESTestCase {
 
         // test bad values
         expectThrows(NullPointerException.class, () -> UnassignedShardDecision.throttleDecision(null, Collections.emptyMap()));
-        expectThrows(NullPointerException.class, () -> UnassignedShardDecision.throttleDecision("a", null));
     }
 
     public void testYesDecision() {
@@ -113,7 +112,5 @@ public class UnassignedShardDecisionTests extends ESTestCase {
             () -> UnassignedShardDecision.yesDecision(null, "a", randomBoolean() ? "a" : null, Collections.emptyMap()));
         expectThrows(NullPointerException.class,
             () -> UnassignedShardDecision.yesDecision("a", null, null, Collections.emptyMap()));
-        expectThrows(NullPointerException.class,
-            () -> UnassignedShardDecision.yesDecision("a", "a", randomBoolean() ? "a" : null, null));
     }
 }

@@ -102,7 +102,6 @@ public class UnassignedShardDecision {
     public static UnassignedShardDecision throttleDecision(String explanation,
                                                            Map<String, Decision> nodeDecisions) {
         Objects.requireNonNull(explanation, "explanation must not be null");
-        Objects.requireNonNull(nodeDecisions, "nodeDecisions must not be null");
         return new UnassignedShardDecision(true, Decision.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, explanation, null, null,
                                            nodeDecisions);
     }
@@ -118,7 +117,6 @@ public class UnassignedShardDecision {
                                                       Map<String, Decision> nodeDecisions) {
         Objects.requireNonNull(explanation, "explanation must not be null");
         Objects.requireNonNull(assignedNodeId, "assignedNodeId must not be null");
-        Objects.requireNonNull(nodeDecisions, "nodeDecisions must not be null");
         return new UnassignedShardDecision(true, Decision.YES, null, explanation, assignedNodeId, allocationId, nodeDecisions);
     }
 

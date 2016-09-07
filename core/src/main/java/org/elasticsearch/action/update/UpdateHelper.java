@@ -139,12 +139,7 @@ public class UpdateHelper extends AbstractComponent {
             return new Result(indexRequest, DocWriteResponse.Result.CREATED, null, null);
         }
 
-        long updateVersion = getResult.getVersion();
-
-        if (request.versionType() != VersionType.INTERNAL) {
-            assert request.versionType() == VersionType.FORCE;
-            updateVersion = request.version(); // remember, match_any is excluded by the conflict test
-        }
+        final long updateVersion = getResult.getVersion();
 
         if (getResult.internalSourceRef() == null) {
             // no source, we can't do nothing, through a failure...

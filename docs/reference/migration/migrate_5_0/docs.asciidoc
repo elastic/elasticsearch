@@ -64,3 +64,8 @@ will also make all other changes visible immediately. This can have an impact on
 performance if the same document is updated very frequently using a read modify update
 pattern since it might create many small segments. This behavior can be disabled by
 passing `realtime=false` to the get request.
+
+==== version type 'force' removed
+
+In 5.0.0 document modification operations may no longer specify the
+`version_type` of `force` to override any previous version checks.

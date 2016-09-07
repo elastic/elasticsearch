@@ -58,13 +58,18 @@ def assert_sort(hits):
 
 # Indexes the given number of document into the given index
 # and randomly runs refresh, optimize and flush commands
-def index_documents(es, index_name, type, num_docs):
+def index_documents(es, index_name, type, num_docs, supports_dots_in_field_names):
   logging.info('Indexing %s docs' % num_docs)
   for id in range(0, num_docs):
-    es.index(index=index_name, doc_type=type, id=id, body={'string': str(random.randint(0, 100)),
-                                                           'long_sort': random.randint(0, 100),
-                                                           'double_sort' : float(random.randint(0, 100)),
-                                                           'bool' : random.choice([True, False])})
+    body = {'string': str(random.randint(0, 100)),
+          'long_sort': random.randint(0, 100),
+          'double_sort' : float(random.randint(0, 100)),
+          'bool' : random.choice([True, False])}
+    if supports_dots_in_field_names:
+      body['field.with.dots'] = str(random.randint(0, 100))
+
+    es.index(index=index_name, doc_type=type, id=id, body=body)
+
     if rarely():
       es.indices.refresh(index=index_name)
     if rarely():
@@ -149,7 +154,8 @@ def start_node(version, release_dir, data_dir, repo_dir, tcp_port=DEFAULT_TRANSP
   ]
   if version.startswith('0.') or version.startswith('1.0.0.Beta') :
     cmd.append('-f') # version before 1.0 start in background automatically
-  return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          env=dict(os.environ, ES_JAVA_OPTS='-Dmapper.allow_dots_in_name=true'))
 
 def install_plugin(version, release_dir, plugin_name):
   run_plugin(version, release_dir, 'install', [plugin_name])
@@ -248,6 +254,16 @@ def generate_index(client, version, index_name):
         'auto_boost': True
       }
     }
+  mappings['doc'] = {'properties' : {}}
+  supports_dots_in_field_names = parse_version(version) >= parse_version("2.4.0")
+  if supports_dots_in_field_names:
+    mappings["doc"]['properties'].update({
+        'field.with.dots': {
+          'type': 'string',
+          'boost': 4
+        }
+      })
+
   if parse_version(version) < parse_version("5.0.0-alpha1"):
     mappings['norms'] = {
       'properties': {
@@ -291,14 +307,12 @@ def generate_index(client, version, index_name):
         }
       }
     }
-    mappings['doc'] = {
-      'properties': {
+    mappings['doc']['properties'].update({
         'string': {
           'type': 'text',
           'boost': 4
         }
-      }
-    }
+    })
 
   settings = {
     'number_of_shards': 1,
@@ -326,7 +340,7 @@ def generate_index(client, version, index_name):
     # lighter index for it to keep bw tests reasonable
     # see https://github.com/elastic/elasticsearch/issues/5817
     num_docs = int(num_docs / 10)
-  index_documents(client, index_name, 'doc', num_docs)
+  index_documents(client, index_name, 'doc', num_docs, supports_dots_in_field_names)
   logging.info('Running basic asserts on the data added')
   run_basic_asserts(client, index_name, 'doc', num_docs)
 

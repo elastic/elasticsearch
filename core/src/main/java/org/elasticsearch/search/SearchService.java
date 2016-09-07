@@ -165,11 +165,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         this.defaultKeepAlive = DEFAULT_KEEPALIVE_SETTING.get(settings).millis();
 
-        Map<String, SearchParseElement> elementParsers = new HashMap<>();
-        elementParsers.putAll(dfsPhase.parseElements());
-        elementParsers.putAll(queryPhase.parseElements());
-        elementParsers.putAll(fetchPhase.parseElements());
-        this.elementParsers = unmodifiableMap(elementParsers);
+        this.elementParsers = unmodifiableMap(fetchPhase.parseElements());
 
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval, Names.SAME);
 

@@ -155,7 +155,8 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         if (allocateDecision.v1().type() != Decision.Type.YES) {
             logger.trace("{}: ignoring allocation, can't be allocated on any node", unassignedShard);
             return UnassignedShardDecision.noDecision(UnassignedInfo.AllocationStatus.fromDecision(allocateDecision.v1()),
-                "all nodes received a NO decision for allocating the replica shard", allocateDecision.v2());
+                "all nodes returned a " + allocateDecision.v1().type() + " decision for allocating the replica shard",
+                allocateDecision.v2());
         }
 
         AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores = fetchData(unassignedShard, allocation);
@@ -190,7 +191,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
                     unassignedShard.index(), unassignedShard.id(), unassignedShard, nodeWithHighestMatch.node());
                 // we are throttling this, as we have enough other shards to allocate to this node, so ignore it for now
                 return UnassignedShardDecision.throttleDecision(
-                    "received a THROTTLE decision on each node that has an unallocated copy of the shard, so waiting to re-use one " +
+                    "returned a THROTTLE decision on each node that has an existing copy of the shard, so waiting to re-use one " +
                     "of those copies", matchingNodes.nodeDecisions);
             } else {
                 logger.debug("[{}][{}]: allocating [{}] to [{}] in order to reuse its unallocated persistent store",
@@ -206,8 +207,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             // node with the shard copy will rejoin so we can re-use the copy it has
             logger.debug("{}: allocation of [{}] is delayed", unassignedShard.shardId(), unassignedShard);
             return UnassignedShardDecision.noDecision(AllocationStatus.DELAYED_ALLOCATION,
-                "delaying allocation, as the node that held the shard left the cluster, waiting to see if it returns and so " +
-                "that shard copy can be re-used");
+                "not allocating this shard, no nodes contain data for the replica and allocation is delayed");
         }
 
         return UnassignedShardDecision.DECISION_NOT_TAKEN;
@@ -314,7 +314,6 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
             }
         }
 
-        assert explain || nodeDecisions.size() == 0 : "node decision map should not have entries if we are not in explain mode";
         return new MatchingNodes(nodesToSize, explain ? nodeDecisions : null);
     }
 

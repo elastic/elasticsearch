@@ -34,9 +34,8 @@ import java.util.Objects;
 public class UnassignedShardDecision {
     /** a constant representing a shard decision where no decision was taken */
     public static final UnassignedShardDecision DECISION_NOT_TAKEN =
-        new UnassignedShardDecision(false, null, null, null, null, null, null);
+        new UnassignedShardDecision(null, null, null, null, null, null);
 
-    private final boolean decisionTaken;
     @Nullable
     private final Decision finalDecision;
     @Nullable
@@ -50,24 +49,20 @@ public class UnassignedShardDecision {
     @Nullable
     private final Map<String, Decision> nodeDecisions;
 
-    private UnassignedShardDecision(boolean decisionTaken,
-                                    Decision finalDecision,
+    private UnassignedShardDecision(Decision finalDecision,
                                     AllocationStatus allocationStatus,
                                     String finalExplanation,
                                     String assignedNodeId,
                                     String allocationId,
                                     Map<String, Decision> nodeDecisions) {
-        assert finalDecision != null || decisionTaken == false :
-            "if a decision was taken, we must have the accompanying decision";
-        assert finalExplanation != null || decisionTaken == false :
+        assert finalExplanation != null || finalDecision == null :
             "if a decision was taken, there must be an explanation for it";
-        assert assignedNodeId != null || decisionTaken == false || finalDecision.type() != Type.YES :
+        assert assignedNodeId != null || finalDecision == null || finalDecision.type() != Type.YES :
             "a yes decision must have a node to assign the shard to";
-        assert allocationStatus != null || decisionTaken == false || finalDecision.type() == Type.YES :
+        assert allocationStatus != null || finalDecision == null || finalDecision.type() == Type.YES :
             "only a yes decision should not have an allocation status";
         assert allocationId == null || assignedNodeId != null :
             "allocation id can only be null if the assigned node is null";
-        this.decisionTaken = decisionTaken;
         this.finalDecision = finalDecision;
         this.allocationStatus = allocationStatus;
         this.finalExplanation = finalExplanation;
@@ -92,7 +87,7 @@ public class UnassignedShardDecision {
                                                      @Nullable Map<String, Decision> nodeDecisions) {
         Objects.requireNonNull(explanation, "explanation must not be null");
         Objects.requireNonNull(allocationStatus, "allocationStatus must not be null");
-        return new UnassignedShardDecision(true, Decision.NO, allocationStatus, explanation, null, null, nodeDecisions);
+        return new UnassignedShardDecision(Decision.NO, allocationStatus, explanation, null, null, nodeDecisions);
     }
 
     /**
@@ -102,7 +97,7 @@ public class UnassignedShardDecision {
     public static UnassignedShardDecision throttleDecision(String explanation,
                                                            Map<String, Decision> nodeDecisions) {
         Objects.requireNonNull(explanation, "explanation must not be null");
-        return new UnassignedShardDecision(true, Decision.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, explanation, null, null,
+        return new UnassignedShardDecision(Decision.THROTTLE, AllocationStatus.DECIDERS_THROTTLED, explanation, null, null,
                                            nodeDecisions);
     }
 
@@ -117,7 +112,7 @@ public class UnassignedShardDecision {
                                                       Map<String, Decision> nodeDecisions) {
         Objects.requireNonNull(explanation, "explanation must not be null");
         Objects.requireNonNull(assignedNodeId, "assignedNodeId must not be null");
-        return new UnassignedShardDecision(true, Decision.YES, null, explanation, assignedNodeId, allocationId, nodeDecisions);
+        return new UnassignedShardDecision(Decision.YES, null, explanation, assignedNodeId, allocationId, nodeDecisions);
     }
 
     /**
@@ -125,7 +120,7 @@ public class UnassignedShardDecision {
      * If no decision was taken, then the rest of the fields in this object are meaningless and return {@code null}.
      */
     public boolean isDecisionTaken() {
-        return decisionTaken;
+        return finalDecision != null;
     }
 
     /**

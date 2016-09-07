@@ -66,7 +66,7 @@ import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.contentBuilder;
 
 /**
- *
+ * Fetch phase of a search request
  */
 public class FetchPhase implements SearchPhase {
 
@@ -77,7 +77,6 @@ public class FetchPhase implements SearchPhase {
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsFetchSubPhase(this);
     }
 
-    @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
         Map<String, SearchParseElement> parseElements = new HashMap<>();
         for (FetchSubPhase fetchSubPhase : fetchSubPhases) {

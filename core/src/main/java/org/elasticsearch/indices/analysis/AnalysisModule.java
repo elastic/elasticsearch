@@ -90,6 +90,7 @@ import org.elasticsearch.index.analysis.LithuanianAnalyzerProvider;
 import org.elasticsearch.index.analysis.LowerCaseTokenFilterFactory;
 import org.elasticsearch.index.analysis.LowerCaseTokenizerFactory;
 import org.elasticsearch.index.analysis.MappingCharFilterFactory;
+import org.elasticsearch.index.analysis.MinHashTokenFilterFactory;
 import org.elasticsearch.index.analysis.NGramTokenFilterFactory;
 import org.elasticsearch.index.analysis.NGramTokenizerFactory;
 import org.elasticsearch.index.analysis.NorwegianAnalyzerProvider;
@@ -214,6 +215,7 @@ public final class AnalysisModule {
         tokenFilters.register("edgeNGram", EdgeNGramTokenFilterFactory::new);
         tokenFilters.register("edge_ngram", EdgeNGramTokenFilterFactory::new);
         tokenFilters.register("shingle", ShingleTokenFilterFactory::new);
+        tokenFilters.register("min_hash", MinHashTokenFilterFactory::new);
         tokenFilters.register("unique", UniqueTokenFilterFactory::new);
         tokenFilters.register("truncate", requriesAnalysisSettings(TruncateTokenFilterFactory::new));
         tokenFilters.register("trim", TrimTokenFilterFactory::new);

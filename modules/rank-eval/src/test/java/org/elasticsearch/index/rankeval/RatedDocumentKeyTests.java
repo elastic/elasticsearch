@@ -34,7 +34,7 @@ public class RatedDocumentKeyTests extends ESTestCase {
 
         RatedDocumentKey testItem = new RatedDocumentKey(index, type, docId);
         XContentParser itemParser = XContentTestHelper.roundtrip(testItem);
-        RatedDocumentKey parsedItem = testItem.fromXContent(itemParser, ParseFieldMatcher.STRICT);
+        RatedDocumentKey parsedItem = RatedDocumentKey.fromXContent(itemParser, () -> ParseFieldMatcher.STRICT);
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());
